@@ -149,19 +149,19 @@ const App: React.FC = () => {
 
     const initApp = async () => {
       // 🛡️ NEXUS CACHE BUSTER: Força limpeza se a versão mudar
-      const CURRENT_VERSION = 'v1.0.8-bullet'; // Increment manually on deploy
+      const CURRENT_VERSION = 'v1.0.9-seq'; // Increment manually on deploy
       const storedVersion = localStorage.getItem('nexus_version');
 
       if (storedVersion !== CURRENT_VERSION) {
-        console.log("🚀 Nova versão detectada! Limpando cache para evitar conflitos...");
+        console.log("🚀 Nova versão detectada! Limpando cache...");
+        // Mantém apenas o essencial se necessário, mas hoje limpamos tudo para garantir
+        localStorage.clear();
         SessionStorage.clear();
-        localStorage.clear(); // Limpeza agressiva para garantir estabilidade
+
         localStorage.setItem('nexus_version', CURRENT_VERSION);
-        if (!!import.meta.env.VITE_SUPABASE_URL) {
-          const { supabase } = await import('./lib/supabase');
-          await supabase.auth.signOut();
-        }
-        window.location.reload();
+
+        // Pequeno delay para garantir que o storage foi limpo antes do reload
+        setTimeout(() => window.location.reload(), 100);
         return;
       }
 
@@ -609,7 +609,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-6">
             <div className="flex flex-col items-end border-r border-slate-200 pr-6">
               <span className="text-[10px] font-black text-slate-900 uppercase italic">{auth.user?.name}</span>
-              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.0.8</span></span>
+              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.0.9</span></span>
             </div>
             <div className="relative flex items-center gap-2">
               <button
