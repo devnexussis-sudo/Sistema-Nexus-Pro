@@ -785,69 +785,64 @@ export const DataService = {
     }
 
     if (isCloudEnabled) {
-      console.log("☁️ Nexus Cloud: Dispatching Order to Edge Function...");
-
-      // Verifica se temos uma sessão válida antes de chamar a função
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("Sessão expirada ou inválida. Por favor, saia e faça login novamente para sincronizar com a nuvem.");
-      }
-
-      // Debug do Token
-      const token = session.access_token;
-      console.log("🔑 Session Token (First 10 chars):", token?.substring(0, 10) + "...");
-
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        console.log("🚀 Nexus DataSync: Creating OS directly in database...");
 
-        console.log("📡 [DEBUG] Invocando Edge Function: create-order");
-        console.log("📡 [DEBUG] Token presente:", !!token);
-        if (token) console.log("📡 [DEBUG] Token (primeiros 15):", token.substring(0, 15) + "...");
+        // 1. OBTER TENANTED
+        const tenantId = tid;
+        console.log("📍 Tenant ID:", tenantId);
 
-        const { data, error } = await supabase.functions.invoke('create-order', {
-          body: { order },
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+        // 2. GERAR ID SEQUENCIAL (RPC)
+        const { data: seqNum, error: seqError } = await supabase.rpc('get_next_order_id', {
+          p_tenant_id: tenantId
         });
 
-        if (error) {
-          console.error("❌ Edge Function Error Object:", error);
-          let detailedMessage = "Erro desconhecido";
-
-          // 🛡️ Tenta obter o corpo do erro de várias formas
-          try {
-            if (error.context && typeof error.context.json === 'function') {
-              const errorBody = await error.context.json();
-              console.log("📦 Body (JSON):", errorBody);
-              detailedMessage = errorBody.error || errorBody.message || JSON.stringify(errorBody);
-            } else if (error.context && typeof error.context.text === 'function') {
-              const errorText = await error.context.text();
-              console.log("📦 Body (Text):", errorText);
-              detailedMessage = errorText || error.message;
-            } else {
-              detailedMessage = error.message || String(error);
-            }
-          } catch (e) {
-            console.warn("⚠️ Falha ao ler corpo do erro:", e);
-            detailedMessage = error.message || "Não foi possível ler os detalhes técnicos.";
-          }
-
-          if (error.status === 401 || detailedMessage.includes('401') || detailedMessage.toLowerCase().includes('jwt')) {
-            throw new Error("Sessão expirada ou não autorizada. Por favor, SAIA e ENTRE novamente no sistema (Logout/Login).");
-          }
-          throw new Error(`Falha ao processar OS na nuvem: ${detailedMessage}`);
+        if (seqError) {
+          console.error("❌ Erro ao gerar sequência:", seqError);
+          throw new Error(`Falha ao gerar número da OS: ${seqError.message}`);
         }
 
-        console.log('✅ OS criada via Edge Function:', data.id);
-        return DataService._mapOrderFromDB(data);
+        // 3. OBTER PREFIXO DO TENANT
+        const { data: tenantData, error: tenantError } = await supabase
+          .from('tenants')
+          .select('os_prefix')
+          .eq('id', tenantId)
+          .single();
+
+        if (tenantError) {
+          console.warn("⚠️ Não foi possível obter prefixo do tenant, usando padrão OS-");
+        }
+
+        const prefix = tenantData?.os_prefix || 'OS-';
+        const finalId = `${prefix}${seqNum}`;
+        console.log("🔢 ID Gerado:", finalId);
+
+        // 4. PREPARAR PAYLOAD (Mapeamento snake_case)
+        const dbPayload = {
+          ...DataService._mapOrderToDB(order),
+          id: finalId,
+          tenant_id: tenantId,
+          created_at: new Date().toISOString()
+        };
+
+        // 5. INSERIR NO BANCO
+        const { data: insertedData, error: insertError } = await supabase
+          .from('orders')
+          .insert(dbPayload)
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error("❌ Erro ao inserir OS:", insertError);
+          throw new Error(`Falha no banco de dados: ${insertError.message}`);
+        }
+
+        console.log('✅ OS criada com sucesso (Direct DB):', insertedData.id);
+        return DataService._mapOrderFromDB(insertedData);
 
       } catch (err: any) {
-        console.error("❌ [FATAL] Erro na criação da OS:", err);
-        // Garante que o objeto de erro tenha as propriedades para o stringifier
-        const serializableError = JSON.parse(JSON.stringify(err, Object.getOwnPropertyNames(err)));
-        throw { ...serializableError, message: err.message || "Erro desconhecido" };
+        console.error("❌ [FATAL] Erro na criação da OS (Direct):", err);
+        throw err;
       }
     }
 
