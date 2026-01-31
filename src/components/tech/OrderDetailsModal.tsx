@@ -350,14 +350,46 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
     // 🎯 NEXUS NATIVE CAMERA: Tenta usar a API nativa primeiro (força câmera traseira)
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'environment', // Câmera traseira padrão (não wide)
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
+        // Enumera todas as câmeras disponíveis
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+        // Procura pela câmera traseira principal (não wide/ultra-wide)
+        // A câmera principal geralmente tem "back" ou "rear" no label e NÃO tem "wide" ou "ultra"
+        const mainRearCamera = videoDevices.find(device =>
+          device.label.toLowerCase().includes('back') &&
+          !device.label.toLowerCase().includes('wide') &&
+          !device.label.toLowerCase().includes('ultra')
+        ) || videoDevices.find(device =>
+          device.label.toLowerCase().includes('rear') &&
+          !device.label.toLowerCase().includes('wide')
+        );
+
+        let constraints: MediaStreamConstraints;
+
+        if (mainRearCamera?.deviceId) {
+          // Força a câmera principal específica
+          constraints = {
+            video: {
+              deviceId: { exact: mainRearCamera.deviceId },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: false
+          };
+        } else {
+          // Fallback: usa facingMode padrão
+          constraints = {
+            video: {
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: false
+          };
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         streamRef.current = stream;
         setShowCameraModal(true);
