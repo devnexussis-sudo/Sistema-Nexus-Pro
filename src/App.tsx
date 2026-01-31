@@ -193,7 +193,10 @@ const App: React.FC = () => {
                   return { user: refreshedUser, isAuthenticated: true };
                 });
               } else {
-                const stored = SessionStorage.get('user');
+                // 🔍 Nexus Persistence Engine: Tenta recuperar do SessionStorage ou GlobalStorage (Manter Conectado)
+                const { GlobalStorage } = await import('./lib/sessionStorage');
+                const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
+
                 if (stored) {
                   setAuth(prev => {
                     if (JSON.stringify(prev.user) === JSON.stringify(stored) && prev.isAuthenticated) return prev;
@@ -202,7 +205,8 @@ const App: React.FC = () => {
                 }
               }
             } else if (session?.user && (isMaster || isImpersonatingLocal)) {
-              const stored = SessionStorage.get('user');
+              const { GlobalStorage } = await import('./lib/sessionStorage');
+              const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
               if (stored) {
                 setAuth(prev => {
                   if (JSON.stringify(prev.user) === JSON.stringify(stored) && prev.isAuthenticated) return prev;
@@ -224,8 +228,10 @@ const App: React.FC = () => {
               });
 
               if (event === 'SIGNED_OUT') {
+                const { GlobalStorage } = await import('./lib/sessionStorage');
                 SessionStorage.remove('user');
                 SessionStorage.remove('is_impersonating');
+                GlobalStorage.remove('persistent_user');
               }
             }
           } catch (error: any) {
@@ -240,7 +246,8 @@ const App: React.FC = () => {
               return;
             }
 
-            const stored = SessionStorage.get('user');
+            const { GlobalStorage } = await import('./lib/sessionStorage');
+            const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
             if (stored) {
               setAuth(prev => {
                 if (JSON.stringify(prev.user) === JSON.stringify(stored) && prev.isAuthenticated) return prev;
