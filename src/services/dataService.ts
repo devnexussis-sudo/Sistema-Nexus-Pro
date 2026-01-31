@@ -701,23 +701,23 @@ export const DataService = {
     return {
       title: order.title,
       description: order.description,
-      customer_name: order.customerName,
-      customer_address: order.customerAddress,
+      customerName: order.customerName,
+      customerAddress: order.customerAddress,
       status: order.status,
       priority: order.priority,
-      operation_type: order.operationType,
-      assigned_to: order.assignedTo,
-      form_id: order.formId,
-      form_data: order.formData,
-      equipment_name: order.equipmentName,
-      equipment_model: order.equipmentModel,
-      equipment_serial: order.equipmentSerial,
-      scheduled_date: order.scheduledDate,
-      scheduled_time: order.scheduledTime,
-      start_date: order.startDate,
-      end_date: order.endDate,
+      operationType: order.operationType,
+      assignedTo: order.assignedTo,
+      formId: order.formId,
+      formData: order.formData,
+      equipmentName: order.equipmentName,
+      equipmentModel: order.equipmentModel,
+      equipmentSerial: order.equipmentSerial,
+      scheduledDate: order.scheduledDate,
+      scheduledTime: order.scheduledTime,
+      startDate: order.startDate,
+      endDate: order.endDate,
       notes: order.notes,
-      updated_at: new Date().toISOString()
+      updatedAt: new Date().toISOString()
     };
   },
 
@@ -822,11 +822,11 @@ export const DataService = {
           ...DataService._mapOrderToDB(order),
           id: finalId,
           tenant_id: tenantId,
-          created_at: new Date().toISOString()
+          createdAt: new Date().toISOString()
         };
 
         // 5. INSERIR NO BANCO
-        const { data: insertedData, error: insertError } = await supabase
+        const { data: insertedData, error: insertError } = await DataService.getServiceClient()
           .from('orders')
           .insert(dbPayload)
           .select()
