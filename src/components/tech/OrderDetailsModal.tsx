@@ -28,6 +28,9 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
   const [linkedEquipment, setLinkedEquipment] = useState<any>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const [activePhotoField, setActivePhotoField] = useState<string | null>(null);
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
 
   // 🛡️ Nexus Semantic Recovery: Reconstrói o formulário a partir do formData semântico (labels)
   useEffect(() => {
@@ -348,37 +351,25 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } }, // Força câmera traseira
+          video: {
+            facingMode: { ideal: 'environment' }, // Força câmera traseira
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
           audio: false
         });
 
-        // Cria um elemento de vídeo temporário para capturar o frame
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.setAttribute('playsinline', 'true'); // iOS fix
-        await video.play();
+        streamRef.current = stream;
+        setShowCameraModal(true);
 
-        // Aguarda um frame para garantir que o vídeo está pronto
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Aguarda o modal renderizar
+        await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Captura o frame em um canvas
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(video, 0, 0);
-
-        // Para o stream
-        stream.getTracks().forEach(track => track.stop());
-
-        // Converte para blob
-        canvas.toBlob(async (blob) => {
-          if (blob) {
-            const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
-            // Processa a foto usando o mesmo fluxo
-            await processPhotoFile(file, fieldId);
-          }
-        }, 'image/jpeg', 0.9);
+        // Conecta o stream ao vídeo
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
 
         return; // Sucesso, não precisa do fallback
       } catch (err) {
@@ -392,6 +383,40 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       cameraInputRef.current.value = '';
       cameraInputRef.current.click();
     }
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || !activePhotoField) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx?.drawImage(videoRef.current, 0, 0);
+
+    // Para o stream
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+
+    setShowCameraModal(false);
+
+    // Converte para blob e processa
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        await processPhotoFile(file, activePhotoField);
+      }
+    }, 'image/jpeg', 0.9);
+  };
+
+  const closeCameraModal = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setShowCameraModal(false);
   };
 
   const onCameraChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1002,6 +1027,52 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         className="hidden"
         style={{ display: 'none', position: 'absolute', width: 0, height: 0 }}
       />
+
+      {/* 📸 NEXUS CAMERA MODAL - Preview com Botão de Captura */}
+      {showCameraModal && (
+        <div className="fixed inset-0 z-[200] bg-black flex flex-col">
+          {/* Preview de Vídeo */}
+          <div className="flex-1 relative overflow-hidden">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+
+            {/* Overlay com Grid de Enquadramento */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="w-full h-full grid grid-cols-3 grid-rows-3 opacity-30">
+                {[...Array(9)].map((_, i) => (
+                  <div key={i} className="border border-white/30" />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Controles */}
+          <div className="bg-black/90 backdrop-blur-xl p-6 flex items-center justify-between border-t border-white/10">
+            <button
+              onClick={closeCameraModal}
+              className="p-4 bg-white/10 text-white rounded-full hover:bg-white/20 transition-colors"
+            >
+              <X size={24} />
+            </button>
+
+            <button
+              onClick={capturePhoto}
+              className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform border-4 border-white/30"
+            >
+              <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center">
+                <Camera size={32} className="text-white" />
+              </div>
+            </button>
+
+            <div className="w-16" /> {/* Spacer para centralizar o botão */}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
