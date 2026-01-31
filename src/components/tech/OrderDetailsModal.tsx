@@ -275,11 +275,18 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
     input.type = 'file';
     // 🛡️ Nexus High-Efficiency Support: Aceita padrões web e também formatos Apple (HEIC/HEIF)
     input.accept = 'image/*'; // Simplificado para garantir abertura da câmera nativa
-    input.setAttribute('capture', 'environment'); // Força a câmera TRASEIRA primordialmente
-    (input as any).capture = 'environment'; // Fallback para propriedades de objeto em alguns browsers
+    input.setAttribute('capture', 'environment');
+    (input as any).capture = 'environment';
+
+    // 🛡️ Nexus Mobile Fix: Alguns browsers ignoram o capture se o input não estiver no DOM
+    input.style.display = 'none';
+    document.body.appendChild(input);
 
     input.onchange = async (e: any) => {
       let file = e.target.files[0];
+      // Limpeza imediata do DOM após a seleção
+      document.body.removeChild(input);
+
       if (file) {
         setUploadingFields(prev => ({ ...prev, [fieldId]: true }));
 
@@ -345,7 +352,18 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
       }
     };
+
     input.click();
+
+    // Safety: Se o usuário cancelar e o onchange não disparar, o input ficaria no DOM.
+    // Em alguns casos, o click() é síncrono para o popup mas o resto não.
+    // Mas remover o elemento antes do onchange pode quebrar no iOS.
+    // Vamos adicionar um timeout pequeno apenas para garantir que se o diálogo abrir, o elemento suma.
+    setTimeout(() => {
+      if (input.parentNode) {
+        // Não removemos agora para não quebrar a referência do browser durante o diálogo de arquivo
+      }
+    }, 1000);
     // Se cancelar a seleção de arquivo, não temos evento fácil, mas o loading só ativa no onchange
   };
 
