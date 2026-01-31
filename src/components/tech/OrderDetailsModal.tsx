@@ -145,7 +145,18 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
 
   const handleFinalizeService = async () => {
     if (linkedForm) {
-      const missing = linkedForm.fields.find(f => f.required && !answers[f.id]);
+      const missing = linkedForm.fields.find(f => {
+        // 🧠 Lógica de Visibilidade: Só exige se estiver visível
+        if (f.condition && f.condition.fieldId) {
+          const parentField = linkedForm.fields.find(p => p.id === f.condition?.fieldId);
+          const parentAnswer = answers[f.condition.fieldId] || (parentField ? answers[parentField.label] : null);
+          const isVisible = f.condition.operator === 'not_equals' 
+            ? parentAnswer !== f.condition.value 
+            : parentAnswer === f.condition.value;
+          if (!isVisible) return false;
+        }
+        return f.required && !answers[f.id];
+      });
       if (missing) {
         alert(`O preenchimento do campo "${missing.label}" é obrigatório.`);
         return;
@@ -172,7 +183,17 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       const semanticAnswers: Record<string, any> = {};
       if (linkedForm) {
         linkedForm.fields.forEach(field => {
-          if (answers[field.id] !== undefined) {
+          // 🛡️ Filtro de Visibilidade: Não envia dados de campos ocultos por lógica
+          let isVisible = true;
+          if (field.condition && field.condition.fieldId) {
+            const parentField = linkedForm.fields.find(p => p.id === field.condition?.fieldId);
+            const parentAnswer = answers[field.condition.fieldId] || (parentField ? answers[parentField.label] : null);
+            isVisible = field.condition.operator === 'not_equals' 
+              ? parentAnswer !== field.condition.value 
+              : parentAnswer === field.condition.value;
+          }
+
+          if (isVisible && answers[field.id] !== undefined) {
             // Salvamos o Label para que o Portal Público não exiba números
             semanticAnswers[field.label] = answers[field.id];
 
@@ -554,131 +575,145 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                 </div>
 
                 <div className={`space-y-8 ${localStatus === OrderStatus.COMPLETED ? 'opacity-90' : ''}`}>
-                  {linkedForm.fields.map(field => (
-                    <div key={field.id} className="space-y-3">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2 flex justify-between items-center">
-                        {field.label}
-                        {field.required && localStatus !== OrderStatus.COMPLETED && <span className="text-[8px] bg-red-100 text-red-500 px-2 py-0.5 rounded-full uppercase">Obrigatório</span>}
-                      </label>
+                  {linkedForm.fields.map(field => {
+                    // 🧠 Lógica de Visibilidade Condicional (Google Forms Style)
+                    if (field.condition && field.condition.fieldId) {
+                      const parentField = linkedForm.fields.find(f => f.id === field.condition?.fieldId);
+                      const parentAnswer = answers[field.condition.fieldId] || (parentField ? answers[parentField.label] : null);
 
-                      {field.type === FormFieldType.SELECT ? (
-                        <div className="grid grid-cols-1 gap-2">
-                          {(() => {
-                            const selectedVal = answers[field.id] || answers[field.label];
-                            return field.options?.map(opt => (
-                              <button
-                                key={opt}
-                                disabled={localStatus === OrderStatus.COMPLETED}
-                                onClick={() => setAnswers(prev => ({ ...prev, [field.id]: opt }))}
-                                className={`w-full py-5 px-6 rounded-2xl text-xs font-black text-left transition-all border-2 ${selectedVal === opt ? 'bg-indigo-600 border-indigo-700 text-white shadow-xl' : 'bg-gray-50 border-gray-100 text-gray-400'
-                                  }`}
-                              >
-                                {opt}
-                              </button>
-                            ));
-                          })()}
-                        </div>
-                      ) : field.type === FormFieldType.PHOTO ? (
-                        <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-[2rem] p-4 text-center">
-                          {(() => {
-                            // Tenta buscar pelo ID (formulário ativo) ou pelo Label (histórico semântico)
-                            const val = answers[field.id] || answers[field.label];
-                            const photos = Array.isArray(val) ? val : (val ? [val] : []);
+                      const isVisible = field.condition.operator === 'not_equals'
+                        ? parentAnswer !== field.condition.value
+                        : parentAnswer === field.condition.value;
 
-                            return (
-                              <div className="space-y-4">
-                                {photos.length > 0 && (
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                    {photos.map((photo: string, idx: number) => (
-                                      <div key={idx} className="relative group">
-                                        <img
-                                          src={photo}
-                                          className="w-full h-32 object-cover rounded-2xl shadow-sm border border-slate-100 cursor-zoom-in"
-                                          alt={`Evidência ${idx + 1}`}
-                                          onClick={() => setFullscreenImage(photo)}
-                                        />
-                                        {localStatus !== OrderStatus.COMPLETED && (
-                                          <button
-                                            onClick={() => {
-                                              const newPhotos = photos.filter((_: any, i: number) => i !== idx);
-                                              setAnswers(prev => ({ ...prev, [field.id]: newPhotos.length ? newPhotos : null }));
-                                            }}
-                                            className="absolute -top-2 -right-2 p-2 bg-red-500 text-white rounded-xl shadow-lg hover:bg-red-600 transition-colors"
-                                          >
-                                            <X size={14} />
-                                          </button>
-                                        )}
-                                        <span className="absolute bottom-2 left-2 bg-black/50 text-white text-[8px] font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
-                                          #{idx + 1}
-                                        </span>
-                                      </div>
-                                    ))}
+                      if (!isVisible) return null;
+                    }
 
-                                    {/* Botão de Adicionar Mais (se < 3) */}
-                                    {photos.length < 3 && localStatus !== OrderStatus.COMPLETED && (
-                                      <button
-                                        disabled={uploadingFields[field.id]}
-                                        onClick={() => handlePhotoUpload(field.id)}
-                                        className="h-32 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-all"
-                                      >
-                                        {uploadingFields[field.id] ? (
-                                          <>
-                                            <Loader2 size={24} className="animate-spin text-indigo-600" />
-                                            <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 animate-pulse">Carregando...</span>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Camera size={24} />
-                                            <span className="text-[8px] font-black uppercase tracking-widest">Adicionar</span>
-                                          </>
-                                        )}
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
+                    return (
+                      <div key={field.id} className="space-y-3">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2 flex justify-between items-center">
+                          {field.label}
+                          {field.required && localStatus !== OrderStatus.COMPLETED && <span className="text-[8px] bg-red-100 text-red-500 px-2 py-0.5 rounded-full uppercase">Obrigatório</span>}
+                        </label>
 
-                                {/* Estado Vazio (Nenhuma foto) */}
-                                {photos.length === 0 && (
-                                  <button
-                                    disabled={localStatus === OrderStatus.COMPLETED || uploadingFields[field.id]}
-                                    onClick={() => handlePhotoUpload(field.id)}
-                                    className="w-full py-8 flex flex-col items-center gap-3 text-slate-400 hover:text-indigo-600 transition-colors"
-                                  >
-                                    {uploadingFields[field.id] ? (
-                                      <div className="flex flex-col items-center gap-2">
-                                        <div className="p-4 bg-indigo-50 rounded-full shadow-inner">
-                                          <Loader2 size={32} className="animate-spin text-indigo-600" />
+                        {field.type === FormFieldType.SELECT ? (
+                          <div className="grid grid-cols-1 gap-2">
+                            {(() => {
+                              const selectedVal = answers[field.id] || answers[field.label];
+                              return field.options?.map(opt => (
+                                <button
+                                  key={opt}
+                                  disabled={localStatus === OrderStatus.COMPLETED}
+                                  onClick={() => setAnswers(prev => ({ ...prev, [field.id]: opt }))}
+                                  className={`w-full py-5 px-6 rounded-2xl text-xs font-black text-left transition-all border-2 ${selectedVal === opt ? 'bg-indigo-600 border-indigo-700 text-white shadow-xl' : 'bg-gray-50 border-gray-100 text-gray-400'
+                                    }`}
+                                >
+                                  {opt}
+                                </button>
+                              ));
+                            })()}
+                          </div>
+                        ) : field.type === FormFieldType.PHOTO ? (
+                          <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-[2rem] p-4 text-center">
+                            {(() => {
+                              // Tenta buscar pelo ID (formulário ativo) ou pelo Label (histórico semântico)
+                              const val = answers[field.id] || answers[field.label];
+                              const photos = Array.isArray(val) ? val : (val ? [val] : []);
+
+                              return (
+                                <div className="space-y-4">
+                                  {photos.length > 0 && (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                      {photos.map((photo: string, idx: number) => (
+                                        <div key={idx} className="relative group">
+                                          <img
+                                            src={photo}
+                                            className="w-full h-32 object-cover rounded-2xl shadow-sm border border-slate-100 cursor-zoom-in"
+                                            alt={`Evidência ${idx + 1}`}
+                                            onClick={() => setFullscreenImage(photo)}
+                                          />
+                                          {localStatus !== OrderStatus.COMPLETED && (
+                                            <button
+                                              onClick={() => {
+                                                const newPhotos = photos.filter((_: any, i: number) => i !== idx);
+                                                setAnswers(prev => ({ ...prev, [field.id]: newPhotos.length ? newPhotos : null }));
+                                              }}
+                                              className="absolute -top-2 -right-2 p-2 bg-red-500 text-white rounded-xl shadow-lg hover:bg-red-600 transition-colors"
+                                            >
+                                              <X size={14} />
+                                            </button>
+                                          )}
+                                          <span className="absolute bottom-2 left-2 bg-black/50 text-white text-[8px] font-bold px-2 py-1 rounded-lg backdrop-blur-sm">
+                                            #{idx + 1}
+                                          </span>
                                         </div>
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 animate-pulse">Processando Imagem...</span>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        <div className="p-4 bg-white rounded-full shadow-sm">
-                                          <Camera size={32} />
+                                      ))}
+
+                                      {/* Botão de Adicionar Mais (se < 3) */}
+                                      {photos.length < 3 && localStatus !== OrderStatus.COMPLETED && (
+                                        <button
+                                          disabled={uploadingFields[field.id]}
+                                          onClick={() => handlePhotoUpload(field.id)}
+                                          className="h-32 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-all"
+                                        >
+                                          {uploadingFields[field.id] ? (
+                                            <>
+                                              <Loader2 size={24} className="animate-spin text-indigo-600" />
+                                              <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 animate-pulse">Carregando...</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Camera size={24} />
+                                              <span className="text-[8px] font-black uppercase tracking-widest">Adicionar</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Estado Vazio (Nenhuma foto) */}
+                                  {photos.length === 0 && (
+                                    <button
+                                      disabled={localStatus === OrderStatus.COMPLETED || uploadingFields[field.id]}
+                                      onClick={() => handlePhotoUpload(field.id)}
+                                      className="w-full py-8 flex flex-col items-center gap-3 text-slate-400 hover:text-indigo-600 transition-colors"
+                                    >
+                                      {uploadingFields[field.id] ? (
+                                        <div className="flex flex-col items-center gap-2">
+                                          <div className="p-4 bg-indigo-50 rounded-full shadow-inner">
+                                            <Loader2 size={32} className="animate-spin text-indigo-600" />
+                                          </div>
+                                          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 animate-pulse">Processando Imagem...</span>
                                         </div>
-                                        <div className="space-y-1">
-                                          <span className="text-[10px] font-black uppercase tracking-widest block text-slate-600">{field.label}</span>
-                                          <span className="text-[8px] font-bold uppercase tracking-wide text-slate-400">(Toque para fotografar)</span>
-                                        </div>
-                                      </>
-                                    )}
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      ) : (
-                        <Input
-                          readOnly={localStatus === OrderStatus.COMPLETED}
-                          placeholder={localStatus === OrderStatus.COMPLETED ? "Não preenchido" : "Toque para digitar..."}
-                          className={`rounded-2xl py-5 px-6 font-bold ${localStatus === OrderStatus.COMPLETED ? 'bg-gray-100 border-gray-200 text-gray-500' : 'bg-gray-50 border-gray-100'}`}
-                          value={answers[field.id] || answers[field.label] || ''}
-                          onChange={e => setAnswers(prev => ({ ...prev, [field.id]: e.target.value }))}
-                        />
-                      )}
-                    </div>
-                  ))}
+                                      ) : (
+                                        <>
+                                          <div className="p-4 bg-white rounded-full shadow-sm">
+                                            <Camera size={32} />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <span className="text-[10px] font-black uppercase tracking-widest block text-slate-600">{field.label}</span>
+                                            <span className="text-[8px] font-bold uppercase tracking-wide text-slate-400">(Toque para fotografar)</span>
+                                          </div>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        ) : (
+                          <Input
+                            readOnly={localStatus === OrderStatus.COMPLETED}
+                            placeholder={localStatus === OrderStatus.COMPLETED ? "Não preenchido" : "Toque para digitar..."}
+                            className={`rounded-2xl py-5 px-6 font-bold ${localStatus === OrderStatus.COMPLETED ? 'bg-gray-100 border-gray-200 text-gray-500' : 'bg-gray-50 border-gray-100'}`}
+                            value={answers[field.id] || answers[field.label] || ''}
+                            onChange={e => setAnswers(prev => ({ ...prev, [field.id]: e.target.value }))}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             ) : (

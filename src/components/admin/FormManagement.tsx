@@ -404,43 +404,93 @@ export const FormManagement: React.FC = () => {
                   <Button onClick={addField} variant="secondary" className="rounded-2xl border-indigo-200 text-indigo-600 px-8 py-3 font-black"><Plus size={20} className="mr-2" /> Adicionar Pergunta</Button>
                 </div>
                 <div className="grid grid-cols-1 gap-6">
-                  {(editingForm.fields || []).map((field) => (
-                    <div key={field.id} className="bg-white border-2 border-gray-50 p-8 rounded-[3rem] flex gap-8 items-start group hover:border-indigo-100 hover:shadow-xl transition-all">
-                      <div className="pt-4 text-gray-200 cursor-grab"><GripVertical size={24} /></div>
-                      <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-8">
-                        <div className="md:col-span-7">
+                  {(editingForm.fields || []).map((field, index) => (
+                    <div key={field.id} className="relative bg-white border-2 border-slate-100 rounded-[3rem] p-8 shadow-sm hover:border-indigo-200 hover:shadow-2xl transition-all group">
+                      {/* CARD HEADER: LOGIC & DELETE */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 pb-6 border-b border-slate-50">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-2xl border border-indigo-100">
+                            <span className="text-[10px] font-black text-indigo-600 uppercase">Pergunta #{index + 1}</span>
+                          </div>
+
+                          {/* REQUIRED TOGGLE */}
+                          <button
+                            onClick={() => {
+                              const fields = editingForm.fields?.map(f => f.id === field.id ? { ...f, required: !f.required } : f);
+                              setEditingForm({ ...editingForm, fields });
+                            }}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all ${field.required ? 'bg-red-50 border-red-200 text-red-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
+                          >
+                            <span className="text-[9px] font-black uppercase tracking-widest">{field.required ? 'Obrigatória' : 'Opcional'}</span>
+                            <div className={`w-8 h-4 rounded-full relative ${field.required ? 'bg-red-500' : 'bg-slate-300'}`}>
+                              <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${field.required ? 'left-4.5' : 'left-0.5'}`} />
+                            </div>
+                          </button>
+
+                          {/* 🎨 VISIBILITY LOGIC BUTTON (EXTREMELY PROMINENT) */}
+                          <button
+                            onClick={() => {
+                              const fields = editingForm.fields?.map(f => {
+                                if (f.id === field.id) {
+                                  return { ...f, showCondition: !(f as any).showCondition };
+                                }
+                                return f;
+                              });
+                              setEditingForm({ ...editingForm, fields });
+                            }}
+                            title="Clique para configurar quando esta pergunta deve aparecer"
+                            className={`flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all ${field.condition?.fieldId ? 'bg-amber-600 text-white shadow-xl ring-2 ring-amber-300 ring-offset-2' : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100 shadow-sm'}`}
+                          >
+                            <Workflow size={14} className={field.condition?.fieldId ? 'animate-pulse' : ''} />
+                            <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">
+                              {field.condition?.fieldId ? 'Lógica: Ativa' : 'Adicionar Lógica de Visibilidade'}
+                            </span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="text-slate-200 cursor-grab px-2 hidden md:block"><GripVertical size={20} /></div>
+                          <button onClick={() => setEditingForm({ ...editingForm, fields: editingForm.fields?.filter(f => f.id !== field.id) })} className="p-3 bg-red-50 text-red-400 hover:text-red-600 hover:bg-red-100 rounded-2xl transition-all">
+                            <Trash2 size={20} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* CARD BODY: INPUTS */}
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+                        <div className="md:col-span-8">
                           <Input
-                            label="Pergunta"
+                            label="O que deve ser perguntado?"
+                            placeholder="Ex: Qual o estado das vedações?"
                             value={field.label}
                             onChange={e => setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, label: e.target.value } : f) })}
-                            className="rounded-2xl bg-gray-50/50 border-transparent font-bold"
+                            className="rounded-2xl bg-slate-50 border-transparent font-bold text-base py-6 px-6"
                           />
                         </div>
-                        <div className="md:col-span-3">
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2 block">Tipo</label>
+                        <div className="md:col-span-4">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2 block">Tipo de Resposta</label>
                           <select
-                            className="w-full bg-gray-50 border-transparent rounded-2xl px-5 py-3 text-xs font-black text-gray-700 focus:ring-2 focus:ring-indigo-500 appearance-none shadow-inner"
+                            className="w-full bg-slate-50 border-transparent rounded-2xl px-6 py-4 text-xs font-black text-slate-700 focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
                             value={field.type}
                             onChange={e => setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, type: e.target.value as FormFieldType } : f) })}
                           >
-                            <option value={FormFieldType.TEXT}>Texto</option>
-                            <option value={FormFieldType.SELECT}>Alternativas</option>
-                            <option value={FormFieldType.PHOTO}>Câmera / Foto</option>
-                            {/* Assinatura agora é fixa no encerramento */}
+                            <option value={FormFieldType.TEXT}>Texto Curto</option>
+                            <option value={FormFieldType.LONG_TEXT}>Texto Longo / Relato</option>
+                            <option value={FormFieldType.SELECT}>Alternativas / Checklist</option>
+                            <option value={FormFieldType.PHOTO}>Anexo Fotográfico</option>
+                            <option value={FormFieldType.SIGNATURE}>Assinatura Digital</option>
                           </select>
-                        </div>
-                        <div className="md:col-span-2 flex flex-col justify-center items-end gap-4">
-                          <button onClick={() => setEditingForm({ ...editingForm, fields: editingForm.fields?.filter(f => f.id !== field.id) })} className="p-4 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"><Trash2 size={24} /></button>
                         </div>
 
                         {/* Configuração de Alternativas */}
                         {field.type === FormFieldType.SELECT && (
-                          <div className="col-span-1 md:col-span-12 bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 flex flex-col gap-2">
-                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest px-1 flex items-center gap-2">
-                              Opções de Resposta <span className="text-[8px] text-gray-400 font-bold normal-case">(Separe por vírgula)</span>
-                            </label>
+                          <div className="col-span-12 bg-indigo-50/30 p-8 rounded-[2.5rem] border-2 border-indigo-100/50 space-y-4">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-md"><List size={14} /></div>
+                              <span className="text-[10px] font-black uppercase text-indigo-600">Configurar Alternativas</span>
+                            </div>
                             <Input
-                              placeholder="Ex: Sim, Não, Talvez"
+                              placeholder="Sim, Não, Regular, Pequeno Vazamento..."
                               value={field.options?.join(', ') || ''}
                               onChange={e => {
                                 const newOptions = e.target.value.split(',').map(s => s.trim());
@@ -449,14 +499,100 @@ export const FormManagement: React.FC = () => {
                                   fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, options: newOptions } : f)
                                 });
                               }}
-                              className="bg-white border-indigo-100 font-medium"
+                              className="bg-white border-indigo-200 font-bold"
                             />
-                            <div className="flex gap-2 flex-wrap mt-2">
+                            <div className="flex gap-2 flex-wrap">
                               {field.options?.filter(o => o.trim()).map((opt, idx) => (
-                                <span key={idx} className="bg-white border border-indigo-100 text-indigo-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm">
+                                <span key={idx} className="bg-white text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-sm">
                                   {opt}
                                 </span>
                               ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 🧠 PAINEL DE LÓGICA (Google Forms Style) */}
+                        {(field.condition?.fieldId || (field as any).showCondition) && (
+                          <div className="col-span-12 bg-amber-50 p-8 rounded-[2.5rem] border-2 border-amber-200 border-dashed space-y-6">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-amber-600 text-white rounded-xl shadow-md"><Workflow size={14} /></div>
+                              <span className="text-[10px] font-black uppercase text-amber-700">Configuração de Gatilho Inteligente</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                              <div className="space-y-3">
+                                <label className="text-[9px] font-black text-amber-800 uppercase tracking-widest px-1">Exibir esta pergunta somente se:</label>
+                                <select
+                                  className="w-full bg-white border border-amber-200 rounded-2xl px-6 py-4 text-[11px] font-black text-slate-700 outline-none focus:ring-4 focus:ring-amber-200 shadow-sm"
+                                  value={field.condition?.fieldId || ''}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    const fields = editingForm.fields?.map(f => {
+                                      if (f.id === field.id) {
+                                        if (!val) return { ...f, condition: undefined };
+                                        return { ...f, condition: { fieldId: val, value: '', operator: 'equals' as const } };
+                                      }
+                                      return f;
+                                    });
+                                    setEditingForm({ ...editingForm, fields });
+                                  }}
+                                >
+                                  <option value="">Sempre exibir (Padrão)</option>
+                                  {editingForm.fields?.filter(f => f.id !== field.id).map(f => (
+                                    <option key={f.id} value={f.id}>{f.label || 'Sem título'}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {field.condition?.fieldId && (
+                                <div className="space-y-3">
+                                  <label className="text-[9px] font-black text-amber-800 uppercase tracking-widest px-1">A resposta for igual a:</label>
+                                  {(() => {
+                                    const parentField = editingForm.fields?.find(f => f.id === field.condition?.fieldId);
+                                    if (parentField?.type === FormFieldType.SELECT && parentField.options && parentField.options.length > 0) {
+                                      return (
+                                        <select
+                                          className="w-full bg-white border border-amber-200 rounded-2xl px-6 py-4 text-[11px] font-black text-slate-700 outline-none focus:ring-4 focus:ring-amber-200 shadow-sm"
+                                          value={field.condition.value}
+                                          onChange={e => {
+                                            const val = e.target.value;
+                                            const fields = editingForm.fields?.map(f => {
+                                              if (f.id === field.id) {
+                                                return { ...f, condition: { ...f.condition!, value: val } };
+                                              }
+                                              return f;
+                                            });
+                                            setEditingForm({ ...editingForm, fields });
+                                          }}
+                                        >
+                                          <option value="">Selecione uma opção...</option>
+                                          {parentField.options.map((opt, idx) => (
+                                            <option key={idx} value={opt}>{opt}</option>
+                                          ))}
+                                        </select>
+                                      );
+                                    }
+                                    return (
+                                      <input
+                                        type="text"
+                                        placeholder="Valor da resposta..."
+                                        className="w-full bg-white border border-amber-200 rounded-2xl px-6 py-4 text-[11px] font-black text-slate-700 outline-none focus:ring-4 focus:ring-amber-200 shadow-sm"
+                                        value={field.condition.value}
+                                        onChange={e => {
+                                          const val = e.target.value;
+                                          const fields = editingForm.fields?.map(f => {
+                                            if (f.id === field.id) {
+                                              return { ...f, condition: { ...f.condition!, value: val } };
+                                            }
+                                            return f;
+                                          });
+                                          setEditingForm({ ...editingForm, fields });
+                                        }}
+                                      />
+                                    );
+                                  })()}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}

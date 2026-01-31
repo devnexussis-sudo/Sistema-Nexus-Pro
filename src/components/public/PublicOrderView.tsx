@@ -655,7 +655,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                         {name && <p className="text-xs font-black text-slate-900 uppercase italic">{name}</p>}
                         <p className="text-[8px] font-bold text-slate-400 uppercase mt-1 flex justify-center gap-3">
                           {cpf && <span>CPF: {cpf}</span>}
-                          {birth && <span>• DN: {new Date(birth).toLocaleDateString()}</span>}
+                          {birth && <span>• Nascimento: {birth}</span>}
                         </p>
                       </div>
                     </>

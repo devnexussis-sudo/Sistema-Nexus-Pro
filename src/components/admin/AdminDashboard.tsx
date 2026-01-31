@@ -686,7 +686,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           )}
                           <div>
                             <p className="font-black text-slate-900 uppercase italic text-xl">{name}</p>
-                            <p className="text-[10px] font-black text-indigo-500 uppercase mt-1 tracking-widest">Documento: {cpf}</p>
+                            <p className="text-[10px] font-black text-indigo-500 uppercase mt-1 tracking-widest flex justify-center gap-3">
+                              <span>Documento: {cpf}</span>
+                              {data['Assinatura do Cliente - Nascimento'] && (
+                                <span>• Nascimento: {data['Assinatura do Cliente - Nascimento']}</span>
+                              )}
+                            </p>
                           </div>
                         </div>
                       );

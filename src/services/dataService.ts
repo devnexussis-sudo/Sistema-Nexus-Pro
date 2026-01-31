@@ -683,6 +683,7 @@ export const DataService = {
       const { data, error } = await DataService.getServiceClient().from('technicians')
         .update(dbTech)
         .eq('id', tech.id)
+        .eq('tenant_id', tenantId)
         .select()
         .single();
 
@@ -737,7 +738,7 @@ export const DataService = {
       operationType: data.operation_type || data.operationType || '',
       assignedTo: data.assigned_to || data.assignedTo,
       formId: data.form_id || data.formId,
-      formData: data.form_data || data.formData || {},
+      formData: DataService.migrateSignatureData(data.form_data || data.formData || {}),
       equipmentName: data.equipment_name || data.equipmentName,
       equipmentModel: data.equipment_model || data.equipmentModel,
       equipmentSerial: data.equipment_serial || data.equipmentSerial,
@@ -846,6 +847,13 @@ export const DataService = {
 
       } catch (err: any) {
         console.error("❌ [FATAL] Erro na criação da OS (Direct):", err);
+        console.error("❌ ERRO COMPLETO:", err);
+        console.log("Tipo do erro:", typeof err);
+        if (err.message) console.log("Error.message:", err.message);
+        if (err.stack) console.log("Error.stack:", err.stack);
+        try {
+          console.log("Error completo (JSON):", JSON.stringify(err));
+        } catch (e) { }
         throw err;
       }
     }
@@ -865,9 +873,13 @@ export const DataService = {
     if (isCloudEnabled) {
       const dbPayload = DataService._mapOrderToDB(updatedOrder);
 
+      const tid = DataService.getCurrentTenantId();
+      if (!tid) throw new Error("Tenant não identificado.");
+
       const { data, error } = await DataService.getServiceClient().from('orders')
         .update(dbPayload)
         .eq('id', updatedOrder.id)
+        .eq('tenant_id', tid)
         .select()
         .single();
 
@@ -1039,7 +1051,14 @@ export const DataService = {
         contract_terms: contract.contractTerms,
         updated_at: new Date().toISOString()
       };
-      const { data, error } = await DataService.getServiceClient().from('contracts').update(dbPayload).eq('id', contract.id).select();
+      const tid = DataService.getCurrentTenantId();
+      if (!tid) throw new Error("Tenant não identificado.");
+
+      const { data, error } = await DataService.getServiceClient().from('contracts')
+        .update(dbPayload)
+        .eq('id', contract.id)
+        .eq('tenant_id', tid)
+        .select();
       if (error) {
         console.error("❌ Nexus Update Error:", error.message);
         throw error;
@@ -1234,7 +1253,11 @@ export const DataService = {
 
   deleteQuote: async (id: string): Promise<boolean> => {
     if (isCloudEnabled) {
-      const { error } = await DataService.getServiceClient().from('quotes').delete().eq('id', id);
+      const tid = DataService.getCurrentTenantId();
+      const { error } = await DataService.getServiceClient().from('quotes')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tid);
       if (error) throw error;
       return true;
     }
@@ -1303,7 +1326,15 @@ export const DataService = {
       const dbPayload = {
         ...rest
       };
-      const { data, error } = await DataService.getServiceClient().from('customers').update(dbPayload).eq('id', customer.id).select().single();
+      const tid = DataService.getCurrentTenantId();
+      if (!tid) throw new Error("Tenant não identificado.");
+
+      const { data, error } = await DataService.getServiceClient().from('customers')
+        .update(dbPayload)
+        .eq('id', customer.id)
+        .eq('tenant_id', tid)
+        .select()
+        .single();
       if (error) throw error;
       return DataService._mapCustomerFromDB(data);
     }
@@ -1374,6 +1405,9 @@ export const DataService = {
 
   updateEquipment: async (equipment: Equipment): Promise<Equipment> => {
     if (isCloudEnabled) {
+      const tid = DataService.getCurrentTenantId();
+      if (!tid) throw new Error("Tenant não identificado.");
+
       const dbPayload = {
         serial_number: equipment.serialNumber,
         model: equipment.model,
@@ -1385,7 +1419,14 @@ export const DataService = {
         active: equipment.active,
         updated_at: new Date().toISOString()
       };
-      const { data, error } = await DataService.getServiceClient().from('equipments').update(dbPayload).eq('id', equipment.id).select().single();
+
+      const { data, error } = await DataService.getServiceClient().from('equipments')
+        .update(dbPayload)
+        .eq('id', equipment.id)
+        .eq('tenant_id', tid) // 🛡️ Nexus Security: Garante que só altera o próprio tenant
+        .select()
+        .single();
+
       if (error) throw error;
       return DataService._mapEquipmentFromDB(data);
     }
@@ -1946,6 +1987,7 @@ export const DataService = {
           const { data, error } = await DataService.getServiceClient().from('service_types')
             .update({ name: type.name }) // Atualiza apenas campos permitidos
             .eq('id', type.id)
+            .eq('tenant_id', tid)
             .select()
             .single();
 
@@ -1981,7 +2023,13 @@ export const DataService = {
   },
 
   deleteServiceType: async (id: string) => {
-    if (isCloudEnabled) await DataService.getServiceClient().from('service_types').delete().eq('id', id);
+    if (isCloudEnabled) {
+      const tid = DataService.getCurrentTenantId();
+      await DataService.getServiceClient().from('service_types')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tid);
+    }
   },
 
   getFormTemplates: async (): Promise<FormTemplate[]> => {
@@ -2048,13 +2096,28 @@ export const DataService = {
   },
 
   deleteFormTemplate: async (id: string) => {
-    if (isCloudEnabled) await DataService.getServiceClient().from('form_templates').delete().eq('id', id);
+    if (isCloudEnabled) {
+      const tid = DataService.getCurrentTenantId();
+      await DataService.getServiceClient().from('form_templates')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tid);
+    }
   },
 
   getActivationRules: async (): Promise<any[]> => {
     if (isCloudEnabled) {
-      const { data, error } = await DataService.getServiceClient().from('activation_rules').select('*');
-      if (error) throw error;
+      const tenantId = DataService.getCurrentTenantId();
+      if (!tenantId) return [];
+
+      const { data, error } = await DataService.getServiceClient().from('activation_rules')
+        .select('*')
+        .eq('tenant_id', tenantId);
+
+      if (error) {
+        console.error("Erro ao buscar regras de ativação:", error);
+        return [];
+      }
       return (data || []).map(r => ({ ...r, serviceTypeId: r.service_type_id, equipmentFamily: r.equipment_family, formId: r.form_id }));
     }
     return getStorage<any[]>('nexus_rules_db', []);
@@ -2098,7 +2161,13 @@ export const DataService = {
   },
 
   deleteActivationRule: async (id: string) => {
-    if (isCloudEnabled) await DataService.getServiceClient().from('activation_rules').delete().eq('id', id);
+    if (isCloudEnabled) {
+      const tid = DataService.getCurrentTenantId();
+      await DataService.getServiceClient().from('activation_rules')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tid);
+    }
   },
 
   // --- STOCK MANAGEMENT ---
@@ -2162,7 +2231,11 @@ export const DataService = {
 
   deleteCategory: async (id: string): Promise<void> => {
     if (isCloudEnabled) {
-      const { error } = await DataService.getServiceClient().from('stock_categories').delete().eq('id', id);
+      const tid = DataService.getCurrentTenantId();
+      const { error } = await DataService.getServiceClient().from('stock_categories')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tid);
       if (error) throw error;
       return;
     }
@@ -2264,7 +2337,11 @@ export const DataService = {
 
   deleteStockItem: async (id: string): Promise<void> => {
     if (isCloudEnabled) {
-      const { error } = await DataService.getServiceClient().from('stock_items').delete().eq('id', id);
+      const tid = DataService.getCurrentTenantId();
+      const { error } = await DataService.getServiceClient().from('stock_items')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tid);
       if (error) throw error;
       return;
     }

@@ -94,12 +94,19 @@ export enum FormFieldType {
   SIGNATURE = 'SIGNATURE'
 }
 
+export interface FormFieldCondition {
+  fieldId: string;
+  value: string;
+  operator?: 'equals' | 'not_equals';
+}
+
 export interface FormField {
   id: string;
   label: string;
   type: FormFieldType;
   required: boolean;
   options?: string[];
+  condition?: FormFieldCondition;
 }
 
 export interface FormTemplate {
