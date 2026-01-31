@@ -194,7 +194,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, label }) => 
       <div className="bg-white border-2 border-dashed border-gray-200 rounded-[2rem] overflow-hidden relative">
         <canvas
           ref={canvasRef}
-          className="w-full h-48 cursor-crosshair touch-none select-none"
+          className="w-full h-72 cursor-crosshair touch-none select-none"
           style={{
             touchAction: 'none',
             WebkitTouchCallout: 'none',

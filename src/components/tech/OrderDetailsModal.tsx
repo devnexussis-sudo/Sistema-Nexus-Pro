@@ -730,50 +730,61 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
 
                 {localStatus === OrderStatus.COMPLETED ? (
                   // VISUALIZAÇÃO APÓS CONCLUÍDO (LEITURA)
-                  <div className="bg-white p-6 rounded-[2rem] border border-gray-100 space-y-4">
-                    <div className="flex justify-between items-start">
+                  <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-[8px] font-black text-gray-400 uppercase">Assinatura Digital</p>
-                        <p className="text-[10px] font-bold text-slate-900 uppercase italic leading-none mt-1">
+                        <p className="text-[11px] font-bold text-slate-900 uppercase italic leading-none mt-1">
                           {answers['Assinatura do Cliente - Nome'] || 'Cliente'}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-[8px] font-black text-gray-400 uppercase">Documento</p>
-                        <p className="text-[10px] font-bold text-slate-900 leading-none mt-1">
+                        <p className="text-[11px] font-bold text-slate-900 leading-none mt-1">
                           {answers['Assinatura do Cliente - CPF'] || 'N/D'}
                         </p>
                       </div>
                     </div>
+                    {answers['Assinatura do Cliente - Nascimento'] && (
+                      <div className="pt-4 border-t border-gray-50">
+                        <p className="text-[8px] font-black text-gray-400 uppercase text-center">Data de Nascimento</p>
+                        <p className="text-[10px] font-bold text-slate-900 text-center mt-1">{answers['Assinatura do Cliente - Nascimento']}</p>
+                      </div>
+                    )}
                     {answers['Assinatura do Cliente'] && (
-                      <img
-                        src={answers['Assinatura do Cliente']}
-                        className="h-24 mx-auto object-contain mix-blend-multiply cursor-zoom-in"
-                        alt="Assinatura"
-                        onClick={() => setFullscreenImage(answers['Assinatura do Cliente'])}
-                      />
+                      <div className="pt-4 border-t border-gray-50">
+                        <img
+                          src={answers['Assinatura do Cliente']}
+                          className="h-32 w-full object-contain mix-blend-multiply cursor-zoom-in"
+                          alt="Assinatura"
+                          onClick={() => setFullscreenImage(answers['Assinatura do Cliente'])}
+                        />
+                      </div>
                     )}
                   </div>
                 ) : (
                   // FORMULÁRIO DE ASSINATURA (EDIÇÃO)
                   <div className="space-y-6">
-                    <div className="space-y-4 bg-white p-5 rounded-[2rem] border border-gray-100 shadow-sm">
+                    <div className="space-y-5 bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm transition-all">
                       <Input
                         label="Nome do Acompanhante / Responsável *"
-                        placeholder="Nome completo de quem está recebendo..."
-                        className="rounded-xl font-bold bg-gray-50 border-gray-100"
+                        placeholder="NOME COMPLETO DO RECEPTOR..."
+                        className="rounded-2xl py-5 font-black uppercase bg-gray-50 border-gray-100 text-slate-800"
                         value={answers['Assinatura do Cliente - Nome'] || ''}
                         onChange={e => setAnswers(prev => ({ ...prev, 'Assinatura do Cliente - Nome': e.target.value.toUpperCase() }))}
                       />
-                      <div className="grid grid-cols-2 gap-4">
+
+                      <div className="space-y-5">
                         <Input
-                          label="CPF *"
+                          label="Documento (CPF) *"
                           placeholder="000.000.000-00"
-                          className="rounded-xl font-bold bg-gray-50 border-gray-100"
+                          inputMode="numeric"
+                          className="rounded-2xl py-5 font-black bg-gray-50 border-gray-100 text-slate-800"
                           value={answers['Assinatura do Cliente - CPF'] || ''}
                           onChange={e => {
                             const v = e.target.value.replace(/\D/g, "").substring(0, 11);
                             let fmt = v;
+                            // 🛡️ Máscara CPF Resiliente
                             if (v.length > 9) fmt = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
                             else if (v.length > 6) fmt = v.replace(/(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3");
                             else if (v.length > 3) fmt = v.replace(/(\d{3})(\d{0,3})/, "$1.$2");
@@ -781,11 +792,19 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                           }}
                         />
                         <Input
-                          label="Nascimento"
-                          type="date"
-                          className="rounded-xl font-bold bg-gray-50 border-gray-100"
+                          label="Data de Nascimento (Opcional)"
+                          placeholder="DD/MM/AAAA"
+                          inputMode="numeric"
+                          className="rounded-2xl py-5 font-black bg-gray-50 border-gray-100 text-slate-800"
                           value={answers['Assinatura do Cliente - Nascimento'] || ''}
-                          onChange={e => setAnswers(prev => ({ ...prev, 'Assinatura do Cliente - Nascimento': e.target.value }))}
+                          onChange={e => {
+                            const v = e.target.value.replace(/\D/g, "").substring(0, 8);
+                            let fmt = v;
+                            // 🛡️ Máscara Data Resiliente
+                            if (v.length > 4) fmt = v.replace(/(\d{2})(\d{2})(\d{0,4})/, "$1/$2/$3");
+                            else if (v.length > 2) fmt = v.replace(/(\d{2})(\d{0,2})/, "$1/$2");
+                            setAnswers(prev => ({ ...prev, 'Assinatura do Cliente - Nascimento': fmt }));
+                          }}
                         />
                       </div>
                     </div>
