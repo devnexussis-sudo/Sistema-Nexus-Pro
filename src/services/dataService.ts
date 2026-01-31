@@ -807,10 +807,23 @@ export const DataService = {
 
         if (error) {
           console.error("❌ Edge Function Error:", error);
+
+          // Tenta extrair a mensagem de erro do corpo da resposta se disponível
+          let detailedMessage = error.message || error;
+
+          if (error.context?.response) {
+            try {
+              const errorBody = await error.context.response.json();
+              if (errorBody && errorBody.error) detailedMessage = errorBody.error;
+            } catch (e) {
+              // Falha ao parsear corpo do erro, mantém a mensagem original
+            }
+          }
+
           if (error.context?.response?.status === 401) {
             throw new Error("Autenticação recusada pela nuvem. Tente fazer logout e login novamente.");
           }
-          throw new Error(`Falha ao processar OS na nuvem: ${error.message || error}`);
+          throw new Error(`Falha ao processar OS na nuvem: ${detailedMessage}`);
         }
 
         // Verifica se a função retornou um erro aplicacional

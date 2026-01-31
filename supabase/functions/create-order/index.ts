@@ -22,11 +22,17 @@ serve(async (req) => {
       throw new Error("Missing Authorization Header");
     }
 
-    // Initialize Client with SERVICE ROLE (Bypass RLS and infraestructura issues)
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!serviceRoleKey) {
+      console.error("❌ Critical: SUPABASE_SERVICE_ROLE_KEY is not defined in Edge Function secrets.");
+      throw new Error("Configuração incompleta na nuvem (Service Role missing)");
+    }
+
+    // Initialize Client with SERVICE ROLE (Bypass RLS and infrastructure issues)
     // We still validate the USER token below for security.
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', // Use Service Role for internal stability
+      serviceRoleKey, // Use Service Role for internal stability
       {
         auth: {
           persistSession: false
@@ -84,31 +90,33 @@ serve(async (req) => {
     const prefix = tenantData?.os_prefix || 'OS-'
     const finalId = `${prefix}${seqNum}`
 
-    // 6. Map Frontend Data (CamelCase) to DB (snake_case)
+    // 6. Map Frontend Data to DB (Master DB uses CamelCase for many columns)
     const dbPayload = {
       id: finalId,
-      tenant_id: tenantId,
+      tenant_id: tenantId, // Using snake_case for tenant_id as per schema
       title: order.title,
-      description: order.description, // some fronts use description_text
-      customer_name: order.customerName,
-      customer_address: order.customerAddress,
+      description: order.description,
+      customerName: order.customerName,
+      customerAddress: order.customerAddress,
       status: order.status || 'PENDENTE',
       priority: order.priority,
-      operation_type: order.operationType,
-      assigned_to: order.assignedTo,
-      form_id: order.formId,
-      form_data: order.formData || {},
-      equipment_name: order.equipmentName,
-      equipment_model: order.equipmentModel,
-      equipment_serial: order.equipmentSerial,
-      scheduled_date: order.scheduledDate,
-      scheduled_time: order.scheduledTime,
-      start_date: order.startDate,
-      end_date: order.endDate,
+      operationType: order.operationType,
+      assignedTo: order.assignedTo,
+      formId: order.formId,
+      formData: order.formData || {},
+      equipmentName: order.equipmentName,
+      equipmentModel: order.equipmentModel,
+      equipmentSerial: order.equipmentSerial,
+      scheduledDate: order.scheduledDate,
+      scheduledTime: order.scheduledTime,
+      startDate: order.startDate,
+      endDate: order.endDate,
       notes: order.notes,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
+
+    console.log("💾 Final Payload for Insert:", JSON.stringify(dbPayload, null, 2));
 
     // 7. Insert into Database
     const { data, error } = await supabaseAdmin
