@@ -150,8 +150,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         if (f.condition && f.condition.fieldId) {
           const parentField = linkedForm.fields.find(p => p.id === f.condition?.fieldId);
           const parentAnswer = answers[f.condition.fieldId] || (parentField ? answers[parentField.label] : null);
-          const isVisible = f.condition.operator === 'not_equals' 
-            ? parentAnswer !== f.condition.value 
+          const isVisible = f.condition.operator === 'not_equals'
+            ? parentAnswer !== f.condition.value
             : parentAnswer === f.condition.value;
           if (!isVisible) return false;
         }
@@ -188,8 +188,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           if (field.condition && field.condition.fieldId) {
             const parentField = linkedForm.fields.find(p => p.id === field.condition?.fieldId);
             const parentAnswer = answers[field.condition.fieldId] || (parentField ? answers[parentField.label] : null);
-            isVisible = field.condition.operator === 'not_equals' 
-              ? parentAnswer !== field.condition.value 
+            isVisible = field.condition.operator === 'not_equals'
+              ? parentAnswer !== field.condition.value
               : parentAnswer === field.condition.value;
           }
 
@@ -274,8 +274,9 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
     const input = document.createElement('input');
     input.type = 'file';
     // 🛡️ Nexus High-Efficiency Support: Aceita padrões web e também formatos Apple (HEIC/HEIF)
-    input.accept = 'image/jpeg, image/png, image/webp, image/heic, image/heif, .heic, .heif';
-    input.capture = 'environment';
+    input.accept = 'image/*'; // Simplificado para garantir abertura da câmera nativa
+    input.setAttribute('capture', 'environment'); // Força a câmera TRASEIRA primordialmente
+    (input as any).capture = 'environment'; // Fallback para propriedades de objeto em alguns browsers
 
     input.onchange = async (e: any) => {
       let file = e.target.files[0];
