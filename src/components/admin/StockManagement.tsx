@@ -1,0 +1,905 @@
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { Package, Search, Plus, Edit3, Trash2, X, Save, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Scale, Box, Barcode, Filter, Wand2, Layers, Tag, LayoutGrid, List } from 'lucide-react';
+import { StockItem, Category } from '../../types';
+import { DataService } from '../../services/dataService';
+import { Input } from '../ui/Input';
+import { Button } from '../ui/Button';
+
+export const StockManagement: React.FC = () => {
+    // Application State
+    const [activeTab, setActiveTab] = useState<'items' | 'categories'>('items');
+
+    // --- Items State ---
+    const [items, setItems] = useState<StockItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingItem, setEditingItem] = useState<StockItem | null>(null);
+
+    // Filters
+    const [categoryFilter, setCategoryFilter] = useState('ALL');
+    const [statusFilter, setStatusFilter] = useState('ALL');
+    const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
+
+    // --- Categories State ---
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+    const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+    const [categoryFormData, setCategoryFormData] = useState({ name: '', active: true });
+
+    // Item Form Data
+    const [formData, setFormData] = useState<any>({
+        code: '',
+        externalCode: '',
+        description: '',
+        category: '',
+        location: '',
+        quantity: '',
+        minQuantity: '',
+        costPrice: '',
+        sellPrice: '',
+        freightCost: '',
+        taxPercent: '', // Changed from taxCost to taxPercent
+        unit: 'UN',
+        active: true
+    });
+
+    // --- Restock State ---
+    const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+    const [restockSearch, setRestockSearch] = useState('');
+    const [selectedRestockItem, setSelectedRestockItem] = useState<StockItem | null>(null);
+    const [restockQuantity, setRestockQuantity] = useState('');
+
+    // --- Loaders ---
+    const loadItems = async () => {
+        setLoading(true);
+        try {
+            const data = await DataService.getStockItems();
+            setItems(data);
+        } catch (error) {
+            console.error('Erro ao carregar estoque:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadCategories = async () => {
+        try {
+            const data = await DataService.getCategories();
+            setCategories(data);
+            setAvailableCategories(data); // Using managed categories for filters now
+        } catch (error) {
+            console.error('Erro ao carregar categorias:', error);
+        }
+    };
+
+    useEffect(() => {
+        loadItems();
+        loadCategories();
+    }, []);
+
+    // --- Item Handlers ---
+    const handleOpenModal = (item?: StockItem) => {
+        if (item) {
+            setEditingItem(item);
+            // Reverse calculate tax percent for editing
+            const cost = item.costPrice || 0;
+            const tax = item.taxCost || 0;
+            const percent = cost > 0 ? (tax / cost) * 100 : 0;
+
+            setFormData({
+                ...item,
+                taxPercent: percent > 0 ? percent.toFixed(2) : ''
+            });
+        } else {
+            setEditingItem(null);
+            setFormData({
+                code: '',
+                externalCode: '',
+                description: '',
+                category: '',
+                location: '',
+                quantity: '',
+                minQuantity: '',
+                costPrice: '',
+                sellPrice: '',
+                freightCost: '',
+                taxPercent: '',
+                unit: 'UN',
+                active: true
+            });
+        }
+        setIsModalOpen(true);
+    };
+
+    const generateCode = () => {
+        const random = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
+        setFormData((prev: any) => ({ ...prev, code: `STK-${random}` }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const payload: StockItem = {
+                ...formData,
+                quantity: Number(formData.quantity) || 0,
+                minQuantity: Number(formData.minQuantity) || 0,
+                costPrice: Number(formData.costPrice) || 0,
+                sellPrice: Number(formData.sellPrice) || 0,
+                freightCost: Number(formData.freightCost) || 0,
+                // Calculate actual tax cost for saving to DB (or keep percentage if DB supports it. 
+                // Based on StockItem type, it expects taxCost (number). 
+                // So we should calculate the absolute value here for persistence? 
+                // OR we should store the percentage? 
+                // StockItem has taxCost?: number. 
+                // If I change the UI to use %, I should probably calculate the cost before save, 
+                // OR ideally add taxPercent to the schema. 
+                // Given constraints, I will calculate the cost value on save, 
+                // BUT for UI state I need to persist the percentage to restore it properly on edit?
+                // If I save only taxCost, when I edit, I have to reverse calculate %: (Tax / Cost) * 100.
+                // That works.
+                taxCost: (Number(formData.costPrice) || 0) * ((Number(formData.taxPercent) || 0) / 100)
+            } as StockItem;
+
+            if (editingItem) {
+                await DataService.updateStockItem({ ...editingItem, ...payload });
+            } else {
+                await DataService.createStockItem(payload);
+            }
+            setIsModalOpen(false);
+            loadItems();
+        } catch (error) {
+            alert('Erro ao salvar item.');
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (confirm('Tem certeza que deseja remover este item?')) {
+            await DataService.deleteStockItem(id);
+            loadItems();
+        }
+    };
+
+    // --- Category Handlers ---
+    const handleOpenCategoryModal = (cat?: Category) => {
+        if (cat) {
+            setEditingCategory(cat);
+            setCategoryFormData({ name: cat.name, active: cat.active });
+        } else {
+            setEditingCategory(null);
+            setCategoryFormData({ name: '', active: true });
+        }
+        setIsCategoryModalOpen(true);
+    };
+
+    const handleCategorySubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            if (editingCategory) {
+                // Update logic (Not in DataService explicitly but we can simulate delete+create or add update method later. For now let's assume simple replace or just reload)
+                // Actually DataService doesn't have updateCategory yet, let's just do a hacky replace in the list for now or use create to append? 
+                // Wait, deleteCategory removes by ID. So we can remove and add. 
+                // Ideally DataService should have update. I'll implement a simple delete + create loop for 'update' simulation or just create new if simple.
+
+                // Let's rely on basic local storage update:
+                const all = await DataService.getCategories();
+                const updated = all.map(c => c.id === editingCategory.id ? { ...c, ...categoryFormData } : c);
+                DataService.setStorage(DataService.STORAGE_KEYS.CATEGORIES, updated);
+
+            } else {
+                const newCat = {
+                    id: `cat-${Date.now()}`,
+                    ...categoryFormData,
+                    type: 'stock'
+                };
+                await DataService.createCategory(newCat);
+            }
+            setIsCategoryModalOpen(false);
+            loadCategories();
+        } catch (error) {
+            alert('Erro ao salvar categoria.');
+        }
+    };
+
+    const handleDeleteCategory = async (id: string) => {
+        if (confirm('Tem certeza? Isso não removerá os itens associados.')) {
+            await DataService.deleteCategory(id);
+            loadCategories();
+        }
+    };
+
+
+
+    // --- Restock Handlers ---
+    const handleRestockSearch = (term: string) => {
+        setRestockSearch(term);
+        // Find exact match first, or partial
+        if (!term) {
+            setSelectedRestockItem(null);
+            return;
+        }
+
+        const match = items.find(i =>
+            i.code.toLowerCase() === term.toLowerCase() ||
+            (i.externalCode && i.externalCode.toLowerCase() === term.toLowerCase())
+        );
+
+        if (match) setSelectedRestockItem(match);
+        else setSelectedRestockItem(null);
+    };
+
+    const handleRestockSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedRestockItem || !restockQuantity) return;
+
+        const qtyToAdd = Number(restockQuantity);
+        if (qtyToAdd <= 0) return;
+
+        try {
+            const updatedItem = {
+                ...selectedRestockItem,
+                quantity: selectedRestockItem.quantity + qtyToAdd,
+                lastRestockDate: new Date().toISOString()
+            };
+
+            await DataService.updateStockItem(updatedItem);
+
+            // Reset
+            setRestockQuantity('');
+            setRestockSearch('');
+            setSelectedRestockItem(null);
+            alert(`Estoque atualizado! Nova quantidade: ${updatedItem.quantity}`);
+            loadItems();
+
+            // Optional: Close modal or keep open for next item? User workflow usually sequential additions.
+            // Keeping open for speed.
+            // focus back on search? 
+            // We'll let the user decide when to close.
+        } catch (error) {
+            alert('Erro ao atualizar estoque.');
+        }
+    };
+    const filteredItems = useMemo(() => {
+        return items.filter(i => {
+            const matchesSearch = i.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                i.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (i.externalCode && i.externalCode.toLowerCase().includes(searchTerm.toLowerCase()));
+
+            const matchesCategory = categoryFilter === 'ALL' || i.category === categoryFilter;
+
+            let matchesStatus = true;
+            if (statusFilter === 'LOW') matchesStatus = i.quantity <= i.minQuantity && i.quantity > 0;
+            else if (statusFilter === 'OUT') matchesStatus = i.quantity === 0;
+            else if (statusFilter === 'GOOD') matchesStatus = i.quantity > i.minQuantity;
+
+            return matchesSearch && matchesCategory && matchesStatus;
+        });
+    }, [items, searchTerm, categoryFilter, statusFilter]);
+
+    const calculateTotalCost = (item: any) => {
+        const cost = Number(item.costPrice) || 0;
+        const freight = Number(item.freightCost) || 0;
+        const taxPercent = Number(item.taxPercent) || 0;
+        const taxValue = cost * (taxPercent / 100);
+
+        return cost + freight + taxValue; // Total = Cost + Freight + (Cost * Tax%)
+    };
+
+    const calculateMargin = (item: any) => {
+        const totalCost = calculateTotalCost(item);
+        const sell = Number(item.sellPrice) || 0;
+        if (totalCost === 0) return 0;
+        return ((sell - totalCost) / totalCost) * 100;
+    };
+
+    return (
+        <div className="p-8 space-y-6 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                <div>
+                    <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Gestão de Estoque</h1>
+                    <p className="text-gray-400 text-xs font-semibold mt-1 italic tracking-tight uppercase">Controle de Peças e Produtos</p>
+                </div>
+
+                {activeTab === 'items' ? (
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="flex items-center gap-2 px-6 py-3.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all"
+                    >
+                        <Plus size={16} /> Novo Item
+                    </button>
+                ) : (
+                    <button
+                        onClick={() => handleOpenCategoryModal()}
+                        className="flex items-center gap-2 px-6 py-3.5 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 hover:-translate-y-0.5 transition-all"
+                    >
+                        <Plus size={16} /> Nova Categoria
+                    </button>
+                )}
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-2 p-1 bg-white rounded-2xl w-fit border border-slate-100 shadow-sm mx-auto md:mx-0">
+                <button
+                    onClick={() => setActiveTab('items')}
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'items'
+                        ? 'bg-indigo-50 text-indigo-600 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                        }`}
+                >
+                    <List size={16} /> Itens / Peças
+                </button>
+                <button
+                    onClick={() => setActiveTab('categories')}
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'categories'
+                        ? 'bg-emerald-50 text-emerald-600 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                        }`}
+                >
+                    <Tag size={16} /> Categorias
+                </button>
+            </div>
+
+            <div className="bg-white border border-slate-100 rounded-[3rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+
+                {activeTab === 'items' ? (
+                    <>
+                        {/* Items Toolbar */}
+                        <div className="p-6 border-b border-slate-50 bg-slate-50/30 space-y-4">
+                            <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
+                                <div className="relative w-full max-w-xl">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                    <input
+                                        type="text"
+                                        placeholder="Pesquisar por códigos ou descrição..."
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                        className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+                                    />
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10">
+                                        <Filter size={14} className="text-slate-400 mr-2" />
+                                        <select
+                                            className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none max-w-[150px]"
+                                            value={categoryFilter}
+                                            onChange={e => setCategoryFilter(e.target.value)}
+                                        >
+                                            <option value="ALL">Todas Categorias</option>
+                                            {/* Show Managed Categories + any generic ones in use */}
+                                            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                            {/* Fallback for items with legacy categories not in list? optional logic */}
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10">
+                                        <AlertTriangle size={14} className="text-slate-400 mr-2" />
+                                        <select
+                                            className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none"
+                                            value={statusFilter}
+                                            onChange={e => setStatusFilter(e.target.value)}
+                                        >
+                                            <option value="ALL">Status do Estoque</option>
+                                            <option value="GOOD">Estoque Regular</option>
+                                            <option value="LOW">Estoque Baixo</option>
+                                            <option value="OUT">Sem Estoque</option>
+                                        </select>
+                                    </div>
+                                    <button
+                                        onClick={() => { setSearchTerm(''); setCategoryFilter('ALL'); setStatusFilter('ALL'); }}
+                                        className="px-4 py-2 text-[9px] font-black uppercase text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-dashed border-indigo-200"
+                                    >
+                                        Limpar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Items Table */}
+                        <div className="flex-1 overflow-auto custom-scrollbar">
+                            <table className="w-full border-collapse">
+                                <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10">
+                                    <tr className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-left">
+                                        <th className="px-6 py-5 border-b border-slate-100">Item</th>
+                                        <th className="px-6 py-5 border-b border-slate-100">Descrição</th>
+                                        <th className="px-6 py-5 border-b border-slate-100">Localização</th>
+                                        <th className="px-6 py-5 border-b border-slate-100">Qtd.</th>
+                                        <th className="px-6 py-5 border-b border-slate-100">Custo Total</th>
+                                        <th className="px-6 py-5 border-b border-slate-100">Venda</th>
+                                        <th className="px-6 py-5 border-b border-slate-100">Margem</th>
+                                        <th className="px-6 py-5 border-b border-slate-100 text-right pr-10">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {items.length === 0 && !loading ? (
+                                        <tr>
+                                            <td colSpan={8} className="py-20 text-center">
+                                                <Package size={40} className="mx-auto text-slate-200 mb-4" />
+                                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Nenhum item cadastrado</p>
+                                            </td>
+                                        </tr>
+                                    ) : filteredItems.map(item => {
+                                        const totalCost = calculateTotalCost(item);
+                                        const margin = calculateMargin(item);
+                                        return (
+                                            <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black text-indigo-600 uppercase">{item.code}</span>
+                                                        {item.externalCode && (
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                                                <Barcode size={10} /> {item.externalCode}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <p className="text-[11px] font-bold text-slate-700 uppercase">{item.description}</p>
+                                                    <div className="flex gap-2">
+                                                        <span className="text-[9px] text-slate-400 font-bold uppercase">{item.category || '-'}</span>
+                                                        <span className="text-[9px] text-slate-300 font-bold uppercase">•</span>
+                                                        <span className="text-[9px] text-slate-400 font-bold uppercase">{item.unit}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">{item.location}</td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-[11px] font-black ${item.quantity <= item.minQuantity ? 'text-rose-500' : 'text-slate-700'}`}>{item.quantity}</span>
+                                                        {item.quantity <= item.minQuantity && <AlertTriangle size={12} className="text-rose-500" />}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-[10px] font-bold text-slate-500">R$ {totalCost.toFixed(2)}</td>
+                                                <td className="px-6 py-4 text-[10px] font-bold text-slate-700">R$ {item.sellPrice.toFixed(2)}</td>
+                                                <td className="px-6 py-4">
+                                                    <div className={`flex items-center gap-1 text-[10px] font-black ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
+                                                        {margin >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                                        {margin.toFixed(1)}%
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-right pr-6">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button onClick={() => handleOpenModal(item)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                                                            <Edit3 size={14} />
+                                                        </button>
+                                                        <button onClick={() => handleDelete(item.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                ) : (
+                    <div className="p-10 flex-1 overflow-auto custom-scrollbar">
+                        {/* Categories View */}
+                        <h3 className="text-xl font-black text-slate-800 uppercase italic mb-6 flex items-center gap-3">
+                            <Tag className="text-emerald-500" /> Gerenciar Categorias
+                        </h3>
+
+                        {categories.length === 0 ? (
+                            <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                <Tag size={40} className="mx-auto text-slate-300 mb-4" />
+                                <p className="text-slate-400 font-bold uppercase text-xs">Nenhuma categoria encontrada.</p>
+                                <button onClick={() => handleOpenCategoryModal()} className="mt-4 text-emerald-600 font-black text-[10px] uppercase hover:underline">
+                                    Criar Primeira Categoria
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {categories.map(cat => (
+                                    <div key={cat.id} className="p-6 bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                                <Layers size={18} />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-slate-700 uppercase text-xs">{cat.name}</h4>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase">{cat.active ? 'Ativo' : 'Inativo'}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg">
+                                                <Edit3 size={14} />
+                                            </button>
+                                            <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* RESTOCK MODAL */}
+            {isRestockModalOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-white/50">
+                        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <h2 className="text-lg font-black text-slate-800 uppercase italic flex items-center gap-2">
+                                <Package className="text-indigo-600" size={20} /> Entrada Rápida
+                            </h2>
+                            <button onClick={() => setIsRestockModalOpen(false)} className="text-slate-400 hover:text-rose-500 transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-8 space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Buscar Item (Cód. Interno ou Fabricante)</label>
+                                <div className="relative">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                    <input
+                                        autoFocus
+                                        value={restockSearch}
+                                        onChange={e => handleRestockSearch(e.target.value)}
+                                        placeholder="Digite o código exato..."
+                                        className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/30 text-slate-700 font-bold outline-none focus:ring-2 focus:ring-indigo-100 transition-all"
+                                    />
+                                </div>
+                            </div>
+
+                            {selectedRestockItem ? (
+                                <div className="bg-indigo-50/50 rounded-2xl p-6 border border-indigo-100 space-y-4 animate-fade-in">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h3 className="font-black text-slate-700 uppercase text-sm">{selectedRestockItem.description}</h3>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Cód: {selectedRestockItem.code} • Atual: {selectedRestockItem.quantity} {selectedRestockItem.unit}</p>
+                                        </div>
+                                        <div className="px-3 py-1 bg-white rounded-lg border border-indigo-100 text-[10px] font-black text-indigo-600 shadow-sm">
+                                            ITEM ENCONTRADO
+                                        </div>
+                                    </div>
+
+                                    <form onSubmit={handleRestockSubmit} className="pt-4 border-t border-indigo-100/50 flex items-end gap-3">
+                                        <div className="flex-1 space-y-1.5">
+                                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Qtd. Entrada (+)</label>
+                                            <input
+                                                type="number"
+                                                value={restockQuantity}
+                                                onChange={e => setRestockQuantity(e.target.value)}
+                                                className="w-full px-4 py-2 rounded-xl border border-indigo-200 text-indigo-900 font-black outline-none focus:ring-2 focus:ring-indigo-200"
+                                                placeholder="0"
+                                                min="1"
+                                                required
+                                            />
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+                                        >
+                                            Confirmar Entrada
+                                        </button>
+                                    </form>
+                                </div>
+                            ) : restockSearch && (
+                                <div className="text-center py-8 text-slate-400">
+                                    <p className="text-xs font-bold uppercase">Nenhum item encontrado com este código.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ITEM MODAL */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-4 sm:p-8 animate-fade-in">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-[95vw] lg:max-w-6xl shadow-2xl overflow-hidden animate-scale-up border border-white/50 flex flex-col max-h-[90vh]">
+                        <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div className="flex items-center gap-5">
+                                <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-600/20">
+                                    <Package size={24} />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter italic leading-none">{editingItem ? 'Editar Item' : 'Novo Item'}</h2>
+                                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-1 italic">Cadastro de Estoque</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:border-rose-200 transition-all shadow-sm"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="p-10 overflow-y-auto custom-scrollbar flex-1">
+                            <div className="grid grid-cols-12 gap-8">
+                                <div className="col-span-12 lg:col-span-7 space-y-8">
+                                    <div className="bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100 space-y-6">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2"><Box size={14} /> Identificação</h3>
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="space-y-1.5">
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Código Interno</span>
+                                                <div className="relative">
+                                                    <Input
+                                                        value={formData.code}
+                                                        onChange={e => setFormData({ ...formData, code: e.target.value })}
+                                                        className="rounded-xl border-slate-200 font-bold bg-white pr-10"
+                                                        required
+                                                        placeholder="Ex: NEX-001"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={generateCode}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-600 p-1.5 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                        title="Gerar Código Automático"
+                                                    >
+                                                        <Wand2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Cód. Terceiro / Fabricante</span>
+                                                <Input
+                                                    value={formData.externalCode}
+                                                    onChange={e => setFormData({ ...formData, externalCode: e.target.value })}
+                                                    className="rounded-xl border-slate-200 font-bold bg-white text-slate-600"
+                                                    placeholder="Ref. Fabricante..."
+                                                    icon={<Barcode size={14} className="text-slate-300" />}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Descrição do Produto</span>
+                                            <Input
+                                                value={formData.description}
+                                                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                                className="rounded-xl border-slate-200 font-bold bg-white text-lg"
+                                                required
+                                                placeholder="Nome completo do item..."
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="space-y-1.5">
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Categoria</span>
+                                                <select
+                                                    value={formData.category}
+                                                    onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 transition-all uppercase"
+                                                >
+                                                    <option value="">Sem Categoria</option>
+                                                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                                </select>
+                                                {/* Fallback to text input if user wants to type? Maybe not for strict data. Keeping select for now. */}
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Unidade de Medida</span>
+                                                <select
+                                                    value={formData.unit}
+                                                    onChange={e => setFormData({ ...formData, unit: e.target.value as any })}
+                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 transition-all uppercase"
+                                                >
+                                                    <option value="UN">Unidade (UN)</option>
+                                                    <option value="CX">Caixa (CX)</option>
+                                                    <option value="PCT">Pacote (PCT)</option>
+                                                    <option value="M">Metros (M)</option>
+                                                    <option value="CM">Centímetros (CM)</option>
+                                                    <option value="KG">Quilos (KG)</option>
+                                                    <option value="G">Gramas (G)</option>
+                                                    <option value="L">Litros (L)</option>
+                                                    <option value="ML">Mililitros (ML)</option>
+                                                    <option value="M2">Metros² (M²)</option>
+                                                    <option value="M3">Metros³ (M³)</option>
+                                                    <option value="PAR">Par (PAR)</option>
+                                                    <option value="CJ">Conjunto (CJ)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-6">
+                                        <div className="space-y-1.5">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Localização</span>
+                                            <Input
+                                                value={formData.location}
+                                                onChange={e => setFormData({ ...formData, location: e.target.value })}
+                                                className="rounded-xl border-slate-200 font-bold"
+                                                placeholder="Corredor / Prateleira"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Qtd Atual</span>
+                                            <Input
+                                                type="number"
+                                                value={formData.quantity}
+                                                onChange={e => setFormData({ ...formData, quantity: e.target.value })}
+                                                onFocus={(e) => e.target.select()}
+                                                className="rounded-xl border-slate-200 font-bold text-center"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Alerta Mínimo</span>
+                                            <Input
+                                                type="number"
+                                                value={formData.minQuantity}
+                                                onChange={e => setFormData({ ...formData, minQuantity: e.target.value })}
+                                                onFocus={(e) => e.target.select()}
+                                                className="rounded-xl border-slate-200 font-bold text-rose-500 text-center"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="col-span-12 lg:col-span-5 space-y-8 flex flex-col h-full">
+                                    <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 flex-1 flex flex-col gap-8">
+                                        <div className="flex-1 space-y-6">
+                                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2"><DollarSign size={14} /> Composição de Custo</h3>
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <span className="text-[9px] font-black text-slate-500 uppercase w-24">Valor Compra</span>
+                                                    <div className="flex-1 relative">
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">R$</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={formData.costPrice}
+                                                            onChange={e => setFormData({ ...formData, costPrice: e.target.value })}
+                                                            onFocus={(e) => e.target.select()}
+                                                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-indigo-300"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <span className="text-[9px] font-black text-slate-500 uppercase w-24">Frete / Logística</span>
+                                                    <div className="flex-1 relative">
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">R$</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={formData.freightCost}
+                                                            onChange={e => setFormData({ ...formData, freightCost: e.target.value })}
+                                                            onFocus={(e) => e.target.select()}
+                                                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-indigo-300"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <span className="text-[9px] font-black text-slate-500 uppercase w-24">Taxas / Impostos</span>
+                                                    <div className="flex-1 relative">
+                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">%</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={formData.taxPercent}
+                                                            onChange={e => setFormData({ ...formData, taxPercent: e.target.value })}
+                                                            onFocus={(e) => e.target.select()}
+                                                            className="w-full pl-4 pr-8 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-indigo-300"
+                                                            placeholder="0.00"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-4 border-t border-slate-200 mx-2">
+                                                    <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase">Custo Total</span>
+                                                        <span className="text-base font-black text-slate-700">R$ {calculateTotalCost(formData).toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2"><Scale size={14} /> Estratégia de Venda</h3>
+
+                                            <div className="relative group">
+                                                <label className="absolute -top-2.5 left-4 bg-slate-50 px-2 text-[9px] font-black text-emerald-600 uppercase">Preço Final</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-400 text-sm font-bold">R$</span>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={formData.sellPrice}
+                                                        onChange={e => setFormData({ ...formData, sellPrice: e.target.value })}
+                                                        onFocus={(e) => e.target.select()}
+                                                        className="w-full pl-10 pr-6 py-4 rounded-2xl border-2 border-emerald-100 text-xl font-black text-emerald-700 outline-none focus:border-emerald-300 focus:shadow-xl focus:shadow-emerald-100 transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-between items-center px-2">
+                                                <div className="flex-1 mr-4">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Margem Desejada (%)</span>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="number"
+                                                            step="0.1"
+                                                            placeholder="0.0"
+                                                            onChange={(e) => {
+                                                                const margin = Number(e.target.value);
+                                                                const totalCost = calculateTotalCost(formData);
+                                                                // Sell = Cost * (1 + Margin/100)
+                                                                if (margin >= 0) {
+                                                                    const newSellPrice = totalCost * (1 + (margin / 100));
+                                                                    setFormData({ ...formData, sellPrice: parseFloat(newSellPrice.toFixed(2)) });
+                                                                }
+                                                            }}
+                                                            onFocus={(e) => e.target.select()}
+                                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:border-indigo-300 bg-white"
+                                                        />
+                                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase mb-1">Margem Real</span>
+                                                    <div className={`px-4 py-2 rounded-lg flex items-center gap-2 ${calculateMargin(formData) > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                                        {calculateMargin(formData) >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                                                        <span className="text-sm font-black">{calculateMargin(formData).toFixed(1)}%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-8 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="px-8 py-3 rounded-xl font-black text-[10px] uppercase text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all tracking-wider"
+                                >
+                                    Cancelar Operação
+                                </button>
+                                <button
+                                    onClick={handleSubmit}
+                                    className="px-10 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-indigo-600/20 bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 transition-all tracking-wider flex items-center gap-2"
+                                >
+                                    <Save size={16} /> Salvar Cadastro
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* CATEGORY MODAL */}
+            {isCategoryModalOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-4 sm:pt-20 animate-fade-in">
+                    <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-scale-up border border-white/50">
+                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <h2 className="text-lg font-black text-slate-800 uppercase italic">
+                                {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
+                            </h2>
+                            <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-rose-500">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleCategorySubmit} className="p-8 space-y-6">
+                            <div className="space-y-1.5">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Nome da Categoria</span>
+                                <Input
+                                    value={categoryFormData.name}
+                                    onChange={e => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
+                                    className="rounded-xl font-bold"
+                                    placeholder="Ex: Elétrica, Hidráulica..."
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="pt-2 flex justify-end gap-3">
+                                <Button type="button" onClick={() => setIsCategoryModalOpen(false)} variant="ghost" className="text-xs">
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-6 rounded-xl">
+                                    Salvar
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};

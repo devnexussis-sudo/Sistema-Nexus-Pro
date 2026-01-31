@@ -1,0 +1,8 @@
+{
+  "name": "ServiceFlow Pro",
+  "description": "Um sistema moderno de gestão de ordens de serviço conectando administradores e técnicos de campo.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
