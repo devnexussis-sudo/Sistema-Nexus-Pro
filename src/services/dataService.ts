@@ -184,14 +184,16 @@ export const DataService = {
 
       // 🔍 Nexus Deep Security: Busca o tenantId no banco caso falte no metadata (fallback para usuários antigos)
       if (!tenantId) {
-        const { data: dbUser } = await adminSupabase.from('users').select('tenant_id').eq('id', authData.user.id).maybeSingle();
+        // Usamos o cliente padrão (supabase) para evitar travar se a admin key não estiver no client-side
+        const { data: dbUser } = await supabase.from('users').select('tenant_id').eq('id', authData.user.id).maybeSingle();
         if (dbUser?.tenant_id) tenantId = dbUser.tenant_id;
       }
 
       // 🛡️ Nexus Safety Check: Verifica se a empresa está ativa antes de prosseguir
       let enabledModules = {};
       if (tenantId) {
-        const { data: tenantData } = await adminSupabase.from('tenants').select('status, enabled_modules').eq('id', tenantId).maybeSingle();
+        // Usamos o cliente padrão (supabase) para segurança e estabilidade no front-end
+        const { data: tenantData } = await supabase.from('tenants').select('status, enabled_modules').eq('id', tenantId).maybeSingle();
         if (tenantData && tenantData.status === 'suspended') {
           console.warn("🚫 Tentativa de login em empresa suspensa:", email);
           await supabase.auth.signOut();
