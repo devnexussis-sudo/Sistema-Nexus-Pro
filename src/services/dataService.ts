@@ -1372,34 +1372,48 @@ export const DataService = {
       if (data && typeof data === 'object') {
         processedData = { ...data };
         // Busca campos que contenham imagens em base64 (String ou Array)
+        // 🚀 NEXUS PARALLEL UPLOAD ENGINE: Processa todos os uploads simultaneamente
+        const uploadPromises: Promise<void>[] = [];
+
         for (const [key, value] of Object.entries(processedData)) {
           // Caso 1: String única (Assinatura ou Foto antiga)
           if (typeof value === 'string' && value.startsWith('data:image')) {
-            try {
-              const url = await DataService.uploadFile(value, `orders/${id}/evidence`);
-              processedData[key] = url;
-            } catch (e) {
-              console.error(`Erro ao subir imagem ${key} para storage:`, e);
-            }
+            uploadPromises.push((async () => {
+              try {
+                const url = await DataService.uploadFile(value, `orders/${id}/evidence`);
+                processedData[key] = url;
+              } catch (e) {
+                console.error(`Erro ao subir imagem ${key}:`, e);
+              }
+            })());
           }
           // Caso 2: Array de imagens (Novas fotos múltiplas)
           else if (Array.isArray(value)) {
-            const newArray = [];
-            for (const item of value) {
-              if (typeof item === 'string' && item.startsWith('data:image')) {
-                try {
-                  const url = await DataService.uploadFile(item, `orders/${id}/evidence`);
-                  newArray.push(url);
-                } catch (e) {
-                  console.error(`Erro ao subir item do array ${key}:`, e);
-                  newArray.push(item); // Fallback
+            uploadPromises.push((async () => {
+              const newArray: any[] = [];
+              const subPromises = value.map(async (item) => {
+                if (typeof item === 'string' && item.startsWith('data:image')) {
+                  try {
+                    return await DataService.uploadFile(item, `orders/${id}/evidence`);
+                  } catch (e) {
+                    console.error(`Erro ao subir item do array ${key}:`, e);
+                    return item; // Fallback
+                  }
                 }
-              } else {
-                newArray.push(item); // Já é URL ou outro dado
-              }
-            }
-            processedData[key] = newArray;
+                return item;
+              });
+
+              const results = await Promise.all(subPromises);
+              processedData[key] = results;
+            })());
           }
+        }
+
+        // Aguarda todos os uploads terminarem antes de prosseguir
+        if (uploadPromises.length > 0) {
+          console.log(`🚀 Iniciando ${uploadPromises.length} uploads simultâneos...`);
+          await Promise.all(uploadPromises);
+          console.log("✅ Uploads concluídos!");
         }
       }
 
