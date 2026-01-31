@@ -149,13 +149,17 @@ const App: React.FC = () => {
 
     const initApp = async () => {
       // 🛡️ NEXUS CACHE BUSTER: Força limpeza se a versão mudar
-      const CURRENT_VERSION = 'v1.1.1-debug'; // Increment manually on deploy
+      const CURRENT_VERSION = 'v1.1.2-fix'; // Increment manually on deploy
       const storedVersion = localStorage.getItem('nexus_version');
 
       if (storedVersion !== CURRENT_VERSION) {
         console.log("🚀 Nova versão detectada! Limpando cache...");
-        // Mantém apenas o essencial se necessário, mas hoje limpamos tudo para garantir
-        localStorage.clear();
+        // Remove apenas chaves específicas do App para não deslogar o usuário
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('nexus_') || key.startsWith('form_')) {
+            localStorage.removeItem(key);
+          }
+        });
         SessionStorage.clear();
 
         localStorage.setItem('nexus_version', CURRENT_VERSION);
