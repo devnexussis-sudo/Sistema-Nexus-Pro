@@ -701,23 +701,23 @@ export const DataService = {
     return {
       title: order.title,
       description: order.description,
-      customerName: order.customerName,
-      customerAddress: order.customerAddress,
+      customer_name: order.customerName,
+      customer_address: order.customerAddress,
       status: order.status,
       priority: order.priority,
-      operationType: order.operationType,
-      assignedTo: order.assignedTo,
-      formId: order.formId,
-      formData: order.formData,
-      equipmentName: order.equipmentName,
-      equipmentModel: order.equipmentModel,
-      equipmentSerial: order.equipmentSerial,
-      scheduledDate: order.scheduledDate,
-      scheduledTime: order.scheduledTime,
-      startDate: order.startDate,
-      endDate: order.endDate,
+      operation_type: order.operationType,
+      assigned_to: order.assignedTo,
+      form_id: order.formId,
+      form_data: order.formData,
+      equipment_name: order.equipmentName,
+      equipment_model: order.equipmentModel,
+      equipment_serial: order.equipmentSerial,
+      scheduled_date: order.scheduledDate,
+      scheduled_time: order.scheduledTime,
+      start_date: order.startDate,
+      end_date: order.endDate,
       notes: order.notes,
-      updatedAt: new Date().toISOString()
+      updated_at: new Date().toISOString()
     };
   },
 
@@ -793,37 +793,41 @@ export const DataService = {
         console.log("📍 Tenant ID:", tenantId);
 
         // 2. GERAR ID SEQUENCIAL (RPC)
-        const { data: seqNum, error: seqError } = await supabase.rpc('get_next_order_id', {
+        console.log("🔢 Gerando sequência para tenant:", tenantId);
+        const { data: seqNum, error: seqError } = await DataService.getServiceClient().rpc('get_next_order_id', {
           p_tenant_id: tenantId
         });
 
         if (seqError) {
-          console.error("❌ Erro ao gerar sequência:", seqError);
-          throw new Error(`Falha ao gerar número da OS: ${seqError.message}`);
+          console.error("❌ Erro RPC get_next_order_id:", seqError);
+          throw new Error(`Falha ao gerar número da OS (RPC): ${seqError.message}`);
         }
 
         // 3. OBTER PREFIXO DO TENANT
-        const { data: tenantData, error: tenantError } = await supabase
+        console.log("🔍 Buscando prefixo do tenant...");
+        const { data: tenantData, error: tenantError } = await DataService.getServiceClient()
           .from('tenants')
           .select('os_prefix')
           .eq('id', tenantId)
           .single();
 
         if (tenantError) {
-          console.warn("⚠️ Não foi possível obter prefixo do tenant, usando padrão OS-");
+          console.warn("⚠️ Não foi possível obter prefixo do tenant:", tenantError.message);
         }
 
         const prefix = tenantData?.os_prefix || 'OS-';
         const finalId = `${prefix}${seqNum}`;
-        console.log("🔢 ID Gerado:", finalId);
+        console.log("🔢 ID Final Gerado:", finalId);
 
         // 4. PREPARAR PAYLOAD (Mapeamento snake_case)
         const dbPayload = {
           ...DataService._mapOrderToDB(order),
           id: finalId,
           tenant_id: tenantId,
-          createdAt: new Date().toISOString()
+          created_at: new Date().toISOString()
         };
+
+        console.log("💾 Payload final para inserção:", JSON.stringify(dbPayload, null, 2));
 
         // 5. INSERIR NO BANCO
         const { data: insertedData, error: insertError } = await DataService.getServiceClient()
