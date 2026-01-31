@@ -1371,41 +1371,61 @@ export const DataService = {
       let processedData = data;
       if (data && typeof data === 'object') {
         processedData = { ...data };
-        // Busca campos que contenham imagens em base64 (String ou Array)
-        // 🚀 NEXUS PARALLEL UPLOAD ENGINE: Processa todos os uploads simultaneamente
         const uploadPromises: Promise<void>[] = [];
 
+        // Helper com timeout para upload (20s)
+        const safeUpload = async (base64: string): Promise<string> => {
+          const timeout = new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 20000));
+          try {
+            // Race entre o upload e o timeout
+            const result = await Promise.race([DataService.uploadFile(base64, `orders/${id}/evidence`), timeout]);
+            return result as string;
+          } catch (err) {
+            console.error("Upload falhou ou timeout:", err);
+            return '[FALHA_NO_UPLOAD - TENTE NOVAMENTE]';
+          }
+        };
+
+        const uploadPromisesInner: Promise<void>[] = []; // Renamed to ensure no conflict logic
+
+
         for (const [key, value] of Object.entries(processedData)) {
-          // Caso 1: String única (Assinatura ou Foto antiga)
+          // Caso 1: String única
           if (typeof value === 'string' && value.startsWith('data:image')) {
             uploadPromises.push((async () => {
-              const url = await DataService.uploadFile(value, `orders/${id}/evidence`);
-              processedData[key] = url;
+              processedData[key] = await safeUpload(value);
             })());
           }
-          // Caso 2: Array de imagens (Novas fotos múltiplas)
+          // Caso 2: Array
           else if (Array.isArray(value)) {
             uploadPromises.push((async () => {
               const subPromises = value.map(async (item) => {
                 if (typeof item === 'string' && item.startsWith('data:image')) {
-                  return await DataService.uploadFile(item, `orders/${id}/evidence`);
+                  return await safeUpload(item);
                 }
                 return item;
               });
-
-              const results = await Promise.all(subPromises);
-              processedData[key] = results;
+              processedData[key] = await Promise.all(subPromises);
             })());
           }
         }
 
-        // Aguarda todos os uploads terminarem antes de prosseguir
         if (uploadPromises.length > 0) {
-          console.log(`🚀 Iniciando ${uploadPromises.length} uploads simultâneos...`);
           await Promise.all(uploadPromises);
-          console.log("✅ Uploads concluídos!");
         }
       }
+
+      // 🛡️ FIREWALL FINAL: Varredura para garantir que NENHUM Base64 sobrou no payload
+      const sanitizePayload = (obj: any) => {
+        for (const key in obj) {
+          if (typeof obj[key] === 'string' && obj[key].startsWith('data:image')) {
+            obj[key] = '[FALHA_CRITICA_PROTECAO_DB]';
+          } else if (Array.isArray(obj[key])) {
+            obj[key] = obj[key].map((item: any) => (typeof item === 'string' && item.startsWith('data:image')) ? '[FALHA_CRITICA_PROTECAO_DB]' : item);
+          }
+        }
+      };
+      if (processedData) sanitizePayload(processedData);
 
       const updatePayload: any = {
         status,
@@ -1421,9 +1441,9 @@ export const DataService = {
         updatePayload.end_date = new Date().toISOString();
       }
 
-      // 🛡️ Nexus Sync: Usa o client PADRÃO (Autenticado)
-      // O uso de adminSupabase causava travamento em produção por falta de chaves no ambiente Vercel
-      const { error } = await DataService.getServiceClient().from('orders').update(updatePayload).eq('id', id);
+      // 🛡️ Force Standard Client: Importa direto para evitar mocks/impersonation errados
+      const { supabase } = await import('../lib/supabase');
+      const { error } = await supabase.from('orders').update(updatePayload).eq('id', id);
 
       if (error) {
         console.error("Erro técnico no Nexus Sync:", error.message);
