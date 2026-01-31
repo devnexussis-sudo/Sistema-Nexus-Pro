@@ -160,7 +160,9 @@ export const DataService = {
       return publicUrl;
     } catch (err) {
       console.error("Nexus Storage Error:", err);
-      return base64; // Fallback para base64 em caso de falha crítica
+      // 🛡️ Safety: Se falhar o upload, NÃO retorna o base64. 
+      // Retornar base64 > 10MB causa crash no banco e na rede.
+      throw new Error("Falha no upload da imagem. Tente novamente.");
     }
   },
 
@@ -1415,8 +1417,8 @@ export const DataService = {
         updatePayload.end_date = new Date().toISOString();
       }
 
-      // 🛡️ Nexus Admin Sync: Usa o client admin para evitar bloqueios de RLS no update de Datas
-      const { error } = await adminSupabase.from('orders').update(updatePayload).eq('id', id);
+      // 🛡️ Nexus Admin Sync: Usa o client PADRÃO (Autenticado) para respeitar RLS e evitar timeout com keys de admin inválidas
+      const { error } = await DataService.getServiceClient().from('orders').update(updatePayload).eq('id', id);
 
       if (error) {
         console.error("Erro técnico no Nexus Sync:", error.message);

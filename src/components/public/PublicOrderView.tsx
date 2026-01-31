@@ -534,7 +534,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     {console.log('📦 FormData Debug:', order.formData)}
 
                     <div className="space-y-8">
-                      {Object.entries(order.formData).map(([key, val]) => {
+                      {Object.entries(order.formData || {}).map(([key, val]) => {
                         // Ignora campos de assinatura
                         if (key.includes('Assinatura')) return null;
 

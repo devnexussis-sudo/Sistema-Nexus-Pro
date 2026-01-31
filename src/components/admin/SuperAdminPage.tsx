@@ -13,26 +13,32 @@ import { Input as NexusInput } from '../ui/Input';
 
 interface Tenant {
   id: string;
-  slug: string;
-  name: string; // Add name
-  companyName: string;
-  tradingName: string;
-  cnpj: string;
-  adminEmail: string;
-  phone: string;
-  address: string;
+  slug?: string;
+  name?: string;
+  companyName?: string;
+  company_name?: string; // Add snake_case support
+  tradingName?: string;
+  trading_name?: string; // Add snake_case support
+  cnpj?: string;
+  adminEmail?: string;
+  admin_email?: string; // Add snake_case support
+  email?: string;
+  phone?: string;
+  address?: string;
   status: 'active' | 'suspended';
   created_at?: string;
   updated_at?: string;
-  active_techs: number;
-  os_count: number;
-  equipment_count: number;
+  active_techs?: number;
+  os_count?: number;
+  equipment_count?: number;
   user_count?: number;
   userCount?: number;
   osCount?: number;
   activeTechs?: number;
   osPrefix?: string;
+  os_prefix?: string;
   osStartNumber?: number;
+  os_start_number?: number;
   street?: string;
   number?: string;
   complement?: string;
@@ -43,6 +49,7 @@ interface Tenant {
   initialPassword?: string;
   enabled_modules?: Record<string, boolean>;
   enabledModules?: Record<string, boolean>;
+  metadata?: any;
 }
 
 import { DataService } from '../../services/dataService';
@@ -594,7 +601,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                     label="Identificador do Sistema (Slug)"
                     placeholder="ex-tech-brazil"
                     disabled={!!editingTenant}
-                    value={formData.id || ''}
+                    value={(editingTenant ? (editingTenant as any).slug || editingTenant.id : formData.id) || ''}
                     onChange={e => setFormData({ ...formData, id: formatSlug(e.target.value) })}
                     className={`bg-white/5 border-white/10 text-white rounded-2xl py-4 ${editingTenant ? 'opacity-50 cursor-not-allowed' : ''}`}
                   />

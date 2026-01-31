@@ -306,9 +306,18 @@ const App: React.FC = () => {
       const { supabase } = await import('./lib/supabase');
       await supabase.auth.signOut();
     }
+
+    // 🧹 Limpeza Profunda: Remove dados da sessão e também o cache legado
     SessionStorage.clear();
+
+    // Remove chaves que o script de migração tenta restaurar
+    localStorage.removeItem('nexus_user');
+    localStorage.removeItem('nexus_current_tenant');
+    localStorage.removeItem('nexus_is_impersonating');
+
     setAuth({ user: null, isAuthenticated: false });
     window.location.hash = '';
+
     // Se estiver no portal tech ou admin, recarrega para limpar estado
     if (window.location.pathname === '/tech' || window.location.pathname === '/admin' || window.location.pathname === '/') {
       window.location.reload();
