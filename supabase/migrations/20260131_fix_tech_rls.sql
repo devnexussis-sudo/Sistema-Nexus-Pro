@@ -5,5 +5,5 @@
 CREATE POLICY "Technicians can update assigned orders" ON orders
   FOR UPDATE
   USING (
-    auth.uid() = technician_id
+    auth.uid()::text = assigned_to::text
   );
