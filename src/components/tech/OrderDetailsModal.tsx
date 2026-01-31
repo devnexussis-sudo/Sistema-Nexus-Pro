@@ -195,11 +195,21 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       // Se o mapeamento semântico gerou dados, usamos ele; caso contrário, fallback para answers original
       const finalFormData = Object.keys(semanticAnswers).length > 0 ? semanticAnswers : answers;
 
-      await onUpdateStatus(order.id, OrderStatus.COMPLETED, notes, finalFormData);
+      setLoading(true);
+
+      // 🛡️ Nexus Safety Timeout: Garante que o loading não fique travado para sempre
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite excedido. Verifique sua conexão.')), 15000));
+
+      await Promise.race([
+        onUpdateStatus(order.id, OrderStatus.COMPLETED, notes, finalFormData),
+        timeoutPromise
+      ]);
+
       setLocalStatus(OrderStatus.COMPLETED);
       onClose();
-    } catch (e) {
-      alert("Erro ao finalizar atendimento.");
+    } catch (e: any) {
+      console.error(e);
+      alert(`Erro ao finalizar atendimento: ${e.message || 'Falha de comunicação'}`);
     } finally {
       setLoading(false);
     }
