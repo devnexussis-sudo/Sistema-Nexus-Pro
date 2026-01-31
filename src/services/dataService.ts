@@ -798,31 +798,32 @@ export const DataService = {
       console.log("🔑 Session Token (First 10 chars):", token?.substring(0, 10) + "...");
 
       try {
+        const { data: { session } } = await supabase.auth.getSession();
         const { data, error } = await supabase.functions.invoke('create-order', {
-          body: { order }
+          body: { order },
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`
+          }
         });
 
         if (error) {
-          console.error("❌ Edge Function Error:", error);
+          console.error("❌ Edge Function Raw Error:", error);
+          let detailedMessage = "Erro desconhecido na nuvem (Detalhes não disponíveis)";
 
-          let detailedMessage = "Erro desconhecido na nuvem";
-
-          // 🛡️ Extração resiliente do erro (FunctionsHttpError)
           if (error.context && typeof error.context.json === 'function') {
             try {
               const errorBody = await error.context.json();
-              console.log("📦 Error Body:", errorBody);
-              detailedMessage = errorBody.error || errorBody.message || JSON.stringify(errorBody);
+              console.log("📦 Cloud Error Body:", errorBody);
+              detailedMessage = errorBody.error || errorBody.message || errorBody.details || JSON.stringify(errorBody);
             } catch (e) {
-              console.warn("⚠️ Não foi possível ler o corpo do erro:", e);
-              detailedMessage = error.message || String(error);
+              detailedMessage = error.message;
             }
           } else {
             detailedMessage = error.message || String(error);
           }
 
-          if (error.status === 401 || detailedMessage.includes('401')) {
-            throw new Error("Sessão expirada ou não autorizada. Por favor, faça logout e entre novamente.");
+          if (error.status === 401 || detailedMessage.toLowerCase().includes('auth') || detailedMessage.includes('401')) {
+            throw new Error("Sessão expirada ou não autorizada. Por favor, saia (Logout) e entre novamente para sincronizar.");
           }
           throw new Error(`Falha ao processar OS na nuvem: ${detailedMessage}`);
         }
@@ -836,7 +837,12 @@ export const DataService = {
         return DataService._mapOrderFromDB(data);
 
       } catch (err: any) {
-        console.error("Falha crítica ao chamar Edge Function:", err);
+        console.error("DEBUG CRÍTICO - ERRO OS:", {
+          message: err.message,
+          error: err,
+          stack: err.stack,
+          json: JSON.stringify(err, Object.getOwnPropertyNames(err))
+        });
         throw err;
       }
     }

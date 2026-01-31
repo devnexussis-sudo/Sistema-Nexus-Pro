@@ -3,8 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  // Adicionado x-supabase-client-platform para evitar erros de CORS com versões recentes do cliente Supabase
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-auth-token',
 }
 
 serve(async (req) => {
@@ -31,24 +30,22 @@ serve(async (req) => {
       });
     }
 
-    // 1. Create a client with the USER'S token to verify identity
-    const supabaseUserClient = createClient(
+    // Initialize Admin Client
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
+      serviceRoleKey,
+      { auth: { persistSession: false } }
     )
 
-    const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser()
+    // 1. Verify User Identity using the token from the header
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
 
     if (userError || !user) {
       console.error("❌ Auth Validation Failed:", userError);
       return new Response(JSON.stringify({
-        error: 'Autenticação Inválida',
-        details: userError?.message || 'Token não reconhecido'
+        error: 'Sessão Inválida ou Expirada',
+        details: userError?.message || 'Token não reconhecido pela Supabase Auth'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 401,
@@ -57,14 +54,7 @@ serve(async (req) => {
 
     console.log("✅ User Authenticated:", user.id);
 
-    // 2. Create Admin Client for DB Operations (Bypass RLS for ID generation and insertion)
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      serviceRoleKey,
-      { auth: { persistSession: false } }
-    )
-
-    // 3. Parse Request Body
+    // 2. Parse Request Body
     const { order } = await req.json()
     if (!order) {
       throw new Error("Order data is missing")
