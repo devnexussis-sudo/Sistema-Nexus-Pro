@@ -26,6 +26,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [linkedEquipment, setLinkedEquipment] = useState<any>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const [activePhotoField, setActivePhotoField] = useState<string | null>(null);
 
   // 🛡️ Nexus Semantic Recovery: Reconstrói o formulário a partir do formData semântico (labels)
   useEffect(() => {
@@ -271,100 +273,81 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
 
   const handlePhotoUpload = (fieldId: string) => {
     if (localStatus === OrderStatus.COMPLETED) return;
-    const input = document.createElement('input');
-    input.type = 'file';
-    // 🛡️ Nexus High-Efficiency Support: Aceita padrões web e também formatos Apple (HEIC/HEIF)
-    input.accept = 'image/*'; // Simplificado para garantir abertura da câmera nativa
-    input.setAttribute('capture', 'environment');
-    (input as any).capture = 'environment';
+    setActivePhotoField(fieldId);
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = ''; // Reset para permitir re-seleção
+      cameraInputRef.current.click();
+    }
+  };
 
-    // 🛡️ Nexus Mobile Fix: Alguns browsers ignoram o capture se o input não estiver no DOM
-    input.style.display = 'none';
-    document.body.appendChild(input);
+  const onCameraChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fieldId = activePhotoField;
+    if (!fieldId || !e.target.files?.[0]) return;
 
-    input.onchange = async (e: any) => {
-      let file = e.target.files[0];
-      // Limpeza imediata do DOM após a seleção
-      document.body.removeChild(input);
+    let file = e.target.files[0];
+    setUploadingFields(prev => ({ ...prev, [fieldId]: true }));
 
-      if (file) {
-        setUploadingFields(prev => ({ ...prev, [fieldId]: true }));
-
-        // Validação extra de segurança
-        if (file.type.startsWith('video/')) {
-          alert('Apenas fotos são permitidas neste campo.');
-          setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
-          return;
-        }
-
-        // 🛡️ Nexus HEIC Intelligence
-        const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
-        if (isHeic) {
-          try {
-            const heic2any = (await import('heic2any')).default;
-            const convertedBlob = await heic2any({
-              blob: file,
-              toType: 'image/jpeg',
-              quality: 0.8
-            });
-            const simpleBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
-            file = new File([simpleBlob], file.name.split('.')[0] + '.jpg', { type: 'image/jpeg' });
-          } catch (err) {
-            console.error("Falha na transcodificação HEIC Nexus:", err);
-          }
-        }
-
-        const reader = new FileReader();
-        reader.onload = async (re) => {
-          const rawBase64 = re.target?.result as string;
-
-          try {
-            // 1. Compressão Local
-            const compressedBase64 = await DataService.compressImage(rawBase64);
-
-            // 2. Upload Imediato (Background) - v1.1.0
-            // Isso resolve o timeout no final, pois o peso é distribuído durante o uso
-            const publicUrl = await DataService.uploadFile(compressedBase64, `orders/${order.id}/evidence`);
-
-            // 3. Salva a URL (não o base64)
-            setAnswers(prev => {
-              const currentVal = prev[fieldId];
-              let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
-
-              if (currentPhotos.length >= 3) {
-                alert("Limite máximo de 3 fotos atingido para este campo.");
-                return prev;
-              }
-
-              // Adiciona a URL retornada pelo Storage
-              return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
-            });
-
-          } catch (err) {
-            console.error("Erro no upload imediato:", err);
-            alert("Erro ao enviar foto. Verifique sua conexão e tente novamente.");
-          } finally {
-            setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
-          }
-        };
-        reader.readAsDataURL(file);
-      } else {
+    try {
+      // Validação extra de segurança
+      if (file.type.startsWith('video/')) {
+        alert('Apenas fotos são permitidas neste campo.');
         setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+        return;
       }
-    };
 
-    input.click();
-
-    // Safety: Se o usuário cancelar e o onchange não disparar, o input ficaria no DOM.
-    // Em alguns casos, o click() é síncrono para o popup mas o resto não.
-    // Mas remover o elemento antes do onchange pode quebrar no iOS.
-    // Vamos adicionar um timeout pequeno apenas para garantir que se o diálogo abrir, o elemento suma.
-    setTimeout(() => {
-      if (input.parentNode) {
-        // Não removemos agora para não quebrar a referência do browser durante o diálogo de arquivo
+      // 🛡️ Nexus HEIC Intelligence
+      const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
+      if (isHeic) {
+        try {
+          const heic2any = (await import('heic2any')).default;
+          const convertedBlob = await heic2any({
+            blob: file,
+            toType: 'image/jpeg',
+            quality: 0.8
+          });
+          const simpleBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+          file = new File([simpleBlob], file.name.split('.')[0] + '.jpg', { type: 'image/jpeg' });
+        } catch (err) {
+          console.error("Falha na transcodificação HEIC Nexus:", err);
+        }
       }
-    }, 1000);
-    // Se cancelar a seleção de arquivo, não temos evento fácil, mas o loading só ativa no onchange
+
+      const reader = new FileReader();
+      reader.onload = async (re) => {
+        const rawBase64 = re.target?.result as string;
+
+        try {
+          // 1. Compressão Local
+          const compressedBase64 = await DataService.compressImage(rawBase64);
+
+          // 2. Upload Imediato (Background)
+          const publicUrl = await DataService.uploadFile(compressedBase64, `orders/${order.id}/evidence`);
+
+          // 3. Salva a URL
+          setAnswers(prev => {
+            const currentVal = prev[fieldId];
+            let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
+
+            if (currentPhotos.length >= 3) {
+              alert("Limite máximo de 3 fotos atingido para este campo.");
+              return prev;
+            }
+
+            return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
+          });
+
+        } catch (err) {
+          console.error("Erro no upload imediato:", err);
+          alert("Erro ao enviar foto. Verifique sua conexão e tente novamente.");
+        } finally {
+          setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Erro no processamento da câmera:", err);
+      setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+    }
   };
 
   return (
@@ -958,6 +941,16 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           </div>
         </div>
       )}
+      {/* 📹 NEXUS NATIVE CAMERA BRIDGE - Stable Input */}
+      <input
+        type="file"
+        ref={cameraInputRef}
+        onChange={onCameraChange}
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        style={{ display: 'none', position: 'absolute', width: 0, height: 0 }}
+      />
     </div>
   );
 };
