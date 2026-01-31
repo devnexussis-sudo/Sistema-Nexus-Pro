@@ -28,9 +28,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
   const [linkedEquipment, setLinkedEquipment] = useState<any>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const [activePhotoField, setActivePhotoField] = useState<string | null>(null);
-  const [showCameraModal, setShowCameraModal] = useState(false);
-  const videoRef = React.useRef<HTMLVideoElement>(null);
-  const streamRef = React.useRef<MediaStream | null>(null);
 
   // 🛡️ Nexus Semantic Recovery: Reconstrói o formulário a partir do formData semântico (labels)
   useEffect(() => {
@@ -347,109 +344,15 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
     if (localStatus === OrderStatus.COMPLETED) return;
     setActivePhotoField(fieldId);
 
-    // 🎯 NEXUS NATIVE CAMERA: Tenta usar a API nativa primeiro (força câmera traseira)
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        // Enumera todas as câmeras disponíveis
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
-
-        // Procura pela câmera traseira principal (não wide/ultra-wide)
-        // A câmera principal geralmente tem "back" ou "rear" no label e NÃO tem "wide" ou "ultra"
-        const mainRearCamera = videoDevices.find(device =>
-          device.label.toLowerCase().includes('back') &&
-          !device.label.toLowerCase().includes('wide') &&
-          !device.label.toLowerCase().includes('ultra')
-        ) || videoDevices.find(device =>
-          device.label.toLowerCase().includes('rear') &&
-          !device.label.toLowerCase().includes('wide')
-        );
-
-        let constraints: MediaStreamConstraints;
-
-        if (mainRearCamera?.deviceId) {
-          // Força a câmera principal específica
-          constraints = {
-            video: {
-              deviceId: { exact: mainRearCamera.deviceId },
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            },
-            audio: false
-          };
-        } else {
-          // Fallback: usa facingMode padrão
-          constraints = {
-            video: {
-              facingMode: 'environment',
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            },
-            audio: false
-          };
-        }
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-        streamRef.current = stream;
-        setShowCameraModal(true);
-
-        // Aguarda o modal renderizar
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Conecta o stream ao vídeo
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-        }
-
-        return; // Sucesso, não precisa do fallback
-      } catch (err) {
-        console.warn('📸 Camera API não disponível, usando fallback:', err);
-        // Continua para o fallback abaixo
-      }
-    }
-
-    // FALLBACK: Usa o input file tradicional
+    // 🎯 SOLUÇÃO DEFINITIVA: Usa o input file que respeita melhor o hardware
+    // A camera nativa do browser força ultra-wide em muitos dispositivos
+    // O input file com capture="environment" deixa o SO escolher a câmera padrão
     if (cameraInputRef.current) {
       cameraInputRef.current.value = '';
       cameraInputRef.current.click();
     }
   };
 
-  const capturePhoto = async () => {
-    if (!videoRef.current || !activePhotoField) return;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx?.drawImage(videoRef.current, 0, 0);
-
-    // Para o stream
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-
-    setShowCameraModal(false);
-
-    // Converte para blob e processa
-    canvas.toBlob(async (blob) => {
-      if (blob) {
-        const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        await processPhotoFile(file, activePhotoField);
-      }
-    }, 'image/jpeg', 0.92);
-  };
-
-  const closeCameraModal = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setShowCameraModal(false);
-  };
 
   const onCameraChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fieldId = activePhotoField;
@@ -1059,52 +962,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         className="hidden"
         style={{ display: 'none', position: 'absolute', width: 0, height: 0 }}
       />
-
-      {/* 📸 NEXUS CAMERA MODAL - Preview com Botão de Captura */}
-      {showCameraModal && (
-        <div className="fixed inset-0 z-[200] bg-black flex flex-col">
-          {/* Preview de Vídeo */}
-          <div className="flex-1 relative overflow-hidden">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-
-            {/* Overlay com Grid de Enquadramento */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="w-full h-full grid grid-cols-3 grid-rows-3 opacity-30">
-                {[...Array(9)].map((_, i) => (
-                  <div key={i} className="border border-white/30" />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Controles */}
-          <div className="bg-black/90 backdrop-blur-xl p-6 flex items-center justify-between border-t border-white/10">
-            <button
-              onClick={closeCameraModal}
-              className="p-4 bg-white/10 text-white rounded-full hover:bg-white/20 transition-colors"
-            >
-              <X size={24} />
-            </button>
-
-            <button
-              onClick={capturePhoto}
-              className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform border-4 border-white/30"
-            >
-              <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center">
-                <Camera size={32} className="text-white" />
-              </div>
-            </button>
-
-            <div className="w-16" /> {/* Spacer para centralizar o botão */}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -153,7 +153,7 @@ const App: React.FC = () => {
 
     const initApp = async () => {
       // 🛡️ NEXUS CACHE BUSTER: Força limpeza se a versão mudar
-      const CURRENT_VERSION = 'v1.2.3-std-lens'; // v1.2.3: Force Standard Rear Camera (No Wide-Angle)
+      const CURRENT_VERSION = 'v1.3.0-simple-cam'; // v1.3.0: Simplified Camera - Native OS Selection
       const storedVersion = localStorage.getItem('nexus_version');
 
       if (storedVersion !== CURRENT_VERSION) {
@@ -639,7 +639,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-6">
             <div className="flex flex-col items-end border-r border-slate-200 pr-6">
               <span className="text-[10px] font-black text-slate-900 uppercase italic">{auth.user?.name}</span>
-              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.2.3</span></span>
+              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.3.0</span></span>
             </div>
             <div className="relative flex items-center gap-2">
               <button
