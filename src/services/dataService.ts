@@ -799,29 +799,30 @@ export const DataService = {
 
       try {
         const { data, error } = await supabase.functions.invoke('create-order', {
-          body: { order },
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+          body: { order }
         });
 
         if (error) {
           console.error("❌ Edge Function Error:", error);
 
-          // Tenta extrair a mensagem de erro do corpo da resposta se disponível
-          let detailedMessage = error.message || error;
+          let detailedMessage = "Erro desconhecido na nuvem";
 
-          if (error.context?.response) {
+          // 🛡️ Extração resiliente do erro (FunctionsHttpError)
+          if (error.context && typeof error.context.json === 'function') {
             try {
-              const errorBody = await error.context.response.json();
-              if (errorBody && errorBody.error) detailedMessage = errorBody.error;
+              const errorBody = await error.context.json();
+              console.log("📦 Error Body:", errorBody);
+              detailedMessage = errorBody.error || errorBody.message || JSON.stringify(errorBody);
             } catch (e) {
-              // Falha ao parsear corpo do erro, mantém a mensagem original
+              console.warn("⚠️ Não foi possível ler o corpo do erro:", e);
+              detailedMessage = error.message || String(error);
             }
+          } else {
+            detailedMessage = error.message || String(error);
           }
 
-          if (error.context?.response?.status === 401) {
-            throw new Error("Autenticação recusada pela nuvem. Tente fazer logout e login novamente.");
+          if (error.status === 401 || detailedMessage.includes('401')) {
+            throw new Error("Sessão expirada ou não autorizada. Por favor, faça logout e entre novamente.");
           }
           throw new Error(`Falha ao processar OS na nuvem: ${detailedMessage}`);
         }

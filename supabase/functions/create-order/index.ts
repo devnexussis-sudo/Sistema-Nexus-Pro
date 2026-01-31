@@ -24,25 +24,25 @@ serve(async (req) => {
 
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!serviceRoleKey) {
-      console.error("❌ Critical: SUPABASE_SERVICE_ROLE_KEY is not defined in Edge Function secrets.");
-      throw new Error("Configuração incompleta na nuvem (Service Role missing)");
+      console.error("❌ Critical: SUPABASE_SERVICE_ROLE_KEY is not defined.");
+      return new Response(JSON.stringify({ error: "Configuração incompleta na nuvem (Service Role missing)" }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      });
     }
 
-    // Initialize Client with SERVICE ROLE (Bypass RLS and infrastructure issues)
-    // We still validate the USER token below for security.
-    const supabaseAdmin = createClient(
+    // 1. Create a client with the USER'S token to verify identity
+    const supabaseUserClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      serviceRoleKey, // Use Service Role for internal stability
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
-        auth: {
-          persistSession: false
-        }
+        global: {
+          headers: { Authorization: authHeader },
+        },
       }
     )
 
-    // 1. Explicitly Verify User Token
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
+    const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser()
 
     if (userError || !user) {
       console.error("❌ Auth Validation Failed:", userError);
@@ -57,7 +57,14 @@ serve(async (req) => {
 
     console.log("✅ User Authenticated:", user.id);
 
-    // 2. Parse Request Body
+    // 2. Create Admin Client for DB Operations (Bypass RLS for ID generation and insertion)
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      serviceRoleKey,
+      { auth: { persistSession: false } }
+    )
+
+    // 3. Parse Request Body
     const { order } = await req.json()
     if (!order) {
       throw new Error("Order data is missing")
