@@ -1442,8 +1442,15 @@ export const DataService = {
         const { error } = await supabase.from('orders').update(updatePayload).eq('id', id);
 
         if (error) {
-          console.error("Erro técnico no Nexus Sync:", error.message);
-          throw new Error(`Erro ao salvar: ${error.message} (Verifique RLS)`);
+          console.error("Erro técnico no Nexus Sync:", error);
+          // 🚨 DEBUG DIAGNOSTIC: Throw full error object for UI to display
+          throw {
+            message: "Erro ao salvar no Banco de Dados",
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+            pg_message: error.message
+          };
         }
         return;
       }

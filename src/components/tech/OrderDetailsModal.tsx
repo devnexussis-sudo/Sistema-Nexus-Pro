@@ -208,8 +208,13 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       setLocalStatus(OrderStatus.COMPLETED);
       onClose();
     } catch (e: any) {
-      console.error(e);
-      alert(`Erro ao finalizar atendimento: ${e.message || 'Falha de comunicação'}`);
+      console.error("ERROR FAIL SAVE:", e);
+      // 🚨 DEBUG MODE: Mostra o erro exato para o usuário tirar print
+      const errorMsg = e.code ?
+        `ALERTA TÉCNICO (TIRE PRINT):\n\nCODE: ${e.code}\nMSG: ${e.pg_message}\nDETAILS: ${e.details || 'N/A'}` :
+        `ERRO: ${e.message || 'Desconhecido'}`;
+
+      alert(errorMsg);
     } finally {
       setLoading(false);
     }
