@@ -271,20 +271,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
     }
   };
 
-  const handlePhotoUpload = (fieldId: string) => {
-    if (localStatus === OrderStatus.COMPLETED) return;
-    setActivePhotoField(fieldId);
-    if (cameraInputRef.current) {
-      cameraInputRef.current.value = ''; // Reset para permitir re-seleção
-      cameraInputRef.current.click();
-    }
-  };
-
-  const onCameraChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fieldId = activePhotoField;
-    if (!fieldId || !e.target.files?.[0]) return;
-
-    let file = e.target.files[0];
+  // 🛡️ NEXUS PHOTO PROCESSOR: Função unificada para processar fotos (API nativa ou file input)
+  const processPhotoFile = async (file: File, fieldId: string) => {
     setUploadingFields(prev => ({ ...prev, [fieldId]: true }));
 
     try {
@@ -294,6 +282,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
         return;
       }
+
+      let processedFile = file;
 
       // 🛡️ Nexus HEIC Intelligence
       const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
@@ -306,7 +296,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
             quality: 0.8
           });
           const simpleBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
-          file = new File([simpleBlob], file.name.split('.')[0] + '.jpg', { type: 'image/jpeg' });
+          processedFile = new File([simpleBlob], file.name.split('.')[0] + '.jpg', { type: 'image/jpeg' });
         } catch (err) {
           console.error("Falha na transcodificação HEIC Nexus:", err);
         }
@@ -343,11 +333,72 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
         }
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processedFile);
     } catch (err) {
       console.error("Erro no processamento da câmera:", err);
       setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
     }
+  };
+
+  const handlePhotoUpload = async (fieldId: string) => {
+    if (localStatus === OrderStatus.COMPLETED) return;
+    setActivePhotoField(fieldId);
+
+    // 🎯 NEXUS NATIVE CAMERA: Tenta usar a API nativa primeiro (força câmera traseira)
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } }, // Força câmera traseira
+          audio: false
+        });
+
+        // Cria um elemento de vídeo temporário para capturar o frame
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.setAttribute('playsinline', 'true'); // iOS fix
+        await video.play();
+
+        // Aguarda um frame para garantir que o vídeo está pronto
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Captura o frame em um canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(video, 0, 0);
+
+        // Para o stream
+        stream.getTracks().forEach(track => track.stop());
+
+        // Converte para blob
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            // Processa a foto usando o mesmo fluxo
+            await processPhotoFile(file, fieldId);
+          }
+        }, 'image/jpeg', 0.9);
+
+        return; // Sucesso, não precisa do fallback
+      } catch (err) {
+        console.warn('📸 Camera API não disponível, usando fallback:', err);
+        // Continua para o fallback abaixo
+      }
+    }
+
+    // FALLBACK: Usa o input file tradicional
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+      cameraInputRef.current.click();
+    }
+  };
+
+  const onCameraChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fieldId = activePhotoField;
+    if (!fieldId || !e.target.files?.[0]) return;
+
+    await processPhotoFile(e.target.files[0], fieldId);
   };
 
   return (
