@@ -1421,13 +1421,13 @@ export const DataService = {
         updatePayload.end_date = new Date().toISOString();
       }
 
-      // 🛡️ Nexus Admin Sync: Revertido para adminSupabase para garantir persistência mesmo sem RLS de Técnico
-      // Importante: Verifique se VITE_SUPABASE_SERVICE_ROLE_KEY está configurada na Vercel
-      const { error } = await adminSupabase.from('orders').update(updatePayload).eq('id', id);
+      // 🛡️ Nexus Sync: Usa o client PADRÃO (Autenticado)
+      // O uso de adminSupabase causava travamento em produção por falta de chaves no ambiente Vercel
+      const { error } = await DataService.getServiceClient().from('orders').update(updatePayload).eq('id', id);
 
       if (error) {
         console.error("Erro técnico no Nexus Sync:", error.message);
-        throw new Error(`Falha técnica no sincronismo: ${error.message}`);
+        throw new Error(`Erro ao salvar: ${error.message} (Verifique RLS)`);
       }
       return;
     }
