@@ -149,7 +149,7 @@ const App: React.FC = () => {
 
     const initApp = async () => {
       // 🛡️ NEXUS CACHE BUSTER: Força limpeza se a versão mudar
-      const CURRENT_VERSION = 'v1.0.5-safe'; // Increment manually on deploy
+      const CURRENT_VERSION = 'v1.0.6-strict'; // Increment manually on deploy
       const storedVersion = localStorage.getItem('nexus_version');
 
       if (storedVersion !== CURRENT_VERSION) {
@@ -609,7 +609,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-6">
             <div className="flex flex-col items-end border-r border-slate-200 pr-6">
               <span className="text-[10px] font-black text-slate-900 uppercase italic">{auth.user?.name}</span>
-              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.0.5</span></span>
+              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.0.6</span></span>
             </div>
             <div className="relative flex items-center gap-2">
               <button

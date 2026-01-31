@@ -197,9 +197,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
 
       setLoading(true);
 
-      // 🛡️ Nexus Safety Timeout: Garante que o loading não fique travado para sempre
-      // Aumentado para 60s para suportar upload de múltiplas imagens em 3G/4G
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite excedido. Verifique sua conexão.')), 60000));
+      // 🛡️ Nexus Safety Timeout: Aumentado para 120s para garantir upload de múltiplas fotos em sinal fraco
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite excedido (120s). Tente novamente em um local com melhor sinal.')), 120000));
 
       await Promise.race([
         onUpdateStatus(order.id, OrderStatus.COMPLETED, notes, finalFormData),

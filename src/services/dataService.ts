@@ -1379,27 +1379,16 @@ export const DataService = {
           // Caso 1: String única (Assinatura ou Foto antiga)
           if (typeof value === 'string' && value.startsWith('data:image')) {
             uploadPromises.push((async () => {
-              try {
-                const url = await DataService.uploadFile(value, `orders/${id}/evidence`);
-                processedData[key] = url;
-              } catch (e) {
-                console.error(`Erro ao subir imagem ${key}:`, e);
-                processedData[key] = '[ERRO_UPLOAD]';
-              }
+              const url = await DataService.uploadFile(value, `orders/${id}/evidence`);
+              processedData[key] = url;
             })());
           }
           // Caso 2: Array de imagens (Novas fotos múltiplas)
           else if (Array.isArray(value)) {
             uploadPromises.push((async () => {
-              const newArray: any[] = [];
               const subPromises = value.map(async (item) => {
                 if (typeof item === 'string' && item.startsWith('data:image')) {
-                  try {
-                    return await DataService.uploadFile(item, `orders/${id}/evidence`);
-                  } catch (e) {
-                    console.error(`Erro ao subir item do array ${key}:`, e);
-                    return '[ERRO_UPLOAD]';
-                  }
+                  return await DataService.uploadFile(item, `orders/${id}/evidence`);
                 }
                 return item;
               });
@@ -1432,12 +1421,13 @@ export const DataService = {
         updatePayload.end_date = new Date().toISOString();
       }
 
-      // 🛡️ Nexus Admin Sync: Usa o client PADRÃO (Autenticado) para respeitar RLS e evitar timeout com keys de admin inválidas
-      const { error } = await DataService.getServiceClient().from('orders').update(updatePayload).eq('id', id);
+      // 🛡️ Nexus Admin Sync: Revertido para adminSupabase para garantir persistência mesmo sem RLS de Técnico
+      // Importante: Verifique se VITE_SUPABASE_SERVICE_ROLE_KEY está configurada na Vercel
+      const { error } = await adminSupabase.from('orders').update(updatePayload).eq('id', id);
 
       if (error) {
         console.error("Erro técnico no Nexus Sync:", error.message);
-        throw new Error(`Falha técnica: ${error.message}`);
+        throw new Error(`Falha técnica no sincronismo: ${error.message}`);
       }
       return;
     }
