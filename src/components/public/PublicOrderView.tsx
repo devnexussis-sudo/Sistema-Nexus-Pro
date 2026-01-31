@@ -30,7 +30,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     };
 
     fetchTenantData();
-  }, [order]);
+  }, [order?.id, (order as any)?.tenant_id, order?.tenantId]);
 
   if (!order) return null;
 

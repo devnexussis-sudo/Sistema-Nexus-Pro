@@ -159,19 +159,42 @@ const App: React.FC = () => {
             if (session?.user && !isMaster && !isImpersonatingLocal) {
               const refreshedUser = await DataService.refreshUser();
               if (refreshedUser) {
-                setAuth({ user: refreshedUser, isAuthenticated: true });
+                // 🛑 SAFETY CHECK: Only update if changed prevents infinite loops
+                setAuth(prev => {
+                  if (JSON.stringify(prev.user) === JSON.stringify(refreshedUser) && prev.isAuthenticated) return prev;
+                  return { user: refreshedUser, isAuthenticated: true };
+                });
               } else {
                 const stored = SessionStorage.get('user');
-                if (stored) setAuth({ user: stored, isAuthenticated: true });
+                if (stored) {
+                  setAuth(prev => {
+                    if (JSON.stringify(prev.user) === JSON.stringify(stored) && prev.isAuthenticated) return prev;
+                    return { user: stored, isAuthenticated: true };
+                  });
+                }
               }
             } else if (session?.user && (isMaster || isImpersonatingLocal)) {
               const stored = SessionStorage.get('user');
-              if (stored) setAuth({ user: stored, isAuthenticated: true });
+              if (stored) {
+                setAuth(prev => {
+                  if (JSON.stringify(prev.user) === JSON.stringify(stored) && prev.isAuthenticated) return prev;
+                  return { user: stored, isAuthenticated: true };
+                });
+              }
             } else if (!session?.user && isImpersonatingLocal) {
               const stored = SessionStorage.get('user');
-              if (stored) setAuth({ user: stored, isAuthenticated: true });
+              if (stored) {
+                setAuth(prev => {
+                  if (JSON.stringify(prev.user) === JSON.stringify(stored) && prev.isAuthenticated) return prev;
+                  return { user: stored, isAuthenticated: true };
+                });
+              }
             } else {
-              setAuth({ user: null, isAuthenticated: false });
+              setAuth(prev => {
+                if (prev.user === null && !prev.isAuthenticated) return prev;
+                return { user: null, isAuthenticated: false };
+              });
+
               if (event === 'SIGNED_OUT') {
                 SessionStorage.remove('user');
                 SessionStorage.remove('is_impersonating');
@@ -190,7 +213,12 @@ const App: React.FC = () => {
             }
 
             const stored = SessionStorage.get('user');
-            if (stored) setAuth({ user: stored, isAuthenticated: true });
+            if (stored) {
+              setAuth(prev => {
+                if (JSON.stringify(prev.user) === JSON.stringify(stored) && prev.isAuthenticated) return prev;
+                return { user: stored, isAuthenticated: true };
+              });
+            }
           } finally {
             clearTimeout(initTimeout);
             setIsInitializing(false);
