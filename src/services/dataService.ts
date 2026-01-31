@@ -1491,7 +1491,10 @@ export const DataService = {
 
     // 3. Sync Database
     const { supabase: client } = await import('../lib/supabase');
-    const { error } = await client.from('orders').update(updatePayload).eq('id', id);
+    const tid = DataService.getCurrentTenantId();
+    const { error } = await client.from('orders').update(updatePayload)
+      .eq('id', id)
+      .eq('tenant_id', tid);
 
     if (error) {
       console.error("Erro técnico no Nexus Sync:", error);
