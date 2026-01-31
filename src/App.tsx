@@ -23,7 +23,7 @@ import { StockManagement } from './components/admin/StockManagement';
 import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, Customer, Equipment, StockItem } from './types';
 
 import { DataService } from './services/dataService';
-import SessionStorage from './lib/sessionStorage';
+import SessionStorage, { GlobalStorage } from './lib/sessionStorage';
 import { Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck, Settings, LogOut, Bell, CheckCircle2, DollarSign, RefreshCw, Package, ArrowRight, Shield, AlertTriangle, Lock } from 'lucide-react';
 
 const getInitialDateRange = () => {
@@ -34,7 +34,11 @@ const getInitialDateRange = () => {
 };
 
 const App: React.FC = () => {
-  const [auth, setAuth] = useState<AuthState>({ user: null, isAuthenticated: false });
+  // 🛡️ Nexus Auto-Login: Inicializa o estado já buscando o cache (especialmente útil para técnicos)
+  const [auth, setAuth] = useState<AuthState>(() => {
+    const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
+    return stored ? { user: stored, isAuthenticated: true } : { user: null, isAuthenticated: false };
+  });
   const [currentView, setCurrentView] = useState<'dashboard' | 'orders' | 'contracts' | 'quotes' | 'techs' | 'equip' | 'clients' | 'forms' | 'settings' | 'superadmin' | 'users' | 'stock'>('dashboard');
   const [viewParams, setViewParams] = useState<any>(null);
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
@@ -193,8 +197,6 @@ const App: React.FC = () => {
                   return { user: refreshedUser, isAuthenticated: true };
                 });
               } else {
-                // 🔍 Nexus Persistence Engine: Tenta recuperar do SessionStorage ou GlobalStorage (Manter Conectado)
-                const { GlobalStorage } = await import('./lib/sessionStorage');
                 const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
 
                 if (stored) {
@@ -205,7 +207,6 @@ const App: React.FC = () => {
                 }
               }
             } else if (session?.user && (isMaster || isImpersonatingLocal)) {
-              const { GlobalStorage } = await import('./lib/sessionStorage');
               const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
               if (stored) {
                 setAuth(prev => {
@@ -222,13 +223,25 @@ const App: React.FC = () => {
                 });
               }
             } else {
-              setAuth(prev => {
-                if (prev.user === null && !prev.isAuthenticated) return prev;
-                return { user: null, isAuthenticated: false };
-              });
+              // 🛡️ Nexus Auto-Login Logic: Só limpa se for um evento de logout real (Explícito)
+              // Se for apenas uma falha de carregamento inicial, mas temos um persistente, mantemos o acesso.
+              const isExplicitLogout = event === 'SIGNED_OUT';
+              const persistent = GlobalStorage.get('persistent_user');
 
-              if (event === 'SIGNED_OUT') {
-                const { GlobalStorage } = await import('./lib/sessionStorage');
+              if (isExplicitLogout || (!persistent && !isImpersonatingLocal)) {
+                setAuth(prev => {
+                  if (prev.user === null && !prev.isAuthenticated) return prev;
+                  return { user: null, isAuthenticated: false };
+                });
+              } else if (persistent) {
+                // Mantém o usuário persistente se a sessão do Supabase falhou mas não foi logout
+                setAuth(prev => {
+                  if (JSON.stringify(prev.user) === JSON.stringify(persistent) && prev.isAuthenticated) return prev;
+                  return { user: persistent, isAuthenticated: true };
+                });
+              }
+
+              if (isExplicitLogout) {
                 SessionStorage.remove('user');
                 SessionStorage.remove('is_impersonating');
                 GlobalStorage.remove('persistent_user');
@@ -246,7 +259,6 @@ const App: React.FC = () => {
               return;
             }
 
-            const { GlobalStorage } = await import('./lib/sessionStorage');
             const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
             if (stored) {
               setAuth(prev => {
