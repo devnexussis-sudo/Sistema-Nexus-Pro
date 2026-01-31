@@ -197,8 +197,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
 
       setLoading(true);
 
-      // 🛡️ Nexus Safety Timeout: Aumentado para 120s para garantir upload de múltiplas fotos em sinal fraco
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite excedido (120s). Tente novamente em um local com melhor sinal.')), 120000));
+      // 🛡️ Nexus Safety Timeout: 180s (3 min) para casos extremos de conectividade
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite excedido (180s). Verifique sua conexão.')), 180000));
 
       await Promise.race([
         onUpdateStatus(order.id, OrderStatus.COMPLETED, notes, finalFormData),
@@ -256,18 +256,15 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       if (file) {
         setUploadingFields(prev => ({ ...prev, [fieldId]: true }));
 
-        // Validação extra de segurança: Garante que não é vídeo
+        // Validação extra de segurança
         if (file.type.startsWith('video/')) {
           alert('Apenas fotos são permitidas neste campo.');
+          setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
           return;
         }
 
-        // 🛡️ Nexus HEIC Intelligence: Se for formato Apple, transcodifica antes de processar
-        const isHeic = file.name.toLowerCase().endsWith('.heic') ||
-          file.name.toLowerCase().endsWith('.heif') ||
-          file.type === 'image/heic' ||
-          file.type === 'image/heif';
-
+        // 🛡️ Nexus HEIC Intelligence
+        const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
         if (isHeic) {
           try {
             const heic2any = (await import('heic2any')).default;
@@ -286,27 +283,35 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         const reader = new FileReader();
         reader.onload = async (re) => {
           const rawBase64 = re.target?.result as string;
-          let finalImage = rawBase64;
 
-          // 🚀 Nexus Real-time Compression: Comprime antes do preview
           try {
-            finalImage = await DataService.compressImage(rawBase64);
+            // 1. Compressão Local
+            const compressedBase64 = await DataService.compressImage(rawBase64);
+
+            // 2. Upload Imediato (Background) - v1.1.0
+            // Isso resolve o timeout no final, pois o peso é distribuído durante o uso
+            const publicUrl = await DataService.uploadFile(compressedBase64, `orders/${order.id}/evidence`);
+
+            // 3. Salva a URL (não o base64)
+            setAnswers(prev => {
+              const currentVal = prev[fieldId];
+              let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
+
+              if (currentPhotos.length >= 3) {
+                alert("Limite máximo de 3 fotos atingido para este campo.");
+                return prev;
+              }
+
+              // Adiciona a URL retornada pelo Storage
+              return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
+            });
+
           } catch (err) {
-            console.warn("Fell back to raw image due to compression error");
+            console.error("Erro no upload imediato:", err);
+            alert("Erro ao enviar foto. Verifique sua conexão e tente novamente.");
+          } finally {
+            setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
           }
-
-          setAnswers(prev => {
-            const currentVal = prev[fieldId];
-            let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
-
-            if (currentPhotos.length >= 3) {
-              alert("Limite máximo de 3 fotos atingido para este campo.");
-              return prev;
-            }
-
-            return { ...prev, [fieldId]: [...currentPhotos, finalImage] };
-          });
-          setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
         };
         reader.readAsDataURL(file);
       } else {
