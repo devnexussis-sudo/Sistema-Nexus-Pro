@@ -30,22 +30,26 @@ serve(async (req) => {
       });
     }
 
-    // Initialize Admin Client
-    const supabaseAdmin = createClient(
+    // 1. Create client exactly like working get-orders function
+    const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      serviceRoleKey,
-      { auth: { persistSession: false } }
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
     )
 
-    // 1. Verify User Identity using the token from the header
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
+    // 2. Verify User Identity
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
 
     if (userError || !user) {
       console.error("❌ Auth Validation Failed:", userError);
       return new Response(JSON.stringify({
         error: 'Sessão Inválida ou Expirada',
-        details: userError?.message || 'Token não reconhecido pela Supabase Auth'
+        message: userError?.message || 'Token não reconhecido',
+        code: 'AUTH_ERROR'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 401,
@@ -54,7 +58,14 @@ serve(async (req) => {
 
     console.log("✅ User Authenticated:", user.id);
 
-    // 2. Parse Request Body
+    // 3. Create Admin Client for DB Operations
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      serviceRoleKey,
+      { auth: { persistSession: false } }
+    )
+
+    // 4. Parse Request Body
     const { order } = await req.json()
     if (!order) {
       throw new Error("Order data is missing")

@@ -799,10 +799,15 @@ export const DataService = {
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
+        console.log("🛠️ Invocação Manual: create-order");
+        console.log("🔑 Session Token Existente:", !!token);
+
         const { data, error } = await supabase.functions.invoke('create-order', {
           body: { order },
           headers: {
-            Authorization: `Bearer ${session?.access_token}`
+            Authorization: `Bearer ${token}`
           }
         });
 
@@ -810,38 +815,36 @@ export const DataService = {
           console.error("❌ Edge Function Raw Error:", error);
           let detailedMessage = "Erro desconhecido na nuvem (Detalhes não disponíveis)";
 
+          // 🛡️ Log do contexto do erro (FunctionsHttpError)
+          console.log("🔍 Error Context:", error.context);
+
           if (error.context && typeof error.context.json === 'function') {
             try {
               const errorBody = await error.context.json();
               console.log("📦 Cloud Error Body:", errorBody);
               detailedMessage = errorBody.error || errorBody.message || errorBody.details || JSON.stringify(errorBody);
             } catch (e) {
-              detailedMessage = error.message;
+              detailedMessage = `Status ${error.status}: ${error.message}`;
             }
           } else {
             detailedMessage = error.message || String(error);
           }
 
           if (error.status === 401 || detailedMessage.toLowerCase().includes('auth') || detailedMessage.includes('401')) {
-            throw new Error("Sessão expirada ou não autorizada. Por favor, saia (Logout) e entre novamente para sincronizar.");
+            throw new Error("Sessão expirada ou não autorizada. Por favor, SAIA (LOGOUT) e entre novamente para renovar seu acesso.");
           }
           throw new Error(`Falha ao processar OS na nuvem: ${detailedMessage}`);
         }
 
-        // Verifica se a função retornou um erro aplicacional
-        if (!data || data.error) {
-          throw new Error(data?.error || "Resposta inválida do servidor");
-        }
-
         console.log('✅ OS criada via Edge Function (ID Sequencial):', data.id);
         return DataService._mapOrderFromDB(data);
-
       } catch (err: any) {
         console.error("DEBUG CRÍTICO - ERRO OS:", {
           message: err.message,
           error: err,
+          code: err?.status,
           stack: err.stack,
-          json: JSON.stringify(err, Object.getOwnPropertyNames(err))
+          raw: err
         });
         throw err;
       }
