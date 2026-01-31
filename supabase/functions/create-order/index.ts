@@ -15,60 +15,62 @@ serve(async (req) => {
   try {
     // Debug: Log Headers
     const authHeader = req.headers.get('Authorization');
-    console.log("📨 Request Received. Header:", authHeader?.substring(0, 20) + "...");
+    console.log("📨 Request received. Auth present:", !!authHeader);
+    if (authHeader) console.log("📨 Auth Prefix:", authHeader.substring(0, 15));
 
     if (!authHeader) {
-      throw new Error("Missing Authorization Header");
+      console.error("❌ Auth Error: Missing Authorization Header");
+      return new Response(JSON.stringify({ error: "Cabeçalho de autorização ausente" }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+      });
     }
 
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    if (!serviceRoleKey) {
-      console.error("❌ Critical: SUPABASE_SERVICE_ROLE_KEY is not defined.");
-      return new Response(JSON.stringify({ error: "Configuração incompleta na nuvem (Service Role missing)" }), {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+
+    if (!serviceRoleKey || !supabaseUrl || !anonKey) {
+      console.error("❌ Critical: Environment variables are missing.");
+      return new Response(JSON.stringify({ error: "Erro de configuração no servidor (env missing)" }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       });
     }
 
     // 1. Create client exactly like working get-orders function
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
-    )
+    const supabaseClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    })
 
     // 2. Verify User Identity
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
 
     if (userError || !user) {
-      console.error("❌ Auth Validation Failed:", userError);
+      console.error("❌ Auth Error: Token validation failed.", userError);
       return new Response(JSON.stringify({
-        error: 'Sessão Inválida ou Expirada',
-        message: userError?.message || 'Token não reconhecido',
-        code: 'AUTH_ERROR'
+        error: 'Não autorizado',
+        message: userError?.message || 'Sessão inválida',
+        code: 'AUTH_FAILED'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 401,
       })
     }
 
-    console.log("✅ User Authenticated:", user.id);
+    console.log("✅ Identity verified for user:", user.id);
 
     // 3. Create Admin Client for DB Operations
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      serviceRoleKey,
-      { auth: { persistSession: false } }
-    )
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false }
+    })
 
     // 4. Parse Request Body
-    const { order } = await req.json()
+    const body = await req.json().catch(() => ({}));
+    const { order } = body;
     if (!order) {
-      throw new Error("Order data is missing")
+      console.error("❌ Data Error: missing order object in request");
+      throw new Error("Dados da OS não fornecidos");
     }
 
     // 3. Get User Tenant

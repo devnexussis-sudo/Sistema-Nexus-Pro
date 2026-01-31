@@ -801,8 +801,9 @@ export const DataService = {
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
 
-        console.log("🛠️ Invocação Manual: create-order");
-        console.log("🔑 Session Token Existente:", !!token);
+        console.log("📡 [DEBUG] Invocando Edge Function: create-order");
+        console.log("📡 [DEBUG] Token presente:", !!token);
+        if (token) console.log("📡 [DEBUG] Token (primeiros 15):", token.substring(0, 15) + "...");
 
         const { data, error } = await supabase.functions.invoke('create-order', {
           body: { order },
@@ -812,41 +813,41 @@ export const DataService = {
         });
 
         if (error) {
-          console.error("❌ Edge Function Raw Error:", error);
-          let detailedMessage = "Erro desconhecido na nuvem (Detalhes não disponíveis)";
+          console.error("❌ Edge Function Error Object:", error);
+          let detailedMessage = "Erro desconhecido";
 
-          // 🛡️ Log do contexto do erro (FunctionsHttpError)
-          console.log("🔍 Error Context:", error.context);
-
-          if (error.context && typeof error.context.json === 'function') {
-            try {
+          // 🛡️ Tenta obter o corpo do erro de várias formas
+          try {
+            if (error.context && typeof error.context.json === 'function') {
               const errorBody = await error.context.json();
-              console.log("📦 Cloud Error Body:", errorBody);
-              detailedMessage = errorBody.error || errorBody.message || errorBody.details || JSON.stringify(errorBody);
-            } catch (e) {
-              detailedMessage = `Status ${error.status}: ${error.message}`;
+              console.log("📦 Body (JSON):", errorBody);
+              detailedMessage = errorBody.error || errorBody.message || JSON.stringify(errorBody);
+            } else if (error.context && typeof error.context.text === 'function') {
+              const errorText = await error.context.text();
+              console.log("📦 Body (Text):", errorText);
+              detailedMessage = errorText || error.message;
+            } else {
+              detailedMessage = error.message || String(error);
             }
-          } else {
-            detailedMessage = error.message || String(error);
+          } catch (e) {
+            console.warn("⚠️ Falha ao ler corpo do erro:", e);
+            detailedMessage = error.message || "Não foi possível ler os detalhes técnicos.";
           }
 
-          if (error.status === 401 || detailedMessage.toLowerCase().includes('auth') || detailedMessage.includes('401')) {
-            throw new Error("Sessão expirada ou não autorizada. Por favor, SAIA (LOGOUT) e entre novamente para renovar seu acesso.");
+          if (error.status === 401 || detailedMessage.includes('401') || detailedMessage.toLowerCase().includes('jwt')) {
+            throw new Error("Sessão expirada ou não autorizada. Por favor, SAIA e ENTRE novamente no sistema (Logout/Login).");
           }
           throw new Error(`Falha ao processar OS na nuvem: ${detailedMessage}`);
         }
 
-        console.log('✅ OS criada via Edge Function (ID Sequencial):', data.id);
+        console.log('✅ OS criada via Edge Function:', data.id);
         return DataService._mapOrderFromDB(data);
+
       } catch (err: any) {
-        console.error("DEBUG CRÍTICO - ERRO OS:", {
-          message: err.message,
-          error: err,
-          code: err?.status,
-          stack: err.stack,
-          raw: err
-        });
-        throw err;
+        console.error("❌ [FATAL] Erro na criação da OS:", err);
+        // Garante que o objeto de erro tenha as propriedades para o stringifier
+        const serializableError = JSON.parse(JSON.stringify(err, Object.getOwnPropertyNames(err)));
+        throw { ...serializableError, message: err.message || "Erro desconhecido" };
       }
     }
 
