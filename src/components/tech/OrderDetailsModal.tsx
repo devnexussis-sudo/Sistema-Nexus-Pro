@@ -352,9 +352,9 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { ideal: 'environment' }, // Força câmera traseira
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
+            facingMode: 'environment', // Câmera traseira padrão (não wide)
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
           },
           audio: false
         });
@@ -408,7 +408,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
         await processPhotoFile(file, activePhotoField);
       }
-    }, 'image/jpeg', 0.9);
+    }, 'image/jpeg', 0.92);
   };
 
   const closeCameraModal = () => {

@@ -87,7 +87,7 @@ export const DataService = {
    * 🎛️ Nexus Image Compression Engine (WebP Optimized)
    * Reduz o peso da imagem drasticamente usando o padrão WebP.
    */
-  compressImage: async (base64: string, maxWidth = 800, quality = 0.7): Promise<string> => {
+  compressImage: async (base64: string, maxWidth = 1200, quality = 0.82): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.src = base64;
