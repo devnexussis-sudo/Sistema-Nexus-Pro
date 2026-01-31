@@ -786,7 +786,7 @@ export const DataService = {
 
     if (isCloudEnabled) {
       try {
-        console.log("🚀 Nexus DataSync: Creating OS directly in database...");
+        console.log("🚀 DEBUG_V3_DIRECT_DB: Iniciando criação de OS...");
 
         // 1. OBTER TENANTED
         const tenantId = tid;
