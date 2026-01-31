@@ -1384,6 +1384,7 @@ export const DataService = {
                 processedData[key] = url;
               } catch (e) {
                 console.error(`Erro ao subir imagem ${key}:`, e);
+                processedData[key] = '[ERRO_UPLOAD]';
               }
             })());
           }
@@ -1397,7 +1398,7 @@ export const DataService = {
                     return await DataService.uploadFile(item, `orders/${id}/evidence`);
                   } catch (e) {
                     console.error(`Erro ao subir item do array ${key}:`, e);
-                    return item; // Fallback
+                    return '[ERRO_UPLOAD]';
                   }
                 }
                 return item;
