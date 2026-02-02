@@ -154,7 +154,7 @@ const App: React.FC = () => {
 
     const initApp = async () => {
       // 🛡️ NEXUS CACHE BUSTER: Força limpeza se a versão mudar
-      const CURRENT_VERSION = 'v1.3.3-financial-unified'; // v1.3.3: Unified Financial Table
+      const CURRENT_VERSION = 'v1.3.4-ui-tweak'; // v1.3.4: Visual adjustment on sidebar width
       const storedVersion = localStorage.getItem('nexus_version');
 
       if (storedVersion !== CURRENT_VERSION) {
@@ -578,9 +578,9 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
-      <aside className="w-80 bg-[#0f172a] flex flex-col border-r border-white/5 shadow-2xl z-50 overflow-y-auto">
-        <div className="p-10">
-          <div className="flex items-center gap-4 mb-10"><div className="p-3 bg-indigo-600 rounded-2xl"><Hexagon size={28} className="text-white" /></div><h1 className="text-white font-black text-xl italic uppercase">Nexus<span className="text-indigo-500">.Pro</span></h1></div>
+      <aside className="w-64 bg-[#0f172a] flex flex-col border-r border-white/5 shadow-2xl z-50 overflow-y-auto">
+        <div className="p-6">
+          <div className="flex items-center gap-4 mb-10"><div className="p-2.5 bg-indigo-600 rounded-2xl"><Hexagon size={24} className="text-white" /></div><h1 className="text-white font-black text-lg italic uppercase">Nexus<span className="text-indigo-500">.Pro</span></h1></div>
           <nav className="space-y-1">
             {menuItems.map(item => (
               <button
@@ -605,7 +605,7 @@ const App: React.FC = () => {
             ))}
           </nav>
         </div>
-        <div className="mt-auto p-10 space-y-4">
+        <div className="mt-auto p-6 space-y-4">
           {isImpersonating && (
             <button
               onClick={() => {
@@ -641,7 +641,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-6">
             <div className="flex flex-col items-end border-r border-slate-200 pr-6">
               <span className="text-[10px] font-black text-slate-900 uppercase italic">{auth.user?.name}</span>
-              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.3.3</span></span>
+              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.3.4</span></span>
             </div>
             <div className="relative flex items-center gap-2">
               <button
