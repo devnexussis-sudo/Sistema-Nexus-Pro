@@ -154,7 +154,7 @@ const App: React.FC = () => {
 
     const initApp = async () => {
       // 🛡️ NEXUS CACHE BUSTER: Força limpeza se a versão mudar
-      const CURRENT_VERSION = 'v1.3.4-ui-tweak'; // v1.3.4: Visual adjustment on sidebar width
+      const CURRENT_VERSION = 'v1.3.5-ui-tweak-header'; // v1.3.5: Reduced header height
       const storedVersion = localStorage.getItem('nexus_version');
 
       if (storedVersion !== CURRENT_VERSION) {
@@ -628,7 +628,7 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 overflow-hidden flex flex-col relative bg-slate-50/50">
-        <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 px-10 flex justify-between items-center z-[100] shadow-sm">
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 px-8 flex justify-between items-center z-[100] shadow-sm">
           <div className="flex flex-col">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Nexus Pro / Enterprise Control Layer</p>
             <div className="flex items-center gap-2 mt-1">
@@ -641,19 +641,19 @@ const App: React.FC = () => {
           <div className="flex items-center gap-6">
             <div className="flex flex-col items-end border-r border-slate-200 pr-6">
               <span className="text-[10px] font-black text-slate-900 uppercase italic">{auth.user?.name}</span>
-              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.3.4</span></span>
+              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.3.5</span></span>
             </div>
             <div className="relative flex items-center gap-2">
               <button
                 onClick={handleManualRefresh}
                 disabled={isRefreshing}
-                className={`p-3 rounded-2xl border bg-white border-slate-200 text-slate-400 hover:shadow-md transition-all active:scale-95 ${isRefreshing ? 'opacity-50' : ''}`}
+                className={`p-2.5 rounded-2xl border bg-white border-slate-200 text-slate-400 hover:shadow-md transition-all active:scale-95 ${isRefreshing ? 'opacity-50' : ''}`}
                 title="Atualizar Dados"
               >
                 <RefreshCw size={18} className={isRefreshing ? 'animate-spin text-indigo-500' : ''} />
               </button>
 
-              <button onClick={() => setShowInbox(!showInbox)} className={`p-3 rounded-2xl border transition-all ${showInbox ? 'bg-indigo-600 text-white shadow-xl' : 'bg-white border-slate-200 text-slate-400 hover:shadow-md'}`}><Bell size={18} /></button>
+              <button onClick={() => setShowInbox(!showInbox)} className={`p-2.5 rounded-2xl border transition-all ${showInbox ? 'bg-indigo-600 text-white shadow-xl' : 'bg-white border-slate-200 text-slate-400 hover:shadow-md'}`}><Bell size={18} /></button>
               {showInbox && (
                 <div className="absolute top-16 right-0 w-80 bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden animate-fade-in z-[200]">
                   <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center"><h4 className="text-[10px] font-black uppercase text-slate-900 italic">Notificações</h4><button onClick={() => setNotifications([])} className="text-[8px] font-black text-red-400 uppercase">Limpar</button></div>
