@@ -20,6 +20,7 @@ import { PublicQuoteView } from './components/public/PublicQuoteView';
 import { PlannedMaintenance } from './components/admin/PlannedMaintenance';
 import { QuoteManagement } from './components/admin/QuoteManagement';
 import { StockManagement } from './components/admin/StockManagement';
+import { FinancialDashboard } from './components/admin/FinancialDashboard';
 import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, Customer, Equipment, StockItem } from './types';
 
 import { DataService } from './services/dataService';
@@ -39,7 +40,7 @@ const App: React.FC = () => {
     const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
     return stored ? { user: stored, isAuthenticated: true } : { user: null, isAuthenticated: false };
   });
-  const [currentView, setCurrentView] = useState<'dashboard' | 'orders' | 'contracts' | 'quotes' | 'techs' | 'equip' | 'clients' | 'forms' | 'settings' | 'superadmin' | 'users' | 'stock'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'orders' | 'contracts' | 'quotes' | 'techs' | 'equip' | 'clients' | 'forms' | 'settings' | 'superadmin' | 'users' | 'stock' | 'financial'>('dashboard');
   const [viewParams, setViewParams] = useState<any>(null);
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
@@ -153,7 +154,7 @@ const App: React.FC = () => {
 
     const initApp = async () => {
       // 🛡️ NEXUS CACHE BUSTER: Força limpeza se a versão mudar
-      const CURRENT_VERSION = 'v1.3.1-admin-fix'; // v1.3.1: Fix Admin Status Toggle UI
+      const CURRENT_VERSION = 'v1.3.2-financial'; // v1.3.2: New Financial Module & Dashboard
       const storedVersion = localStorage.getItem('nexus_version');
 
       if (storedVersion !== CURRENT_VERSION) {
@@ -572,6 +573,7 @@ const App: React.FC = () => {
     { id: 'forms', label: 'Processos', icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
     { id: 'users', label: 'Usuários', icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
     { id: 'settings', label: 'Configurações', icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
+    { id: 'financial', label: 'Financeiro', icon: DollarSign, visible: hasPermission('financial', 'read'), enabled: isModuleEnabled('financial') },
   ].filter(item => item.visible);
 
   return (
@@ -639,7 +641,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-6">
             <div className="flex flex-col items-end border-r border-slate-200 pr-6">
               <span className="text-[10px] font-black text-slate-900 uppercase italic">{auth.user?.name}</span>
-              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.3.1</span></span>
+              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.3.2</span></span>
             </div>
             <div className="relative flex items-center gap-2">
               <button
@@ -708,6 +710,7 @@ const App: React.FC = () => {
           {currentView === 'forms' && hasPermission('forms', 'read') && <FormManagement />}
           {currentView === 'users' && hasPermission('manageUsers') && <UserManagement />}
           {currentView === 'settings' && hasPermission('settings') && <SettingsPage />}
+          {currentView === 'financial' && hasPermission('financial', 'read') && <FinancialDashboard orders={orders} quotes={quotes} />}
 
           {/* Fallback para visualização proibida */}
           {['orders', 'quotes', 'contracts', 'clients', 'equip', 'stock', 'techs', 'forms', 'users', 'settings'].includes(currentView) &&

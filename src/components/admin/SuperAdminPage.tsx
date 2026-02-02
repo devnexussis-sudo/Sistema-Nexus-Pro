@@ -746,6 +746,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                       { id: 'forms', label: 'Processos', icon: Workflow },
                       { id: 'users', label: 'Usuários', icon: ShieldAlert },
                       { id: 'settings', label: 'Configurações', icon: Settings },
+                      { id: 'financial', label: 'Financeiro', icon: DollarSign },
                     ].map(module => (
                       <label
                         key={module.id}
