@@ -319,12 +319,28 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   };
 
   const handleToggleStatus = async (tenantId: string, currentStatus: string) => {
+    // Calculamos o novo status previsto
+    const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+
     try {
       setIsSaving(true);
+
+      // ⚡ Optimistic Update: Atualiza a interface imediatamente (sem esperar o servidor)
+      // Isso resolve o problema visual de ter que recarregar a página
+      setTenants(prev => prev.map(t =>
+        t.id === tenantId ? { ...t, status: newStatus } : t
+      ));
+
+      // Dispara a atualização real no banco
       await DataService.toggleTenantStatus(tenantId, currentStatus);
-      await loadTenants();
+
+      // Nota: Não chamamos loadTenants() aqui intencionalmente para evitar 
+      // sobrescrever o estado atualizado com dados antigos do cache (ttl 30s)
     } catch (err: any) {
+      console.error("Erro no toggle:", err);
       alert("Erro ao alterar status: " + err.message);
+      // Se deu erro, recarregamos para garantir consistência
+      loadTenants();
     } finally {
       setIsSaving(false);
     }
