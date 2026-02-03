@@ -256,87 +256,86 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
-      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
-
-
-        {/* Toolbar */}
-        <div className="p-4 border-b border-slate-50 bg-slate-50/30 space-y-3">
-          <div className="flex flex-col lg:flex-row justify-between items-center gap-3">
-            <div className="relative w-full max-w-xl">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input
-                type="text"
-                placeholder="Pesquisar protocolo, cliente ou descrição..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
-              <div className="flex bg-slate-50 p-1 rounded-lg">
-                {['today', 'week', 'month'].map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => handleFastFilter(f as any)}
-                    className="px-3 py-1.5 text-[8px] font-black uppercase rounded-md transition-all text-slate-500 hover:text-indigo-600 hover:bg-white active:scale-95"
-                  >{f === 'today' ? 'Hoje' : f === 'week' ? 'Semana' : 'Mês'}</button>
-                ))}
-              </div>
-              <div className="h-4 w-[1px] bg-slate-200 mx-1"></div>
-              <div className="flex items-center gap-2 px-2 border-r border-slate-100">
-                <Calendar size={16} className="text-indigo-600" />
-                <span className="text-[9px] font-black uppercase text-slate-400">Período</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-slate-50 border-none text-[10px] font-black uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
-                <span className="text-[10px] font-black text-slate-300">até</span>
-                <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-slate-50 border-none text-[10px] font-black uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
-              </div>
-            </div>
+      {/* Toolbar (Moved Outside) */}
+      <div className="mb-2 space-y-3">
+        <div className="flex flex-col lg:flex-row justify-between items-center gap-3">
+          <div className="relative w-full max-w-xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder="Pesquisar protocolo, cliente ou descrição..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+            />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10">
-              <Filter size={14} className="text-slate-400 mr-2" />
-              <select className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                <option value="ALL">Todos Status</option>
-                {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+          <div className="flex flex-wrap items-center gap-3 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
+            <div className="flex bg-slate-50 p-1 rounded-lg">
+              {['today', 'week', 'month'].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => handleFastFilter(f as any)}
+                  className="px-3 py-1.5 text-[8px] font-black uppercase rounded-md transition-all text-slate-500 hover:text-indigo-600 hover:bg-white active:scale-95"
+                >{f === 'today' ? 'Hoje' : f === 'week' ? 'Semana' : 'Mês'}</button>
+              ))}
             </div>
-            {/* Tech & Customer quick filters could be added here as needed */}
-            <button
-              onClick={() => {
-                setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL');
-                onDateChange('', ''); // Limpa globalmente
-                setSelectedOrderIds([]);
-              }}
-              className="px-4 py-2 text-[9px] font-black uppercase text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-dashed border-indigo-200"
-            >
-              Limpar Filtros
-            </button>
-            
-            {/* Action Buttons Integrated into Toolbar */}
-            <div className="flex items-center gap-2 ml-auto">
-              {selectedOrderIds.length > 0 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-xl animate-fade-in shadow-sm mr-2">
-                  <span className="text-[9px] font-black text-indigo-700 uppercase italic hidden xl:inline">{selectedOrderIds.length} Sel.</span>
-                  <button onClick={handleBatchPrint} className="text-indigo-600 hover:text-indigo-800" title="Imprimir"><Printer size={14} /></button>
-                  <div className="h-3 w-[1px] bg-indigo-200" />
-                  <button onClick={handleExportExcel} className="text-emerald-600 hover:text-emerald-800" title="Excel"><FileSpreadsheet size={14} /></button>
-                  <button onClick={() => setSelectedOrderIds([])} className="text-indigo-400 hover:text-red-500"><X size={14} /></button>
-                </div>
-              )}
-              
-              <button
-                onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase italic shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95"
-              >
-                <Plus size={14} /> Novo Chamado
-              </button>
+            <div className="h-4 w-[1px] bg-slate-200 mx-1"></div>
+            <div className="flex items-center gap-2 px-2 border-r border-slate-100">
+              <Calendar size={16} className="text-indigo-600" />
+              <span className="text-[9px] font-black uppercase text-slate-400">Período</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-slate-50 border-none text-[10px] font-black uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
+              <span className="text-[10px] font-black text-slate-300">até</span>
+              <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-slate-50 border-none text-[10px] font-black uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
             </div>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10">
+            <Filter size={14} className="text-slate-400 mr-2" />
+            <select className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="ALL">Todos Status</option>
+              {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          {/* Tech & Customer quick filters could be added here as needed */}
+          <button
+            onClick={() => {
+              setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL');
+              onDateChange('', ''); // Limpa globalmente
+              setSelectedOrderIds([]);
+            }}
+            className="px-4 py-2 text-[9px] font-black uppercase text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-dashed border-indigo-200"
+          >
+            Limpar Filtros
+          </button>
+
+          {/* Action Buttons Integrated into Toolbar */}
+          <div className="flex items-center gap-2 ml-auto">
+            {selectedOrderIds.length > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-xl animate-fade-in shadow-sm mr-2">
+                <span className="text-[9px] font-black text-indigo-700 uppercase italic hidden xl:inline">{selectedOrderIds.length} Sel.</span>
+                <button onClick={handleBatchPrint} className="text-indigo-600 hover:text-indigo-800" title="Imprimir"><Printer size={14} /></button>
+                <div className="h-3 w-[1px] bg-indigo-200" />
+                <button onClick={handleExportExcel} className="text-emerald-600 hover:text-emerald-800" title="Excel"><FileSpreadsheet size={14} /></button>
+                <button onClick={() => setSelectedOrderIds([])} className="text-indigo-400 hover:text-red-500"><X size={14} /></button>
+              </div>
+            )}
+
+            <button
+              onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase italic shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95"
+            >
+              <Plus size={14} /> Novo Chamado
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
 
         {/* Compact Table Space */}
         <div className="flex-1 overflow-auto custom-scrollbar -mt-2">
