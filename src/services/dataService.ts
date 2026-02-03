@@ -396,7 +396,7 @@ export const DataService = {
           name: user.name,
           role: UserRole.ADMIN,
           tenantId: tenantId,
-          avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email)}`
+          avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=4f46e5&color=fff&size=256&bold=true`
         },
         email_confirm: true
       });
@@ -417,7 +417,7 @@ export const DataService = {
         tenant_id: tenantId,
         group_id: user.groupId,
         permissions: user.permissions,
-        avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.email)}`
+        avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=4f46e5&color=fff&size=256&bold=true`
       };
 
       await DataService.getServiceClient().from('users').upsert([dbUser]);
@@ -589,7 +589,7 @@ export const DataService = {
           role: UserRole.TECHNICIAN,
           tenantId: tenantId,
           phone: tech.phone || '',
-          avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.email)}`
+          avatar: tech.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(tech.name)}&background=10b981&color=fff&size=256&bold=true`
         },
         email_confirm: true
       });
@@ -603,7 +603,7 @@ export const DataService = {
         email: tech.email.toLowerCase(),
         active: tech.active ?? true,
         phone: tech.phone || '',
-        avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.email || 'default')}`,
+        avatar: tech.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(tech.name || 'Tecnico')}&background=10b981&color=fff&size=256&bold=true`,
         tenant_id: tenantId
       };
 
@@ -631,7 +631,7 @@ export const DataService = {
           role: 'TECHNICIAN',
           tenantId: tenantId,
           phone: tech.phone || '',
-          avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.email || 'default')}`
+          avatar: tech.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(tech.name || 'Tecnico')}&background=10b981&color=fff&size=256&bold=true`
         }
       };
 
@@ -676,7 +676,7 @@ export const DataService = {
         email: tech.email,
         active: tech.active ?? true,
         phone: tech.phone || '',
-        avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.email || 'default')}`,
+        avatar: tech.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(tech.name || 'Tecnico')}&background=10b981&color=fff&size=256&bold=true`,
         tenant_id: tenantId
       };
 
@@ -1798,7 +1798,7 @@ export const DataService = {
               name: processedTenant.name || 'Admin',
               role: UserRole.ADMIN,
               tenantId: tenantId,
-              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tenantData.admin_email)}`
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(tenantData.admin_name || 'Admin')}&background=4f46e5&color=fff&size=256&bold=true`
             },
             email_confirm: true
           });
@@ -1816,7 +1816,7 @@ export const DataService = {
               active: true,
               tenant_id: tenantId,
               group_id: adminGroupId, // Vincula ao grupo de Administradores
-              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(adminEmail)}`,
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(adminName || 'Admin')}&background=4f46e5&color=fff&size=256&bold=true`,
               // Permissões diretas como fallback (caso o grupo seja deletado)
               permissions: {
                 orders: { create: true, read: true, update: true, delete: true },
