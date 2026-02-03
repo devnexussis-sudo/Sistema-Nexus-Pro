@@ -162,8 +162,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // States para Filtros
   const [searchTerm, setSearchTerm] = useState('');
-  // States para Filtros
-  const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created'>('scheduled');
 
