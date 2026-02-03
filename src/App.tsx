@@ -26,7 +26,7 @@ import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, 
 
 import { DataService } from './services/dataService';
 import SessionStorage, { GlobalStorage } from './lib/sessionStorage';
-import { Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck, Settings, LogOut, Bell, CheckCircle2, DollarSign, RefreshCw, Package, ArrowRight, Shield, AlertTriangle, Lock } from 'lucide-react';
+import { Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck, Settings, LogOut, Bell, CheckCircle2, DollarSign, RefreshCw, Package, ArrowRight, Shield, AlertTriangle, Lock, Navigation } from 'lucide-react';
 
 const getInitialDateRange = () => {
   return {
