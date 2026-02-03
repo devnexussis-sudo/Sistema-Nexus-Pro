@@ -255,11 +255,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   return (
-    <div className="p-8 space-y-6 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+    <div className="p-4 space-y-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
       <div className="flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Gestão de Atividades</h1>
-          <p className="text-gray-400 text-xs font-semibold mt-1 italic tracking-tight uppercase">Dashboard operacional e rastreabilidade de protocolos.</p>
+          <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none mb-4">Gestão de Atividades</h1>
         </div>
         <div className="flex items-center gap-3">
           {selectedOrderIds.length > 0 && (
@@ -295,8 +294,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       <div className="bg-white border border-slate-100 rounded-[3rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         {/* Toolbar */}
-        <div className="p-6 border-b border-slate-50 bg-slate-50/30 space-y-4">
-          <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
+        <div className="p-4 border-b border-slate-50 bg-slate-50/30 space-y-3">
+          <div className="flex flex-col lg:flex-row justify-between items-center gap-3">
             <div className="relative w-full max-w-xl">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input
@@ -353,8 +352,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
 
-        {/* Table */}
-        <div className="flex-1 overflow-auto custom-scrollbar">
+        {/* Compact Table Space */}
+        <div className="flex-1 overflow-auto custom-scrollbar -mt-2">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10">
               <tr className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-left">
