@@ -1281,23 +1281,54 @@ export const DataService = {
 
   approveQuote: async (id: string, approvalData: { document: string, birthDate: string, signature: string, name: string, metadata?: any, lat?: number, lng?: number }): Promise<boolean> => {
     if (isCloudEnabled) {
+      console.log(`[📝 Nexus Approve] Iniciando aprovação do orçamento ${id}...`);
+      console.log(`[📝 Nexus Approve] Dados recebidos:`, {
+        name: approvalData.name,
+        document: approvalData.document,
+        hasSignature: !!approvalData.signature,
+        signatureLength: approvalData.signature?.length
+      });
+
       let finalSignature = approvalData.signature;
       if (finalSignature && finalSignature.startsWith('data:image')) {
+        console.log(`[📝 Nexus Approve] Fazendo upload da assinatura...`);
         finalSignature = await DataService.uploadFile(finalSignature, `quotes/${id}/signatures`);
+        console.log(`[📝 Nexus Approve] Assinatura enviada com sucesso!`);
       }
 
-      const { error } = await DataService.getServiceClient().from('quotes').update({
+      const updateData = {
         status: 'APROVADO',
         approval_document: approvalData.document,
         approval_birth_date: approvalData.birthDate,
         approval_signature: finalSignature,
         approved_by_name: approvalData.name,
         approval_metadata: approvalData.metadata || {},
-        approval_latitude: approvalData.lat, // 🛰️ GPS Lat
-        approval_longitude: approvalData.lng, // 🛰️ GPS Lng
+        approval_latitude: approvalData.lat,
+        approval_longitude: approvalData.lng,
         approved_at: new Date().toISOString()
-      }).eq('id', id);
-      if (error) throw error;
+      };
+
+      console.log(`[📝 Nexus Approve] Enviando UPDATE para o banco de dados...`);
+      console.log(`[📝 Nexus Approve] Payload:`, updateData);
+
+      const { data, error } = await DataService.getServiceClient()
+        .from('quotes')
+        .update(updateData)
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error(`[❌ Nexus Approve] ERRO NO UPDATE:`, error);
+        console.error(`[❌ Nexus Approve] Código do erro:`, error.code);
+        console.error(`[❌ Nexus Approve] Mensagem:`, error.message);
+        console.error(`[❌ Nexus Approve] Detalhes:`, error.details);
+        throw error;
+      }
+
+      console.log(`[✅ Nexus Approve] UPDATE executado com sucesso!`);
+      console.log(`[✅ Nexus Approve] Rows affected:`, data?.length || 0);
+      console.log(`[✅ Nexus Approve] Dados retornados:`, data);
+
       return true;
     }
     return false;
@@ -1305,12 +1336,15 @@ export const DataService = {
 
   rejectQuote: async (id: string, rejectionData: { document: string, birthDate: string, signature: string, name: string, reason: string, metadata?: any, lat?: number, lng?: number }): Promise<boolean> => {
     if (isCloudEnabled) {
+      console.log(`[🚫 Nexus Reject] Iniciando recusa do orçamento ${id}...`);
+
       let finalSignature = rejectionData.signature;
       if (finalSignature && finalSignature.startsWith('data:image')) {
+        console.log(`[🚫 Nexus Reject] Fazendo upload da assinatura de recusa...`);
         finalSignature = await DataService.uploadFile(finalSignature, `quotes/${id}/rejections`);
       }
 
-      const { error } = await DataService.getServiceClient().from('quotes').update({
+      const updateData = {
         status: 'REJEITADO',
         notes: `MOTIVO DA RECUSA: ${rejectionData.reason}`,
         approval_document: rejectionData.document,
@@ -1321,8 +1355,22 @@ export const DataService = {
         approval_latitude: rejectionData.lat,
         approval_longitude: rejectionData.lng,
         approved_at: new Date().toISOString()
-      }).eq('id', id);
-      if (error) throw error;
+      };
+
+      console.log(`[🚫 Nexus Reject] Enviando UPDATE de recusa...`);
+
+      const { data, error } = await DataService.getServiceClient()
+        .from('quotes')
+        .update(updateData)
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error(`[❌ Nexus Reject] ERRO:`, error);
+        throw error;
+      }
+
+      console.log(`[✅ Nexus Reject] Recusa registrada! Rows affected:`, data?.length || 0);
       return true;
     }
     return false;
