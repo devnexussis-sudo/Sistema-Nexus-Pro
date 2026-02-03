@@ -383,6 +383,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </th>
                 <th className="px-4 py-5 border-b border-slate-100">Protocolo</th>
                 <th className="px-4 py-5 border-b border-slate-100">Agenda</th>
+                <th className="px-4 py-5 border-b border-slate-100">Abertura</th>
                 <th className="px-4 py-5 border-b border-slate-100">Cliente</th>
                 <th className="px-4 py-5 border-b border-slate-100">Técnico</th>
                 <th className="px-4 py-5 border-b border-slate-100">Status</th>
@@ -412,6 +413,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="px-4 py-5 text-[10px] font-black text-indigo-600 uppercase italic">
                       {formatDateDisplay(order.scheduledDate)}
                     </td>
+                    <td className="px-4 py-5 text-[10px] font-bold text-slate-500 uppercase italic">
+                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
+                    </td>
                     <td className="px-4 py-5 font-bold text-[11px] uppercase text-slate-700 truncate max-w-[200px]">
                       {customers.find(c => c.name === order.customerName || c.document === order.customerName)?.name || order.customerName}
                     </td>
@@ -427,8 +431,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="px-4 py-5"><StatusBadge status={order.status} /></td>
                     <td className="px-4 py-5">
                       <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-slate-300 uppercase italic">I: {order.startDate ? new Date(order.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}</span>
-                        <span className="text-[8px] font-black text-slate-300 uppercase italic">F: {order.endDate ? new Date(order.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}</span>
+                        <span className="text-[10px] font-black text-slate-500 uppercase italic">
+                          {order.startDate ? new Date(order.startDate).toLocaleDateString('pt-BR') : '---'}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-5 text-right pr-6">
