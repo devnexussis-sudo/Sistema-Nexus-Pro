@@ -255,44 +255,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   return (
-    <div className="p-4 space-y-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none mb-4">Gestão de Atividades</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          {selectedOrderIds.length > 0 && (
-            <div className="flex items-center gap-3 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded-2xl animate-fade-in shadow-sm">
-              <span className="text-[10px] font-black text-indigo-700 uppercase italic">{selectedOrderIds.length} Selecionadas</span>
-              <div className="h-4 w-[1px] bg-indigo-200 mx-1" />
-              <button
-                onClick={handleBatchPrint}
-                className="flex items-center gap-2 text-[9px] font-black text-indigo-600 hover:text-indigo-800 transition-colors uppercase"
-                title="Imprimir Selecionadas"
-              >
-                <Printer size={14} /> Imprimir
-              </button>
-              <button
-                onClick={handleExportExcel}
-                className="flex items-center gap-2 text-[9px] font-black text-emerald-600 hover:text-emerald-800 transition-colors uppercase"
-                title="Exportar para Excel"
-              >
-                <FileSpreadsheet size={14} /> Excel
-              </button>
-              <button onClick={() => setSelectedOrderIds([])} className="p-1 hover:bg-indigo-100 rounded text-indigo-400 transition-colors"><X size={14} /></button>
-            </div>
-          )}
+    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
 
-          <button
-            onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
-            className="flex items-center gap-2 px-6 py-3.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all"
-          >
-            <Plus size={16} /> Novo Chamado
-          </button>
-        </div>
-      </div>
 
-      <div className="bg-white border border-slate-100 rounded-[3rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         {/* Toolbar */}
         <div className="p-4 border-b border-slate-50 bg-slate-50/30 space-y-3">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-3">
@@ -349,6 +315,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               Limpar Filtros
             </button>
+            
+            {/* Action Buttons Integrated into Toolbar */}
+            <div className="flex items-center gap-2 ml-auto">
+              {selectedOrderIds.length > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-xl animate-fade-in shadow-sm mr-2">
+                  <span className="text-[9px] font-black text-indigo-700 uppercase italic hidden xl:inline">{selectedOrderIds.length} Sel.</span>
+                  <button onClick={handleBatchPrint} className="text-indigo-600 hover:text-indigo-800" title="Imprimir"><Printer size={14} /></button>
+                  <div className="h-3 w-[1px] bg-indigo-200" />
+                  <button onClick={handleExportExcel} className="text-emerald-600 hover:text-emerald-800" title="Excel"><FileSpreadsheet size={14} /></button>
+                  <button onClick={() => setSelectedOrderIds([])} className="text-indigo-400 hover:text-red-500"><X size={14} /></button>
+                </div>
+              )}
+              
+              <button
+                onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase italic shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95"
+              >
+                <Plus size={14} /> Novo Chamado
+              </button>
+            </div>
           </div>
         </div>
 
