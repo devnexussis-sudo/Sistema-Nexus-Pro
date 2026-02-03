@@ -135,10 +135,21 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 lng: finalLng  // Injeção GPS
             });
 
+            console.log('✅ [Nexus] Orçamento aprovado com sucesso!');
+
+            // Recarrega os dados do orçamento para mostrar o novo status
+            try {
+                const updatedQuote = await DataService.getPublicQuoteById(id);
+                console.log('🔄 [Nexus] Orçamento recarregado:', updatedQuote);
+                setQuote(updatedQuote);
+            } catch (reloadError) {
+                console.warn('⚠️ [Nexus] Erro ao recarregar, mas aprovação foi bem-sucedida:', reloadError);
+            }
+
             setIsSuccess(true);
             setIsApproveMode(false);
         } catch (err: any) {
-            console.error(err);
+            console.error('❌ [Nexus] Erro na aprovação:', err);
             alert(`Falha na aprovação: ${err.message}`);
         } finally {
             setIsSubmitting(false);
@@ -186,10 +197,20 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 lng: finalLng
             });
 
+            console.log('✅ [Nexus] Orçamento recusado com sucesso!');
+
+            // Recarrega os dados
+            try {
+                const updatedQuote = await DataService.getPublicQuoteById(id);
+                setQuote(updatedQuote);
+            } catch (reloadError) {
+                console.warn('⚠️ [Nexus] Erro ao recarregar após recusa:', reloadError);
+            }
+
             setIsRejected(true);
             setIsRejectMode(false);
         } catch (err) {
-            console.error(err);
+            console.error('❌ [Nexus] Erro na recusa:', err);
             alert('Falha ao processar recusa.');
         } finally {
             setIsSubmitting(false);

@@ -485,7 +485,7 @@ export const DataService = {
       // 🔒 Validação de email único global
       const emailCheck = await DataService.checkEmailExists(user.email);
       if (emailCheck.exists) {
-        throw new Error(`❌ Email já cadastrado\n\nO email "${user.email}" já está sendo utilizado no painel da empresa "${emailCheck.tenantName}".\n\nEm um sistema multi-empresa, cada email só pode estar vinculado a UMA empresa. Use outro email ou desative o usuário na empresa anterior.`);
+        throw new Error(`Este email já está sendo usado em outra empresa e não pode ser usado aqui.`);
       }
 
       const { data, error } = await adminSupabase.auth.admin.createUser({
@@ -683,8 +683,9 @@ export const DataService = {
       // 🔒 Validação de email único global
       const emailCheck = await DataService.checkEmailExists(tech.email);
       if (emailCheck.exists) {
-        throw new Error(`❌ Email já cadastrado\n\nO email "${tech.email}" já está sendo utilizado no painel da empresa "${emailCheck.tenantName}".\n\nEm um sistema multi-empresa, cada email só pode estar vinculado a UMA empresa. Use outro email ou desative o técnico na empresa anterior.`);
+        throw new Error(`Este email já está sendo usado em outra empresa e não pode ser usado aqui.`);
       }
+
 
       const { data, error } = await adminSupabase.auth.admin.createUser({
         email: tech.email.toLowerCase(),
