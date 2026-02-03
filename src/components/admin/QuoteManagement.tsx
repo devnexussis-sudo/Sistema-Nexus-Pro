@@ -208,37 +208,28 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     );
 
     return (
-        <div className="p-8 space-y-6 animate-fade-in flex flex-col h-full bg-slate-50/20">
-            <div className="flex justify-between items-center">
-                <div>
-                    <div className="flex items-center gap-3">
-                        <Calculator className="text-indigo-600" size={32} />
-                        <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Gestão de Orçamentos</h1>
-                    </div>
-                    <p className="text-gray-400 text-[10px] font-black italic uppercase pl-11 underline decoration-indigo-200 underline-offset-4">Controle Comercial: Validade, Vínculos e O.S.</p>
+        <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+            {/* Toolbar (Moved Outside) */}
+            <div className="mb-2 flex flex-col md:flex-row items-center gap-3">
+                <div className="relative w-full md:flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                        type="text"
+                        placeholder="Pesquisar por Código ou Cliente..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+                    />
                 </div>
                 <button
                     onClick={() => { resetForm(); setIsModalOpen(true); }}
-                    className="px-6 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 transition-all text-center"
+                    className="px-6 py-3 h-[46px] bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all flex items-center gap-2 whitespace-nowrap"
                 >
-                    Novo Orçamento
+                    <Plus size={16} /> Novo Orçamento
                 </button>
             </div>
 
-            <div className="bg-white border border-slate-100 rounded-[3rem] overflow-hidden shadow-2xl flex-1 flex flex-col">
-                <div className="p-6 border-b border-slate-50 bg-slate-50/30">
-                    <div className="relative w-full max-w-xl">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                            type="text"
-                            placeholder="Pesquisar por Código ou Cliente..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
-                        />
-                    </div>
-                </div>
-
+            <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
                 <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full">
                         <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 text-[9px] font-black text-slate-400 uppercase tracking-widest text-left">

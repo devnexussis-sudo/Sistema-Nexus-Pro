@@ -294,107 +294,75 @@ export const StockManagement: React.FC = () => {
     };
 
     return (
-        <div className="p-8 space-y-6 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Gestão de Estoque</h1>
-                    <p className="text-gray-400 text-xs font-semibold mt-1 italic tracking-tight uppercase">Controle de Peças e Produtos</p>
+        <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+            {/* Toolbar Externa */}
+            <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
+                {/* Tabs */}
+                <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm flex-shrink-0">
+                    <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <List size={14} /> Itens
+                    </button>
+                    <button onClick={() => setActiveTab('categories')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'categories' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <Tag size={14} /> Categorias
+                    </button>
                 </div>
 
+                {/* Search */}
                 {activeTab === 'items' ? (
+                    <div className="relative flex-1 w-full">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Pesquisar estoque..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+                        />
+                    </div>
+                ) : <div className="flex-1"></div>}
+
+                {/* Filters & Actions */}
+                <div className="flex items-center gap-2 flex-shrink-0 w-full xl:w-auto justify-end">
+                    {activeTab === 'items' && (
+                        <>
+                            <div className="hidden lg:flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
+                                <Filter size={14} className="text-slate-400 mr-2" />
+                                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none max-w-[100px] cursor-pointer">
+                                    <option value="ALL">Categorias</option>
+                                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="hidden lg:flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
+                                <AlertTriangle size={14} className="text-slate-400 mr-2" />
+                                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer">
+                                    <option value="ALL">Status</option>
+                                    <option value="GOOD">Regular</option>
+                                    <option value="LOW">Baixo</option>
+                                    <option value="OUT">Zerado</option>
+                                </select>
+                            </div>
+                            <button
+                                onClick={() => { setSearchTerm(''); setCategoryFilter('ALL'); setStatusFilter('ALL'); }}
+                                className="hidden lg:block px-4 py-2 text-[9px] font-black uppercase text-slate-400 hover:text-indigo-600 transition-colors"
+                            >
+                                Limpar
+                            </button>
+                        </>
+                    )}
+
                     <button
-                        onClick={() => handleOpenModal()}
-                        className="flex items-center gap-2 px-6 py-3.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all"
+                        onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
+                        className={`flex items-center gap-2 px-6 h-[42px] rounded-xl text-[10px] font-black uppercase italic shadow-lg hover:-translate-y-0.5 transition-all text-white active:scale-95 whitespace-nowrap ${activeTab === 'items' ? 'bg-indigo-600 shadow-indigo-600/20 hover:bg-indigo-700' : 'bg-emerald-600 shadow-emerald-600/20 hover:bg-emerald-700'}`}
                     >
-                        <Plus size={16} /> Novo Item
+                        <Plus size={16} /> {activeTab === 'items' ? 'Novo Item' : 'Nova Categoria'}
                     </button>
-                ) : (
-                    <button
-                        onClick={() => handleOpenCategoryModal()}
-                        className="flex items-center gap-2 px-6 py-3.5 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 hover:-translate-y-0.5 transition-all"
-                    >
-                        <Plus size={16} /> Nova Categoria
-                    </button>
-                )}
+                </div>
             </div>
 
-            {/* Tab Navigation */}
-            <div className="flex items-center gap-2 p-1 bg-white rounded-2xl w-fit border border-slate-100 shadow-sm mx-auto md:mx-0">
-                <button
-                    onClick={() => setActiveTab('items')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'items'
-                        ? 'bg-indigo-50 text-indigo-600 shadow-sm'
-                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
-                        }`}
-                >
-                    <List size={16} /> Itens / Peças
-                </button>
-                <button
-                    onClick={() => setActiveTab('categories')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeTab === 'categories'
-                        ? 'bg-emerald-50 text-emerald-600 shadow-sm'
-                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
-                        }`}
-                >
-                    <Tag size={16} /> Categorias
-                </button>
-            </div>
-
-            <div className="bg-white border border-slate-100 rounded-[3rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+            <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
 
                 {activeTab === 'items' ? (
                     <>
-                        {/* Items Toolbar */}
-                        <div className="p-6 border-b border-slate-50 bg-slate-50/30 space-y-4">
-                            <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
-                                <div className="relative w-full max-w-xl">
-                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input
-                                        type="text"
-                                        placeholder="Pesquisar por códigos ou descrição..."
-                                        value={searchTerm}
-                                        onChange={e => setSearchTerm(e.target.value)}
-                                        className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
-                                    />
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10">
-                                        <Filter size={14} className="text-slate-400 mr-2" />
-                                        <select
-                                            className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none max-w-[150px]"
-                                            value={categoryFilter}
-                                            onChange={e => setCategoryFilter(e.target.value)}
-                                        >
-                                            <option value="ALL">Todas Categorias</option>
-                                            {/* Show Managed Categories + any generic ones in use */}
-                                            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                            {/* Fallback for items with legacy categories not in list? optional logic */}
-                                        </select>
-                                    </div>
-                                    <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10">
-                                        <AlertTriangle size={14} className="text-slate-400 mr-2" />
-                                        <select
-                                            className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none"
-                                            value={statusFilter}
-                                            onChange={e => setStatusFilter(e.target.value)}
-                                        >
-                                            <option value="ALL">Status do Estoque</option>
-                                            <option value="GOOD">Estoque Regular</option>
-                                            <option value="LOW">Estoque Baixo</option>
-                                            <option value="OUT">Sem Estoque</option>
-                                        </select>
-                                    </div>
-                                    <button
-                                        onClick={() => { setSearchTerm(''); setCategoryFilter('ALL'); setStatusFilter('ALL'); }}
-                                        className="px-4 py-2 text-[9px] font-black uppercase text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-dashed border-indigo-200"
-                                    >
-                                        Limpar
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
                         {/* Items Table */}
                         <div className="flex-1 overflow-auto custom-scrollbar">
                             <table className="w-full border-collapse">

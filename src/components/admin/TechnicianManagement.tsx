@@ -103,49 +103,48 @@ export const TechnicianManagement: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-8 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tighter italic uppercase leading-none">Equipe Técnica Campo</h1>
-          <p className="text-gray-500 text-sm font-medium mt-2 italic tracking-tight">Estes perfis acessam exclusivamente o App móvel para execução de serviços.</p>
+    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+
+      {/* Toolbar */}
+      <div className="mb-2 flex flex-col md:flex-row gap-3 items-center">
+        {/* Search */}
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            type="text"
+            placeholder="Localizar técnico por nome ou e-mail..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-emerald-50 transition-all shadow-sm"
+          />
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="rounded-[1.5rem] px-10 py-6 font-black italic uppercase text-xs tracking-widest shadow-2xl shadow-emerald-600/10">
-          <Plus size={20} className="mr-3" /> Cadastrar Técnico
-        </Button>
+
+        {/* Filters & Actions */}
+        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
+            <Filter size={14} className="text-slate-400 mr-2" />
+            <select
+              className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer"
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+            >
+              <option value="ALL">Status</option>
+              <option value="ACTIVE">Liberados</option>
+              <option value="INACTIVE">Suspensos</option>
+            </select>
+          </div>
+
+          <Button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-600/20 whitespace-nowrap text-white"
+          >
+            <Plus size={16} className="mr-2" /> Novo Técnico
+          </Button>
+        </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[3.5rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/50 flex-1 min-h-0">
-        <div className="p-8 border-b border-slate-50 bg-slate-50/30 flex flex-col sm:flex-row justify-between items-center gap-6">
-          <div className="relative w-full max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              placeholder="Localizar técnico por nome ou e-mail..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-xs font-bold text-slate-700 outline-none shadow-sm"
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
-              <button className="p-3 text-slate-400 hover:text-emerald-600"><Filter size={18} /></button>
-              <select
-                className="bg-transparent pr-4 py-2 text-[10px] font-black uppercase text-slate-500 outline-none"
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-              >
-                <option value="ALL">Status App</option>
-                <option value="ACTIVE">Liberados</option>
-                <option value="INACTIVE">Suspensos</option>
-              </select>
-            </div>
-            <button className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-emerald-600 shadow-sm transition-all">
-              <Calendar size={20} />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-auto p-6 custom-scrollbar">
+      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/50 flex-1 min-h-0">
+        <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           <table className="w-full border-separate border-spacing-y-3">
             <thead>
               <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">

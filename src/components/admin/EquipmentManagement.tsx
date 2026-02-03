@@ -147,68 +147,66 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
     });
 
   return (
-    <div className="p-8 space-y-8 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
-      {/* HEADER PADRONIZADO */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Gestão de Ativos</h1>
-          <p className="text-gray-500 text-sm font-medium mt-2 italic tracking-tight">Inventário técnico e categorização de equipamentos vinculados.</p>
+    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+
+      {/* TOOLBAR PADRONIZADA (Externa) */}
+      <div className="mb-2 flex flex-col xl:flex-row items-center gap-3">
+        {/* Abas Compactas */}
+        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm">
+          <button
+            onClick={() => setActiveTab('list')}
+            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'list' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <div className="flex items-center gap-2"><Box size={14} /> Ativos</div>
+          </button>
+          <button
+            onClick={() => setActiveTab('families')}
+            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'families' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <div className="flex items-center gap-2"><Layers size={14} /> Famílias</div>
+          </button>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="rounded-[1.5rem] px-10 py-6 font-black italic uppercase text-xs tracking-widest shadow-2xl shadow-indigo-600/20">
-          <Plus size={20} className="mr-3" /> {activeTab === 'list' ? 'Novo Ativo' : 'Nova Categoria'}
-        </Button>
+
+        {/* Busca (Grow) */}
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            type="text"
+            placeholder={activeTab === 'list' ? "Localizar por modelo ou serial..." : "Localizar categoria..."}
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+          />
+        </div>
+
+        {/* Filtros e Ações */}
+        <div className="flex items-center gap-2 w-full xl:w-auto">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[46px]">
+            <Filter size={14} className="text-slate-400 mr-2" />
+            <select
+              className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer"
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+            >
+              <option value="ALL">Todos</option>
+              <option value="ACTIVE">Ativos</option>
+              <option value="INACTIVE">Inativos</option>
+            </select>
+          </div>
+
+          <Button
+            onClick={() => setIsModalOpen(true)}
+            className="rounded-xl px-6 h-[46px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/20 whitespace-nowrap"
+          >
+            <Plus size={16} className="mr-2" /> {activeTab === 'list' ? 'Novo' : 'Nova Categoria'}
+          </Button>
+        </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[3.5rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/50 flex-1 min-h-0">
-        {/* TOOLBAR PADRONIZADA */}
-        <div className="p-8 border-b border-slate-50 bg-slate-50/30 flex flex-col sm:flex-row justify-between items-center gap-6">
-          <div className="flex gap-4 p-1.5 bg-white border border-slate-200 rounded-2xl shadow-sm">
-            <button
-              onClick={() => setActiveTab('list')}
-              className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'list' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <div className="flex items-center gap-2"><Box size={16} /> Equipamentos</div>
-            </button>
-            <button
-              onClick={() => setActiveTab('families')}
-              className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'families' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <div className="flex items-center gap-2"><Layers size={16} /> Famílias</div>
-            </button>
-          </div>
-
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              placeholder={activeTab === 'list' ? "Localizar por modelo ou serial..." : "Localizar categoria..."}
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-xs font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex items-center bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
-              <button className="p-3 text-slate-400 hover:text-indigo-600"><Filter size={18} /></button>
-              <select
-                className="bg-transparent pr-4 py-2 text-[10px] font-black uppercase text-slate-500 outline-none"
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-              >
-                <option value="ALL">Todos os Temas</option>
-                <option value="ACTIVE">{activeTab === 'list' ? 'Operativos' : 'Famílias Ativas'}</option>
-                <option value="INACTIVE">{activeTab === 'list' ? 'Inativos' : 'Famílias Inativas'}</option>
-              </select>
-            </div>
-            <button className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 shadow-sm transition-all">
-              <Calendar size={20} />
-            </button>
-          </div>
-        </div>
+      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/50 flex-1 min-h-0">
 
         {/* TABELA PADRONIZADA */}
-        <div className="flex-1 overflow-auto p-6 custom-scrollbar">
+        <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'list' ? (
             <table className="w-full border-separate border-spacing-y-3">
               <thead>

@@ -180,80 +180,77 @@ export const FormManagement: React.FC = () => {
   });
 
   return (
-    <div className="p-6 md:p-10 space-y-8 flex-1 flex flex-col min-h-0 bg-white/50">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-black text-gray-900 tracking-tighter italic uppercase flex items-center gap-3">
-            <Workflow className="text-indigo-600" size={32} />
-            Gestão de Processos
-          </h1>
-          <p className="text-gray-500 text-sm font-medium">Cadastre tipos, crie modelos e defina regras de ativação.</p>
+    <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in">
+      {/* Toolbar */}
+      <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
+        {/* Tabs */}
+        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm flex-shrink-0">
+          <button
+            onClick={() => setActiveTab('types')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'types' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Tag size={14} /> Tipos
+          </button>
+          <button
+            onClick={() => setActiveTab('templates')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'templates' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <FileText size={14} /> Modelos
+          </button>
+          <button
+            onClick={() => setActiveTab('rules')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'rules' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Layers size={14} /> Regras
+          </button>
         </div>
-        <Button
-          onClick={() => {
-            if (activeTab === 'types') { setEditingType({ name: '' }); setIsTypeModalOpen(true); }
-            if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true }); setIsModalOpen(true); }
-            if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '' }); setIsRuleModalOpen(true); }
-          }}
-          className="rounded-[1.5rem] px-8 py-6 shadow-2xl shadow-indigo-600/20 border-b-4 border-indigo-800 active:border-b-0 transition-all"
-        >
-          <Plus size={20} className="mr-2" />
-          {activeTab === 'types' ? 'Novo Tipo' : activeTab === 'templates' ? 'Novo Modelo' : 'Nova Regra'}
-        </Button>
-      </div>
 
-      {/* Navegação por Abas */}
-      <div className="flex gap-4 p-2 bg-gray-100/80 backdrop-blur-sm w-fit rounded-[2rem] border border-gray-200">
-        <button
-          onClick={() => setActiveTab('types')}
-          className={`px-8 py-3 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'types' ? 'bg-white text-indigo-600 shadow-xl border border-indigo-50' : 'text-gray-400 hover:text-gray-600'}`}
-        >
-          <Tag size={18} /> 1. Tipos de Serviço
-        </button>
-        <button
-          onClick={() => setActiveTab('templates')}
-          className={`px-8 py-3 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'templates' ? 'bg-white text-indigo-600 shadow-xl border border-indigo-50' : 'text-gray-400 hover:text-gray-600'}`}
-        >
-          <FileText size={18} /> 2. Modelos de Checklist
-        </button>
-        <button
-          onClick={() => setActiveTab('rules')}
-          className={`px-8 py-3 rounded-[1.5rem] text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'rules' ? 'bg-white text-indigo-600 shadow-xl border border-indigo-50' : 'text-gray-400 hover:text-gray-600'}`}
-        >
-          <Layers size={18} /> 3. Regras de Vinculação
-        </button>
-      </div>
+        {/* Search */}
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            type="text"
+            placeholder="Pesquisar..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+          />
+        </div>
 
-      <div className="bg-white border border-gray-100 rounded-[3.5rem] overflow-hidden flex-1 flex flex-col min-h-0 shadow-2xl shadow-gray-200/50">
-        <div className="p-8 border-b border-gray-50 bg-gray-50/30 flex flex-col sm:flex-row justify-between items-center gap-6">
-          <div className="relative w-full max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              placeholder="Procurar neste processo..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-xs font-bold text-slate-700 outline-none shadow-sm"
-            />
-          </div>
+        {/* Filters & Actions */}
+        <div className="flex items-center gap-2 flex-shrink-0 w-full xl:w-auto justify-end">
+          {/* Only show filters if needed (e.g. templates status) */}
           {activeTab === 'templates' && (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
-                <button className="p-3 text-slate-400 hover:text-indigo-600"><Filter size={18} /></button>
-                <select
-                  className="bg-transparent pr-4 py-2 text-[10px] font-black uppercase text-slate-500 outline-none"
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                >
-                  <option value="ALL">Status</option>
-                  <option value="ACTIVE">Ativos</option>
-                  <option value="INACTIVE">Inativos</option>
-                </select>
-              </div>
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
+              <Filter size={14} className="text-slate-400 mr-2" />
+              <select
+                className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer"
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+              >
+                <option value="ALL">Status</option>
+                <option value="ACTIVE">Ativos</option>
+                <option value="INACTIVE">Inativo</option>
+              </select>
             </div>
           )}
+
+          <Button
+            onClick={() => {
+              if (activeTab === 'types') { setEditingType({ name: '' }); setIsTypeModalOpen(true); }
+              if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true }); setIsModalOpen(true); }
+              if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '' }); setIsRuleModalOpen(true); }
+            }}
+            className="rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/20 text-white whitespace-nowrap bg-indigo-600 hover:bg-indigo-700"
+          >
+            <Plus size={16} className="mr-2" />
+            {activeTab === 'types' ? 'Novo Tipo' : activeTab === 'templates' ? 'Novo Modelo' : 'Nova Regra'}
+          </Button>
         </div>
-        <div className="overflow-auto flex-1 p-8">
+      </div>
+
+      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+        <div className="overflow-auto flex-1 p-6 custom-scrollbar">
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-4 text-indigo-600">
               <Loader2 size={48} className="animate-spin" />

@@ -309,401 +309,394 @@ export const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-slate-50/50">
-      {/* Header Aligned */}
-      <div className="px-8 pt-8 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 flex-shrink-0">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-black text-gray-900 tracking-tighter italic uppercase flex items-center gap-4">
-            <Settings className="text-indigo-600" size={36} />
-            Configurações
-          </h1>
-          <p className="text-gray-500 text-sm font-medium italic">Gerenciamento da Instância e Ativos Globais.</p>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-6 py-3 bg-amber-50 rounded-2xl border border-amber-100 shadow-sm">
-            <Lock size={14} className="text-amber-600" />
-            <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Somente Leitura (Nexus Global)</span>
-          </div>
-
-          {saved && (
-            <div className="bg-emerald-50 text-emerald-600 px-6 py-3 rounded-2xl border border-emerald-100 font-black text-xs uppercase tracking-widest animate-bounce">
-              Configurações Atualizadas!
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="px-8 pb-6 flex-shrink-0">
-        <div className="flex gap-4 p-2 bg-gray-100/80 backdrop-blur-sm w-fit rounded-[2rem] border border-gray-200">
+    <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in">
+      {/* Toolbar */}
+      <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
+        {/* Tabs */}
+        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm flex-shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('company')}
-            className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'company' ? 'bg-white text-indigo-600 shadow-xl border border-indigo-50' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'company' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <Building2 size={18} /> Organização
+            <Building2 size={14} /> Organização
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('system')}
-            className={`px-8 py-3 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'system' ? 'bg-white text-indigo-600 shadow-xl border border-indigo-50' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'system' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <Terminal size={18} /> Parâmetros do Sistema
+            <Terminal size={14} /> Sistema
           </button>
+        </div>
+
+        {/* Middle Spacer / Status */}
+        <div className="flex-1 w-full flex items-center justify-end md:justify-center gap-4">
+          <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-xl border border-amber-100 shadow-sm">
+            <Lock size={12} className="text-amber-600" />
+            <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest hidden md:inline">Somente Leitura (Nexus Global)</span>
+            <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest md:hidden">Read-Only</span>
+          </div>
+          {saved && (
+            <div className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl border border-emerald-100 font-black text-[9px] uppercase tracking-widest animate-bounce">
+              Salvo!
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-shrink-0 w-full xl:w-auto justify-end">
+          <Button
+            form="settings-form"
+            type="submit"
+            isLoading={loading}
+            className="rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/20 text-white whitespace-nowrap bg-indigo-600 hover:bg-indigo-700"
+          >
+            <Save size={16} className="mr-2" /> Salvar
+          </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-8 pb-32 custom-scrollbar">
-        <form id="settings-form" onSubmit={handleSave} className="max-w-6xl mx-auto space-y-10">
+      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar">
+          <form id="settings-form" onSubmit={handleSave} className="max-w-6xl mx-auto space-y-10">
 
-          {activeTab === 'company' ? (
-            <div className="space-y-10 animate-fade-in">
-              {/* SEÇÃO PRINCIPAL - IGUAL AO SUPER ADMIN */}
-              <section className="bg-white p-10 rounded-[4rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-12">
-                <div className="flex items-center gap-6 border-b border-gray-50 pb-8">
-                  <div className="p-5 bg-indigo-600 text-white rounded-[1.5rem] shadow-xl shadow-indigo-600/20">
-                    <Building2 size={32} />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-gray-900 uppercase italic tracking-tighter">Dados da Organização</h2>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Informações vinculadas ao provisionamento Master.</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  <div className="md:col-span-2">
-                    <Input
-                      label="Razão Social Completa"
-                      disabled
-                      value={company.name}
-                      className="rounded-2xl py-5 font-black text-lg border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-                  </div>
-                  <Input
-                    label="Nome Fantasia"
-                    disabled
-                    value={company.tradingName}
-                    className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed"
-                  />
-                  <Input
-                    label="Identificador do Sistema (Slug)"
-                    disabled
-                    value={dbInfo?.slug || ''}
-                    icon={<Lock size={16} />}
-                    className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-100 opacity-60 italic"
-                  />
-                  <Input
-                    label="CNPJ"
-                    disabled
-                    icon={<CreditCard size={16} />}
-                    value={company.cnpj}
-                    className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed"
-                  />
-                  <Input
-                    label="Inscrição Estadual"
-                    disabled
-                    icon={<Hash size={16} />}
-                    value={company.stateRegistration}
-                    className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed"
-                  />
-
-                  <Input
-                    label="E-mail de Contato"
-                    disabled
-                    icon={<Mail size={16} />}
-                    value={company.email}
-                    className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                  />
-                  <Input
-                    label="Telefone Comercial"
-                    disabled
-                    icon={<Phone size={16} />}
-                    value={company.phone}
-                    className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                  />
-                  <Input
-                    label="Website"
-                    disabled
-                    icon={<Globe size={16} />}
-                    value={company.website}
-                    className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                  />
-
-                  <div className="lg:col-span-1">
-                    <Input
-                      label="CEP"
-                      disabled
-                      value={company.zip || ''}
-                      icon={<MapPin size={16} />}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-                  </div>
-
-                  <div className="lg:col-span-2">
-                    <Input
-                      label="Logradouro"
-                      disabled
-                      value={company.street || company.address || ''}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-                  </div>
-
-                  <div className="lg:col-span-1">
-                    <Input
-                      label="Número"
-                      disabled
-                      value={company.number || ''}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-                  </div>
-
-                  <div className="lg:col-span-1">
-                    <Input
-                      label="Bairro"
-                      disabled
-                      value={company.neighborhood || ''}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-                  </div>
-
-                  <div className="lg:col-span-1">
-                    <Input
-                      label="Cidade"
-                      disabled
-                      value={company.city || ''}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-                  </div>
-
-                  <div className="lg:col-span-1">
-                    <Input
-                      label="Estado (UF)"
-                      disabled
-                      value={company.state || ''}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-                  </div>
-
-                  <div className="lg:col-span-3">
-                    <Input
-                      label="Complemento"
-                      disabled
-                      value={company.complement || ''}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-8 border-t border-gray-50 flex flex-col md:flex-row items-center gap-10">
-                  <div className="space-y-2 text-center md:text-left">
-                    <div className="flex items-center gap-2 justify-center md:justify-start">
-                      <h4 className="text-xs font-black text-gray-900 uppercase">Logotipo da Empresa</h4>
-                      <UploadCloud size={12} className="text-indigo-500" />
+            {activeTab === 'company' ? (
+              <div className="space-y-10 animate-fade-in">
+                {/* SEÇÃO PRINCIPAL - IGUAL AO SUPER ADMIN */}
+                <section className="bg-white p-10 rounded-[4rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-12">
+                  <div className="flex items-center gap-6 border-b border-gray-50 pb-8">
+                    <div className="p-5 bg-indigo-600 text-white rounded-[1.5rem] shadow-xl shadow-indigo-600/20">
+                      <Building2 size={32} />
                     </div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase leading-tight w-48 italic">
-                      Clique na imagem para trocar a Logotipo oficial da sua instância.
+                    <div>
+                      <h2 className="text-2xl font-black text-gray-900 uppercase italic tracking-tighter">Dados da Organização</h2>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Informações vinculadas ao provisionamento Master.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Razão Social Completa"
+                        disabled
+                        value={company.name}
+                        className="rounded-2xl py-5 font-black text-lg border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                      />
+                    </div>
+                    <Input
+                      label="Nome Fantasia"
+                      disabled
+                      value={company.tradingName}
+                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed"
+                    />
+                    <Input
+                      label="Identificador do Sistema (Slug)"
+                      disabled
+                      value={dbInfo?.slug || ''}
+                      icon={<Lock size={16} />}
+                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-100 opacity-60 italic"
+                    />
+                    <Input
+                      label="CNPJ"
+                      disabled
+                      icon={<CreditCard size={16} />}
+                      value={company.cnpj}
+                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed"
+                    />
+                    <Input
+                      label="Inscrição Estadual"
+                      disabled
+                      icon={<Hash size={16} />}
+                      value={company.stateRegistration}
+                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed"
+                    />
+
+                    <Input
+                      label="E-mail de Contato"
+                      disabled
+                      icon={<Mail size={16} />}
+                      value={company.email}
+                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                    />
+                    <Input
+                      label="Telefone Comercial"
+                      disabled
+                      icon={<Phone size={16} />}
+                      value={company.phone}
+                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                    />
+                    <Input
+                      label="Website"
+                      disabled
+                      icon={<Globe size={16} />}
+                      value={company.website}
+                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                    />
+
+                    <div className="lg:col-span-1">
+                      <Input
+                        label="CEP"
+                        disabled
+                        value={company.zip || ''}
+                        icon={<MapPin size={16} />}
+                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                      />
+                    </div>
+
+                    <div className="lg:col-span-2">
+                      <Input
+                        label="Logradouro"
+                        disabled
+                        value={company.street || company.address || ''}
+                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                      />
+                    </div>
+
+                    <div className="lg:col-span-1">
+                      <Input
+                        label="Número"
+                        disabled
+                        value={company.number || ''}
+                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                      />
+                    </div>
+
+                    <div className="lg:col-span-1">
+                      <Input
+                        label="Bairro"
+                        disabled
+                        value={company.neighborhood || ''}
+                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                      />
+                    </div>
+
+                    <div className="lg:col-span-1">
+                      <Input
+                        label="Cidade"
+                        disabled
+                        value={company.city || ''}
+                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                      />
+                    </div>
+
+                    <div className="lg:col-span-1">
+                      <Input
+                        label="Estado (UF)"
+                        disabled
+                        value={company.state || ''}
+                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                      />
+                    </div>
+
+                    <div className="lg:col-span-3">
+                      <Input
+                        label="Complemento"
+                        disabled
+                        value={company.complement || ''}
+                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-8 border-t border-gray-50 flex flex-col md:flex-row items-center gap-10">
+                    <div className="space-y-2 text-center md:text-left">
+                      <div className="flex items-center gap-2 justify-center md:justify-start">
+                        <h4 className="text-xs font-black text-gray-900 uppercase">Logotipo da Empresa</h4>
+                        <UploadCloud size={12} className="text-indigo-500" />
+                      </div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase leading-tight w-48 italic">
+                        Clique na imagem para trocar a Logotipo oficial da sua instância.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`w-32 h-32 rounded-[2.5rem] border-2 border-dashed flex items-center justify-center transition-all relative overflow-hidden group shadow-inner cursor-pointer ${company.logoUrl
+                          ? 'border-indigo-100 bg-indigo-50/30'
+                          : 'border-gray-300 bg-gray-50 hover:border-indigo-400 hover:bg-white'}`}
+                      >
+                        {company.logoUrl ? (
+                          <>
+                            <img src={company.logoUrl} alt="Company Logo" className="w-full h-full object-contain p-4" />
+                            <div className="absolute inset-0 bg-indigo-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Camera size={28} className="text-white" />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1 text-gray-400 group-hover:text-indigo-500">
+                            <UploadCloud size={32} />
+                            <span className="text-[9px] font-black uppercase">Subir Logo</span>
+                          </div>
+                        )}
+                      </div>
+                      {company.logoUrl && (
+                        <button
+                          type="button"
+                          onClick={removeLogo}
+                          className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors"
+                          title="Remover Logotipo"
+                        >
+                          <X size={18} />
+                        </button>
+                      )}
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* SEÇÃO DE OS - IGUAL AO SUPER ADMIN */}
+                <section className="bg-[#0f172a] p-10 rounded-[4rem] border border-white/5 shadow-2xl space-y-10 text-white relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/10 blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
+
+                  <div className="flex items-center gap-6 border-b border-white/5 pb-8 relative z-10">
+                    <div className="p-5 bg-indigo-500 text-white rounded-[1.5rem] shadow-xl shadow-indigo-500/20">
+                      <ListOrdered size={32} />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black uppercase italic tracking-tighter">Regras de Protocolos (O.S.)</h2>
+                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Configuração de numeração e identificação.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10">
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">
+                        Prefixo do Código <Lock size={10} />
+                      </label>
+                      <Input
+                        disabled
+                        value={params.osPrefix}
+                        className="rounded-2xl py-5 font-black border-gray-100 bg-gray-50/50 text-gray-500 cursor-not-allowed text-lg shadow-inner"
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">
+                        Número Inicial <Lock size={10} />
+                      </label>
+                      <Input
+                        disabled
+                        type="number"
+                        value={params.osInitialNumber}
+                        className="rounded-2xl py-5 font-black border-gray-100 bg-gray-50/50 text-gray-500 cursor-not-allowed text-lg shadow-inner"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-8 bg-indigo-600/10 rounded-[2.5rem] border border-indigo-500/20 flex gap-6 items-center relative z-10">
+                    <ShieldAlert className="text-indigo-400 flex-shrink-0" size={32} />
+                    <p className="text-xs font-bold text-gray-300 leading-relaxed italic">
+                      Nota Técnica: Estas regras definem como os novos protocolos serão gerados. Alterações impactam apenas futuras ordens de serviço.
                     </p>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className={`w-32 h-32 rounded-[2.5rem] border-2 border-dashed flex items-center justify-center transition-all relative overflow-hidden group shadow-inner cursor-pointer ${company.logoUrl
-                        ? 'border-indigo-100 bg-indigo-50/30'
-                        : 'border-gray-300 bg-gray-50 hover:border-indigo-400 hover:bg-white'}`}
-                    >
-                      {company.logoUrl ? (
-                        <>
-                          <img src={company.logoUrl} alt="Company Logo" className="w-full h-full object-contain p-4" />
-                          <div className="absolute inset-0 bg-indigo-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Camera size={28} className="text-white" />
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex flex-col items-center gap-1 text-gray-400 group-hover:text-indigo-500">
-                          <UploadCloud size={32} />
-                          <span className="text-[9px] font-black uppercase">Subir Logo</span>
-                        </div>
-                      )}
+                </section>
+              </div>
+            ) : (
+
+              <div className="space-y-10 animate-fade-in">
+                <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-8">
+                  <div className="flex items-center gap-4 border-b border-gray-50 pb-6">
+                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                      <Languages size={24} />
                     </div>
-                    {company.logoUrl && (
-                      <button
-                        type="button"
-                        onClick={removeLogo}
-                        className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors"
-                        title="Remover Logotipo"
+                    <div>
+                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">Localização e Regional</h2>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Idiomas e fuso horário da plataforma.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="w-full">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2 block">Idioma do Sistema</label>
+                      <select
+                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-indigo-100 appearance-none shadow-sm"
+                        value={params.language}
+                        onChange={e => setParams({ ...params, language: e.target.value as any })}
                       >
-                        <X size={18} />
-                      </button>
-                    )}
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                    />
-                  </div>
-                </div>
-              </section>
-
-              {/* SEÇÃO DE OS - IGUAL AO SUPER ADMIN */}
-              <section className="bg-[#0f172a] p-10 rounded-[4rem] border border-white/5 shadow-2xl space-y-10 text-white relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/10 blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
-
-                <div className="flex items-center gap-6 border-b border-white/5 pb-8 relative z-10">
-                  <div className="p-5 bg-indigo-500 text-white rounded-[1.5rem] shadow-xl shadow-indigo-500/20">
-                    <ListOrdered size={32} />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black uppercase italic tracking-tighter">Regras de Protocolos (O.S.)</h2>
-                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Configuração de numeração e identificação.</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">
-                      Prefixo do Código <Lock size={10} />
-                    </label>
-                    <Input
-                      disabled
-                      value={params.osPrefix}
-                      className="rounded-2xl py-5 font-black border-gray-100 bg-gray-50/50 text-gray-500 cursor-not-allowed text-lg shadow-inner"
-                    />
-                  </div>
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">
-                      Número Inicial <Lock size={10} />
-                    </label>
-                    <Input
-                      disabled
-                      type="number"
-                      value={params.osInitialNumber}
-                      className="rounded-2xl py-5 font-black border-gray-100 bg-gray-50/50 text-gray-500 cursor-not-allowed text-lg shadow-inner"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-8 bg-indigo-600/10 rounded-[2.5rem] border border-indigo-500/20 flex gap-6 items-center relative z-10">
-                  <ShieldAlert className="text-indigo-400 flex-shrink-0" size={32} />
-                  <p className="text-xs font-bold text-gray-300 leading-relaxed italic">
-                    Nota Técnica: Estas regras definem como os novos protocolos serão gerados. Alterações impactam apenas futuras ordens de serviço.
-                  </p>
-                </div>
-              </section>
-            </div>
-          ) : (
-
-            <div className="space-y-10 animate-fade-in">
-              <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-8">
-                <div className="flex items-center gap-4 border-b border-gray-50 pb-6">
-                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
-                    <Languages size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">Localização e Regional</h2>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Idiomas e fuso horário da plataforma.</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="w-full">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2 block">Idioma do Sistema</label>
-                    <select
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-indigo-100 appearance-none shadow-sm"
-                      value={params.language}
-                      onChange={e => setParams({ ...params, language: e.target.value as any })}
-                    >
-                      <option value="pt-BR">🇧🇷 Português (Brasil)</option>
-                      <option value="en-US">🇺🇸 English (United States)</option>
-                      <option value="es-ES">🇪🇸 Español (España)</option>
-                    </select>
-                  </div>
-                  <div className="w-full">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2 block">Fuso Horário Operacional</label>
-                    <select
-                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-indigo-100 appearance-none shadow-sm"
-                      defaultValue="UTC-3"
-                    >
-                      <option value="UTC-3">(UTC-03:00) Brasília</option>
-                      <option value="UTC-5">(UTC-05:00) Eastern Time</option>
-                      <option value="UTC+1">(UTC+01:00) Madrid/Paris</option>
-                    </select>
-                  </div>
-                </div>
-              </section>
-
-              <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-10">
-                <div className="flex items-center gap-4 border-b border-gray-50 pb-6">
-                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
-                    <Smartphone size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">Operações e Segurança</h2>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Controles técnicos e de acesso.</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-                    <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.useGps ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                      <Navigation size={28} />
+                        <option value="pt-BR">🇧🇷 Português (Brasil)</option>
+                        <option value="en-US">🇺🇸 English (United States)</option>
+                        <option value="es-ES">🇪🇸 Español (España)</option>
+                      </select>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">GPS em Tempo Real</h4>
-                        <button
-                          type="button"
-                          onClick={() => setParams({ ...params, useGps: !params.useGps })}
-                          className={`w-14 h-7 rounded-full relative transition-colors ${params.useGps ? 'bg-indigo-600' : 'bg-gray-300'}`}
-                        >
-                          <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.useGps ? 'left-8' : 'left-1'}`}></div>
-                        </button>
+                    <div className="w-full">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2 block">Fuso Horário Operacional</label>
+                      <select
+                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-indigo-100 appearance-none shadow-sm"
+                        defaultValue="UTC-3"
+                      >
+                        <option value="UTC-3">(UTC-03:00) Brasília</option>
+                        <option value="UTC-5">(UTC-05:00) Eastern Time</option>
+                        <option value="UTC+1">(UTC+01:00) Madrid/Paris</option>
+                      </select>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-10">
+                  <div className="flex items-center gap-4 border-b border-gray-50 pb-6">
+                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                      <Smartphone size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">Operações e Segurança</h2>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Controles técnicos e de acesso.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.useGps ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <Navigation size={28} />
                       </div>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase leading-relaxed">
-                        Registrar geolocalização exata nos eventos de check-in/out.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-                    <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.notifyClient ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                      <BellRing size={28} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">Notificar Clientes</h4>
-                        <button
-                          type="button"
-                          onClick={() => setParams({ ...params, notifyClient: !params.notifyClient })}
-                          className={`w-14 h-7 rounded-full relative transition-colors ${params.notifyClient ? 'bg-indigo-600' : 'bg-gray-300'}`}
-                        >
-                          <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.notifyClient ? 'left-8' : 'left-1'}`}></div>
-                        </button>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-2">
+                          <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">GPS em Tempo Real</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, useGps: !params.useGps })}
+                            className={`w-14 h-7 rounded-full relative transition-colors ${params.useGps ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                          >
+                            <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.useGps ? 'left-8' : 'left-1'}`}></div>
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Registrar geolocalização exata nos eventos de check-in/out.
+                        </p>
                       </div>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase leading-relaxed">
-                        Enviar WhatsApp automático ao iniciar o deslocamento técnico.
-                      </p>
+                    </div>
+
+                    <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.notifyClient ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <BellRing size={28} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-2">
+                          <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">Notificar Clientes</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, notifyClient: !params.notifyClient })}
+                            className={`w-14 h-7 rounded-full relative transition-colors ${params.notifyClient ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                          >
+                            <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.notifyClient ? 'left-8' : 'left-1'}`}></div>
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Enviar WhatsApp automático ao iniciar o deslocamento técnico.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </section>
-            </div>
-          )}
-        </form>
-      </div>
-
-      {/* Botão de Ação Fixo no Rodapé */}
-      <div className="px-8 py-6 bg-white border-t border-gray-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] flex justify-end flex-shrink-0">
-        <Button
-          form="settings-form"
-          type="submit"
-          isLoading={loading}
-          className="rounded-[2.5rem] px-16 py-8 shadow-2xl shadow-indigo-600/30 font-black text-lg italic uppercase tracking-tighter"
-        >
-          <Save size={24} className="mr-4" />
-          Aplicar Alterações
-        </Button>
+                </section>
+              </div>
+            )}
+          </form>
+        </div>
       </div>
     </div>
   );
