@@ -84,6 +84,13 @@ export const DataService = {
   },
 
   /**
+   * 🧹 Nexus Cache Invalidator
+   */
+  invalidateCache: (pattern: string) => {
+    CacheManager.invalidate(pattern);
+  },
+
+  /**
    * 🔄 Nexus Profile Refresh
    * Atualiza os dados do usuário logado (nome, avatar, etc) buscando do banco
    */
