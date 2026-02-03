@@ -57,10 +57,21 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
     // Ping imediato ao logar
     updateLocation();
 
-    // Ping a cada 3 minutos (180000ms) conforme solicitado
-    const interval = setInterval(updateLocation, 3 * 60 * 1000);
+    // Ping a cada 5 minutos (300000ms) para economizar bateria e dados
+    const interval = setInterval(updateLocation, 5 * 60 * 1000);
 
-    return () => clearInterval(interval);
+    // 🔋 Background Location Support: Continua enviando mesmo em segundo plano
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        updateLocation(); // Atualiza quando volta ao foco
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [user]);
 
   const handleUpdateStatus = async (orderId: string, status: OrderStatus, notes?: string, formData?: any) => {
@@ -121,6 +132,8 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
   };
 
   const todayCompleted = orders.filter(o => o.status === OrderStatus.COMPLETED).length;
+  const inProgress = orders.filter(o => o.status === OrderStatus.IN_PROGRESS).length;
+  const pending = orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.ASSIGNED).length;
 
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return '---';
@@ -180,14 +193,18 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg"><CheckCircle2 size={16} /></div>
-            <div><p className="text-[7px] text-white/40 uppercase">Concluídas</p><p className="text-sm font-black text-white">{todayCompleted}</p></div>
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col items-center">
+            <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg mb-1"><CheckCircle2 size={14} /></div>
+            <p className="text-[7px] text-white/40 uppercase">Concluídas</p><p className="text-sm font-black text-white">{todayCompleted}</p>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex items-center gap-3">
-            <div className="p-2 bg-amber-500/20 text-amber-400 rounded-lg"><Clock size={16} /></div>
-            <div><p className="text-[7px] text-white/40 uppercase">Em Aberto</p><p className="text-sm font-black text-white">{orders.length - todayCompleted}</p></div>
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col items-center">
+            <div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg mb-1"><RefreshCw size={14} /></div>
+            <p className="text-[7px] text-white/40 uppercase">Em Execução</p><p className="text-sm font-black text-white">{inProgress}</p>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col items-center">
+            <div className="p-2 bg-amber-500/20 text-amber-400 rounded-lg mb-1"><Clock size={14} /></div>
+            <p className="text-[7px] text-white/40 uppercase">Pendentes</p><p className="text-sm font-black text-white">{pending}</p>
           </div>
         </div>
 
