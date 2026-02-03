@@ -1,10 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Navigation, MapPin, Clock, RefreshCw } from 'lucide-react';
+import { Navigation, MapPin, Clock, RefreshCw, History, Calendar, ChevronLeft, Search, User } from 'lucide-react';
 import { DataService } from '../../services/dataService';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 // Fix for default marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -23,6 +24,12 @@ interface Technician {
     last_longitude?: number;
     last_seen?: string;
     active?: boolean;
+}
+
+interface LocationHistory {
+    latitude: number;
+    longitude: number;
+    recorded_at: string;
 }
 
 const createTechIcon = (avatarUrl: string, isMoving: boolean = true) => {
@@ -53,6 +60,14 @@ export const TechnicianMap: React.FC = () => {
     const [technicians, setTechnicians] = useState<Technician[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    // 🕒 History Mode States
+    const [isHistoryMode, setIsHistoryMode] = useState(false);
+    const [selectedHistoryTech, setSelectedHistoryTech] = useState<Technician | null>(null);
+    const [selectedHistoryDate, setSelectedHistoryDate] = useState(new Date().toISOString().split('T')[0]);
+    const [historyPath, setHistoryPath] = useState<LocationHistory[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
 
     useEffect(() => {
         loadTechnicians();
@@ -104,13 +119,45 @@ export const TechnicianMap: React.FC = () => {
             }
             // Recarrega dados frescos
             await loadTechnicians();
-            console.log('[Map] ✅ Posições dos técnicos atualizadas!');
         } catch (error) {
             console.error('[Map] Erro ao atualizar:', error);
         } finally {
             setIsRefreshing(false);
         }
     };
+
+    const loadHistoryPath = async (techId: string, date: string) => {
+        setIsLoadingHistory(true);
+        try {
+            const { data, error } = await DataService.getServiceClient()
+                .from('technician_location_history')
+                .select('latitude, longitude, recorded_at')
+                .eq('technician_id', techId)
+                .eq('date', date)
+                .order('recorded_at', { ascending: true });
+
+            if (error) throw error;
+            setHistoryPath(data || []);
+
+            // Centralizar no caminho se houver pontos
+            if (data && data.length > 0 && mapInstance) {
+                const bounds = L.latLngBounds(data.map(p => [p.latitude, p.longitude]));
+                mapInstance.fitBounds(bounds, { padding: [50, 50] });
+            }
+        } catch (error) {
+            console.error('[Map] Erro ao carregar histórico:', error);
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isHistoryMode && selectedHistoryTech) {
+            loadHistoryPath(selectedHistoryTech.id, selectedHistoryDate);
+        } else {
+            setHistoryPath([]);
+        }
+    }, [isHistoryMode, selectedHistoryTech, selectedHistoryDate]);
 
     const activeTechs = technicians.filter(t =>
         t.last_latitude && t.last_longitude && t.active !== false
@@ -174,32 +221,91 @@ export const TechnicianMap: React.FC = () => {
                     />
                 </div>
 
-                {/* Refresh Button */}
+                {/* Refresh Button - Only in Live Mode */}
+                {!isHistoryMode && (
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                        className="bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border border-white/20 hover:bg-indigo-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                        title="Atualizar posições"
+                    >
+                        <RefreshCw
+                            size={14}
+                            className={`text-indigo-600 transition-transform ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`}
+                        />
+                    </button>
+                )}
+
+                {/* History Toggle Button */}
                 <button
-                    onClick={handleRefresh}
-                    disabled={isRefreshing}
-                    className="bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border border-white/20 hover:bg-indigo-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
-                    title="Atualizar posições"
+                    onClick={() => setIsHistoryMode(!isHistoryMode)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border transition-all font-black text-[8px] uppercase tracking-widest ${isHistoryMode
+                        ? 'bg-indigo-600 text-white border-indigo-700'
+                        : 'bg-white/90 backdrop-blur-md text-slate-600 border-white/20 hover:bg-indigo-50'
+                        }`}
                 >
-                    <RefreshCw
-                        size={14}
-                        className={`text-indigo-600 transition-transform ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`}
-                    />
+                    <History size={14} />
+                    {isHistoryMode ? 'Modo Histórico' : 'Ver Histórico'}
                 </button>
 
-                {/* Legend */}
-                <div className="bg-white/90 backdrop-blur-md rounded-full py-2 px-4 shadow-lg border border-white/20 flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                        <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest">Em Movimento</span>
+                {/* Legend - Only in Live Mode */}
+                {!isHistoryMode && (
+                    <div className="bg-white/90 backdrop-blur-md rounded-full py-2 px-4 shadow-lg border border-white/20 flex items-center gap-3">
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest">Em Movimento</span>
+                        </div>
+                        <div className="w-px h-2 bg-slate-200"></div>
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                            <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest">Parado</span>
+                        </div>
                     </div>
-                    <div className="w-px h-2 bg-slate-200"></div>
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                        <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest">Parado</span>
+                )}
+            </div>
+
+            {/* 🕒 History Controls Overlay */}
+            {isHistoryMode && (
+                <div className="absolute top-20 left-4 right-4 z-[1000] flex flex-wrap gap-3 pointer-events-none">
+                    <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-indigo-100 flex flex-col md:flex-row items-center gap-4 pointer-events-auto">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Técnico</label>
+                            <select
+                                value={selectedHistoryTech?.id || ''}
+                                onChange={(e) => setSelectedHistoryTech(technicians.find(t => t.id === e.target.value) || null)}
+                                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500"
+                            >
+                                <option value="">Selecione um técnico</option>
+                                {technicians.map(t => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Data do Percurso</label>
+                            <input
+                                type="date"
+                                value={selectedHistoryDate}
+                                onChange={(e) => setSelectedHistoryDate(e.target.value)}
+                                max={new Date().toISOString().split('T')[0]}
+                                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                        </div>
+                        {selectedHistoryTech && (
+                            <div className="flex flex-col gap-1 items-center px-4 border-l border-slate-100">
+                                {isLoadingHistory ? (
+                                    <RefreshCw size={16} className="text-indigo-600 animate-spin" />
+                                ) : (
+                                    <>
+                                        <span className="text-[12px] font-black text-indigo-600">{historyPath.length}</span>
+                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Pontos</span>
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Technician List - Floating Left Sidebar (only when searching) */}
             {searchQuery && filteredTechs.length > 0 && (
@@ -228,12 +334,15 @@ export const TechnicianMap: React.FC = () => {
                     style={{ height: '100%', width: '100%' }}
                     zoomControl={false}
                     className="nexus-map"
+                    ref={setMapInstance}
                 >
                     <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
-                    {filteredTechs.map(t => {
+
+                    {/* --- LIVE MODE RENDERING --- */}
+                    {!isHistoryMode && filteredTechs.map(t => {
                         const isMoving = isTechMoving(t.last_seen);
                         return (
                             <Marker
@@ -270,6 +379,50 @@ export const TechnicianMap: React.FC = () => {
                             </Marker>
                         );
                     })}
+
+                    {/* --- HISTORY MODE RENDERING --- */}
+                    {isHistoryMode && historyPath.length > 0 && (
+                        <>
+                            {/* Path Line */}
+                            <Polyline
+                                positions={historyPath.map(p => [p.latitude, p.longitude]) as any}
+                                color="#4f46e5"
+                                weight={3}
+                                opacity={0.6}
+                                dashArray="5, 10"
+                            />
+
+                            {/* Breadcrumbs (Individual Points) */}
+                            {historyPath.map((point, idx) => (
+                                <CircleMarker
+                                    key={`hist-${idx}`}
+                                    center={[point.latitude, point.longitude] as any}
+                                    radius={4}
+                                    pathOptions={{
+                                        fillColor: idx === 0 ? '#10b981' : (idx === historyPath.length - 1 ? '#ef4444' : '#4f46e5'),
+                                        color: 'white',
+                                        weight: 1,
+                                        fillOpacity: 1
+                                    }}
+                                >
+                                    <Popup>
+                                        <div className="p-2 min-w-[150px]">
+                                            <p className="font-black text-[10px] text-slate-900 uppercase">Ping #{idx + 1}</p>
+                                            <p className="text-[9px] text-slate-500 font-bold mt-1">
+                                                {format(new Date(point.recorded_at), "HH:mm:ss 'em' dd/MM", { locale: ptBR })}
+                                            </p>
+                                            <div className="mt-2 flex items-center justify-between gap-4 border-t border-slate-100 pt-2">
+                                                <span className="text-[8px] font-black text-slate-400">STATUS</span>
+                                                <span className={`text-[8px] font-black ${idx === 0 ? 'text-emerald-600' : (idx === historyPath.length - 1 ? 'text-red-500' : 'text-indigo-600')}`}>
+                                                    {idx === 0 ? 'PARTIDA' : (idx === historyPath.length - 1 ? 'LOCAL ATUAL' : 'EM TRÂNSITO')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </Popup>
+                                </CircleMarker>
+                            ))}
+                        </>
+                    )}
                 </MapContainer>
             </div>
 
