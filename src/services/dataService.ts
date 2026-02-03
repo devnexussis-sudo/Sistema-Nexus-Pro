@@ -699,21 +699,31 @@ export const DataService = {
     if (!isCloudEnabled) return;
 
     try {
-      console.log(`[🚀 Nexus Sync] Enviando localização para técnico ${techId}...`);
-      const { error, count } = await DataService.getServiceClient()
+      // 1. Tenta usar RPC (Mais seguro e rápido, bypass RLS)
+      const { error: rpcError } = await DataService.getServiceClient()
+        .rpc('update_tech_location', { p_lat: lat, p_lng: lng });
+
+      if (!rpcError) {
+        console.log(`[🚀 Nexus Sync] RPC: Geolocalização atualizada via Função Segura.`);
+        return;
+      }
+
+      console.warn("[🚀 Nexus Sync] RPC falhou, tentando método direto...", rpcError);
+
+      // 2. Fallback para Update direto (caso a RPC não exista ou falhe)
+      const { error } = await DataService.getServiceClient()
         .from('technicians')
         .update({
           last_latitude: lat,
           last_longitude: lng,
           last_seen: new Date().toISOString()
         })
-        .eq('id', techId)
-        .select('id');
+        .eq('id', techId);
 
       if (error) {
         console.error("❌ Erro no Supabase ao atualizar localização:", error.message);
       } else {
-        console.log(`✅ Localização atualizada com sucesso. Registro afetado: ${techId}`);
+        console.log(`✅ Localização atualizada via Tabela com sucesso.`);
       }
     } catch (error) {
       console.error("Erro ao atualizar localização do técnico:", error);
