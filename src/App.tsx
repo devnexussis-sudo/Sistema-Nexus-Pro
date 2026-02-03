@@ -154,7 +154,7 @@ const App: React.FC = () => {
 
     const initApp = async () => {
       // 🛡️ NEXUS CACHE BUSTER: Força limpeza se a versão mudar
-      const CURRENT_VERSION = 'v1.3.5-ui-tweak-header'; // v1.3.5: Reduced header height
+      const CURRENT_VERSION = 'v1.3.6-ui-slim-sidebar'; // v1.3.6: Ultra slim sidebar
       const storedVersion = localStorage.getItem('nexus_version');
 
       if (storedVersion !== CURRENT_VERSION) {
@@ -578,24 +578,24 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
-      <aside className="w-64 bg-[#0f172a] flex flex-col border-r border-white/5 shadow-2xl z-50 overflow-y-auto">
-        <div className="p-6">
-          <div className="flex items-center gap-4 mb-10"><div className="p-2.5 bg-indigo-600 rounded-2xl"><Hexagon size={24} className="text-white" /></div><h1 className="text-white font-black text-lg italic uppercase">Nexus<span className="text-indigo-500">.Pro</span></h1></div>
+      <aside className="w-56 bg-[#0f172a] flex flex-col border-r border-white/5 shadow-2xl z-50 overflow-y-auto">
+        <div className="p-5">
+          <div className="flex items-center gap-3 mb-8"><div className="p-2 bg-indigo-600 rounded-xl"><Hexagon size={20} className="text-white" /></div><h1 className="text-white font-black text-base italic uppercase">Nexus<span className="text-indigo-500">.Pro</span></h1></div>
           <nav className="space-y-1">
             {menuItems.map(item => (
               <button
                 key={item.id}
                 onClick={() => item.enabled && setCurrentView(item.id as any)}
                 disabled={!item.enabled}
-                className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all relative ${!item.enabled
+                className={`w-full flex items-center justify-between px-5 py-3.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative ${!item.enabled
                   ? 'opacity-30 grayscale cursor-not-allowed text-slate-600 border border-transparent translate-x-0'
                   : currentView === item.id
                     ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 italic translate-x-1'
                     : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
                   }`}
               >
-                <div className="flex items-center gap-4">
-                  <item.icon size={20} />
+                <div className="flex items-center gap-3">
+                  <item.icon size={18} />
                   {item.label}
                 </div>
                 {!item.enabled && (
@@ -605,7 +605,7 @@ const App: React.FC = () => {
             ))}
           </nav>
         </div>
-        <div className="mt-auto p-6 space-y-4">
+        <div className="mt-auto p-5 space-y-3">
           {isImpersonating && (
             <button
               onClick={() => {
@@ -641,7 +641,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-6">
             <div className="flex flex-col items-end border-r border-slate-200 pr-6">
               <span className="text-[10px] font-black text-slate-900 uppercase italic">{auth.user?.name}</span>
-              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.3.5</span></span>
+              <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">Acesso Autorizado <span className="text-slate-300">v1.3.6</span></span>
             </div>
             <div className="relative flex items-center gap-2">
               <button
