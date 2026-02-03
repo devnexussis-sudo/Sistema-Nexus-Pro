@@ -84,6 +84,65 @@ export const DataService = {
   },
 
   /**
+   * 🔄 Nexus Profile Refresh
+   * Atualiza os dados do usuário logado (nome, avatar, etc) buscando do banco
+   */
+  refreshUserProfile: async (): Promise<User | null> => {
+    if (!isCloudEnabled) return null;
+
+    try {
+      const currentUser = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
+      if (!currentUser) return null;
+
+      const user = typeof currentUser === 'string' ? JSON.parse(currentUser) : currentUser;
+
+      // Busca dados atualizados da tabela appropriada
+      let freshData;
+      if (user.role === 'TECHNICIAN') {
+        const { data } = await DataService.getServiceClient()
+          .from('technicians')
+          .select('name, email, avatar, phone')
+          .eq('id', user.id)
+          .single();
+        freshData = data;
+      } else {
+        const { data } = await DataService.getServiceClient()
+          .from('users')
+          .select('name, email, avatar, permissions, group_id')
+          .eq('id', user.id)
+          .single();
+        freshData = data;
+      }
+
+      if (freshData) {
+        // Atualiza o objeto do usuário mantendo os campos que não vieram do DB
+        const updatedUser = {
+          ...user,
+          name: freshData.name || user.name,
+          email: freshData.email || user.email,
+          avatar: freshData.avatar || user.avatar,
+          permissions: freshData.permissions || user.permissions,
+          groupId: freshData.group_id || user.groupId
+        };
+
+        // Salva de volta no storage
+        SessionStorage.set('user', updatedUser);
+        if (GlobalStorage.get('persistent_user')) {
+          GlobalStorage.set('persistent_user', updatedUser);
+        }
+
+        console.log('[🔄 Nexus Refresh] Perfil atualizado com sucesso');
+        return updatedUser;
+      }
+
+      return user;
+    } catch (error) {
+      console.error('[🔄 Nexus Refresh] Erro ao atualizar perfil:', error);
+      return null;
+    }
+  },
+
+  /**
    * 🎛️ Nexus Image Compression Engine (WebP Optimized)
    * Reduz o peso da imagem drasticamente usando o padrão WebP.
    */

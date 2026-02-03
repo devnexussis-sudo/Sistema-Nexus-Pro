@@ -76,7 +76,17 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
 
   const handleRefresh = async () => {
     setLoading(true);
+
+    // Atualiza as ordens
     await onRefresh();
+
+    // Atualiza o perfil do usuário (incluindo avatar)
+    const updatedUser = await DataService.refreshUserProfile();
+    if (updatedUser) {
+      // Propaga a atualização para o componente pai se necessário
+      window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: updatedUser }));
+    }
+
     setLoading(false);
   };
 

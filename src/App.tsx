@@ -282,10 +282,24 @@ const App: React.FC = () => {
 
     initApp();
     window.addEventListener('hashchange', handleHashChange);
+
+    // 🔄 Listener para atualização de perfil (avatar, nome, etc)
+    const handleProfileUpdate = (event: any) => {
+      const updatedUser = event.detail;
+      setAuth(prev => {
+        if (prev.user?.id === updatedUser.id) {
+          return { user: updatedUser, isAuthenticated: true };
+        }
+        return prev;
+      });
+    };
+    window.addEventListener('user-profile-updated', handleProfileUpdate);
+
     return () => {
       clearTimeout(initTimeout);
       if (sub) sub.unsubscribe();
       window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('user-profile-updated', handleProfileUpdate);
     };
   }, []);
 
