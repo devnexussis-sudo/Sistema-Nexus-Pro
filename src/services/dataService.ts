@@ -2,7 +2,7 @@
 import { ServiceOrder, User, OrderStatus, UserRole, FormTemplate, FormFieldType, Customer, Equipment, StockItem, UserPermissions, UserGroup, DEFAULT_PERMISSIONS } from '../types';
 import { MOCK_USERS, MOCK_ORDERS } from '../constants';
 import { supabase, adminSupabase } from '../lib/supabase';
-import SessionStorage from '../lib/sessionStorage';
+import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
 import { CacheManager } from '../lib/cache';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL &&
@@ -71,7 +71,7 @@ export const DataService = {
 
   getCurrentTenantId: (): string | undefined => {
     try {
-      const userStr = SessionStorage.get('user');
+      const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
       if (userStr) {
         const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
         const tid = user.tenantId || user.tenant_id;
@@ -696,11 +696,11 @@ export const DataService = {
   },
 
   updateTechnicianLocation: async (techId: string, lat: number, lng: number): Promise<void> => {
-    const tenantId = DataService.getCurrentTenantId();
-    if (!tenantId || !isCloudEnabled) return;
+    if (!isCloudEnabled) return;
 
     try {
-      await DataService.getServiceClient()
+      console.log(`[🚀 Nexus Sync] Enviando localização para técnico ${techId}...`);
+      const { error, count } = await DataService.getServiceClient()
         .from('technicians')
         .update({
           last_latitude: lat,
@@ -708,7 +708,13 @@ export const DataService = {
           last_seen: new Date().toISOString()
         })
         .eq('id', techId)
-        .eq('tenant_id', tenantId);
+        .select('id');
+
+      if (error) {
+        console.error("❌ Erro no Supabase ao atualizar localização:", error.message);
+      } else {
+        console.log(`✅ Localização atualizada com sucesso. Registro afetado: ${techId}`);
+      }
     } catch (error) {
       console.error("Erro ao atualizar localização do técnico:", error);
     }
