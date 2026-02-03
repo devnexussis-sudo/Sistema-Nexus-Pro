@@ -36,14 +36,20 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
         navigator.geolocation.getCurrentPosition(
           async (position) => {
             const { latitude, longitude } = position.coords;
-            console.log(`[🛰️ Geolocation] Ping enviado: ${latitude}, ${longitude}`);
-            await DataService.updateTechnicianLocation(user.id, latitude, longitude);
+            console.log(`[🛰️ Geolocation] Ping enviado para ID ${user.id}: ${latitude}, ${longitude}`);
+            try {
+              await DataService.updateTechnicianLocation(user.id, latitude, longitude);
+            } catch (err) {
+              console.error("[🛰️ Geolocation] Falha no envio:", err);
+            }
           },
           (error) => {
             console.warn("[🛰️ Geolocation] Erro ao obter posição:", error.message);
           },
-          { enableHighAccuracy: true }
+          { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
         );
+      } else {
+        console.error("[🛰️ Geolocation] Navegador não suporta geolocalização.");
       }
     };
 
