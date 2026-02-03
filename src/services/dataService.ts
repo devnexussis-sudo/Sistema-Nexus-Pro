@@ -1296,38 +1296,36 @@ export const DataService = {
         console.log(`[📝 Nexus Approve] Assinatura enviada com sucesso!`);
       }
 
-      const updateData = {
-        status: 'APROVADO',
-        approval_document: approvalData.document,
-        approval_birth_date: approvalData.birthDate,
-        approval_signature: finalSignature,
-        approved_by_name: approvalData.name,
-        approval_metadata: approvalData.metadata || {},
-        approval_latitude: approvalData.lat,
-        approval_longitude: approvalData.lng,
-        approved_at: new Date().toISOString()
-      };
+      console.log(`[📝 Nexus Approve] Chamando função RPC approve_quote_public (BYPASS RLS)...`);
 
-      console.log(`[📝 Nexus Approve] Enviando UPDATE para o banco de dados...`);
-      console.log(`[📝 Nexus Approve] Payload:`, updateData);
-
+      // 🚀 USA RPC FUNCTION QUE BYPASSA RLS (igual ao location dos técnicos)
       const { data, error } = await DataService.getServiceClient()
-        .from('quotes')
-        .update(updateData)
-        .eq('id', id)
-        .select();
+        .rpc('approve_quote_public', {
+          p_quote_id: id,
+          p_document: approvalData.document,
+          p_birth_date: approvalData.birthDate,
+          p_signature: finalSignature,
+          p_name: approvalData.name,
+          p_metadata: approvalData.metadata || {},
+          p_lat: approvalData.lat,
+          p_lng: approvalData.lng
+        });
 
       if (error) {
-        console.error(`[❌ Nexus Approve] ERRO NO UPDATE:`, error);
-        console.error(`[❌ Nexus Approve] Código do erro:`, error.code);
+        console.error(`[❌ Nexus Approve] ERRO NA RPC:`, error);
+        console.error(`[❌ Nexus Approve] Código:`, error.code);
         console.error(`[❌ Nexus Approve] Mensagem:`, error.message);
-        console.error(`[❌ Nexus Approve] Detalhes:`, error.details);
+        console.error(`[❌ Nexus Approve] Hint:`, error.hint);
         throw error;
       }
 
-      console.log(`[✅ Nexus Approve] UPDATE executado com sucesso!`);
-      console.log(`[✅ Nexus Approve] Rows affected:`, data?.length || 0);
-      console.log(`[✅ Nexus Approve] Dados retornados:`, data);
+      console.log(`[✅ Nexus Approve] RPC executada com sucesso!`);
+      console.log(`[✅ Nexus Approve] Resultado:`, data);
+
+      if (data?.error) {
+        console.error(`[❌ Nexus Approve] Erro retornado pela função:`, data.error);
+        throw new Error(data.error);
+      }
 
       return true;
     }
@@ -1344,33 +1342,33 @@ export const DataService = {
         finalSignature = await DataService.uploadFile(finalSignature, `quotes/${id}/rejections`);
       }
 
-      const updateData = {
-        status: 'REJEITADO',
-        notes: `MOTIVO DA RECUSA: ${rejectionData.reason}`,
-        approval_document: rejectionData.document,
-        approval_birth_date: rejectionData.birthDate,
-        approval_signature: finalSignature,
-        approved_by_name: rejectionData.name,
-        approval_metadata: rejectionData.metadata || {},
-        approval_latitude: rejectionData.lat,
-        approval_longitude: rejectionData.lng,
-        approved_at: new Date().toISOString()
-      };
+      console.log(`[🚫 Nexus Reject] Chamando RPC reject_quote_public (BYPASS RLS)...`);
 
-      console.log(`[🚫 Nexus Reject] Enviando UPDATE de recusa...`);
-
+      // 🚀 USA RPC FUNCTION QUE BYPASSA RLS
       const { data, error } = await DataService.getServiceClient()
-        .from('quotes')
-        .update(updateData)
-        .eq('id', id)
-        .select();
+        .rpc('reject_quote_public', {
+          p_quote_id: id,
+          p_document: rejectionData.document,
+          p_birth_date: rejectionData.birthDate,
+          p_signature: finalSignature,
+          p_name: rejectionData.name,
+          p_reason: rejectionData.reason,
+          p_metadata: rejectionData.metadata || {},
+          p_lat: rejectionData.lat,
+          p_lng: rejectionData.lng
+        });
 
       if (error) {
-        console.error(`[❌ Nexus Reject] ERRO:`, error);
+        console.error(`[❌ Nexus Reject] ERRO NA RPC:`, error);
         throw error;
       }
 
-      console.log(`[✅ Nexus Reject] Recusa registrada! Rows affected:`, data?.length || 0);
+      console.log(`[✅ Nexus Reject] RPC executada! Resultado:`, data);
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
       return true;
     }
     return false;
