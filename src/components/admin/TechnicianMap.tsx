@@ -25,12 +25,22 @@ interface Technician {
     active?: boolean;
 }
 
-const createTechIcon = (avatarUrl: string) => {
+const createTechIcon = (avatarUrl: string, isMoving: boolean = true) => {
+    const borderColor = isMoving ? '#10b981' : '#94a3b8'; // Verde se em movimento, cinza se parado
+    const statusColor = isMoving ? '#10b981' : '#ef4444'; // Verde se em movimento, vermelho se parado
+    const pulseAnimation = isMoving ? 'animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;' : '';
+
     return L.divIcon({
         html: `
+            <style>
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                }
+            </style>
             <div style="position: relative; width: 40px; height: 40px;">
-                <img src="${avatarUrl}" style="width: 40px; height: 40px; border-radius: 50%; border: 3px solid #10b981; box-shadow: 0 2px 8px rgba(0,0,0,0.3); object-fit: cover;" />
-                <div style="position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; background: #10b981; border: 2px solid white; border-radius: 50%;"></div>
+                <img src="${avatarUrl}" style="width: 40px; height: 40px; border-radius: 50%; border: 3px solid ${borderColor}; box-shadow: 0 2px 8px rgba(0,0,0,0.3); object-fit: cover; ${isMoving ? '' : 'opacity: 0.7;'}" />
+                <div style="position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; background: ${statusColor}; border: 2px solid white; border-radius: 50%; ${pulseAnimation}"></div>
             </div>
         `,
         className: 'tech-marker',
@@ -77,6 +87,18 @@ export const TechnicianMap: React.FC = () => {
         return `${Math.floor(hours / 24)}d atrás`;
     };
 
+    // Verifica se o técnico está em movimento (ping nos últimos 5 minutos)
+    const isTechMoving = (lastSeen?: string): boolean => {
+        if (!lastSeen) return false;
+        const diff = Date.now() - new Date(lastSeen).getTime();
+        const minutes = Math.floor(diff / 60000);
+        return minutes < 5; // Considera "em movimento" se ping foi há menos de 5 min
+    };
+
+    // Separa técnicos em movimento dos parados
+    const movingTechs = activeTechs.filter(t => isTechMoving(t.last_seen));
+    const stoppedTechs = activeTechs.filter(t => !isTechMoving(t.last_seen));
+
     return (
         <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden">
             {/* 🔮 NEXUS COMPACT TOP BAR */}
@@ -88,8 +110,13 @@ export const TechnicianMap: React.FC = () => {
                     </div>
                     <span className="text-[8px] font-black text-slate-900 uppercase tracking-wider">Radar</span>
                     <div className="w-px h-3 bg-slate-300"></div>
-                    <span className="text-[7px] font-black text-slate-400 uppercase">Ativos:</span>
-                    <span className="text-[9px] font-black text-indigo-600">{activeTechs.length}</span>
+                    <span className="text-[7px] font-black text-slate-400 uppercase">Em movimento:</span>
+                    <span className="text-[9px] font-black text-emerald-600">{activeTechs.length}</span>
+                    <div className="w-px h-3 bg-slate-300"></div>
+                    <div className="flex items-center gap-1">
+                        <span className="text-[7px] font-black text-slate-400 uppercase">Parados:</span>
+                        <span className="text-[9px] font-black text-red-600">{stoppedTechs.length}</span>
+                    </div>
                 </div>
 
                 {/* Search Bar - Expandable */}
@@ -107,12 +134,12 @@ export const TechnicianMap: React.FC = () => {
                 <div className="bg-white/90 backdrop-blur-md rounded-full py-2 px-4 shadow-lg border border-white/20 flex items-center gap-3">
                     <div className="flex items-center gap-1.5">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                        <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest">On</span>
+                        <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest">Em Movimento</span>
                     </div>
                     <div className="w-px h-2 bg-slate-200"></div>
                     <div className="flex items-center gap-1.5">
                         <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                        <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest">Off</span>
+                        <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest">Parado</span>
                     </div>
                 </div>
             </div>
@@ -149,35 +176,43 @@ export const TechnicianMap: React.FC = () => {
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
-                    {filteredTechs.map(t => (
-                        <Marker
-                            key={t.id}
-                            position={[t.last_latitude!, t.last_longitude!] as any}
-                            icon={createTechIcon(t.avatar || '')}
-                        >
-                            <Popup>
-                                <div className="p-2">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <img src={t.avatar} className="w-10 h-10 rounded-lg object-cover shadow" alt={t.name} />
-                                        <div>
-                                            <p className="font-black text-sm text-slate-900">{t.name}</p>
-                                            <p className="text-[10px] text-slate-500">{t.email}</p>
+                    {filteredTechs.map(t => {
+                        const isMoving = isTechMoving(t.last_seen);
+                        return (
+                            <Marker
+                                key={t.id}
+                                position={[t.last_latitude!, t.last_longitude!] as any}
+                                icon={createTechIcon(t.avatar || '', isMoving)}
+                            >
+                                <Popup>
+                                    <div className="p-2">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <img src={t.avatar} className="w-10 h-10 rounded-lg object-cover shadow" alt={t.name} />
+                                            <div>
+                                                <p className="font-black text-sm text-slate-900">{t.name}</p>
+                                                <p className="text-[10px] text-slate-500">{t.email}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mb-2">
+                                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase ${isMoving ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                                {isMoving ? '🟢 Em Movimento' : '🔴 Parado'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
+                                            <Clock size={10} />
+                                            <span>{formatLastSeen(t.last_seen)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-[10px] text-slate-600 mt-1">
+                                            <MapPin size={10} />
+                                            <span>
+                                                {t.last_latitude?.toFixed(4)}, {t.last_longitude?.toFixed(4)}
+                                            </span>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-1 text-[10px] text-slate-600">
-                                        <Clock size={10} />
-                                        <span>{formatLastSeen(t.last_seen)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-[10px] text-slate-600 mt-1">
-                                        <MapPin size={10} />
-                                        <span>
-                                            {t.last_latitude?.toFixed(4)}, {t.last_longitude?.toFixed(4)}
-                                        </span>
-                                    </div>
-                                </div>
-                            </Popup>
-                        </Marker>
-                    ))}
+                                </Popup>
+                            </Marker>
+                        );
+                    })}
                 </MapContainer>
             </div>
 
