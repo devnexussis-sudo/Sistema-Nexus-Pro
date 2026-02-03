@@ -57,8 +57,8 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
     // Ping imediato ao logar
     updateLocation();
 
-    // Ping a cada 5 minutos (300000ms) para economizar bateria e dados
-    const interval = setInterval(updateLocation, 5 * 60 * 1000);
+    // Ping a cada 10 minutos (600000ms) para economizar bateria e dados
+    const interval = setInterval(updateLocation, 10 * 60 * 1000);
 
     // 🔋 Background Location Support: Continua enviando mesmo em segundo plano
     const handleVisibilityChange = () => {
