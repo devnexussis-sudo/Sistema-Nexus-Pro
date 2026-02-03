@@ -22,11 +22,12 @@ import { QuoteManagement } from './components/admin/QuoteManagement';
 import { StockManagement } from './components/admin/StockManagement';
 import { FinancialDashboard } from './components/admin/FinancialDashboard';
 import { TechnicianMap } from './components/admin/TechnicianMap';
+import { TechnicianMovementReport } from './components/admin/TechnicianMovementReport';
 import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, Customer, Equipment, StockItem } from './types';
 
 import { DataService } from './services/dataService';
 import SessionStorage, { GlobalStorage } from './lib/sessionStorage';
-import { Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck, Settings, LogOut, Bell, CheckCircle2, DollarSign, RefreshCw, Package, ArrowRight, Shield, AlertTriangle, Lock, Navigation } from 'lucide-react';
+import { Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck, Settings, LogOut, Bell, CheckCircle2, DollarSign, RefreshCw, Package, ArrowRight, Shield, AlertTriangle, Lock, Navigation, Activity } from 'lucide-react';
 
 const getInitialDateRange = () => {
   return {
@@ -586,6 +587,7 @@ const App: React.FC = () => {
     { id: 'stock', label: 'Estoque', icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
     { id: 'techs', label: 'Técnicos', icon: Wrench, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('techs') },
     { id: 'map', label: 'Mapa Tech', icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
+    { id: 'reports', label: 'Relatórios', icon: Activity, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
     { id: 'forms', label: 'Processos', icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
     { id: 'users', label: 'Usuários', icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
     { id: 'settings', label: 'Configurações', icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
@@ -724,6 +726,7 @@ const App: React.FC = () => {
           {currentView === 'stock' && hasPermission('stock', 'read') && <StockManagement />}
           {currentView === 'techs' && hasPermission('technicians', 'read') && <TechnicianManagement />}
           {currentView === 'map' && hasPermission('technicians', 'read') && <TechnicianMap />}
+          {currentView === 'reports' && hasPermission('technicians', 'read') && <TechnicianMovementReport />}
           {currentView === 'forms' && hasPermission('forms', 'read') && <FormManagement />}
           {currentView === 'users' && hasPermission('manageUsers') && <UserManagement />}
           {currentView === 'settings' && hasPermission('settings') && <SettingsPage />}
