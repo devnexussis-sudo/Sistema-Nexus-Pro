@@ -408,6 +408,40 @@ export const DataService = {
     } as User & { enabledModules: any };
   },
 
+  /**
+   * 🔒 Nexus Email Validator
+   * Verifica se o email já está sendo usado em QUALQUER empresa do sistema
+   */
+  checkEmailExists: async (email: string): Promise<{ exists: boolean; tenantName?: string }> => {
+    if (!isCloudEnabled) return { exists: false };
+
+    try {
+      // Busca no Supabase Auth (fonte global de verdade)
+      const { data: authData } = await adminSupabase.auth.admin.listUsers();
+      const existingUser = authData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+
+      if (existingUser) {
+        // Busca o nome da empresa vinculada
+        const tenantId = existingUser.user_metadata?.tenantId;
+        if (tenantId) {
+          const { data: tenant } = await DataService.getServiceClient()
+            .from('tenants')
+            .select('name')
+            .eq('id', tenantId)
+            .single();
+
+          return { exists: true, tenantName: tenant?.name || 'outra empresa' };
+        }
+        return { exists: true, tenantName: 'outra empresa' };
+      }
+
+      return { exists: false };
+    } catch (error) {
+      console.error('[Email Check] Erro ao verificar email:', error);
+      return { exists: false };
+    }
+  },
+
   getAllUsers: async (): Promise<User[]> => {
     const tenantId = DataService.getCurrentTenantId();
     if (isCloudEnabled) {
@@ -447,6 +481,12 @@ export const DataService = {
 
     if (isCloudEnabled) {
       console.log("🚀 Iniciando criação de conta oficial via Admin Auth...");
+
+      // 🔒 Validação de email único global
+      const emailCheck = await DataService.checkEmailExists(user.email);
+      if (emailCheck.exists) {
+        throw new Error(`❌ Email já cadastrado\n\nO email "${user.email}" já está sendo utilizado no painel da empresa "${emailCheck.tenantName}".\n\nEm um sistema multi-empresa, cada email só pode estar vinculado a UMA empresa. Use outro email ou desative o usuário na empresa anterior.`);
+      }
 
       const { data, error } = await adminSupabase.auth.admin.createUser({
         email: user.email.toLowerCase(),
@@ -639,6 +679,12 @@ export const DataService = {
     if (isCloudEnabled) {
       // ... (rest of implementation)
       console.log("=== CRIANDO TÉCNICO OFICIAL SUPABASE AUTH ===");
+
+      // 🔒 Validação de email único global
+      const emailCheck = await DataService.checkEmailExists(tech.email);
+      if (emailCheck.exists) {
+        throw new Error(`❌ Email já cadastrado\n\nO email "${tech.email}" já está sendo utilizado no painel da empresa "${emailCheck.tenantName}".\n\nEm um sistema multi-empresa, cada email só pode estar vinculado a UMA empresa. Use outro email ou desative o técnico na empresa anterior.`);
+      }
 
       const { data, error } = await adminSupabase.auth.admin.createUser({
         email: tech.email.toLowerCase(),
