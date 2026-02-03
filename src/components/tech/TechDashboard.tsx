@@ -27,13 +27,52 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
   // Combina o loading local do botão com o global do download
   const isLoading = loading || isFetching;
 
+  // 🛰️ NEXUS GEOLOCATION TRACKING SYSTEM
+  React.useEffect(() => {
+    if (!user || user.role !== UserRole.TECHNICIAN) return;
+
+    const updateLocation = () => {
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            console.log(`[🛰️ Geolocation] Ping enviado: ${latitude}, ${longitude}`);
+            await DataService.updateTechnicianLocation(user.id, latitude, longitude);
+          },
+          (error) => {
+            console.warn("[🛰️ Geolocation] Erro ao obter posição:", error.message);
+          },
+          { enableHighAccuracy: true }
+        );
+      }
+    };
+
+    // Ping imediato ao logar
+    updateLocation();
+
+    // Ping a cada 3 minutos (180000ms) conforme solicitado
+    const interval = setInterval(updateLocation, 3 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const handleUpdateStatus = async (orderId: string, status: OrderStatus, notes?: string, formData?: any) => {
+    // Quando executa uma OS, manda a localização também
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const { latitude, longitude } = position.coords;
+        await DataService.updateTechnicianLocation(user.id, latitude, longitude);
+      });
+    }
+    await onUpdateStatus(orderId, status, notes, formData);
+  };
+
   const handleRefresh = async () => {
     setLoading(true);
     await onRefresh();
     setLoading(false);
   };
 
-  // Lógica de Filtragem
   const filteredOrders = orders.filter(order => {
     const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
 
@@ -351,7 +390,7 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
       </div>
 
       {selectedOrder && (
-        <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onUpdateStatus={onUpdateStatus} />
+        <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onUpdateStatus={handleUpdateStatus} />
       )}
     </div>
   );

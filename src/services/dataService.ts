@@ -695,7 +695,25 @@ export const DataService = {
     return tech;
   },
 
-  // --- ORDER MANAGEMENT (OS & CONTRATOS) ---
+  updateTechnicianLocation: async (techId: string, lat: number, lng: number): Promise<void> => {
+    const tenantId = DataService.getCurrentTenantId();
+    if (!tenantId || !isCloudEnabled) return;
+
+    try {
+      await DataService.getServiceClient()
+        .from('technicians')
+        .update({
+          last_latitude: lat,
+          last_longitude: lng,
+          last_seen: new Date().toISOString()
+        })
+        .eq('id', techId)
+        .eq('tenant_id', tenantId);
+    } catch (error) {
+      console.error("Erro ao atualizar localização do técnico:", error);
+    }
+  },
+
 
   // Helper para mapear ServiceOrder do Front (camelCase) para o DB (snake_case)
   _mapOrderToDB: (order: any) => {

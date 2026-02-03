@@ -21,6 +21,7 @@ import { PlannedMaintenance } from './components/admin/PlannedMaintenance';
 import { QuoteManagement } from './components/admin/QuoteManagement';
 import { StockManagement } from './components/admin/StockManagement';
 import { FinancialDashboard } from './components/admin/FinancialDashboard';
+import { TechnicianMap } from './components/admin/TechnicianMap';
 import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, Customer, Equipment, StockItem } from './types';
 
 import { DataService } from './services/dataService';
@@ -40,7 +41,7 @@ const App: React.FC = () => {
     const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
     return stored ? { user: stored, isAuthenticated: true } : { user: null, isAuthenticated: false };
   });
-  const [currentView, setCurrentView] = useState<'dashboard' | 'orders' | 'contracts' | 'quotes' | 'techs' | 'equip' | 'clients' | 'forms' | 'settings' | 'superadmin' | 'users' | 'stock' | 'financial'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'orders' | 'contracts' | 'quotes' | 'techs' | 'map' | 'equip' | 'clients' | 'forms' | 'settings' | 'superadmin' | 'users' | 'stock' | 'financial'>('dashboard');
   const [viewParams, setViewParams] = useState<any>(null);
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
@@ -570,6 +571,7 @@ const App: React.FC = () => {
     { id: 'equip', label: 'Ativos', icon: Box, visible: hasPermission('equipments', 'read'), enabled: isModuleEnabled('equip') },
     { id: 'stock', label: 'Estoque', icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
     { id: 'techs', label: 'Técnicos', icon: Wrench, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('techs') },
+    { id: 'map', label: 'Mapa Tech', icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
     { id: 'forms', label: 'Processos', icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
     { id: 'users', label: 'Usuários', icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
     { id: 'settings', label: 'Configurações', icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
@@ -707,6 +709,7 @@ const App: React.FC = () => {
           {currentView === 'equip' && hasPermission('equipments', 'read') && <EquipmentManagement equipments={equipments} customers={customers} onUpdateEquipments={fetchGlobalData} />}
           {currentView === 'stock' && hasPermission('stock', 'read') && <StockManagement />}
           {currentView === 'techs' && hasPermission('technicians', 'read') && <TechnicianManagement />}
+          {currentView === 'map' && hasPermission('technicians', 'read') && <TechnicianMap />}
           {currentView === 'forms' && hasPermission('forms', 'read') && <FormManagement />}
           {currentView === 'users' && hasPermission('manageUsers') && <UserManagement />}
           {currentView === 'settings' && hasPermission('settings') && <SettingsPage />}
