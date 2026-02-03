@@ -88,9 +88,11 @@ export const TechnicianManagement: React.FC = () => {
 
   const handleRandomizeAvatar = async (tech: UserType) => {
     try {
-      // Gera uma cor de fundo aleatória em Hex (sem o #)
-      const randomColor = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
-      const newAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(tech.name)}&background=${randomColor}&color=fff&size=256&bold=true`;
+      // Randomiza entre diferentes estilos de avatar humanizados
+      const styles = ['avataaars', 'lorelei', 'personas', 'bottts-neutral', 'fun-emoji'];
+      const randomStyle = styles[Math.floor(Math.random() * styles.length)];
+      const randomSeed = `${tech.name}-${Date.now()}`;
+      const newAvatar = `https://api.dicebear.com/7.x/${randomStyle}/svg?seed=${encodeURIComponent(randomSeed)}&backgroundColor=10b981`;
 
       // Atualiza localmente para feedback instantâneo
       setTechnicians(prev => prev.map(t => t.id === tech.id ? { ...t, avatar: newAvatar } : t));

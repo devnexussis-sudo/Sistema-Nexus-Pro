@@ -396,7 +396,7 @@ export const DataService = {
           name: user.name,
           role: UserRole.ADMIN,
           tenantId: tenantId,
-          avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=4f46e5&color=fff&size=256&bold=true`
+          avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}&backgroundColor=4f46e5`
         },
         email_confirm: true
       });
@@ -417,7 +417,7 @@ export const DataService = {
         tenant_id: tenantId,
         group_id: user.groupId,
         permissions: user.permissions,
-        avatar: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=4f46e5&color=fff&size=256&bold=true`
+        avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}&backgroundColor=4f46e5`
       };
 
       await DataService.getServiceClient().from('users').upsert([dbUser]);
@@ -589,7 +589,7 @@ export const DataService = {
           role: UserRole.TECHNICIAN,
           tenantId: tenantId,
           phone: tech.phone || '',
-          avatar: tech.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(tech.name)}&background=10b981&color=fff&size=256&bold=true`
+          avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name)}&backgroundColor=10b981`
         },
         email_confirm: true
       });
@@ -603,7 +603,7 @@ export const DataService = {
         email: tech.email.toLowerCase(),
         active: tech.active ?? true,
         phone: tech.phone || '',
-        avatar: tech.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(tech.name || 'Tecnico')}&background=10b981&color=fff&size=256&bold=true`,
+        avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`,
         tenant_id: tenantId
       };
 
@@ -631,7 +631,7 @@ export const DataService = {
           role: 'TECHNICIAN',
           tenantId: tenantId,
           phone: tech.phone || '',
-          avatar: tech.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(tech.name || 'Tecnico')}&background=10b981&color=fff&size=256&bold=true`
+          avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`
         }
       };
 
@@ -676,7 +676,7 @@ export const DataService = {
         email: tech.email,
         active: tech.active ?? true,
         phone: tech.phone || '',
-        avatar: tech.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(tech.name || 'Tecnico')}&background=10b981&color=fff&size=256&bold=true`,
+        avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`,
         tenant_id: tenantId
       };
 
@@ -1832,7 +1832,7 @@ export const DataService = {
               name: processedTenant.name || 'Admin',
               role: UserRole.ADMIN,
               tenantId: tenantId,
-              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(tenantData.admin_name || 'Admin')}&background=4f46e5&color=fff&size=256&bold=true`
+              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tenantData.admin_name || 'Admin')}&backgroundColor=4f46e5`
             },
             email_confirm: true
           });
@@ -1850,7 +1850,7 @@ export const DataService = {
               active: true,
               tenant_id: tenantId,
               group_id: adminGroupId, // Vincula ao grupo de Administradores
-              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(adminName || 'Admin')}&background=4f46e5&color=fff&size=256&bold=true`,
+              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(adminName || 'Admin')}&backgroundColor=4f46e5`,
               // Permissões diretas como fallback (caso o grupo seja deletado)
               permissions: {
                 orders: { create: true, read: true, update: true, delete: true },

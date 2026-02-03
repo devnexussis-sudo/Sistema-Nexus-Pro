@@ -105,7 +105,7 @@ export const UserManagement: React.FC = () => {
           ...formData,
           role: UserRole.ADMIN,
           permissions: userPermissions,
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name)}&background=4f46e5&color=fff&size=256&bold=true`
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name)}&backgroundColor=4f46e5`
         } as Omit<User, 'id'>;
         await DataService.createUser(newUser);
       }
@@ -173,8 +173,10 @@ export const UserManagement: React.FC = () => {
 
   const handleRandomizeAvatar = async (user: User) => {
     try {
-      const randomColor = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
-      const newAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=${randomColor}&color=fff&size=256&bold=true`;
+      const styles = ['avataaars', 'lorelei', 'personas', 'bottts-neutral', 'fun-emoji'];
+      const randomStyle = styles[Math.floor(Math.random() * styles.length)];
+      const randomSeed = `${user.name}-${Date.now()}`;
+      const newAvatar = `https://api.dicebear.com/7.x/${randomStyle}/svg?seed=${encodeURIComponent(randomSeed)}&backgroundColor=4f46e5`;
       await DataService.updateUser({ ...user, avatar: newAvatar });
       await loadData();
     } catch (error) {
