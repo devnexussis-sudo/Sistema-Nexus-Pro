@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Navigation, MapPin, Clock } from 'lucide-react';
+import { Navigation, MapPin, Clock, RefreshCw } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 
 // Fix for default marker icons
@@ -52,6 +52,7 @@ const createTechIcon = (avatarUrl: string, isMoving: boolean = true) => {
 export const TechnicianMap: React.FC = () => {
     const [technicians, setTechnicians] = useState<Technician[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     useEffect(() => {
         loadTechnicians();
@@ -59,12 +60,55 @@ export const TechnicianMap: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
+    // 🌙 Verifica se virou o dia e limpa cache automaticamente
+    useEffect(() => {
+        const checkDailyReset = () => {
+            const lastResetDate = sessionStorage.getItem('last_map_reset_date');
+            const today = new Date().toDateString();
+
+            if (lastResetDate !== today) {
+                console.log('[Map] 🌙 Novo dia detectado! Limpando cache do mapa...');
+                const tenantId = DataService.getCurrentTenantId();
+                if (tenantId) {
+                    sessionStorage.removeItem(`techs_${tenantId}`);
+                }
+                sessionStorage.setItem('last_map_reset_date', today);
+                loadTechnicians();
+            }
+        };
+
+        checkDailyReset();
+        // Verifica a cada 5 minutos se virou o dia
+        const resetInterval = setInterval(checkDailyReset, 5 * 60 * 1000);
+        return () => clearInterval(resetInterval);
+    }, []);
+
+
     const loadTechnicians = async () => {
         try {
             const techs = await DataService.getAllTechnicians();
             setTechnicians(techs);
         } catch (error) {
             console.error('[Map] Erro ao carregar técnicos:', error);
+        }
+    };
+
+    // 🔄 Força atualização com invalidação de cache
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            // Invalida o cache antes de recarregar
+            const tenantId = DataService.getCurrentTenantId();
+            if (tenantId) {
+                sessionStorage.removeItem(`techs_${tenantId}`);
+            }
+            // Recarrega dados frescos
+            await loadTechnicians();
+            console.log('[Map] ✅ Posições dos técnicos atualizadas!');
+        } catch (error) {
+            console.error('[Map] Erro ao atualizar:', error);
+        } finally {
+            setIsRefreshing(false);
         }
     };
 
@@ -129,6 +173,19 @@ export const TechnicianMap: React.FC = () => {
                         className="w-full bg-white/90 backdrop-blur-md border border-white/20 rounded-full px-4 py-2 text-[8px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all italic placeholder:text-slate-400 shadow-lg"
                     />
                 </div>
+
+                {/* Refresh Button */}
+                <button
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border border-white/20 hover:bg-indigo-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                    title="Atualizar posições"
+                >
+                    <RefreshCw
+                        size={14}
+                        className={`text-indigo-600 transition-transform ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`}
+                    />
+                </button>
 
                 {/* Legend */}
                 <div className="bg-white/90 backdrop-blur-md rounded-full py-2 px-4 shadow-lg border border-white/20 flex items-center gap-3">
