@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, Activity, TrendingUp, User } from 'lucide-react';
+import { Calendar, Clock, MapPin, Activity, TrendingUp, User, Search } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 
 interface TechMovementReport {
@@ -16,6 +16,7 @@ interface TechMovementReport {
 export const TechnicianMovementReport: React.FC = () => {
     const [report, setReport] = useState<TechMovementReport[]>([]);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -48,15 +49,19 @@ export const TechnicianMovementReport: React.FC = () => {
         return new Date(dateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     };
 
-    const totalPings = report.reduce((sum, t) => sum + t.total_pings, 0);
-    const avgHours = report.length > 0
-        ? (report.reduce((sum, t) => sum + t.hours_active, 0) / report.length).toFixed(1)
+    const filteredReport = report.filter(tech =>
+        tech.technician_name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const totalPings = filteredReport.reduce((sum, t) => sum + t.total_pings, 0);
+    const avgHours = filteredReport.length > 0
+        ? (filteredReport.reduce((sum, t) => sum + t.hours_active, 0) / filteredReport.length).toFixed(1)
         : '0';
 
     return (
         <div className="p-6 bg-white rounded-2xl shadow-sm border border-slate-100">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-indigo-100 rounded-xl">
                         <Activity size={20} className="text-indigo-600" />
@@ -71,16 +76,30 @@ export const TechnicianMovementReport: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Date Selector */}
-                <div className="flex items-center gap-2">
-                    <Calendar size={16} className="text-slate-400" />
-                    <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        max={new Date().toISOString().split('T')[0]}
-                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/30"
-                    />
+                <div className="flex flex-wrap items-center gap-3">
+                    {/* Search Field */}
+                    <div className="relative group min-w-[200px]">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                        <input
+                            type="text"
+                            placeholder="Buscar técnico..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all w-full placeholder:text-slate-400"
+                        />
+                    </div>
+
+                    {/* Date Selector */}
+                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                        <Calendar size={14} className="text-slate-400" />
+                        <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            max={new Date().toISOString().split('T')[0]}
+                            className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -88,7 +107,7 @@ export const TechnicianMovementReport: React.FC = () => {
             <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
                     <p className="text-xs font-black text-emerald-600 uppercase mb-1">Técnicos Ativos</p>
-                    <p className="text-2xl font-black text-emerald-900">{report.length}</p>
+                    <p className="text-2xl font-black text-emerald-900">{filteredReport.length}</p>
                 </div>
                 <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
                     <p className="text-xs font-black text-indigo-600 uppercase mb-1">Total de Pings</p>
@@ -106,11 +125,11 @@ export const TechnicianMovementReport: React.FC = () => {
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-r-transparent"></div>
                     <p className="mt-2 text-sm text-slate-500 font-bold">Carregando relatório...</p>
                 </div>
-            ) : report.length === 0 ? (
+            ) : filteredReport.length === 0 ? (
                 <div className="text-center py-12 bg-slate-50 rounded-xl">
                     <MapPin size={48} className="mx-auto text-slate-300 mb-3" />
                     <p className="text-sm font-black text-slate-400 uppercase">
-                        Nenhuma movimentação registrada neste dia
+                        {searchQuery ? 'Nenhum técnico encontrado para esta busca' : 'Nenhuma movimentação registrada neste dia'}
                     </p>
                 </div>
             ) : (
@@ -139,7 +158,7 @@ export const TechnicianMovementReport: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {report.map((tech) => (
+                            {filteredReport.map((tech) => (
                                 <tr key={tech.technician_id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                                     <td className="py-3 px-4">
                                         <div className="flex items-center gap-3">
