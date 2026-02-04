@@ -1,46 +1,94 @@
-import React, { useMemo } from 'react';
-import { ServiceOrder, OrderStatus } from '../../types';
+import React, { useMemo, useState, useEffect } from 'react';
+import { ServiceOrder, OrderStatus, User, Customer, OrderPriority } from '../../types';
 import {
   ClipboardList, CheckCircle, Clock, AlertCircle, TrendingUp, BarChart3,
-  Briefcase, Activity, ShieldAlert, Timer, ArrowRight, Calendar, Zap, Layers, Target, Boxes, PieChart, BarChart
+  Briefcase, Activity, ShieldAlert, Timer, ArrowRight, Calendar, Zap, Layers, Target, Boxes, PieChart, BarChart,
+  Search, Filter, UserCheck, Users, ChevronRight, Gauge, ZapOff
 } from 'lucide-react';
 
 interface AdminOverviewProps {
   orders: ServiceOrder[];
   contracts: any[];
+  techs: User[];
+  customers: Customer[];
   startDate: string;
   endDate: string;
   onDateChange: (start: string, end: string) => void;
 }
 
 export const AdminOverview: React.FC<AdminOverviewProps> = ({
-  orders, contracts, startDate, endDate, onDateChange
+  orders, contracts, techs, customers, startDate, endDate, onDateChange
 }) => {
+  // Filtros Avançados (Mesma lógica da página de atividades)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [techFilter, setTechFilter] = useState<string>('ALL');
+  const [customerFilter, setCustomerFilter] = useState<string>('ALL');
+  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created'>('scheduled');
+
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      if (!startDate && !endDate) return true;
+      // 1. Busca por texto
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = (order.title || '').toLowerCase().includes(term) ||
+        (order.customerName || '').toLowerCase().includes(term) ||
+        (order.id || '').toLowerCase().includes(term);
 
+      // 2. Filtro de Status
+      const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
+
+      // 3. Filtro de Técnico
+      const assignedTech = techs.find(t => t.id === order.assignedTo);
+      const techName = assignedTech ? assignedTech.name.toLowerCase() : '';
+      const matchesTech = techFilter === 'ALL' || techName.includes(techFilter.toLowerCase());
+
+      // 4. Filtro de Cliente
+      const matchesCustomer = customerFilter === 'ALL' || order.customerName.toLowerCase().includes(customerFilter.toLowerCase());
+
+      // 5. Filtro de Data
       const sDate = order.scheduledDate ? order.scheduledDate.substring(0, 10) : null;
-      const eDate = order.endDate ? order.endDate.substring(0, 10) : null;
       const cDate = order.createdAt ? order.createdAt.substring(0, 10) : null;
+      const targetDate = dateTypeFilter === 'scheduled' ? sDate : cDate;
 
-      // Lógica de Sincronização Nexus:
-      // 1. Se está concluída, conta pela data de conclusão (endDate)
-      // 2. Se não, conta pela data de agendamento (scheduledDate)
-      // 3. Fallback para abertura se ambos forem nulos
-      let targetDate = (order.status === OrderStatus.COMPLETED && eDate) ? eDate : (sDate || cDate);
+      let matchesTime = true;
+      if (startDate || endDate) {
+        if (!targetDate) {
+          matchesTime = false;
+        } else {
+          if (startDate && targetDate < startDate) matchesTime = false;
+          if (endDate && targetDate > endDate) matchesTime = false;
+        }
+      }
 
-      if (!targetDate) return false;
-
-      if (startDate && targetDate < startDate) return false;
-      if (endDate && targetDate > endDate) return false;
-
-      return true;
+      return matchesSearch && matchesStatus && matchesTech && matchesCustomer && matchesTime;
     });
-  }, [orders, startDate, endDate]);
+  }, [orders, techs, searchTerm, statusFilter, startDate, endDate, techFilter, customerFilter, dateTypeFilter]);
 
   const activeContracts = useMemo(() => contracts.filter(c => c.status !== 'CANCELADO'), [contracts]);
   const total = filteredOrders.length;
+
+  // Cálculos de KPI de Fechamento (24h, 36h, 48h)
+  const closureKPIs = useMemo(() => {
+    const completed = filteredOrders.filter(o => o.status === OrderStatus.COMPLETED && o.createdAt && o.endDate);
+
+    let within24 = 0;
+    let within36 = 0;
+    let within48 = 0;
+
+    completed.forEach(o => {
+      const created = new Date(o.createdAt).getTime();
+      const closed = new Date(o.endDate!).getTime();
+      const diffHours = (closed - created) / (1000 * 60 * 60);
+
+      if (diffHours <= 24) within24++;
+      if (diffHours <= 36) within36++;
+      if (diffHours <= 48) within48++;
+    });
+
+    const slaEfficiency = completed.length > 0 ? Math.round((within24 / completed.length) * 100) : 0;
+
+    return { within24, within36, within48, slaEfficiency, totalCompleted: completed.length };
+  }, [filteredOrders]);
 
   // Status breakdown with percentages
   const statusData = useMemo(() => {
@@ -60,8 +108,6 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     }));
   }, [filteredOrders, total]);
 
-  const completionRate = total > 0 ? Math.round((statusData.find(s => s.status === OrderStatus.COMPLETED)?.count || 0) / total * 100) : 0;
-
   const pmocAnalysis = useMemo(() => {
     const todayNum = new Date().getDate();
     const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
@@ -77,7 +123,6 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     return { counts, visits };
   }, [activeContracts]);
 
-  // CSS Pie Chart Colors
   const pieColors: Record<string, string> = {
     [OrderStatus.COMPLETED]: '#10b981', // emerald-500
     [OrderStatus.IN_PROGRESS]: '#f59e0b', // amber-500
@@ -87,10 +132,12 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     [OrderStatus.CANCELED]: '#4b5563', // gray-600
   };
 
-  // Generate Conic Gradient for CSS Pie
   const getPieGradient = () => {
     let accumulated = 0;
-    const parts = statusData.map(s => {
+    const filteredStatusData = statusData.filter(s => s.percentage > 0);
+    if (filteredStatusData.length === 0) return 'linear-gradient(#f1f5f9, #f1f5f9)';
+
+    const parts = filteredStatusData.map(s => {
       const start = accumulated;
       accumulated += s.percentage;
       return `${pieColors[s.status]} ${start}% ${accumulated}%`;
@@ -117,190 +164,277 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
   return (
     <div className="p-5 space-y-6 animate-fade-in bg-[#f8fafc] h-full overflow-y-auto custom-scrollbar">
+      {/* 🚀 HEADER COM FILTROS AVANÇADOS */}
+      <div className="flex flex-col space-y-4">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Nexus Analytics</h1>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Operational BI Framework</p>
+          </div>
 
-      {/* HEADER COMPACTO */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Nexus Analytics</h1>
-          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Operational BI Framework</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Fast Filters */}
+            <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
+              <div className="flex items-center bg-slate-50 rounded-lg px-2 py-1 h-full">
+                <select
+                  value={dateTypeFilter}
+                  onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created')}
+                  className="bg-transparent text-[9px] font-black uppercase text-indigo-700 outline-none cursor-pointer"
+                >
+                  <option value="scheduled">Dt. Agenda</option>
+                  <option value="created">Dt. Abertura</option>
+                </select>
+              </div>
+              <div className="h-4 w-[1px] bg-slate-200 mx-1"></div>
+              <div className="flex bg-slate-50 p-1 rounded-lg">
+                {['today', 'week', 'month'].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => handleFastFilter(f as any)}
+                    className="px-3 py-1.5 text-[8px] font-black uppercase rounded-md transition-all text-slate-500 hover:text-indigo-600 hover:bg-white active:scale-95"
+                  >{f === 'today' ? 'Hoje' : f === 'week' ? 'Semana' : 'Mês'}</button>
+                ))}
+              </div>
+              <div className="h-4 w-[1px] bg-slate-200 mx-1"></div>
+              <div className="flex items-center gap-2 px-2">
+                <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent text-[9px] font-black text-slate-600 outline-none w-24" />
+                <span className="text-[9px] font-black text-slate-300">até</span>
+                <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent text-[9px] font-black text-slate-600 outline-none w-24" />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 rounded-xl shadow-sm border border-slate-100">
-          <div className="flex bg-slate-50 p-1 rounded-lg">
-            {['today', 'week', 'month'].map((f) => (
-              <button
-                key={f}
-                onClick={() => handleFastFilter(f as any)}
-                className="px-3 py-1.5 text-[8px] font-black uppercase rounded-md transition-all text-slate-500 hover:text-indigo-600 hover:bg-white active:scale-95"
-              >{f === 'today' ? 'Hoje' : f === 'week' ? 'Semana' : 'Mês'}</button>
-            ))}
+        {/* Linha 2 de Filtros (Contextuais) */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <input
+              type="text"
+              placeholder="Filtrar por nome ou protocolo..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm"
+            />
           </div>
-          <div className="h-4 w-[1px] bg-slate-200 mx-1"></div>
-          <div className="flex items-center gap-2 px-2">
-            <Calendar size={12} className="text-slate-400" />
-            <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent text-[9px] font-black text-slate-600 outline-none w-20" />
-            <span className="text-[9px] font-black text-slate-300">/</span>
-            <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent text-[9px] font-black text-slate-600 outline-none w-20" />
+
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10 min-w-[150px]">
+            <UserCheck size={14} className="text-slate-400 mr-2" />
+            <select className="bg-transparent text-[9px] font-black uppercase text-slate-600 outline-none w-full cursor-pointer" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
+              <option value="ALL">Todo Time</option>
+              {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+            </select>
           </div>
-          <div className="h-4 w-[1px] bg-slate-200 mx-1"></div>
+
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10 min-w-[150px]">
+            <Users size={14} className="text-slate-400 mr-2" />
+            <select className="bg-transparent text-[9px] font-black uppercase text-slate-600 outline-none w-full cursor-pointer" value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}>
+              <option value="ALL">Todos Clientes</option>
+              {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
+          </div>
+
           <button
-            onClick={() => onDateChange('', '')}
-            className="px-3 py-1.5 text-[8px] font-black uppercase text-rose-500 hover:bg-rose-50 rounded-md transition-all active:scale-95 border border-dashed border-rose-100"
+            onClick={() => {
+              setSearchTerm(''); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
+              onDateChange('', '');
+            }}
+            className="px-4 h-10 text-[9px] font-black uppercase text-rose-500 hover:bg-rose-50 rounded-xl transition-all border border-dashed border-rose-200"
           >
             Limpar
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      {/* 📊 GRID PRINCIPAL DE KPIS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI: EFICIÊNCIA SLA 24H */}
+        <div className="bg-indigo-600 rounded-[2rem] p-6 text-white shadow-xl shadow-indigo-600/20 relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute -right-4 -top-4 opacity-10 rotate-12"><Gauge size={120} /></div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Eficiência SLA (24h)</p>
+            <h2 className="text-4xl font-black italic tracking-tighter mt-1">{closureKPIs.slaEfficiency}%</h2>
+          </div>
+          <div className="mt-4 bg-white/10 rounded-xl p-2.5 backdrop-blur-sm border border-white/10">
+            <div className="flex justify-between items-center text-[8px] font-black uppercase">
+              <span>Meta: 85%</span>
+              <span className={closureKPIs.slaEfficiency >= 85 ? 'text-emerald-400' : 'text-rose-400'}>
+                {closureKPIs.slaEfficiency >= 85 ? 'Excelente' : 'Atenção'}
+              </span>
+            </div>
+            <div className="w-full h-1 bg-white/10 mt-1.5 rounded-full overflow-hidden">
+              <div className="h-full bg-white rounded-full transition-all duration-1000" style={{ width: `${closureKPIs.slaEfficiency}%` }}></div>
+            </div>
+          </div>
+        </div>
 
-        {/* OS SEGMENT - MAIS COMPACTO */}
-        <div className="xl:col-span-2 bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-50 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md"><ClipboardList size={20} /></div>
-              <div>
-                <h3 className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Status de Atendimento</h3>
-                <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Base de Dados Sincronizada</p>
-              </div>
+        {/* KPI: FECHAMENTO EM 24H */}
+        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resolvido 24h</p>
+              <h3 className="text-3xl font-black text-slate-900 italic tracking-tighter mt-1">{closureKPIs.within24}</h3>
+            </div>
+            <div className="p-3 bg-emerald-50 text-emerald-500 rounded-2xl group-hover:scale-110 transition-transform"><Zap size={20} /></div>
+          </div>
+          <p className="text-[8px] font-bold text-slate-400 uppercase mt-4">Total concluído: {closureKPIs.totalCompleted}</p>
+        </div>
+
+        {/* KPI: FECHAMENTO EM 36H/48H */}
+        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resolvido 48h</p>
+              <h3 className="text-3xl font-black text-slate-900 italic tracking-tighter mt-1">{closureKPIs.within48}</h3>
+            </div>
+            <div className="p-3 bg-amber-50 text-amber-500 rounded-2xl group-hover:scale-110 transition-transform"><Clock size={20} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <div className="bg-slate-50 rounded-lg p-2">
+              <span className="text-[7px] font-black text-slate-400 uppercase">Em 36h</span>
+              <p className="text-[10px] font-black text-slate-700">{closureKPIs.within36}</p>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-2">
+              <span className="text-[7px] font-black text-slate-400 uppercase">Em 48h</span>
+              <p className="text-[10px] font-black text-slate-700">{closureKPIs.within48}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI: PENDENTES / ATRASADOS */}
+        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Abertos / Em Andamento</p>
+              <h3 className="text-3xl font-black text-slate-900 italic tracking-tighter mt-1">
+                {filteredOrders.filter(o => o.status !== OrderStatus.COMPLETED && o.status !== OrderStatus.CANCELED).length}
+              </h3>
+            </div>
+            <div className="p-3 bg-indigo-50 text-indigo-500 rounded-2xl group-hover:scale-110 transition-transform"><Activity size={20} /></div>
+          </div>
+          <div className="flex items-center gap-1.5 mt-4">
+            <div className="flex-1 h-1.5 bg-slate-50 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(filteredOrders.filter(o => o.status === OrderStatus.IN_PROGRESS).length / (total || 1)) * 100}%` }}></div>
+            </div>
+            <span className="text-[8px] font-black text-slate-400 uppercase">Ativos</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+        {/* GRÁFICO DE BARRAS - DEMANDA POR STATUS */}
+        <div className="xl:col-span-2 bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 space-y-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-black text-slate-900 uppercase italic tracking-tighter">Volume Operacional por Status</h3>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Detalhamento da base filtrada</p>
             </div>
             <div className="text-right">
-              <p className="text-[8px] font-black text-indigo-600 uppercase">Protocolos</p>
-              <p className="text-2xl font-black text-slate-900 italic tracking-tighter leading-none">{total}</p>
+              <p className="text-[8px] font-black text-indigo-600 uppercase italic">Base Total</p>
+              <p className="text-2xl font-black text-slate-900 italic">{total}</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-8 items-center">
-            <div className="md:col-span-2 flex flex-col items-center gap-4">
-              <div className="w-32 h-32 rounded-full relative border-4 border-white shadow-lg" style={{ background: getPieGradient() }}>
-                <div className="absolute inset-2 bg-white rounded-full flex items-center justify-center shadow-inner">
-                  <PieChart className="text-slate-100" size={24} />
+          <div className="flex items-end justify-between gap-6 h-[200px] px-4 pt-4 border-b border-slate-50">
+            {statusData.map(s => (
+              <div key={s.status} className="flex-1 flex flex-col items-center gap-4 group">
+                <div className="w-full relative flex flex-col items-center">
+                  {/* Tooltip */}
+                  <div className="absolute -top-10 px-3 py-1.5 bg-slate-900 text-white text-[9px] font-black rounded-xl opacity-0 group-hover:opacity-100 transition-all shadow-xl z-10 translate-y-2 group-hover:translate-y-0">
+                    {s.count} OS
+                  </div>
+                  {/* Bar */}
+                  <div
+                    className="w-full max-w-[32px] rounded-t-2xl shadow-lg transition-all duration-1000 ease-out cursor-pointer hover:scale-105 group-hover:brightness-110"
+                    style={{
+                      height: `${total > 0 ? (s.count / total) * 180 : 4}px`,
+                      backgroundColor: pieColors[s.status],
+                      minHeight: '8px'
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-[8px] font-black text-slate-700 uppercase tracking-tighter truncate w-16 text-center">{s.status.split(' ')[0]}</span>
+                  <span className="text-[7px] font-black text-slate-300 italic">{s.percentage}%</span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 w-full">
-                {statusData.slice(0, 4).map(s => (
-                  <div key={s.status} className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: pieColors[s.status] }}></div>
-                    <span className="text-[7px] font-black text-slate-500 uppercase italic truncate">{s.count} ({s.percentage}%)</span>
+            ))}
+          </div>
+
+          {/* Legenda Dinâmica e Detalhada */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-4">
+            {statusData.map(s => (
+              <div key={s.status} className="flex flex-col p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-indigo-100 transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: pieColors[s.status] }} />
+                  <span className="text-[7px] font-black text-slate-400 uppercase italic truncate">{s.status}</span>
+                </div>
+                <p className="text-sm font-black text-slate-900">{s.count}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* SIDEBAR DASHBOARD - PIE E PMOC (Menor evidência) */}
+        <div className="space-y-6">
+          {/* Distribuição Circular */}
+          <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 flex flex-col items-center">
+            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-8 italic">Distribuição de Status</h4>
+            <div className="w-44 h-44 rounded-full relative border-[8px] border-slate-50 shadow-xl group" style={{ background: getPieGradient() }}>
+              <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center shadow-inner group-hover:scale-95 transition-transform duration-500">
+                <p className="text-2xl font-black text-slate-900 leading-none">{(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%</p>
+                <p className="text-[7px] font-black text-emerald-500 uppercase mt-1 tracking-widest italic">Resolvido</p>
+              </div>
+            </div>
+            <div className="mt-8 space-y-2 w-full">
+              <div className="flex justify-between items-center text-[8px] font-black text-slate-400 uppercase">
+                <span>Atividade Finalizada</span>
+                <span className="text-slate-900">{statusData.find(s => s.status === OrderStatus.COMPLETED)?.count}</span>
+              </div>
+              <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-500" style={{ width: `${(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%` }} />
+              </div>
+            </div>
+          </div>
+
+          {/* PMOC (Menor evidência como solicitado) */}
+          <div className="bg-[#1e1e2d] rounded-[2rem] shadow-xl p-6 text-white relative overflow-hidden group">
+            <div className="absolute -right-4 -bottom-4 opacity-5 rotate-12 group-hover:scale-110 transition-transform duration-700 text-sky-400"><Briefcase size={100} /></div>
+
+            <div className="relative z-10">
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-sky-500/20 text-sky-400 rounded-lg"><Activity size={14} /></div>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest italic">Gestão PMOC</h3>
+                </div>
+                <span className="px-3 py-1 bg-white/5 rounded-lg text-[10px] font-black italic">{activeContracts.length} Ativos</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                  <p className="text-[7px] font-black text-rose-400 uppercase mb-1">Impacto 3 d.</p>
+                  <p className="text-base font-black italic">{pmocAnalysis.counts.urgent}</p>
+                </div>
+                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                  <p className="text-[7px] font-black text-amber-400 uppercase mb-1">Impacto 7 d.</p>
+                  <p className="text-base font-black italic">{pmocAnalysis.counts.critical}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 overflow-hidden max-h-[120px]">
+                {pmocAnalysis.visits.slice(0, 3).map((v, i) => (
+                  <div key={i} className="flex justify-between items-center p-2.5 bg-white/5 rounded-lg border border-white/5 text-[8px] hover:bg-white/10 transition-colors">
+                    <span className="font-black uppercase italic truncate max-w-[140px]">{v.customerName}</span>
+                    <span className="font-black px-2 py-0.5 bg-sky-500 rounded-md text-[7px]">D-{v.daysUntil}</span>
                   </div>
                 ))}
               </div>
-            </div>
 
-            {/* Status List with Vibrant Progress Bars */}
-            <div className="md:col-span-3 space-y-3">
-              {statusData.map(s => (
-                <div key={s.status} className="space-y-1">
-                  <div className="flex justify-between items-end">
-                    <span className="text-[8px] font-black text-slate-600 uppercase">{s.status}</span>
-                    <span className="text-[9px] font-black text-slate-900">{s.count} <span className="text-slate-400 ml-1">({s.percentage}%)</span></span>
-                  </div>
-                  <div className="w-full h-1.5 bg-slate-50 rounded-full overflow-hidden border border-slate-100/50">
-                    <div
-                      className="h-full rounded-full transition-all duration-1000 ease-out"
-                      style={{ width: `${s.percentage}%`, backgroundColor: pieColors[s.status] }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
+              <button className="w-full mt-4 py-2 text-[8px] font-black uppercase text-sky-400 hover:bg-white/5 rounded-lg border border-dashed border-sky-400/30 transition-all flex items-center justify-center gap-2">
+                Acessar Módulo <ArrowRight size={10} />
+              </button>
             </div>
-          </div>
-        </div>
-
-        {/* 3. PERFORMANCE SEGMENT - QUADRADO COLORIDO (ZAP) */}
-        <div className="bg-indigo-600 rounded-[2rem] shadow-lg p-6 text-white flex flex-col justify-between relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 opacity-10 group-hover:rotate-12 transition-transform duration-1000"><Zap size={160} /></div>
-          <div className="relative z-10 flex flex-col h-full items-center justify-center text-center">
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Efficiency Rating</p>
-            <div className="relative w-32 h-32 mb-4">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/5" />
-                <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="10" fill="transparent"
-                  strokeDasharray={364}
-                  strokeDashoffset={364 - (364 * completionRate / 100)}
-                  className="text-white transition-all duration-1000 stroke-round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-4xl font-black italic tracking-tighter">{completionRate}%</p>
-                <p className="text-[7px] font-black uppercase tracking-widest text-white/40">SLA Global</p>
-              </div>
-            </div>
-            <div className="bg-white/10 border border-white/10 rounded-xl p-3 backdrop-blur-sm w-full">
-              <p className="text-[8px] font-black uppercase tracking-tight">Status da Operação</p>
-              <p className="text-[10px] font-bold italic text-white mt-1">RESOLUTIVIDADE POSITIVA</p>
-            </div>
-          </div>
-        </div>
-
-        {/* 4. CONTRACTS SEGMENT - PMOC */}
-        <div className="bg-[#1e1e2d] rounded-[2rem] shadow-xl p-6 text-white flex flex-col justify-between relative overflow-hidden group">
-          <div className="absolute right-0 bottom-0 p-6 opacity-5"><ShieldAlert size={120} /></div>
-
-          <div className="relative z-10 space-y-6">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-sky-600 rounded-xl flex items-center justify-center text-white"><Briefcase size={20} /></div>
-                <div>
-                  <h3 className="text-sm font-black uppercase italic tracking-tighter">Gestão PMOC</h3>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-black italic">{activeContracts.length}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white/5 p-3 rounded-2xl border border-white/5 h-16 flex flex-col justify-center">
-                <p className="text-[7px] font-black text-rose-400 uppercase">Urgente</p>
-                <p className="text-lg font-black italic">{pmocAnalysis.counts.urgent}</p>
-              </div>
-              <div className="bg-white/5 p-3 rounded-2xl border border-white/5 h-16 flex flex-col justify-center">
-                <p className="text-[7px] font-black text-amber-400 uppercase">Projetado</p>
-                <p className="text-lg font-black italic">{pmocAnalysis.counts.critical}</p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {pmocAnalysis.visits.slice(0, 2).map((v, i) => (
-                <div key={i} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 text-[9px]">
-                  <span className="font-black uppercase italic truncate max-w-[120px]">{v.customerName}</span>
-                  <span className="font-black px-2 py-0.5 bg-sky-600 rounded-md">D-{v.daysUntil}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 5. VOLUME SEGMENT - GRÁFICO DE BARRAS DINÂMICO */}
-        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 xl:col-span-2 flex flex-col space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white"><BarChart size={20} /></div>
-              <div>
-                <h3 className="text-sm font-black uppercase italic tracking-tighter">Escala de Demanda</h3>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-1 flex items-end justify-between gap-3 pt-6 min-h-[120px] px-2">
-            {statusData.map(s => (
-              <div key={s.status} className="flex-1 flex flex-col items-center gap-2 group relative">
-                <div className="relative w-full flex flex-col items-center">
-                  {/* Tooltip for count */}
-                  {/* <div className="absolute -top-8 px-2 py-1 bg-slate-900 text-white text-[10px] font-black rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-xl">{s.count} UN</div> */}
-                  <div
-                    className="w-full max-w-[28px] rounded-t-lg transition-all duration-700 shadow-md"
-                    style={{
-                      height: `${total > 0 ? (s.count / total) * 100 : 2}px`, // Adjusted max height for compactness
-                      backgroundColor: pieColors[s.status],
-                      minHeight: '4px'
-                    }}
-                  ></div>
-                </div>
-                <p className="text-[7px] font-black text-slate-400 uppercase text-center truncate w-full">{s.status.split(' ')[0]}</p>
-              </div>
-            ))}
           </div>
         </div>
 

@@ -687,6 +687,8 @@ const App: React.FC = () => {
             <AdminOverview
               orders={orders}
               contracts={contracts}
+              techs={techs}
+              customers={customers}
               startDate={overviewDateRange.start}
               endDate={overviewDateRange.end}
               onDateChange={(start, end) => setOverviewDateRange({ start, end })}
