@@ -580,18 +580,18 @@ const App: React.FC = () => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: true, enabled: isModuleEnabled('dashboard') },
     { id: 'orders', label: 'Atividade', icon: ClipboardList, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-    { id: 'calendar', label: 'Calendario', icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
+    { id: 'calendar', label: 'Calendário', icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
     { id: 'map', label: 'Mapa NX', icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
     { id: 'financial', label: 'Financeiro', icon: DollarSign, visible: hasPermission('financial', 'read'), enabled: isModuleEnabled('financial') },
-    { id: 'quotes', label: 'Orcamentos', icon: DollarSign, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
+    { id: 'quotes', label: 'Orçamentos', icon: DollarSign, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
     { id: 'stock', label: 'Estoque', icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
     { id: 'contracts', label: 'Contratos', icon: CalendarClock, visible: hasPermission('contracts', 'read'), enabled: isModuleEnabled('contracts') },
     { id: 'clients', label: 'Cliente', icon: Users, visible: hasPermission('customers', 'read'), enabled: isModuleEnabled('clients') },
     { id: 'equip', label: 'Ativos', icon: Box, visible: hasPermission('equipments', 'read'), enabled: isModuleEnabled('equip') },
-    { id: 'forms', label: 'Formularios', icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
-    { id: 'techs', label: 'Tecnicos', icon: Wrench, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('techs') },
-    { id: 'users', label: 'Usuarios', icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
-    { id: 'settings', label: 'Configuracoes', icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
+    { id: 'forms', label: 'Formulários', icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
+    { id: 'techs', label: 'Técnicos', icon: Wrench, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('techs') },
+    { id: 'users', label: 'Usuários', icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
+    { id: 'settings', label: 'Configurações', icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
   ].filter(item => item.visible);
 
   return (
@@ -605,7 +605,7 @@ const App: React.FC = () => {
                 key={item.id}
                 onClick={() => item.enabled && setCurrentView(item.id as any)}
                 disabled={!item.enabled}
-                className={`w-full flex items-center justify-between px-5 py-3.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative ${!item.enabled
+                className={`w-full flex items-center justify-between px-5 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative whitespace-nowrap ${!item.enabled
                   ? 'opacity-30 grayscale cursor-not-allowed text-slate-600 border border-transparent translate-x-0'
                   : currentView === item.id
                     ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 italic translate-x-1'
