@@ -1,24 +1,32 @@
 {
     "name": "Nexus Tech",
     "short_name": "Nexus Tech",
-    "description": "Aplicativo de campo para técnicos Nexus Pro - Gestão de O.S. e Checklist",
+    "description": "Aplicativo de campo para técnicos - Gestão de O.S. e Checklist",
     "start_url": "/tech.html",
+    "id": "/tech.html",
     "display": "standalone",
     "background_color": "#0f172a",
-    "theme_color": "#0f172a",
+    "theme_color": "#10b981",
+    "orientation": "portrait-primary",
+    "scope": "/",
     "icons": [
         {
-            "src": "pwa-icon.png",
-            "sizes": "512x512",
+            "src": "/pwa-icon.png",
+            "sizes": "192x192",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "any"
         },
         {
-            "src": "pwa-icon.png",
-            "sizes": "192x192",
-            "type": "image/png"
+            "src": "/pwa-icon.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
         }
     ],
-    "orientation": "portrait-primary",
-    "scope": "/"
+    "categories": [
+        "business",
+        "productivity"
+    ],
+    "screenshots": [],
+    "prefer_related_applications": false
 }

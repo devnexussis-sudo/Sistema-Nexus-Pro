@@ -1,17 +1,16 @@
-const CACHE_NAME = 'nexus-pro-v2';
+const CACHE_NAME = 'nexus-tech-v1';
 const ASSETS_TO_CACHE = [
-    '/',
-    '/index.html',
-    '/manifest.json',
+    '/tech.html',
+    '/tech-manifest.json',
     '/pwa-icon.png',
     '/favicon.svg'
 ];
 
-// Instalação: Cacheia arquivos essenciais
+// Instalação: Cacheia arquivos essenciais do Tech App
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            console.log('[SW] Cacheando assets principais');
+            console.log('[Nexus Tech SW] Cacheando assets principais');
             return cache.addAll(ASSETS_TO_CACHE);
         })
     );
@@ -33,8 +32,12 @@ self.addEventListener('activate', (event) => {
 
 // Estratégia de Fetch: Network First com Fallback para Cache
 self.addEventListener('fetch', (event) => {
-    // Ignora requests para extensões ou APIs (Supabase)
-    if (event.request.url.includes('supabase.co')) return;
+    // Ignora requests para Supabase e outros serviços externos
+    if (event.request.url.includes('supabase.co') ||
+        event.request.url.includes('googleapis.com') ||
+        event.request.url.includes('cdn.')) {
+        return;
+    }
 
     event.respondWith(
         fetch(event.request)
