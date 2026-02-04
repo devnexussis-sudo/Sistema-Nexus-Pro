@@ -1,8 +1,8 @@
 {
-    "name": "Nexus Pro",
-    "short_name": "Nexus Pro",
-    "description": "Sistema Integrado de Gestão Nexus Pro",
-    "start_url": "/",
+    "name": "Nexus Tech",
+    "short_name": "Nexus Tech",
+    "description": "Aplicativo de campo para técnicos Nexus Pro - Gestão de O.S. e Checklist",
+    "start_url": "/tech.html",
     "display": "standalone",
     "background_color": "#0f172a",
     "theme_color": "#0f172a",

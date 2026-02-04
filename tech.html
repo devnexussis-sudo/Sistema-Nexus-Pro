@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexus Pro</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gray: {
+              750: '#2d3748',
+              850: '#1a202c',
+              950: '#0d1117',
+            },
+            primary: {
+              500: '#6366f1', // Indigo for Admin
+              600: '#4f46e5',
+            },
+            tech: {
+              500: '#10b981', // Emerald for Tech
+              600: '#059669',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/tech-manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="/pwa-icon.png">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0"
+  }
+}
+</script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/tech-sw.js')
+          .then(reg => console.log('Nexus PWA Service Worker registrado!'))
+          .catch(err => console.log('Erro ao registrar Service Worker:', err));
+      });
+    }
+  </script>
+
+</head>
+
+<body class="bg-gray-50 text-gray-900 antialiased overflow-hidden selection:bg-primary-500 selection:text-white">
+  <div id="root"></div>
+  <script type="module" src="/src/tech-index.tsx"></script>
+</body>
+
+</html>
