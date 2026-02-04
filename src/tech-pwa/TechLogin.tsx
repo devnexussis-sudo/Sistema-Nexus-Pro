@@ -103,25 +103,25 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
                 <div className="w-full max-w-md space-y-8 pb-20">
                     {/* Logo e Título */}
                     <div className="text-center">
-                        <div className="inline-flex items-center justify-center w-24 h-24 bg-emerald-600 rounded-[2.5rem] mb-6 shadow-2xl shadow-emerald-600/20 transform hover:scale-105 transition-transform duration-500">
-                            <Wrench size={48} className="text-white" />
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-600 rounded-2xl mb-4 shadow-xl shadow-emerald-600/20 transform hover:scale-105 transition-transform duration-500">
+                            <Wrench size={32} className="text-white" />
                         </div>
-                        <h1 className="text-5xl font-black text-white uppercase italic tracking-tighter mb-2">
+                        <h1 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-1">
                             Nexus<span className="text-emerald-500">.Tech</span>
                         </h1>
-                        <p className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-center gap-3">
-                            <Smartphone size={14} />
+                        <p className="text-emerald-400 text-[9px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+                            <Smartphone size={12} />
                             Field Service Portal
                         </p>
                     </div>
 
                     {/* Card de Login */}
-                    <div className="bg-white/5 backdrop-blur-2xl rounded-[3.5rem] p-10 border border-white/10 shadow-3xl relative overflow-hidden group">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent"></div>
+                    <div className="bg-white/10 backdrop-blur-2xl rounded-[2.5rem] p-8 border border-white/10 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent"></div>
 
-                        <form onSubmit={handleSubmit} className="space-y-8">
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-emerald-500/80 uppercase tracking-widest px-1">
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black text-emerald-500 uppercase tracking-widest px-1">
                                     Identificação do Técnico
                                 </label>
                                 <Input
@@ -130,13 +130,13 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="seu@email.com"
-                                    className="bg-slate-900/50 border-white/10 text-white placeholder:text-white/20 rounded-3xl py-5 h-16 focus:border-emerald-500/50 transition-all"
-                                    icon={<Mail size={20} className="text-emerald-500" />}
+                                    className="bg-white border-none text-slate-900 placeholder:text-slate-400 rounded-2xl py-4 h-14 focus:ring-2 focus:ring-emerald-500/50 shadow-inner"
+                                    icon={<Mail size={18} className="text-slate-400" />}
                                 />
                             </div>
 
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-black text-emerald-500/80 uppercase tracking-widest px-1">
+                            <div className="space-y-2">
+                                <label className="text-[9px] font-black text-emerald-500 uppercase tracking-widest px-1">
                                     Chave de Acesso
                                 </label>
                                 <div className="relative">
@@ -146,25 +146,25 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="••••••••"
-                                        className="bg-slate-900/50 border-white/10 text-white placeholder:text-white/20 rounded-3xl py-5 h-16 focus:border-emerald-500/50 transition-all pr-14"
-                                        icon={<Lock size={20} className="text-emerald-500" />}
+                                        className="bg-white border-none text-slate-900 placeholder:text-slate-400 rounded-2xl py-4 h-14 focus:ring-2 focus:ring-emerald-500/50 shadow-inner pr-12"
+                                        icon={<Lock size={18} className="text-slate-400" />}
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-5 top-1/2 -translate-y-1/2 text-white/20 hover:text-emerald-400 transition-colors p-2"
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-emerald-500 transition-colors p-2"
                                     >
                                         {showPassword ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88L14.12 14.12" /><path d="M2 2l20 20" /><path d="M10.37 4.37a9 9 0 0 1 8.94 4.14" /><path d="M22 12c-1.33 2.667-3.533 4.667-6.6 6" /><path d="M15 15a3 3 0 0 1-4.24-4.24" /><path d="M11.63 19.63A9 9 0 0 1 2 12c1.33-2.667 3.533-4.667 6.6-6" /></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88L14.12 14.12" /><path d="M2 2l20 20" /><path d="M10.37 4.37a9 9 0 0 1 8.94 4.14" /><path d="M22 12c-1.33 2.667-3.533 4.667-6.6 6" /><path d="M15 15a3 3 0 0 1-4.24-4.24" /><path d="M11.63 19.63A9 9 0 0 1 2 12c1.33-2.667 3.533-4.667 6.6-6" /></svg>
                                         ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0z" /><circle cx="12" cy="12" r="3" /></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0z" /><circle cx="12" cy="12" r="3" /></svg>
                                         )}
                                     </button>
                                 </div>
                             </div>
 
                             <div className="flex items-center justify-between px-1">
-                                <label className="flex items-center gap-3 cursor-pointer group/check">
+                                <label className="flex items-center gap-2 cursor-pointer group/check">
                                     <div className="relative">
                                         <input
                                             type="checkbox"
@@ -172,59 +172,59 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
                                             checked={rememberMe}
                                             onChange={(e) => setRememberMe(e.target.checked)}
                                         />
-                                        <div className={`w-6 h-6 rounded-xl border-2 transition-all duration-300 flex items-center justify-center ${rememberMe ? 'bg-emerald-600 border-emerald-600' : 'bg-transparent border-white/10'}`}>
+                                        <div className={`w-5 h-5 rounded-lg border-2 transition-all duration-300 flex items-center justify-center ${rememberMe ? 'bg-emerald-600 border-emerald-600' : 'bg-white/5 border-white/10'}`}>
                                             {rememberMe && (
-                                                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+                                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                                 </svg>
                                             )}
                                         </div>
                                     </div>
-                                    <span className="text-[10px] font-black text-white/40 uppercase tracking-widest group-hover/check:text-emerald-400 transition-colors">Manter acesso salvo</span>
+                                    <span className="text-[9px] font-black text-white/50 uppercase tracking-widest group-hover/check:text-emerald-400 transition-colors">Manter conectado</span>
                                 </label>
                             </div>
 
                             {error && (
-                                <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-5 animate-shake">
-                                    <p className="text-red-400 text-xs font-black text-center uppercase tracking-tight">{error}</p>
+                                <div className="bg-red-500/20 border border-red-500/20 rounded-2xl p-4">
+                                    <p className="text-red-300 text-[10px] font-black text-center uppercase tracking-tight">{error}</p>
                                 </div>
                             )}
 
                             <Button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-[2rem] py-8 h-20 text-xs font-black uppercase tracking-[0.2em] shadow-3xl shadow-emerald-900/40 transform active:scale-95 transition-all"
+                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl py-6 h-16 text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-emerald-900/40 transform active:scale-95 transition-all"
                             >
                                 {loading ? (
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin"></div>
-                                        <span>Autenticando...</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 border-t-2 border-white rounded-full animate-spin"></div>
+                                        <span>Entrando...</span>
                                     </div>
-                                ) : 'Entrar no Sistema'}
+                                ) : 'Acessar APP'}
                             </Button>
                         </form>
                     </div>
 
                     {/* Botão de Instalação ou Instruções */}
                     {!isStandalone && (
-                        <div className="space-y-4 pt-4">
+                        <div className="space-y-3">
                             {(isInstallable || isIOS) ? (
                                 <button
                                     onClick={handleInstallClick}
-                                    className="w-full group relative py-6 bg-gradient-to-r from-emerald-500/10 to-emerald-600/5 border border-emerald-500/30 rounded-[2.5rem] overflow-hidden transition-all hover:bg-emerald-500/20 active:scale-95"
+                                    className="w-full group relative py-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl transition-all hover:bg-emerald-500/20 active:scale-95"
                                 >
-                                    <div className="flex items-center justify-center gap-4 text-emerald-400">
-                                        <Download size={20} className="group-hover:bounce" />
-                                        <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-                                            {isIOS ? 'Instruções para iPhone' : 'Instalar Aplicativo (Android)'}
+                                    <div className="flex items-center justify-center gap-3 text-emerald-400">
+                                        <Download size={18} />
+                                        <span className="text-[9px] font-black uppercase tracking-[0.15em]">
+                                            {isIOS ? 'Instalar no iPhone' : 'Baixar Aplicativo (Android)'}
                                         </span>
                                     </div>
                                 </button>
                             ) : (
-                                <div className="p-6 bg-white/5 border border-white/5 rounded-[2.5rem] flex items-start gap-4">
-                                    <Info size={18} className="text-emerald-500 shrink-0 mt-0.5" />
-                                    <p className="text-white/30 text-[9px] font-bold uppercase leading-relaxed text-left">
-                                        Dica: Use o Google Chrome no Android ou Safari no iOS para instalar o atalho na tela inicial e ter uma melhor experiência.
+                                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl flex items-start gap-3">
+                                    <Info size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                                    <p className="text-white/30 text-[8px] font-bold uppercase leading-relaxed text-left">
+                                        Dica: Use Chrome ou Safari para instalar o app na tela inicial.
                                     </p>
                                 </div>
                             )}
