@@ -16,6 +16,28 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
     const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(true);
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const [isInstallable, setIsInstallable] = useState(false);
+
+    React.useEffect(() => {
+        const handler = (e: any) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+            setIsInstallable(true);
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    const handleInstallClick = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            setIsInstallable(false);
+        }
+        setDeferredPrompt(null);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -158,6 +180,15 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
                         </p>
                     </div>
                 </div>
+
+                {isInstallable && (
+                    <button
+                        onClick={handleInstallClick}
+                        className="mt-6 w-full py-4 bg-emerald-500/10 border border-dashed border-emerald-500/40 rounded-2xl flex items-center justify-center gap-3 text-emerald-400 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all animate-pulse"
+                    >
+                        <Smartphone size={16} /> Instalar Aplicativo no Android
+                    </button>
+                )}
 
                 <p className="text-white/40 text-[10px] text-center mt-6 font-bold uppercase tracking-widest">
                     Nexus Pro © 2026 - Field Service Platform
