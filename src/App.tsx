@@ -152,14 +152,6 @@ const App: React.FC = () => {
         DataService.markSystemNotificationAsRead(auth.user!.id, id);
         setSystemNotifications(prev => prev.filter(n => n.id !== id));
       }}
-      orders={orders}
-      contracts={contracts}
-      quotes={quotes}
-      techs={techs}
-      customers={customers}
-      equipments={equipments}
-      stockItems={stockItems}
-      onUpdateData={fetchGlobalData}
     />
   );
 };

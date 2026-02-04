@@ -34,13 +34,6 @@ interface AdminAppProps {
     onToggleMaster: () => void;
     systemNotifications: any[];
     onMarkNotificationRead: (id: string) => void;
-    contracts: any[];
-    orders: ServiceOrder[];
-    techs: User[];
-    customers: Customer[];
-    equipments: Equipment[];
-    stockItems: StockItem[];
-    onUpdateData: () => Promise<void>;
 }
 
 const getInitialDateRange = () => ({ start: '', end: '' });
