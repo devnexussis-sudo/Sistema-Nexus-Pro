@@ -1,6 +1,6 @@
 import React from 'react';
 import { ServiceOrder, User } from '../../types';
-import { Calendar, MapPin, Printer, Hexagon, Box, User as UserIcon, Tag, CheckCircle2, FileText, ShieldAlert, Mail, Phone } from 'lucide-react';
+import { Calendar, MapPin, Printer, Hexagon, Box, User as UserIcon, Tag, CheckCircle2, FileText, ShieldAlert, Mail, Phone, DollarSign, Package, ShoppingCart } from 'lucide-react';
 import { StatusBadge } from '../ui/StatusBadge';
 import { DataService } from '../../services/dataService';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -244,6 +244,43 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               </div>
             </div>
           </div>
+
+          {/* 4.5 VALORES E PEÇAS (OPCIONAL) */}
+          {order.showValueToClient && order.items && order.items.length > 0 && (
+            <div className="space-y-0">
+              <div className="bg-slate-700 text-white px-3 py-1 font-black text-[8px] uppercase tracking-wider">
+                Composição de Valores e Peças Aplicadas
+              </div>
+              <table className="w-full border-x border-b border-slate-200 text-left border-collapse">
+                <thead className="bg-slate-50">
+                  <tr className="text-[6.5px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                    <th className="px-3 py-1.5">Descrição</th>
+                    <th className="px-3 py-1.5 w-16 text-center">Qtd</th>
+                    <th className="px-3 py-1.5 w-24 text-right">Unitário</th>
+                    <th className="px-3 py-1.5 w-24 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {order.items.map(item => (
+                    <tr key={item.id}>
+                      <td className="px-3 py-1.5 font-bold text-slate-700 uppercase">{item.description}</td>
+                      <td className="px-3 py-1.5 text-center">{item.quantity}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-1.5 text-right font-black text-slate-900 font-mono">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50 font-black">
+                  <tr>
+                    <td colSpan={3} className="px-3 py-2 text-right text-[7px] uppercase tracking-widest text-slate-500">Valor Total da OS:</td>
+                    <td className="px-3 py-2 text-right text-[10px] text-indigo-700 font-mono border-l border-slate-200 bg-indigo-50/30">
+                      R$ {order.items.reduce((acc, i) => acc + i.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
 
           {/* 5. CHECKLIST E EVIDÊNCIAS (LAYOUT DE TABELA) */}
           {(order.formData && Object.keys(order.formData).length > 0) && (
@@ -492,6 +529,56 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   {order.description || 'Nenhum detalhe técnico registrado.'}
                 </p>
               </div>
+
+              {/* Valores e Peças (Modo Web) */}
+              {order.showValueToClient && order.items && order.items.length > 0 && (
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
+                    <DollarSign size={16} /> Composição de Valores e Materiais
+                  </p>
+
+                  <div className="bg-slate-50/50 rounded-2xl border border-slate-100 overflow-hidden">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-white text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                          <th className="px-6 py-3">Descrição do Item</th>
+                          <th className="px-6 py-3 w-20 text-center">Qtd</th>
+                          <th className="px-6 py-3 w-32 text-right">Unitário</th>
+                          <th className="px-6 py-3 w-32 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {order.items.map(item => (
+                          <tr key={item.id}>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-slate-700 uppercase">{item.description}</span>
+                                {item.fromStock && <span className="text-[8px] font-bold text-emerald-600 uppercase italic">Original em Estoque</span>}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-center text-[10px] font-bold text-slate-500">{item.quantity}</td>
+                            <td className="px-6 py-4 text-right text-[10px] font-mono text-slate-600">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="px-6 py-4 text-right text-[10px] font-black text-slate-900 font-mono">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="bg-indigo-600 p-6 rounded-2xl flex justify-between items-center text-white shadow-lg shadow-indigo-600/20">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-xl"><DollarSign size={20} /></div>
+                      <div>
+                        <p className="text-[8px] font-black uppercase tracking-widest opacity-70">Total do Atendimento</p>
+                        <p className="text-[10px] font-bold uppercase italic">Pague via faturamento ou direto ao técnico</p>
+                      </div>
+                    </div>
+                    <div className="text-2xl font-black italic tracking-tighter">
+                      R$ {order.items.reduce((acc, i) => acc + i.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* CHECKLIST E EVIDÊNCIAS (WEB) */}

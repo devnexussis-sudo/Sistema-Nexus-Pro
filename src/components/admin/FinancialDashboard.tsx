@@ -32,12 +32,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     // 2. Filtrar OS Concluídas com valor
     const completedOrdersWithRevenue = useMemo(() => {
         return orders.filter(o => o.status === OrderStatus.COMPLETED).map(order => {
-            // Tenta encontrar um orçamento vinculado
+            // 1. Soma dos itens da própria OS (Nova funcionalidade)
+            const itemsValue = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
+
+            // 2. Se não tiver itens, tenta encontrar um orçamento vinculado
             const linkedQuote = approvedQuotes.find(q => q.original.linkedOrderId === order.id || q.original.linked_order_id === order.id);
 
-            // Se tiver orçamento vinculado, usamos o valor do orçamento
-            // Se não, verificamos se existe algum campo de valor no formData (fallback)
-            const value = linkedQuote?.value || (order.formData as any)?.price || (order.formData as any)?.value || 0;
+            // Prioridade: Itens da OS > Orçamento Vinculado > Fallback FormData
+            const value = itemsValue || linkedQuote?.value || (order.formData as any)?.price || (order.formData as any)?.value || 0;
 
             return {
                 type: 'ORDER' as const,

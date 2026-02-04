@@ -151,6 +151,16 @@ export interface User {
   permissions?: UserPermissions;
 }
 
+export interface OrderItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  fromStock?: boolean;
+  stockItemId?: string;
+}
+
 export interface ServiceOrder {
   id: string;
   publicToken?: string; // Token único para compartilhamento público
@@ -175,6 +185,8 @@ export interface ServiceOrder {
   endDate?: string;
   notes?: string;
   formData?: Record<string, any>;
+  items?: OrderItem[];
+  showValueToClient?: boolean;
 }
 
 

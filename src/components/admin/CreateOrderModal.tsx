@@ -1,13 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  X, Save, Search, Box, User, Hash, ChevronRight,
-  CheckCircle2, CalendarDays, MapPin, Tag, Plus,
-  UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus
+  UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus,
+  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
-import { OrderPriority, OrderStatus, ServiceOrder, User as UserType } from '../../types';
+import { OrderPriority, OrderStatus, ServiceOrder, User as UserType, OrderItem, StockItem } from '../../types';
 import { DataService } from '../../services/dataService';
 
 interface CreateOrderModalProps {
@@ -25,7 +24,7 @@ export const OS_TYPES = [
 ];
 
 export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onSubmit, initialData }) => {
-  const [step, setStep] = useState<1 | 2 | 3>(initialData ? 2 : 1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(initialData ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [technicians, setTechnicians] = useState<UserType[]>([]);
   const [searchMode, setSearchMode] = useState<'client' | 'serial'>('client');
@@ -37,6 +36,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
   const [clients, setClients] = useState<any[]>([]);
   const [equipments, setEquipments] = useState<any[]>([]);
+  const [stock, setStock] = useState<StockItem[]>([]);
 
   const [selectedClientId, setSelectedClientId] = useState(initialData ? 'initial' : '');
   const [selectedEquipIds, setSelectedEquipIds] = useState<string[]>([]);
@@ -61,23 +61,30 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     status: initialData?.status || OrderStatus.PENDING,
     equipmentName: initialData?.equipmentName || '',
     equipmentModel: initialData?.equipmentModel || '',
-    equipmentSerial: initialData?.equipmentSerial || ''
+    equipmentSerial: initialData?.equipmentSerial || '',
+    showValueToClient: initialData?.showValueToClient || false
   });
+
+  const [items, setItems] = useState<OrderItem[]>(initialData?.items || []);
+  const [isStockListOpen, setIsStockListOpen] = useState(false);
+  const [stockSearch, setStockSearch] = useState('');
 
   const isCompleted = initialData?.status === OrderStatus.COMPLETED;
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [techs, loadedClients, loadedEquipments] = await Promise.all([
+        const [techs, loadedClients, loadedEquipments, loadedStock] = await Promise.all([
           DataService.getAllTechnicians(),
           DataService.getCustomers(),
-          DataService.getEquipments()
+          DataService.getEquipments(),
+          DataService.getStockItems()
         ]);
 
         setTechnicians(techs);
         setClients(loadedClients);
         setEquipments(loadedEquipments);
+        setStock(loadedStock);
 
         // Se estiver editando, tentar encontrar o ID do cliente e equipamentos
         if (initialData) {
@@ -193,6 +200,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         equipmentSerial: selectedEquip ? selectedEquip.serialNumber : formData.equipmentSerial || '-',
         assignedTo: formData.assignedTo || null,
         scheduledTime: formData.scheduledTime || null,
+        items: items,
+        showValueToClient: formData.showValueToClient
       };
 
       console.log('Dados finais a serem enviados:', finalData);
@@ -229,6 +238,41 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     t.name.toLowerCase().includes(techSearch.toLowerCase())
   );
 
+  const addItem = (item: Partial<OrderItem>) => {
+    const newItem: OrderItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      description: item.description || '',
+      quantity: item.quantity || 1,
+      unitPrice: item.unitPrice || 0,
+      total: (item.quantity || 1) * (item.unitPrice || 0),
+      fromStock: item.fromStock || false,
+      stockItemId: item.stockItemId
+    };
+    setItems([...items, newItem]);
+  };
+
+  const removeItem = (id: string) => {
+    setItems(items.filter(i => i.id !== id));
+  };
+
+  const updateItem = (id: string, updates: Partial<OrderItem>) => {
+    setItems(items.map(i => {
+      if (i.id === id) {
+        const updated = { ...i, ...updates };
+        updated.total = updated.quantity * updated.unitPrice;
+        return updated;
+      }
+      return i;
+    }));
+  };
+
+  const totalValue = items.reduce((acc, i) => acc + i.total, 0);
+
+  const filteredStock = stock.filter(s =>
+    s.description.toLowerCase().includes(stockSearch.toLowerCase()) ||
+    s.code.toLowerCase().includes(stockSearch.toLowerCase())
+  );
+
   return (
     <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-4 sm:p-8 overflow-hidden">
       <div className="bg-white rounded-[3rem] w-full max-w-[96vw] h-[92vh] shadow-[0_32px_128px_rgba(0,0,0,0.2)] border border-white/50 overflow-hidden flex flex-col animate-scale-up">
@@ -251,13 +295,13 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
           <div className="flex items-center gap-5">
             <div className="flex items-center gap-2">
-              {[1, 2, 3].map((s) => (
+              {[1, 2, 3, 4].map((s) => (
                 <div key={s} className="flex items-center">
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black transition-all border ${step === s ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : (step > s ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-200 text-slate-400')
                     }`}>
                     {step > s ? <CheckCircle2 size={14} /> : s}
                   </div>
-                  {s < 3 && <div className={`w-6 h-0.5 mx-0.5 rounded-full ${step > s ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
+                  {s < 4 && <div className={`w-6 h-0.5 mx-0.5 rounded-full ${step > s ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
                 </div>
               ))}
             </div>
@@ -488,6 +532,167 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           )}
 
           {step === 3 && (
+            <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
+              {/* COMPOSIÇÃO DE VALORES */}
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Composição de Valores</h3>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">Vincule peças do estoque ou adicione serviços manuais</p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, showValueToClient: !formData.showValueToClient })}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${formData.showValueToClient ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}
+                  >
+                    {formData.showValueToClient ? <><Eye size={14} /> Visível para Cliente</> : <><EyeOff size={14} /> Oculto para Cliente</>}
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabela de Itens */}
+              <div className="bg-slate-50/50 rounded-[2rem] border border-slate-100 overflow-hidden">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-white text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
+                      <th className="px-6 py-4">Item / Descrição</th>
+                      <th className="px-6 py-4 w-24">Qtd</th>
+                      <th className="px-6 py-4 w-32">Unitário</th>
+                      <th className="px-6 py-4 w-32">Total</th>
+                      <th className="px-6 py-4 text-center w-20">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map(item => (
+                      <tr key={item.id} className="border-b border-slate-50 last:border-0 hover:bg-white transition-colors">
+                        <td className="px-6 py-4">
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={e => updateItem(item.id, { description: e.target.value })}
+                            className="bg-transparent border-none text-[10px] font-black uppercase text-slate-700 outline-none w-full"
+                          />
+                        </td>
+                        <td className="px-6 py-4">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={item.quantity}
+                            onChange={e => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
+                            className="bg-transparent border-none text-[10px] font-black uppercase text-slate-700 outline-none w-full"
+                          />
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1 text-[10px] font-black text-slate-700">
+                            <span>R$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={e => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
+                              className="bg-transparent border-none outline-none w-full"
+                            />
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-[10px] font-black text-indigo-600">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <button onClick={() => removeItem(item.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {items.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-10 text-center text-[10px] font-black text-slate-300 uppercase italic">
+                          Nenhum item adicionado
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Controles de Adição */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Busca no Estoque */}
+                <div className="space-y-3 relative">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Buscar no Estoque</label>
+                  <div className="relative">
+                    <Input
+                      placeholder="Nome da peça ou SKU..."
+                      value={stockSearch}
+                      onChange={e => { setStockSearch(e.target.value); setIsStockListOpen(true); }}
+                      onFocus={() => setIsStockListOpen(true)}
+                      icon={<Package size={14} />}
+                      className="rounded-xl"
+                    />
+                    {isStockListOpen && stockSearch && (
+                      <div className="absolute z-[180] bottom-full mb-1 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar">
+                        {filteredStock.length > 0 ? filteredStock.map(s => (
+                          <button
+                            key={s.id}
+                            onClick={() => {
+                              addItem({ description: s.description, unitPrice: s.sellPrice, fromStock: true, stockItemId: s.id });
+                              setStockSearch('');
+                              setIsStockListOpen(false);
+                            }}
+                            className="w-full text-left px-5 py-3 hover:bg-slate-50 flex justify-between items-center border-b border-slate-50 last:border-0"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Box size={14} className="text-slate-400" />
+                              <div>
+                                <p className="text-[10px] font-black uppercase">{s.description}</p>
+                                <p className="text-[9px] text-emerald-600 font-bold uppercase">R$ {s.sellPrice.toLocaleString('pt-BR')}</p>
+                              </div>
+                            </div>
+                            <span className="text-[8px] font-black text-slate-300 uppercase bg-slate-100 px-2 py-1 rounded-md">Qtd: {s.quantity}</span>
+                          </button>
+                        )) : (
+                          <div className="p-4 text-center text-[10px] font-black text-slate-300 uppercase">Não encontrado</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Adição Manual */}
+                <div className="space-y-3">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Adição Manual</label>
+                  <button
+                    type="button"
+                    onClick={() => addItem({ description: 'SERVIÇO OU PEÇA MANUAL', unitPrice: 0 })}
+                    className="w-full h-10 border-2 border-dashed border-slate-200 text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 hover:border-indigo-600 hover:text-indigo-600 transition-all bg-white"
+                  >
+                    <Plus size={14} /> Novo Item Manual
+                  </button>
+                </div>
+              </div>
+
+              {/* Totalizador */}
+              <div className="bg-indigo-600 p-8 rounded-[2.5rem] flex justify-between items-center text-white shadow-xl shadow-indigo-600/20">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                    <DollarSign size={24} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black uppercase italic tracking-tighter">Valor Total Previsto</h4>
+                    <p className="text-[10px] uppercase font-black opacity-60">Soma de peças e mão de obra</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-4xl font-black italic tracking-tighter font-mono">
+                    R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
             <div className="animate-fade-in space-y-6 max-w-2xl mx-auto">
               <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-[2rem] flex items-center gap-6">
                 <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-emerald-500 shadow-md">
@@ -544,7 +749,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 type="button"
                 key={`next-btn-${step}`}
                 className="rounded-xl px-8 py-2.5 font-black text-[10px] uppercase italic tracking-wider shadow-md"
-                onClick={() => step === 1 ? goToStep2() : setStep(3)}
+                onClick={() => {
+                  if (step === 1) goToStep2();
+                  else if (step === 2) setStep(3);
+                  else if (step === 3) setStep(4);
+                }}
               >
                 Próximo <ChevronRight size={14} className="ml-1" />
               </Button>
