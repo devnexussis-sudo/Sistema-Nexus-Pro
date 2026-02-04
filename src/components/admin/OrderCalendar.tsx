@@ -38,7 +38,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [searchTerm, setSearchTerm] = useState('');
   const [techFilter, setTechFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState(OrderStatus.PENDING); // Default: Agendadas
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>(OrderStatus.PENDING); // Default: Agendadas
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
 
   // Filtros idênticos à página de atividades
@@ -154,17 +154,17 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
       </div>
 
       {/* CALENDÁRIO GRID */}
-      <div className="flex-1 overflow-auto p-4 custom-scrollbar">
-        <div className="min-w-[1000px] h-full flex flex-col">
-          <div className="grid grid-cols-7 mb-3">
+      <div className="flex-1 p-4 bg-slate-100/30 overflow-hidden">
+        <div className="h-full flex flex-col">
+          <div className="grid grid-cols-7 mb-2">
             {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map(day => (
-              <div key={day} className="text-center py-1 text-[8px] font-black text-slate-400 uppercase tracking-[0.3em] italic">
+              <div key={day} className="text-center py-1 text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] italic">
                 {day}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-px bg-slate-200 border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-inner flex-1">
+          <div className="grid grid-cols-7 grid-rows-6 gap-px bg-slate-200 border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl flex-1">
             {days.map((day, idx) => {
               const dayOrders = getOrdersForDay(day);
               const isToday = isSameDay(day, new Date());
@@ -173,10 +173,10 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
               return (
                 <div
                   key={idx}
-                  className={`min-h-[140px] flex flex-col transition-all group ${isCurrentMonth ? 'bg-white' : 'bg-slate-50/50 opacity-40'} ${isToday ? 'bg-indigo-50/20' : ''}`}
+                  className={`flex flex-col transition-all group overflow-hidden ${isCurrentMonth ? 'bg-white' : 'bg-slate-50/50 opacity-40'} ${isToday ? 'bg-indigo-50/20' : ''}`}
                 >
-                  <div className={`p-3 flex justify-between items-center ${isToday ? 'bg-indigo-500/10' : ''}`}>
-                    <span className={`text-base font-black italic tracking-tighter ${isToday ? 'text-indigo-600 scale-110 drop-shadow-sm' : 'text-slate-400 group-hover:text-slate-900'} transition-all`}>
+                  <div className={`p-2 flex justify-between items-center ${isToday ? 'bg-indigo-500/10' : ''}`}>
+                    <span className={`text-sm font-black italic tracking-tighter ${isToday ? 'text-indigo-600 scale-110 drop-shadow-sm' : 'text-slate-300 group-hover:text-slate-900'} transition-all`}>
                       {format(day, 'd')}
                     </span>
                     {dayOrders.length > 0 && (
