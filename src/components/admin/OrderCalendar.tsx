@@ -93,6 +93,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
     switch (status) {
       case OrderStatus.COMPLETED: return 'bg-emerald-500 text-white border-emerald-600';
       case OrderStatus.IN_PROGRESS: return 'bg-blue-500 text-white border-blue-600';
+      case OrderStatus.ASSIGNED: return 'bg-violet-500 text-white border-violet-600';
       case OrderStatus.PENDING: return 'bg-amber-500 text-white border-amber-600';
       case OrderStatus.CANCELED: return 'bg-rose-500 text-white border-rose-600';
       case OrderStatus.BLOCKED: return 'bg-slate-500 text-white border-slate-600';
@@ -231,29 +232,30 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
       {/* MODAL / BALÃO DE DETALHES - MANTÉM O ESTILO PREMIUM */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col">
             {/* Cabeçalho */}
-            <div className="p-8 bg-slate-50 border-b border-slate-100 flex justify-between items-start">
+            <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-start shrink-0">
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${getStatusStyle(selectedOrder.status)}`}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className={`px-3 py-1 rounded-full text-[7px] font-black uppercase tracking-[0.2em] border flex items-center gap-1.5 ${getStatusStyle(selectedOrder.status)}`}>
+                    <span className="opacity-70">STATUS:</span>
                     {selectedOrder.status}
-                  </span>
-                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Atividade Detalhada</span>
+                  </div>
+                  <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">Detalhes da O.S.</span>
                 </div>
-                <h3 className="text-3xl font-black text-slate-900 italic uppercase tracking-tighter">O.S. #{selectedOrder.id}</h3>
+                <h3 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter leading-none">#{selectedOrder.id}</h3>
               </div>
               <button
                 onClick={() => setSelectedOrder(null)}
-                className="p-3 hover:bg-white rounded-2xl text-slate-400 hover:text-red-500 transition-all shadow-none hover:shadow-md"
+                className="p-2.5 hover:bg-white rounded-xl text-slate-400 hover:text-red-500 transition-all shadow-none hover:shadow-md"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            {/* Conteúdo */}
-            <div className="p-8 space-y-6">
+            {/* Conteúdo - SCROLLABLE AREA */}
+            <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
               <div className="grid grid-cols-2 gap-6">
                 <div className="col-span-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Cliente / Unidade</label>
@@ -320,9 +322,9 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   const publicUrl = `${window.location.origin}/#/view/${selectedOrder.publicToken || selectedOrder.id}`;
                   window.open(publicUrl, '_blank');
                 }}
-                className="w-full flex items-center justify-center gap-3 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-95"
+                className="w-full flex items-center justify-center gap-3 py-3.5 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-95 shrink-0"
               >
-                <ExternalLink size={16} /> Abrir Relatório Público
+                <ExternalLink size={14} /> Abrir Relatório Público
               </button>
             </div>
           </div>
@@ -338,6 +340,16 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
         }
         .custom-scrollbar-thin::-webkit-scrollbar-thumb {
           background: rgba(0,0,0,0.1);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
           border-radius: 10px;
         }
       `}</style>
