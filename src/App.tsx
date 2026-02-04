@@ -579,19 +579,19 @@ const App: React.FC = () => {
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: true, enabled: isModuleEnabled('dashboard') },
-    { id: 'orders', label: 'Atividades', icon: ClipboardList, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-    { id: 'calendar', label: 'Calendário', icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-    { id: 'quotes', label: 'Orçamentos', icon: DollarSign, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
-    { id: 'contracts', label: 'Contratos', icon: CalendarClock, visible: hasPermission('contracts', 'read'), enabled: isModuleEnabled('contracts') },
-    { id: 'clients', label: 'Clientes', icon: Users, visible: hasPermission('customers', 'read'), enabled: isModuleEnabled('clients') },
-    { id: 'equip', label: 'Ativos', icon: Box, visible: hasPermission('equipments', 'read'), enabled: isModuleEnabled('equip') },
-    { id: 'stock', label: 'Estoque', icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
-    { id: 'techs', label: 'Técnicos', icon: Wrench, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('techs') },
-    { id: 'map', label: 'Mapa Tech', icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
-    { id: 'forms', label: 'Processos', icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
-    { id: 'users', label: 'Usuários', icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
-    { id: 'settings', label: 'Configurações', icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
+    { id: 'orders', label: 'Atividade', icon: ClipboardList, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
+    { id: 'calendar', label: 'Calendario', icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
+    { id: 'map', label: 'Mapa NX', icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
     { id: 'financial', label: 'Financeiro', icon: DollarSign, visible: hasPermission('financial', 'read'), enabled: isModuleEnabled('financial') },
+    { id: 'quotes', label: 'Orcamentos', icon: DollarSign, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
+    { id: 'stock', label: 'Estoque', icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
+    { id: 'contracts', label: 'Contratos', icon: CalendarClock, visible: hasPermission('contracts', 'read'), enabled: isModuleEnabled('contracts') },
+    { id: 'clients', label: 'Cliente', icon: Users, visible: hasPermission('customers', 'read'), enabled: isModuleEnabled('clients') },
+    { id: 'equip', label: 'Ativos', icon: Box, visible: hasPermission('equipments', 'read'), enabled: isModuleEnabled('equip') },
+    { id: 'forms', label: 'Formularios', icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
+    { id: 'techs', label: 'Tecnicos', icon: Wrench, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('techs') },
+    { id: 'users', label: 'Usuarios', icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
+    { id: 'settings', label: 'Configuracoes', icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
   ].filter(item => item.visible);
 
   return (
