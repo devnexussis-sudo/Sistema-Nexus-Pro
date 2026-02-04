@@ -597,7 +597,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
-      <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-56'} bg-[#0f172a] flex flex-col border-r border-white/5 shadow-2xl z-50 transition-all duration-300 ease-in-out relative`}>
+      <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-56'} bg-[#0f172a] h-screen flex flex-col border-r border-white/5 shadow-2xl z-50 transition-all duration-300 ease-in-out relative overflow-hidden`}>
         {/* Toggle Button */}
         <button
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -606,7 +606,7 @@ const App: React.FC = () => {
           {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        <div className={`p-5 ${isSidebarCollapsed ? 'items-center' : ''}`}>
+        <div className={`flex-1 overflow-y-auto overflow-x-hidden p-5 custom-scrollbar ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
           <div className={`flex items-center gap-3 mb-8 transition-all ${isSidebarCollapsed ? 'justify-center' : ''}`}>
             <div className="p-2 bg-indigo-600 rounded-xl shrink-0">
               <Hexagon size={20} className="text-white" />
@@ -648,7 +648,7 @@ const App: React.FC = () => {
           </nav>
         </div>
 
-        <div className={`mt-auto p-5 space-y-3 ${isSidebarCollapsed ? 'items-center' : ''}`}>
+        <div className={`shrink-0 p-5 space-y-3 border-t border-white/5 bg-[#0f172a] ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
           {isImpersonating && (
             <button
               onClick={() => {
