@@ -1,10 +1,10 @@
 
 import React, { useState } from 'react';
-import { User, UserRole, ServiceOrder, OrderStatus, OrderPriority } from '../../types';
+import { User, UserRole, ServiceOrder, OrderStatus, OrderPriority } from '../types';
 import { OrderDetailsModal } from './OrderDetailsModal';
-import { StatusBadge, PriorityBadge } from '../ui/StatusBadge';
+import { StatusBadge, PriorityBadge } from '../components/ui/StatusBadge';
 import { RefreshCw, CheckCircle2, Clock, ChevronRight, LogOut, AlertTriangle, Hexagon, Filter, Calendar as CalendarIcon, X, Share2, MessageCircle, Navigation2 } from 'lucide-react';
-import { DataService } from '../../services/dataService';
+import { DataService } from '../services/dataService';
 
 interface TechDashboardProps {
   user: User;

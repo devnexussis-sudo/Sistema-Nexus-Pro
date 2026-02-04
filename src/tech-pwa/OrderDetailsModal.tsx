@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { ServiceOrder, OrderStatus, FormTemplate, FormFieldType } from '../../types';
+import { ServiceOrder, OrderStatus, FormTemplate, FormFieldType } from '../types';
 import { X, MapPin, CheckCircle, CheckCircle2, CalendarDays, Camera, FileText, Navigation2, Play, AlertCircle, Loader2, Ban, Box } from 'lucide-react';
-import { Button } from '../ui/Button';
-import { TextArea, Input } from '../ui/Input';
-import { PriorityBadge, StatusBadge } from '../ui/StatusBadge';
-import { SignaturePad } from '../ui/SignaturePad';
-import { DataService } from '../../services/dataService';
+import { Button } from '../components/ui/Button';
+import { TextArea, Input } from '../components/ui/Input';
+import { PriorityBadge, StatusBadge } from '../components/ui/StatusBadge';
+import { SignaturePad } from '../components/ui/SignaturePad';
+import { DataService } from '../services/dataService';
 
 interface OrderDetailsModalProps {
   order: ServiceOrder;

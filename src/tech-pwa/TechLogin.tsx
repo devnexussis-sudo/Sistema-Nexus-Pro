@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import { Mail, Lock, Wrench, Smartphone } from 'lucide-react';
-import { DataService } from '../../services/dataService';
-import { User } from '../../types';
+import { DataService } from '../services/dataService';
+import { User } from '../types';
 
 interface TechLoginProps {
     onLogin: (user: User) => void;
@@ -39,7 +39,7 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
 
             // 🛡️ Nexus Persistence: Se "Manter Conectado" estiver ativo, salva no GlobalStorage
             if (rememberMe) {
-                const { GlobalStorage } = await import('../../lib/sessionStorage');
+                const { GlobalStorage } = await import('../lib/sessionStorage');
                 GlobalStorage.set('persistent_user', user);
             }
 

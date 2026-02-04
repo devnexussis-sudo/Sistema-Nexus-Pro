@@ -34,6 +34,9 @@
     }
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="/pwa-icon.png">
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -49,6 +52,15 @@
     "@google/genai": "https://esm.sh/@google/genai@^1.35.0"
   }
 }
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('Nexus PWA Service Worker registrado!'))
+        .catch(err => console.log('Erro ao registrar Service Worker:', err));
+    });
+  }
 </script>
 
 </head>
