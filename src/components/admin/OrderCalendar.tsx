@@ -1,26 +1,30 @@
 
 import React, { useState, useMemo } from 'react';
-import { 
-  format, 
-  addMonths, 
-  subMonths, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  endOfWeek, 
-  isSameMonth, 
-  isSameDay, 
+import {
+  format,
+  addMonths,
+  subMonths,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  isSameMonth,
+  isSameDay,
   eachDayOfInterval,
-  parseISO
+  parseISO,
+  addDays
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Search, 
-  User, 
+import {
+  Search,
+  User,
   ExternalLink,
-  Clock
+  Clock,
+  Box,
+  X,
+  MapPin,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { ServiceOrder, User as TechUser, Customer, OrderStatus } from '../../types';
 
@@ -35,7 +39,8 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
   const [searchTerm, setSearchTerm] = useState('');
   const [techFilter, setTechFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState(OrderStatus.PENDING); // Default: Agendadas
-  
+  const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+
   // Filtros idênticos à página de atividades
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
@@ -55,9 +60,18 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
   }, [orders, techs, searchTerm, statusFilter, techFilter]);
 
   const days = useMemo(() => {
-    const start = startOfWeek(startOfMonth(currentMonth));
-    const end = endOfWeek(endOfMonth(currentMonth));
-    return eachDayOfInterval({ start, end });
+    const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 }); // Domingo
+    const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 0 });
+
+    let interval = eachDayOfInterval({ start, end });
+
+    // Forçar 42 dias (6 semanas) para manter o grid estável e mostrar todos os dias
+    while (interval.length < 42) {
+      const lastDay = interval[interval.length - 1];
+      interval.push(addDays(lastDay, 1));
+    }
+
+    return interval;
   }, [currentMonth]);
 
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
@@ -84,8 +98,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
   };
 
   const handleOrderClick = (order: ServiceOrder) => {
-    const publicUrl = `${window.location.origin}/#/view/${order.publicToken || order.id}`;
-    window.open(publicUrl, '_blank');
+    setSelectedOrder(order);
   };
 
   return (
@@ -107,33 +120,33 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
           <div className="flex-1 flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px]">
-               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-               <input 
-                 type="text"
-                 placeholder="BUSCAR OS..."
-                 className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 pl-11 pr-4 text-[9px] font-black uppercase tracking-widest outline-none focus:bg-white focus:border-indigo-500 transition-all italic"
-                 value={searchTerm}
-                 onChange={(e) => setSearchTerm(e.target.value)}
-               />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <input
+                type="text"
+                placeholder="BUSCAR OS..."
+                className="w-full bg-slate-100 border border-slate-200 rounded-xl py-2.5 pl-11 pr-4 text-[9px] font-black uppercase tracking-widest outline-none focus:bg-white focus:border-indigo-500 transition-all italic"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
 
             <div className="flex items-center gap-2">
-              <select 
+              <select
                 className="bg-slate-100 border border-slate-200 rounded-xl py-2.5 px-4 text-[9px] font-black uppercase tracking-widest outline-none focus:bg-white focus:border-indigo-500 transition-all cursor-pointer"
                 value={techFilter}
                 onChange={(e) => setTechFilter(e.target.value)}
               >
-                 <option value="ALL">TODOS OS TÉCNICOS</option>
-                 {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                <option value="ALL">TODOS OS TÉCNICOS</option>
+                {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
               </select>
 
-              <select 
+              <select
                 className={`border rounded-xl py-2.5 px-4 text-[9px] font-black uppercase tracking-widest outline-none transition-all cursor-pointer ${statusFilter === 'ALL' ? 'bg-slate-100 border-slate-200' : 'bg-indigo-50 border-indigo-200 text-indigo-700'}`}
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
               >
-                 <option value="ALL">TODOS STATUS</option>
-                 {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s === OrderStatus.PENDING ? '📍 AGENDADAS' : s}</option>)}
+                <option value="ALL">TODOS STATUS</option>
+                {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s === OrderStatus.PENDING ? '📍 AGENDADAS' : s}</option>)}
               </select>
             </div>
           </div>
@@ -158,7 +171,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
               const isCurrentMonth = isSameMonth(day, currentMonth);
 
               return (
-                <div 
+                <div
                   key={idx}
                   className={`min-h-[140px] flex flex-col transition-all group ${isCurrentMonth ? 'bg-white' : 'bg-slate-50/50 opacity-40'} ${isToday ? 'bg-indigo-50/20' : ''}`}
                 >
@@ -167,9 +180,9 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                       {format(day, 'd')}
                     </span>
                     {dayOrders.length > 0 && (
-                       <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border ${isToday ? 'bg-indigo-500 text-white border-indigo-600' : 'bg-slate-900 text-white border-slate-900'}`}>
-                         {dayOrders.length}
-                       </span>
+                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border ${isToday ? 'bg-indigo-500 text-white border-indigo-600' : 'bg-slate-900 text-white border-slate-900'}`}>
+                        {dayOrders.length}
+                      </span>
                     )}
                   </div>
 
@@ -177,51 +190,51 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                     {dayOrders.map(order => {
                       const tech = techs.find(t => t.id === order.assignedTo);
                       return (
-                        <div 
+                        <div
                           key={order.id}
                           onClick={() => handleOrderClick(order)}
                           className={`group relative h-7 flex items-center px-3 rounded-lg border text-[9px] font-black uppercase tracking-tight cursor-pointer transition-all hover:translate-x-1 hover:shadow-lg active:scale-95 z-10 ${getStatusColor(order.status)}`}
                         >
                           <span className="truncate flex-1">{order.customerName}</span>
                           <span className="text-[7px] font-black opacity-50 italic">{order.scheduledTime || '--:--'}</span>
-                          
+
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 p-5 bg-slate-900 text-white rounded-[2rem] shadow-2xl opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-[100] border border-white/10 scale-90 group-hover:scale-100 origin-bottom backdrop-blur-md">
-                             <div className="space-y-4">
-                                <div className="flex justify-between items-start">
-                                  <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">OS #{order.id}</span>
-                                  <div className="px-2 py-1 bg-white/10 rounded-lg text-[7px] font-black uppercase tracking-widest">{order.status}</div>
-                                </div>
-                                
-                                <div>
-                                  <p className="text-[7px] text-white/40 font-black uppercase tracking-widest mb-1.5">Cliente / Unidade</p>
-                                  <p className="text-[10px] font-black uppercase italic leading-tight">{order.customerName}</p>
-                                </div>
+                            <div className="space-y-4">
+                              <div className="flex justify-between items-start">
+                                <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">OS #{order.id}</span>
+                                <div className="px-2 py-1 bg-white/10 rounded-lg text-[7px] font-black uppercase tracking-widest">{order.status}</div>
+                              </div>
 
-                                <div className="flex justify-between gap-4 pt-3 border-t border-white/5">
-                                   <div className="flex-1">
-                                      <p className="text-[7px] text-white/40 font-black uppercase tracking-widest mb-1.5">Técnico em Campo</p>
-                                      <div className="flex items-center gap-2">
-                                         <div className="w-5 h-5 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                                            <User size={10} />
-                                         </div>
-                                         <span className="text-[9px] font-black uppercase truncate">{tech?.name || 'Não Atribuído'}</span>
-                                      </div>
-                                   </div>
-                                   <div className="text-right">
-                                      <p className="text-[7px] text-white/40 font-black uppercase tracking-widest mb-1.5">Agendamento</p>
-                                      <div className="flex items-center justify-end gap-1.5 text-emerald-400">
-                                         <Clock size={10} />
-                                         <span className="text-[10px] font-black italic">{order.scheduledTime || '--:--'}</span>
-                                      </div>
-                                   </div>
-                                </div>
+                              <div>
+                                <p className="text-[7px] text-white/40 font-black uppercase tracking-widest mb-1.5">Cliente / Unidade</p>
+                                <p className="text-[10px] font-black uppercase italic leading-tight">{order.customerName}</p>
+                              </div>
 
-                                <div className="flex items-center justify-center gap-2 pt-1 text-[8px] font-black text-indigo-400 animate-pulse tracking-widest uppercase italic">
-                                   <ExternalLink size={10} />
-                                   Abrir Relatório Público
+                              <div className="flex justify-between gap-4 pt-3 border-t border-white/5">
+                                <div className="flex-1">
+                                  <p className="text-[7px] text-white/40 font-black uppercase tracking-widest mb-1.5">Técnico em Campo</p>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                                      <User size={10} />
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase truncate">{tech?.name || 'Não Atribuído'}</span>
+                                  </div>
                                 </div>
-                             </div>
-                             <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-[8px] border-transparent border-t-slate-900"></div>
+                                <div className="text-right">
+                                  <p className="text-[7px] text-white/40 font-black uppercase tracking-widest mb-1.5">Agendamento</p>
+                                  <div className="flex items-center justify-end gap-1.5 text-emerald-400">
+                                    <Clock size={10} />
+                                    <span className="text-[10px] font-black italic">{order.scheduledTime || '--:--'}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-center gap-2 pt-1 text-[8px] font-black text-indigo-400 animate-pulse tracking-widest uppercase italic">
+                                <ExternalLink size={10} />
+                                Abrir Relatório Público
+                              </div>
+                            </div>
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-[8px] border-transparent border-t-slate-900"></div>
                           </div>
                         </div>
                       );
@@ -233,7 +246,84 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
           </div>
         </div>
       </div>
-      
+
+      {/* DETALHE DA O.S. (BALÃO / MODAL) */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Cabeçalho do Balão */}
+            <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Detalhes da Atividade</p>
+                <h3 className="text-xl font-black text-slate-900 italic uppercase">O.S. #{selectedOrder.id}</h3>
+              </div>
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="p-3 hover:bg-white rounded-2xl text-slate-400 hover:text-slate-900 transition-all shadow-none hover:shadow-md"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Conteúdo do Balão */}
+            <div className="p-8 space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="col-span-2">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Cliente / Unidade</label>
+                  <p className="text-sm font-bold text-slate-900 uppercase italic">{selectedOrder.customerName}</p>
+                </div>
+
+                <div>
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Técnico Responsável</label>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <User size={16} />
+                    </div>
+                    <span className="text-xs font-black text-slate-700 uppercase">{techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'NÃO ATRIBUÍDO'}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Horário Previsto</label>
+                  <div className="flex items-center gap-2 text-emerald-600">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+                      <Clock size={16} />
+                    </div>
+                    <span className="text-xs font-black italic">{selectedOrder.scheduledTime || '--:--'}</span>
+                  </div>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Ativo / Equipamento</label>
+                  <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                      <Box size={20} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-900 uppercase italic">{selectedOrder.equipmentName || 'SEM EQUIPAMENTO'}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{selectedOrder.equipmentModel || '--'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ações Rápidas */}
+              <div className="pt-6 border-t border-slate-100 flex gap-3">
+                <button
+                  onClick={() => {
+                    const publicUrl = `${window.location.origin}/#/view/${selectedOrder.publicToken || selectedOrder.id}`;
+                    window.open(publicUrl, '_blank');
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+                >
+                  <ExternalLink size={14} /> Relatório Público
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 3px;
