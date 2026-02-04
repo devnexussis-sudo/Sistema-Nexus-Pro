@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ServiceOrder, OrderStatus, FormTemplate, FormFieldType } from '../types';
-import { X, MapPin, CheckCircle, CheckCircle2, CalendarDays, Camera, FileText, Navigation2, Play, AlertCircle, Loader2, Ban, Box, DollarSign, Plus, Trash2, Search, ShoppingCart, Eye, EyeOff } from 'lucide-react';
+import { X, MapPin, CheckCircle, CheckCircle2, CalendarDays, Camera, FileText, Navigation2, Play, AlertCircle, Loader2, Ban, Box, DollarSign, Plus, Trash2, Search, ShoppingCart, Eye, EyeOff, Edit3 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { TextArea, Input } from '../components/ui/Input';
 import { PriorityBadge, StatusBadge } from '../components/ui/StatusBadge';
