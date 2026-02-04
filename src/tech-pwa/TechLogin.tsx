@@ -54,20 +54,20 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
             }
 
             if (user.role !== 'TECHNICIAN') {
-                setError('Este portal é exclusivo para técnicos de campo. Administradores devem usar o portal /admin');
+                setError('Este portal é exclusivo para técnicos de campo.');
+                // Faz logout do Supabase para limpar sessão
+                const { supabase } = await import('../lib/supabase');
+                await supabase.auth.signOut();
                 setLoading(false);
                 return;
             }
 
-            // 🛡️ Nexus Persistence: Se "Manter Conectado" estiver ativo, salva no GlobalStorage
-            if (rememberMe) {
-                const { GlobalStorage } = await import('../lib/sessionStorage');
-                GlobalStorage.set('persistent_user', user);
-            }
-
+            // Passa o usuário e a preferência de "manter conectado" para o componente pai
             onLogin(user);
         } catch (err: any) {
+            console.error('[TechLogin] Error:', err);
             setError(err.message || 'Erro ao fazer login. Tente novamente.');
+        } finally {
             setLoading(false);
         }
     };
