@@ -94,7 +94,7 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
     };
   }, [user]);
 
-  const handleUpdateStatus = async (orderId: string, status: OrderStatus, notes?: string, formData?: any) => {
+  const handleUpdateStatus = async (orderId: string, status: OrderStatus, notes?: string, formData?: any, items?: any[]) => {
     // Quando executa uma OS, manda a localização também
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(async (position) => {
@@ -102,7 +102,7 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
         await DataService.updateTechnicianLocation(user.id, latitude, longitude);
       });
     }
-    await onUpdateStatus(orderId, status, notes, formData);
+    await onUpdateStatus(orderId, status, notes, formData, items);
   };
 
   const handleRefresh = async () => {

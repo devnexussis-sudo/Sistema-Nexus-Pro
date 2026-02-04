@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ServiceOrder, OrderStatus, FormTemplate, FormFieldType } from '../types';
-import { X, MapPin, CheckCircle, CheckCircle2, CalendarDays, Camera, FileText, Navigation2, Play, AlertCircle, Loader2, Ban, Box } from 'lucide-react';
+import { X, MapPin, CheckCircle, CheckCircle2, CalendarDays, Camera, FileText, Navigation2, Play, AlertCircle, Loader2, Ban, Box, DollarSign, Plus, Trash2, Search, ShoppingCart, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { TextArea, Input } from '../components/ui/Input';
 import { PriorityBadge, StatusBadge } from '../components/ui/StatusBadge';
@@ -11,7 +11,7 @@ import { DataService } from '../services/dataService';
 interface OrderDetailsModalProps {
   order: ServiceOrder;
   onClose: () => void;
-  onUpdateStatus: (orderId: string, status: OrderStatus, notes?: string, formData?: any) => Promise<void>;
+  onUpdateStatus: (orderId: string, status: OrderStatus, notes?: string, formData?: any, items?: any[]) => Promise<void>;
 }
 
 export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onClose, onUpdateStatus }) => {
@@ -28,6 +28,10 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
   const [linkedEquipment, setLinkedEquipment] = useState<any>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const [activePhotoField, setActivePhotoField] = useState<string | null>(null);
+  const [items, setItems] = useState<any[]>(order.items || []);
+  const [stock, setStock] = useState<any[]>([]);
+  const [stockSearch, setStockSearch] = useState('');
+  const [isStockListOpen, setIsStockListOpen] = useState(false);
 
   // 🛡️ Nexus Semantic Recovery: Reconstrói o formulário a partir do formData semântico (labels)
   useEffect(() => {
@@ -110,14 +114,18 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
     const init = async () => {
       // Carrega dados do equipamento vinculado
       try {
-        const equipments = await DataService.getEquipments();
+        const [equipments, loadedStock] = await Promise.all([
+          DataService.getEquipments(),
+          DataService.getStockItems()
+        ]);
         const equip = equipments.find((e: any) =>
           (order.equipmentSerial && e.serialNumber === order.equipmentSerial) ||
           (order.equipmentName && e.model === order.equipmentName)
         );
         if (equip) setLinkedEquipment(equip);
+        setStock(loadedStock);
       } catch (err) {
-        console.error("Erro ao carregar equipamento:", err);
+        console.error("Erro ao carregar dados auxiliares:", err);
       }
 
       if (localStatus === OrderStatus.IN_PROGRESS || localStatus === OrderStatus.COMPLETED) {
@@ -224,7 +232,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite excedido (180s). Verifique sua conexão.')), 180000));
 
       await Promise.race([
-        onUpdateStatus(order.id, OrderStatus.COMPLETED, notes, finalFormData),
+        onUpdateStatus(order.id, OrderStatus.COMPLETED, notes, finalFormData, items),
         timeoutPromise
       ]);
 
@@ -742,6 +750,154 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
             <div className="p-10 border-2 border-dashed border-gray-100 rounded-[2.5rem] text-center space-y-4">
               <Play size={32} className="mx-auto text-gray-200" />
               <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">O checklist aparecerá após o início</p>
+            </div>
+          )}
+
+          {/* SEÇÃO DE CUSTOS E PEÇAS (EXCLUSIVO TECH) */}
+          {(localStatus === OrderStatus.IN_PROGRESS || localStatus === OrderStatus.COMPLETED) && (
+            <section className="space-y-4 pt-6 border-t border-gray-50">
+              <div className="flex justify-between items-center px-1">
+                <div>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Peças e Materiais</h3>
+                  <p className="text-[8px] font-bold text-slate-300 uppercase">Items aplicados nesta OS</p>
+                </div>
+                {localStatus !== OrderStatus.COMPLETED && (
+                  <button
+                    onClick={() => setIsStockListOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase italic shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
+                  >
+                    <Plus size={12} /> Adicionar Item
+                  </button>
+                )}
+              </div>
+
+              {/* LISTA DE ITENS SELECIONADOS */}
+              <div className="space-y-2">
+                {items.length > 0 ? (
+                  items.map((item, idx) => (
+                    <div key={item.id || idx} className="bg-white border border-slate-100 rounded-2xl p-3 flex justify-between items-center shadow-sm">
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] font-black text-slate-900 uppercase italic leading-none">{item.description}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                          {item.quantity}un x R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-indigo-600 font-mono">
+                          R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                        {localStatus !== OrderStatus.COMPLETED && (
+                          <button
+                            onClick={() => setItems(prev => prev.filter((_, i) => i !== idx))}
+                            className="p-1.5 bg-red-50 text-red-400 rounded-lg"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-8 bg-slate-50 border-2 border-dashed border-slate-100 rounded-2xl text-center">
+                    <p className="text-[9px] font-black text-slate-300 uppercase italic">Nenhum item adicionado ainda</p>
+                  </div>
+                )}
+              </div>
+
+              {/* TOTAL PARCIAL */}
+              <div className="bg-indigo-50 border border-indigo-100/50 p-4 rounded-2xl flex justify-between items-center">
+                <span className="text-[10px] font-black text-indigo-400 uppercase italic">Valor Realizado</span>
+                <span className="text-xl font-black text-indigo-700 italic tracking-tighter">
+                  R$ {items.reduce((acc, i) => acc + i.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </section>
+          )}
+
+          {/* MODAL DE SELEÇÃO DE ESTOQUE (PWA STYLE) */}
+          {isStockListOpen && (
+            <div className="fixed inset-0 z-[120] bg-white flex flex-col animate-fade-in-up">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <button onClick={() => setIsStockListOpen(false)} className="p-2 text-slate-400"><X size={24} /></button>
+                <h3 className="text-sm font-black uppercase italic">Adicionar Item de Estoque</h3>
+                <div className="w-8" />
+              </div>
+
+              <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <Input
+                    placeholder="Buscar por nome ou código..."
+                    value={stockSearch}
+                    onChange={e => setStockSearch(e.target.value)}
+                    className="pl-12 py-4 rounded-xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      const desc = prompt("Descrição do serviço/peça manual:");
+                      if (!desc) return;
+                      const qty = Number(prompt("Quantidade:", "1"));
+                      const price = Number(prompt("Valor Unitário (ex: 50.00):", "0.00").replace(',', '.'));
+                      if (isNaN(qty) || isNaN(price)) return;
+
+                      setItems(prev => [...prev, {
+                        id: Math.random().toString(36).substr(2, 9),
+                        description: desc,
+                        quantity: qty,
+                        unitPrice: price,
+                        total: qty * price,
+                        fromStock: false
+                      }]);
+                      setIsStockListOpen(false);
+                    }}
+                    className="w-full p-4 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Edit3 size={18} />
+                      <span className="text-xs font-black uppercase italic">Inserção Manual</span>
+                    </div>
+                    <Plus size={16} />
+                  </button>
+
+                  <div className="pt-2">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1 italic">Resultado do Estoque</p>
+                    {stock.filter(s =>
+                      s.description.toLowerCase().includes(stockSearch.toLowerCase()) ||
+                      s.code.toLowerCase().includes(stockSearch.toLowerCase())
+                    ).map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          const qty = Number(prompt(`Quantidade para "${item.description}":`, "1"));
+                          if (!qty || isNaN(qty)) return;
+
+                          setItems(prev => [...prev, {
+                            id: Math.random().toString(36).substr(2, 9),
+                            description: item.description,
+                            quantity: qty,
+                            unitPrice: item.sellPrice,
+                            total: qty * item.sellPrice,
+                            fromStock: true,
+                            stockItemId: item.id
+                          }]);
+                          setIsStockListOpen(false);
+                          setStockSearch('');
+                        }}
+                        className="w-full p-4 bg-white border border-slate-100 rounded-2xl flex items-center justify-between mb-2 active:bg-slate-50"
+                      >
+                        <div className="text-left">
+                          <p className="text-[10px] font-black text-slate-900 uppercase italic">{item.description}</p>
+                          <p className="text-[8px] font-bold text-slate-400 uppercase">Estoque: {item.currentStock}un • R$ {item.sellPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <Plus size={16} className="text-indigo-600" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

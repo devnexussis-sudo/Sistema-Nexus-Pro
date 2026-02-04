@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus,
-  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart
+  UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus, Plus, Box,
+  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
@@ -744,7 +744,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           </button>
 
           <div className="flex gap-3">
-            {step < 3 ? (
+            {step < 4 ? (
               <Button
                 type="button"
                 key={`next-btn-${step}`}

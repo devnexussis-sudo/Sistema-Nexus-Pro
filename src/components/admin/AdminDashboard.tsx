@@ -36,7 +36,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit' | 'costs'>('overview');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   const handleExportExcel = () => {
@@ -521,6 +521,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   { id: 'overview', label: 'Geral', icon: FileText },
                   { id: 'execution', label: 'Execução', icon: ClipboardList },
                   { id: 'media', label: 'Mídias', icon: Camera },
+                  { id: 'costs', label: 'Custos', icon: DollarSign },
                   { id: 'audit', label: 'Assinaturas', icon: UserCheck }
                 ].map(tab => (
                   <button
@@ -651,6 +652,79 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <p className="text-xs font-bold text-indigo-900 leading-relaxed italic">{selectedOrder.notes}</p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* TAB COSTS */}
+              {activeTab === 'costs' && (
+                <div className="animate-fade-in space-y-10">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Detalhamento Financeiro</p>
+                      <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Peças e Serviços</h3>
+                    </div>
+                    <div className={`px-5 py-2 rounded-2xl border flex items-center gap-2 ${selectedOrder.showValueToClient ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                      {selectedOrder.showValueToClient ? <><Eye size={14} /> Visível no Link Público</> : <><EyeOff size={14} /> Oculto no Link Público</>}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                          <th className="px-8 py-5">Descrição do Item</th>
+                          <th className="px-8 py-5 w-32 text-center">Origem</th>
+                          <th className="px-8 py-5 w-24 text-center">Qtd</th>
+                          <th className="px-8 py-5 w-32 text-right">Unitário</th>
+                          <th className="px-8 py-5 w-40 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {selectedOrder.items?.map(item => (
+                          <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
+                            <td className="px-8 py-5">
+                              <span className="text-xs font-black text-slate-700 uppercase">{item.description}</span>
+                            </td>
+                            <td className="px-8 py-5 text-center">
+                              {item.fromStock ? (
+                                <span className="text-[8px] font-black text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full uppercase italic">Estoque</span>
+                              ) : (
+                                <span className="text-[8px] font-black text-slate-400 bg-slate-100 px-3 py-1 rounded-full uppercase italic">Manual</span>
+                              )}
+                            </td>
+                            <td className="px-8 py-5 text-center text-xs font-bold text-slate-500">{item.quantity}</td>
+                            <td className="px-8 py-5 text-right text-xs font-mono text-slate-600">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="px-8 py-5 text-right font-black text-slate-900 text-xs font-mono">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                        ))}
+                        {(!selectedOrder.items || selectedOrder.items.length === 0) && (
+                          <tr>
+                            <td colSpan={5} className="py-20 text-center text-[10px] font-black text-slate-300 uppercase italic tracking-[0.2em]">
+                              Não há itens ou peças vinculadas a esta OS.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="bg-indigo-600 p-10 rounded-[3rem] flex justify-between items-center text-white shadow-2xl shadow-indigo-600/30 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12"><DollarSign size={160} /></div>
+                    <div className="flex items-center gap-6">
+                      <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20">
+                        <DollarSign size={32} />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-black uppercase italic tracking-tighter">Valor Total Realizado</h4>
+                        <p className="text-[10px] uppercase font-black opacity-60 italic mt-1 tracking-widest">Este valor é contabilizado no painel financeiro</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-5xl font-black italic tracking-tighter font-mono">
+                        R$ {(selectedOrder.items?.reduce((acc, i) => acc + i.total, 0) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
 

@@ -865,6 +865,8 @@ export const DataService = {
       start_date: order.startDate,
       end_date: order.endDate,
       notes: order.notes,
+      items: order.items,
+      show_value_to_client: order.showValueToClient,
       updated_at: new Date().toISOString()
     };
   },
@@ -895,7 +897,9 @@ export const DataService = {
       scheduledTime: data.scheduled_time || data.scheduledTime || '',
       startDate: data.start_date || data.startDate,
       endDate: data.end_date || data.endDate,
-      notes: data.notes
+      notes: data.notes,
+      items: data.items || [],
+      showValueToClient: data.show_value_to_client ?? data.showValueToClient ?? false
     };
   },
 
@@ -1626,7 +1630,7 @@ export const DataService = {
     return equipment;
   },
 
-  updateOrderStatus: async (id: string, status: OrderStatus, notes?: string, data?: any): Promise<void> => {
+  updateOrderStatus: async (id: string, status: OrderStatus, notes?: string, data?: any, items?: OrderItem[]): Promise<void> => {
     if (!isCloudEnabled) return;
 
     let processedData = data;
@@ -1675,6 +1679,7 @@ export const DataService = {
 
     if (notes !== undefined) updatePayload.notes = notes;
     if (processedData !== undefined) updatePayload.form_data = processedData;
+    if (items !== undefined) updatePayload.items = items;
 
     if (status === OrderStatus.IN_PROGRESS) {
       updatePayload.start_date = new Date().toISOString();

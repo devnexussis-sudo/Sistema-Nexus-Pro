@@ -537,7 +537,7 @@ const App: React.FC = () => {
     return <TechDashboard
       user={auth.user}
       orders={orders.filter(o => o.assignedTo === auth.user?.id)}
-      onUpdateStatus={async (id, s, n, d) => { await DataService.updateOrderStatus(id, s, n, d); await fetchGlobalData(); }}
+      onUpdateStatus={async (id, s, n, d, items) => { await DataService.updateOrderStatus(id, s, n, d, items); await fetchGlobalData(); }}
       onRefresh={fetchGlobalData}
       onLogout={handleLogout}
       isFetching={isFetchingData}
