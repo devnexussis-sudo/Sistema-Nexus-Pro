@@ -22,6 +22,7 @@ import { QuoteManagement } from './components/admin/QuoteManagement';
 import { StockManagement } from './components/admin/StockManagement';
 import { FinancialDashboard } from './components/admin/FinancialDashboard';
 import { TechnicianMap } from './components/admin/TechnicianMap';
+import { OrderCalendar } from './components/admin/OrderCalendar';
 import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, Customer, Equipment, StockItem } from './types';
 
 import { DataService } from './services/dataService';
@@ -41,7 +42,7 @@ const App: React.FC = () => {
     const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
     return stored ? { user: stored, isAuthenticated: true } : { user: null, isAuthenticated: false };
   });
-  const [currentView, setCurrentView] = useState<'dashboard' | 'orders' | 'contracts' | 'quotes' | 'techs' | 'map' | 'equip' | 'clients' | 'forms' | 'settings' | 'superadmin' | 'users' | 'stock' | 'financial'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'orders' | 'contracts' | 'quotes' | 'techs' | 'map' | 'equip' | 'clients' | 'forms' | 'settings' | 'superadmin' | 'users' | 'stock' | 'financial' | 'calendar'>('dashboard');
   const [viewParams, setViewParams] = useState<any>(null);
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
@@ -579,6 +580,7 @@ const App: React.FC = () => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: true, enabled: isModuleEnabled('dashboard') },
     { id: 'orders', label: 'Atividades', icon: ClipboardList, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
+    { id: 'calendar', label: 'Calendário', icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
     { id: 'quotes', label: 'Orçamentos', icon: DollarSign, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
     { id: 'contracts', label: 'Contratos', icon: CalendarClock, visible: hasPermission('contracts', 'read'), enabled: isModuleEnabled('contracts') },
     { id: 'clients', label: 'Clientes', icon: Users, visible: hasPermission('customers', 'read'), enabled: isModuleEnabled('clients') },
@@ -730,6 +732,13 @@ const App: React.FC = () => {
           {currentView === 'users' && hasPermission('manageUsers') && <UserManagement />}
           {currentView === 'settings' && hasPermission('settings') && <SettingsPage />}
           {currentView === 'financial' && hasPermission('financial', 'read') && <FinancialDashboard orders={orders} quotes={quotes} />}
+          {currentView === 'calendar' && hasPermission('orders', 'read') && (
+            <OrderCalendar
+              orders={orders}
+              techs={techs}
+              customers={customers}
+            />
+          )}
 
           {/* Fallback para visualização proibida */}
           {['orders', 'quotes', 'contracts', 'clients', 'equip', 'stock', 'techs', 'forms', 'users', 'settings'].includes(currentView) &&
