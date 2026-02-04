@@ -1,7 +1,7 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './styles/index.css';
+import './styles/tech.css';
 import 'leaflet/dist/leaflet.css';
 import { TechAppShell } from './apps/tech/TechAppShell';
 import ErrorBoundary from './components/ErrorBoundary';
