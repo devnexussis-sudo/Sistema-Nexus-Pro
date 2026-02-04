@@ -199,19 +199,15 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                         e.stopPropagation();
                         handleOrderClick(order);
                       }}
-                      className={`group/item flex flex-col p-1.5 rounded-lg border transition-all hover:scale-[1.02] active:scale-95 cursor-pointer shadow-sm ${getStatusStyle(order.status)}`}
+                      className={`group/item flex flex-col p-1 rounded border transition-all hover:scale-[1.02] active:scale-95 cursor-pointer shadow-sm ${getStatusStyle(order.status)}`}
                     >
-                      <div className="flex justify-between items-start gap-1">
-                        <span className="text-[8px] font-black tracking-tight uppercase line-clamp-2 leading-none flex-1">
+                      <div className="flex justify-between items-center gap-1 leading-none">
+                        <span className="text-[7.5px] font-black tracking-tighter uppercase truncate flex-1">
                           {order.customerName}
                         </span>
-                        <span className="text-[7px] font-black bg-black/10 px-1 rounded-md shrink-0">
+                        <span className="text-[6.5px] font-black bg-black/10 px-0.5 rounded shrink-0">
                           {order.scheduledTime || '--:--'}
                         </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[6px] font-bold opacity-70 border-t border-white/10 mt-1 pt-1 overflow-hidden">
-                        <span className="truncate">#{order.id}</span>
-                        <span className="truncate">{techs.find(t => t.id === order.assignedTo)?.name?.split(' ')[0] || '--'}</span>
                       </div>
                     </div>
                   ))}
@@ -268,30 +264,49 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                     <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
                       <User size={20} />
                     </div>
-                    <span className="text-[11px] font-black text-slate-900 uppercase">{techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'NÃO ATRIBUÍDO'}</span>
+                    <span className="text-[11px] font-black text-slate-900 uppercase">
+                      {techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'NÃO ATRIBUÍDO'}
+                    </span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Horário Agendado</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Agenda / Horário</label>
                   <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
                     <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center">
                       <Clock size={20} />
                     </div>
-                    <span className="text-lg font-black italic text-emerald-700">{selectedOrder.scheduledTime || '--:--'}</span>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-emerald-800 uppercase italic">
+                        {format(parseISO(selectedOrder.scheduledDate), "dd 'de' MMMM", { locale: ptBR })}
+                      </span>
+                      <span className="text-lg font-black italic text-emerald-700">{selectedOrder.scheduledTime || '--:--'}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="col-span-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Equipamento / Ativo</label>
+                <div className="col-span-2 space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Equipamento / Ativo</label>
                   <div className="flex items-center gap-4 p-5 bg-slate-900 rounded-[1.5rem] text-white">
-                    <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300">
+                    <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300 shrink-0">
                       <Box size={24} />
                     </div>
                     <div>
-                      <p className="text-sm font-black uppercase italic tracking-tight text-indigo-300">{selectedOrder.equipmentName || 'MANUTENÇÃO GERAL'}</p>
-                      <p className="text-[9px] font-bold text-white/40 uppercase">{selectedOrder.equipmentModel || '--'}</p>
+                      <p className="text-sm font-black uppercase italic tracking-tight text-indigo-300">
+                        {selectedOrder.equipmentName || 'MANUTENÇÃO GERAL'}
+                      </p>
+                      <p className="text-[9px] font-bold text-white/40 uppercase">
+                        {selectedOrder.equipmentModel || 'MODELO NÃO ESPECIFICADO'}
+                        {selectedOrder.equipmentSerial ? ` • SN: ${selectedOrder.equipmentSerial}` : ''}
+                      </p>
                     </div>
+                  </div>
+                </div>
+
+                <div className="col-span-2 space-y-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Motivo / Descrição</label>
+                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl max-h-32 overflow-y-auto italic text-[11px] font-bold text-slate-600 leading-relaxed">
+                    {selectedOrder.description || selectedOrder.title || 'Sem descrição detalhada.'}
                   </div>
                 </div>
               </div>
