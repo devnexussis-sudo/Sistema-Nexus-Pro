@@ -18,28 +18,24 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 }) => {
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      if (!startDate || !endDate) return true;
+      if (!startDate && !endDate) return true;
 
-      const sDate = order.scheduledDate;
-      const eDate = order.endDate ? order.endDate.split('T')[0] : null;
+      const sDate = order.scheduledDate ? order.scheduledDate.substring(0, 10) : null;
+      const eDate = order.endDate ? order.endDate.substring(0, 10) : null;
+      const cDate = order.createdAt ? order.createdAt.substring(0, 10) : null;
 
       // Lógica de Sincronização Nexus:
       // 1. Se está concluída, conta pela data de conclusão (endDate)
       // 2. Se não, conta pela data de agendamento (scheduledDate)
-      if (order.status === OrderStatus.COMPLETED && eDate) {
-        return eDate >= startDate && eDate <= endDate;
-      }
+      // 3. Fallback para abertura se ambos forem nulos
+      let targetDate = (order.status === OrderStatus.COMPLETED && eDate) ? eDate : (sDate || cDate);
 
-      // Caso padrão: agendamento
-      if (sDate) {
-        return sDate >= startDate && sDate <= endDate;
-      }
+      if (!targetDate) return false;
 
-      // Fallback para criação apenas se não houver agenda (evita que OS fiquem invisíveis)
-      const cDate = order.createdAt ? order.createdAt.split('T')[0] : null;
-      if (cDate) return cDate >= startDate && cDate <= endDate;
+      if (startDate && targetDate < startDate) return false;
+      if (endDate && targetDate > endDate) return false;
 
-      return false;
+      return true;
     });
   }, [orders, startDate, endDate]);
 

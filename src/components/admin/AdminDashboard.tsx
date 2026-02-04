@@ -202,18 +202,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       const matchesCustomer = customerFilter === 'ALL' || order.customerName.toLowerCase().includes(customerFilter.toLowerCase());
 
-      const sDate = order.scheduledDate;
-      const eDate = order.endDate ? order.endDate.split('T')[0] : null;
-      const cDate = order.createdAt ? order.createdAt.split('T')[0] : null;
+      const sDate = order.scheduledDate ? order.scheduledDate.substring(0, 10) : null;
+      const cDate = order.createdAt ? order.createdAt.substring(0, 10) : null;
+      const targetDate = dateTypeFilter === 'scheduled' ? sDate : cDate;
 
       let matchesTime = true;
-      if (startDate && endDate) {
-        if (dateTypeFilter === 'scheduled') {
-          // Se filtrar por agendamento, usa scheduledDate
-          matchesTime = sDate ? (sDate >= startDate && sDate <= endDate) : false;
+      if (startDate || endDate) {
+        if (!targetDate) {
+          matchesTime = false;
         } else {
-          // Se filtrar por abertura, usa createdAt
-          matchesTime = cDate ? (cDate >= startDate && cDate <= endDate) : false;
+          if (startDate && targetDate < startDate) matchesTime = false;
+          if (endDate && targetDate > endDate) matchesTime = false;
         }
       }
 
