@@ -40,8 +40,12 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [searchTerm, setSearchTerm] = useState('');
   const [techFilter, setTechFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>(OrderStatus.PENDING); // Default: Agendadas
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL'); // Default: Todos
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+
+  const handleOrderClick = (order: ServiceOrder) => {
+    setSelectedOrder(order);
+  };
 
   // Filtros
   const filteredOrders = useMemo(() => {
