@@ -411,83 +411,81 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       )}
 
       <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-2xl h-[92vh] sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up relative">
-        <div className="p-6 border-b border-gray-100 flex justify-between items-start sticky top-0 bg-white z-10">
-          <div className="space-y-1">
+        <div className="p-3 px-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+          <div className="space-y-0.5">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100 uppercase">OS #{order.id}</span>
+              <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-100 uppercase">OS #{order.id}</span>
               <PriorityBadge priority={order.priority} />
             </div>
-            <h2 className="text-xl font-black text-gray-900 leading-tight uppercase italic">{order.title}</h2>
+            <h2 className="text-lg font-black text-gray-900 leading-tight uppercase italic">{order.title}</h2>
           </div>
-          <button onClick={onClose} className="p-3 bg-gray-50 text-gray-400 rounded-2xl"><X size={24} /></button>
+          <button onClick={onClose} className="p-2 bg-gray-50 text-gray-400 rounded-xl"><X size={20} /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 custom-scrollbar">
           {/* SEÇÃO DO EQUIPAMENTO - PREPARAÇÃO DO TÉCNICO */}
-          <div className="bg-slate-50 border border-slate-200 p-6 rounded-[2.5rem] space-y-4">
-            <div className="flex items-center gap-3 text-slate-900 mb-2">
-              <div className="p-2.5 bg-indigo-600 rounded-xl text-white shadow-lg"><Box size={20} /></div>
+          <div className="bg-slate-50 border border-slate-200 p-4 rounded-3xl space-y-3">
+            <div className="flex items-center gap-2 text-slate-900 mb-1">
+              <div className="p-1.5 bg-indigo-600 rounded-lg text-white shadow-md"><Box size={16} /></div>
               <div>
-                <h3 className="text-sm font-black uppercase italic tracking-tight">Ativo do Cliente</h3>
-                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest leading-none mt-1">Dados para Preparação</p>
+                <h3 className="text-xs font-black uppercase italic tracking-tight">Ativo do Cliente</h3>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Modelo / Nome</p>
-                <p className="text-[11px] font-black text-slate-900 uppercase italic truncate">{order.equipmentName || 'Não especidificado'}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                <p className="text-[7px] font-black text-slate-400 uppercase mb-0.5">Modelo / Nome</p>
+                <p className="text-[10px] font-black text-slate-900 uppercase italic truncate">{order.equipmentName || 'Não especidificado'}</p>
               </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Nº de Série</p>
-                <p className="text-[11px] font-black text-slate-900 uppercase italic truncate">{order.equipmentSerial || 'S/N'}</p>
+              <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                <p className="text-[7px] font-black text-slate-400 uppercase mb-0.5">Nº de Série</p>
+                <p className="text-[10px] font-black text-slate-900 uppercase italic truncate">{order.equipmentSerial || 'S/N'}</p>
               </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm col-span-2">
-                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Família / Categoria Técnica</p>
-                <p className="text-[11px] font-black text-indigo-600 uppercase italic">{linkedEquipment?.familyName || 'Padrão'}</p>
+              <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm col-span-2">
+                <p className="text-[7px] font-black text-slate-400 uppercase mb-0.5">Família / Categoria Técnica</p>
+                <p className="text-[10px] font-black text-indigo-600 uppercase italic">{linkedEquipment?.familyName || 'Padrão'}</p>
               </div>
             </div>
 
             {linkedEquipment?.description && (
-              <div className="bg-white/50 p-4 rounded-2xl border border-slate-100">
-                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Observações do Produto</p>
-                <p className="text-[10px] text-slate-600 font-medium leading-relaxed italic">{linkedEquipment.description}</p>
+              <div className="bg-white/50 p-2.5 rounded-xl border border-slate-100">
+                <p className="text-[10px] text-slate-600 font-medium leading-tight italic">{linkedEquipment.description}</p>
               </div>
             )}
           </div>
 
-          <div className="bg-red-50 border border-red-100 p-6 rounded-[2rem] space-y-2">
+          <div className="bg-red-50 border border-red-100 p-4 rounded-2xl space-y-1">
             <div className="flex items-center gap-2 text-red-600">
-              <AlertCircle size={18} />
-              <p className="text-[10px] font-black uppercase tracking-widest">Defeito Reportado</p>
+              <AlertCircle size={14} />
+              <p className="text-[9px] font-black uppercase tracking-widest">Defeito Reportado</p>
             </div>
-            <p className="text-sm font-medium text-red-900 italic leading-relaxed">"{order.description}"</p>
+            <p className="text-xs font-medium text-red-900 italic leading-relaxed">"{order.description}"</p>
           </div>
 
-          <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white flex flex-col gap-4 shadow-xl">
+          <div className="bg-slate-900 p-4 rounded-3xl text-white flex flex-col gap-3 shadow-lg">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-white/10 rounded-2xl"><CalendarDays size={24} /></div>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/10 rounded-xl"><CalendarDays size={20} /></div>
                 <div>
-                  <p className="text-[8px] font-black text-white/40 uppercase tracking-widest">Data Programada</p>
-                  <p className="text-lg font-black">{new Date(order.scheduledDate + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+                  <p className="text-[7px] font-black text-white/40 uppercase tracking-widest">Data Programada</p>
+                  <p className="text-base font-black">{new Date(order.scheduledDate + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
                 </div>
               </div>
               <StatusBadge status={localStatus} />
             </div>
 
             {(order.startDate || order.endDate) && (
-              <div className="flex gap-6 pt-4 border-t border-white/5">
+              <div className="flex gap-4 pt-3 border-t border-white/5">
                 {order.startDate && (
                   <div>
-                    <p className="text-[7px] font-black text-emerald-400 uppercase tracking-widest">Início (Check-In)</p>
-                    <p className="text-xs font-black">{new Date(order.startDate).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</p>
+                    <p className="text-[6px] font-black text-emerald-400 uppercase tracking-widest">Check-In</p>
+                    <p className="text-[10px] font-black">{new Date(order.startDate).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 )}
                 {order.endDate && (
                   <div>
-                    <p className="text-[7px] font-black text-indigo-400 uppercase tracking-widest">Fim (Check-Out)</p>
-                    <p className="text-xs font-black">{new Date(order.endDate).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</p>
+                    <p className="text-[6px] font-black text-indigo-400 uppercase tracking-widest">Check-Out</p>
+                    <p className="text-[10px] font-black">{new Date(order.endDate).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 )}
               </div>
@@ -891,44 +889,46 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           )}
         </div>
 
-        <div className="p-6 border-t border-gray-100 bg-white sticky bottom-0 z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
+        <div className="p-4 px-6 border-t border-gray-100 bg-white sticky bottom-0 z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
           {isImpedimentMode ? (
             <div className="flex gap-3">
-              <Button variant="ghost" className="flex-1 py-6 rounded-2xl font-black text-sm uppercase text-slate-500" onClick={() => setIsImpedimentMode(false)}>
+              <Button variant="ghost" className="flex-1 py-4 rounded-xl font-black text-xs uppercase text-slate-500" onClick={() => setIsImpedimentMode(false)}>
                 Cancelar
               </Button>
-              <Button variant="danger" className="flex-[2] py-6 rounded-2xl font-black text-sm uppercase italic shadow-xl flex items-center justify-center gap-2" onClick={validateBlockService} isLoading={loading}>
-                <Ban size={20} /> Confirmar Impedimento
+              <Button variant="danger" className="flex-[2] py-4 rounded-xl font-black text-xs uppercase italic shadow-lg flex items-center justify-center gap-2" onClick={validateBlockService} isLoading={loading}>
+                <Ban size={18} /> Confirmar Impedimento
               </Button>
             </div>
           ) : localStatus !== OrderStatus.COMPLETED && localStatus !== OrderStatus.BLOCKED && localStatus !== OrderStatus.CANCELED ? (
             localStatus === OrderStatus.IN_PROGRESS ? (
-              <Button variant="tech-primary" className="w-full py-6 rounded-2xl font-black text-sm uppercase italic shadow-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98]" onClick={handleFinalizeService} isLoading={loading}>
-                <CheckCircle size={22} /> Finalizar e Sincronizar
-              </Button>
+              <div className="space-y-3">
+                <Button variant="tech-primary" className="w-full py-4 rounded-xl font-black text-xs uppercase italic shadow-lg flex items-center justify-center gap-3 transition-all active:scale-[0.98]" onClick={handleFinalizeService} isLoading={loading}>
+                  <CheckCircle size={20} /> Finalizar e Sincronizar
+                </Button>
+                <div className="text-center">
+                  <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em]">Os dados serão propagados para a central</span>
+                </div>
+              </div>
             ) : (
               <div className="grid grid-cols-[1fr,auto] gap-3">
-                <Button variant="primary" className="w-full py-6 rounded-2xl font-black text-sm uppercase italic shadow-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98]" onClick={() => setShowConfirm(true)}>
-                  <Play size={22} fill="currentColor" /> Abrir Atendimento
+                <Button variant="primary" className="w-full py-4 rounded-xl font-black text-xs uppercase italic shadow-lg flex items-center justify-center gap-3 transition-all active:scale-[0.98]" onClick={() => setShowConfirm(true)}>
+                  <Play size={20} fill="currentColor" /> Abrir Atendimento
                 </Button>
                 <Button
                   variant="ghost"
-                  className="px-6 rounded-2xl border-2 border-red-100 text-red-500 hover:bg-red-50 hover:border-red-200"
+                  className="px-5 rounded-xl border-2 border-red-50 text-red-400 hover:bg-red-50"
                   onClick={() => setIsImpedimentMode(true)}
                   title="Registrar Impedimento"
                 >
-                  <Ban size={24} />
+                  <Ban size={20} />
                 </Button>
               </div>
             )
           ) : (
-            <Button variant="secondary" className="w-full py-6 rounded-2xl font-black text-sm uppercase text-slate-400" onClick={onClose}>
+            <Button variant="secondary" className="w-full py-4 rounded-xl font-black text-xs uppercase text-slate-400" onClick={onClose}>
               Fechar Visualização
             </Button>
           )}
-          <div className="w-full py-5 bg-indigo-50 border border-indigo-100 rounded-2xl text-center">
-            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Dados Sincronizados com a Central</span>
-          </div>
         </div>
       </div>
 
