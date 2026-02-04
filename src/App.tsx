@@ -27,7 +27,7 @@ import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, 
 
 import { DataService } from './services/dataService';
 import SessionStorage, { GlobalStorage } from './lib/sessionStorage';
-import { Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar, Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck, Settings, LogOut, Bell, CheckCircle2, DollarSign, RefreshCw, Package, ArrowRight, Shield, AlertTriangle, Lock, Navigation, Activity } from 'lucide-react';
+import { Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar, Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck, Settings, LogOut, Bell, CheckCircle2, DollarSign, RefreshCw, Package, ArrowRight, Shield, AlertTriangle, Lock, Navigation, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const getInitialDateRange = () => {
   return {
@@ -72,6 +72,7 @@ const App: React.FC = () => {
 
   const [overviewDateRange, setOverviewDateRange] = useState(getInitialDateRange());
   const [activitiesDateRange, setActivitiesDateRange] = useState(getInitialDateRange());
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const handleManualRefresh = async () => {
     try {
@@ -596,34 +597,58 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
-      <aside className="w-56 bg-[#0f172a] flex flex-col border-r border-white/5 shadow-2xl z-50 overflow-y-auto">
-        <div className="p-5">
-          <div className="flex items-center gap-3 mb-8"><div className="p-2 bg-indigo-600 rounded-xl"><Hexagon size={20} className="text-white" /></div><h1 className="text-white font-black text-base italic uppercase">Nexus<span className="text-indigo-500">.Pro</span></h1></div>
+      <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-56'} bg-[#0f172a] flex flex-col border-r border-white/5 shadow-2xl z-50 transition-all duration-300 ease-in-out relative`}>
+        {/* Toggle Button */}
+        <button
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="absolute -right-3 top-20 w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-all z-[60] border border-white/10"
+        >
+          {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
+
+        <div className={`p-5 ${isSidebarCollapsed ? 'items-center' : ''}`}>
+          <div className={`flex items-center gap-3 mb-8 transition-all ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+            <div className="p-2 bg-indigo-600 rounded-xl shrink-0">
+              <Hexagon size={20} className="text-white" />
+            </div>
+            {!isSidebarCollapsed && (
+              <h1 className="text-white font-black text-base italic uppercase animate-in fade-in duration-300">
+                Nexus<span className="text-indigo-500">.Pro</span>
+              </h1>
+            )}
+          </div>
+
           <nav className="space-y-1">
             {menuItems.map(item => (
               <button
                 key={item.id}
                 onClick={() => item.enabled && setCurrentView(item.id as any)}
                 disabled={!item.enabled}
-                className={`w-full flex items-center justify-between px-5 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative whitespace-nowrap ${!item.enabled
+                title={isSidebarCollapsed ? item.label : ''}
+                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-5'} py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden ${!item.enabled
                   ? 'opacity-30 grayscale cursor-not-allowed text-slate-600 border border-transparent translate-x-0'
                   : currentView === item.id
                     ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 italic translate-x-1'
                     : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
                   }`}
               >
-                <div className="flex items-center gap-3">
-                  <item.icon size={18} />
-                  {item.label}
+                <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+                  <item.icon size={18} className="shrink-0" />
+                  {!isSidebarCollapsed && (
+                    <span className="animate-in fade-in slide-in-from-left-2 duration-300">
+                      {item.label}
+                    </span>
+                  )}
                 </div>
-                {!item.enabled && (
+                {!isSidebarCollapsed && !item.enabled && (
                   <Lock size={12} className="text-slate-600 animate-pulse" />
                 )}
               </button>
             ))}
           </nav>
         </div>
-        <div className="mt-auto p-5 space-y-3">
+
+        <div className={`mt-auto p-5 space-y-3 ${isSidebarCollapsed ? 'items-center' : ''}`}>
           {isImpersonating && (
             <button
               onClick={() => {
@@ -631,16 +656,20 @@ const App: React.FC = () => {
                 SessionStorage.remove('user');
                 window.location.href = '/master';
               }}
-              className="w-full py-5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-purple-500/40 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 border border-white/20 italic"
+              title={isSidebarCollapsed ? 'Finalizar Auditoria' : ''}
+              className={`w-full py-5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-[2rem] text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-purple-500/40 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 border border-white/20 italic ${isSidebarCollapsed ? 'px-0' : ''}`}
             >
-              <ShieldCheck size={18} className="animate-pulse" /> Finalizar Auditoria
+              <ShieldCheck size={18} className={`${!isSidebarCollapsed ? 'animate-pulse' : ''}`} />
+              {!isSidebarCollapsed && "Finalizar Auditoria"}
             </button>
           )}
           <button
             onClick={handleLogout}
-            className="w-full py-4 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-3"
+            title={isSidebarCollapsed ? 'Encerrar Sessão' : ''}
+            className={`w-full py-4 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-3 ${isSidebarCollapsed ? 'px-0' : ''}`}
           >
-            <LogOut size={16} /> Encerrar Sessão
+            <LogOut size={16} />
+            {!isSidebarCollapsed && "Encerrar Sessão"}
           </button>
         </div>
       </aside>
