@@ -68,52 +68,64 @@ export const TechAppShell: React.FC = () => {
         let isMounted = true;
         let unsubscribe: (() => void) | null = null;
 
+        // Safety timeout: destrava o "Carregando" após 6 segundos caso o banco demore
+        const timeoutId = setTimeout(() => {
+            if (isMounted) {
+                console.warn('[TechAppShell] Init Timeout - Forçando carregamento');
+                setIsInitializing(false);
+            }
+        }, 6000);
+
         const initApp = async () => {
             try {
                 const { supabase } = await import('../../lib/supabase');
 
-                // Configura listener de auth
+                // 1. Checa sessão inicial IMEDIATAMENTE
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+                if (sessionError) throw sessionError;
+
+                if (session?.user) {
+                    const refreshedUser = await DataService.refreshUser().catch(() => null);
+                    if (isMounted && refreshedUser) {
+                        if (refreshedUser.role === UserRole.TECHNICIAN) {
+                            TechSessionStorage.set(refreshedUser);
+                            setAuth({ user: refreshedUser, isAuthenticated: true });
+                        } else {
+                            await supabase.auth.signOut();
+                            TechSessionStorage.clear();
+                        }
+                    }
+                }
+
+                // 2. Configura listener para mudanças futuras
                 const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
                     if (!isMounted) return;
 
-                    console.log('[TechAppShell] Auth event:', event);
-
-                    if (session?.user) {
-                        try {
-                            const refreshedUser = await DataService.refreshUser();
-                            if (refreshedUser && refreshedUser.role === UserRole.TECHNICIAN) {
-                                TechSessionStorage.set(refreshedUser);
-                                setAuth({ user: refreshedUser, isAuthenticated: true });
-                            } else if (refreshedUser && refreshedUser.role !== UserRole.TECHNICIAN) {
-                                // Usuário logado mas não é técnico
-                                console.log('[TechAppShell] User is not a technician');
-                                await supabase.auth.signOut();
-                                TechSessionStorage.clear();
-                                setAuth({ user: null, isAuthenticated: false });
+                    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                        if (session?.user) {
+                            const user = await DataService.refreshUser().catch(() => null);
+                            if (user && user.role === UserRole.TECHNICIAN) {
+                                TechSessionStorage.set(user);
+                                setAuth({ user: user, isAuthenticated: true });
                             }
-                        } catch (err) {
-                            console.error('[TechAppShell] Error refreshing user:', err);
                         }
                     } else if (event === 'SIGNED_OUT') {
                         TechSessionStorage.clear();
                         setAuth({ user: null, isAuthenticated: false });
                     }
-
-                    setIsInitializing(false);
                 });
 
                 unsubscribe = () => subscription.unsubscribe();
 
-                // Checa sessão inicial
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session) {
-                    setIsInitializing(false);
-                }
-
             } catch (err: any) {
                 console.error('[TechAppShell] Init error:', err);
                 if (isMounted) {
-                    setInitError(err.message || 'Erro ao inicializar');
+                    setInitError(err.message || 'Erro ao conectar');
+                }
+            } finally {
+                if (isMounted) {
+                    clearTimeout(timeoutId);
                     setIsInitializing(false);
                 }
             }
@@ -123,6 +135,7 @@ export const TechAppShell: React.FC = () => {
 
         return () => {
             isMounted = false;
+            clearTimeout(timeoutId);
             if (unsubscribe) unsubscribe();
         };
     }, []);
