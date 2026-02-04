@@ -14,10 +14,11 @@ interface AdminOverviewProps {
   startDate: string;
   endDate: string;
   onDateChange: (start: string, end: string) => void;
+  onSwitchView: (view: 'dashboard' | 'orders' | 'contracts' | 'quotes' | 'techs' | 'map' | 'equip' | 'clients' | 'forms' | 'settings' | 'superadmin' | 'users' | 'stock' | 'financial' | 'calendar') => void;
 }
 
 export const AdminOverview: React.FC<AdminOverviewProps> = ({
-  orders, contracts, techs, customers, startDate, endDate, onDateChange
+  orders, contracts, techs, customers, startDate, endDate, onDateChange, onSwitchView
 }) => {
   // Filtros Avançados (Mesma lógica da página de atividades)
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,7 +68,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const activeContracts = useMemo(() => contracts.filter(c => c.status !== 'CANCELADO'), [contracts]);
   const total = filteredOrders.length;
 
-  // Cálculos de KPI de Fechamento (24h, 36h, 48h)
+  // Cálculos de KPI de Fechamento (Exclusivos: 24h, 36h, 48h)
   const closureKPIs = useMemo(() => {
     const completed = filteredOrders.filter(o => o.status === OrderStatus.COMPLETED && o.createdAt && o.endDate);
 
@@ -81,8 +82,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       const diffHours = (closed - created) / (1000 * 60 * 60);
 
       if (diffHours <= 24) within24++;
-      if (diffHours <= 36) within36++;
-      if (diffHours <= 48) within48++;
+      else if (diffHours <= 36) within36++;
+      else if (diffHours <= 48) within48++;
     });
 
     const slaEfficiency = completed.length > 0 ? Math.round((within24 / completed.length) * 100) : 0;
@@ -277,18 +278,6 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             </div>
             <div className="p-3 bg-emerald-50 text-emerald-500 rounded-2xl group-hover:scale-110 transition-transform"><Zap size={20} /></div>
           </div>
-          <p className="text-[8px] font-bold text-slate-400 uppercase mt-4">Total concluído: {closureKPIs.totalCompleted}</p>
-        </div>
-
-        {/* KPI: FECHAMENTO EM 36H/48H */}
-        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resolvido 48h</p>
-              <h3 className="text-3xl font-black text-slate-900 italic tracking-tighter mt-1">{closureKPIs.within48}</h3>
-            </div>
-            <div className="p-3 bg-amber-50 text-amber-500 rounded-2xl group-hover:scale-110 transition-transform"><Clock size={20} /></div>
-          </div>
           <div className="grid grid-cols-2 gap-2 mt-4">
             <div className="bg-slate-50 rounded-lg p-2">
               <span className="text-[7px] font-black text-slate-400 uppercase">Em 36h</span>
@@ -301,22 +290,40 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           </div>
         </div>
 
-        {/* KPI: PENDENTES / ATRASADOS */}
+        {/* KPI: ABERTOS / EM ANDAMENTO */}
         <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Abertos / Em Andamento</p>
-              <h3 className="text-3xl font-black text-slate-900 italic tracking-tighter mt-1">
-                {filteredOrders.filter(o => o.status !== OrderStatus.COMPLETED && o.status !== OrderStatus.CANCELED).length}
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ativos / Em Execução</p>
+              <h3 className="text-3xl font-black text-indigo-600 italic tracking-tighter mt-1">
+                {filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.IN_PROGRESS].includes(o.status)).length}
               </h3>
             </div>
             <div className="p-3 bg-indigo-50 text-indigo-500 rounded-2xl group-hover:scale-110 transition-transform"><Activity size={20} /></div>
           </div>
-          <div className="flex items-center gap-1.5 mt-4">
-            <div className="flex-1 h-1.5 bg-slate-50 rounded-full overflow-hidden">
-              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${(filteredOrders.filter(o => o.status === OrderStatus.IN_PROGRESS).length / (total || 1)) * 100}%` }}></div>
+          <p className="text-[8px] font-bold text-slate-400 uppercase mt-4">Fila de Atendimento Digital</p>
+        </div>
+
+        {/* KPI: IMPEDIDOS / CANCELADOS (Separados) */}
+        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Anomalias / Parada</p>
+              <h3 className="text-3xl font-black text-rose-500 italic tracking-tighter mt-1">
+                {filteredOrders.filter(o => o.status === OrderStatus.BLOCKED || o.status === OrderStatus.CANCELED).length}
+              </h3>
             </div>
-            <span className="text-[8px] font-black text-slate-400 uppercase">Ativos</span>
+            <div className="p-3 bg-rose-50 text-rose-500 rounded-2xl group-hover:scale-110 transition-transform"><ZapOff size={20} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <div className="bg-rose-50/50 rounded-lg p-2">
+              <span className="text-[7px] font-black text-rose-400 uppercase">Impedidas</span>
+              <p className="text-[10px] font-black text-rose-700">{filteredOrders.filter(o => o.status === OrderStatus.BLOCKED).length}</p>
+            </div>
+            <div className="bg-slate-100 rounded-lg p-2">
+              <span className="text-[7px] font-black text-slate-500 uppercase">Canceladas</span>
+              <p className="text-[10px] font-black text-slate-700">{filteredOrders.filter(o => o.status === OrderStatus.CANCELED).length}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -431,7 +438,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                 ))}
               </div>
 
-              <button className="w-full mt-4 py-2 text-[8px] font-black uppercase text-sky-400 hover:bg-white/5 rounded-lg border border-dashed border-sky-400/30 transition-all flex items-center justify-center gap-2">
+              <button
+                onClick={() => onSwitchView('contracts')}
+                className="w-full mt-4 py-2 text-[8px] font-black uppercase text-sky-400 hover:bg-white/5 rounded-lg border border-dashed border-sky-400/30 transition-all flex items-center justify-center gap-2"
+              >
                 Acessar Módulo <ArrowRight size={10} />
               </button>
             </div>

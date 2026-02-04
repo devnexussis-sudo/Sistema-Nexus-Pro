@@ -694,6 +694,7 @@ const App: React.FC = () => {
               startDate={overviewDateRange.start}
               endDate={overviewDateRange.end}
               onDateChange={(start, end) => setOverviewDateRange({ start, end })}
+              onSwitchView={(v) => setCurrentView(v as any)}
             />
           )}
           {currentView === 'orders' && hasPermission('orders', 'read') && (

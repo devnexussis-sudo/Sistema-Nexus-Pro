@@ -181,6 +181,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     window.open(publicUrl, '_blank');
   };
 
+  const handleCancelOrder = async (order: ServiceOrder, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (order.status === OrderStatus.CANCELED) return;
+    if (!confirm('Tem certeza que deseja cancelar esta Ordem de Serviço? Esta ação bloqueará edições futuras.')) return;
+
+    await onEditOrder({ ...order, status: OrderStatus.CANCELED });
+  };
+
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return '---';
     const date = new Date(dateStr + 'T12:00:00');
@@ -437,11 +445,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </td>
                     <td className="px-4 py-5 text-right pr-6">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={(e) => handleOpenPublicView(order, e)} className="p-2.5 bg-white text-slate-400 hover:text-indigo-600 rounded-xl shadow-sm border border-slate-100 hover:border-indigo-100 transition-all">
+                        <button
+                          onClick={(e) => handleOpenPublicView(order, e)}
+                          className="p-2.5 bg-white text-slate-400 hover:text-indigo-600 rounded-xl shadow-sm border border-slate-100 hover:border-indigo-100 transition-all"
+                          title="Relatório Público"
+                        >
                           <Share2 size={14} />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }} className="p-2.5 bg-white text-slate-400 hover:text-indigo-600 rounded-xl shadow-sm border border-slate-100 hover:border-indigo-100 transition-all">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }}
+                          disabled={order.status === OrderStatus.CANCELED}
+                          className={`p-2.5 bg-white rounded-xl shadow-sm border transition-all ${order.status === OrderStatus.CANCELED ? 'opacity-30 cursor-not-allowed border-slate-100 text-slate-300' : 'text-slate-400 hover:text-indigo-600 border-slate-100 hover:border-indigo-100'}`}
+                          title="Editar OS"
+                        >
                           <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => handleCancelOrder(order, e)}
+                          disabled={order.status === OrderStatus.CANCELED}
+                          className={`p-2.5 bg-white rounded-xl shadow-sm border transition-all ${order.status === OrderStatus.CANCELED ? 'opacity-30 cursor-not-allowed border-slate-100 text-slate-300' : 'text-slate-400 hover:text-rose-600 border-slate-100 hover:border-rose-100'}`}
+                          title="Cancelar OS"
+                        >
+                          <Ban size={14} />
                         </button>
                       </div>
                     </td>
