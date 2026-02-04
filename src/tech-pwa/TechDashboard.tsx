@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { User, UserRole, ServiceOrder, OrderStatus, OrderPriority } from '../types';
 import { OrderDetailsModal } from './OrderDetailsModal';
 import { StatusBadge, PriorityBadge } from '../components/ui/StatusBadge';
-import { RefreshCw, CheckCircle2, Clock, ChevronRight, LogOut, AlertTriangle, Hexagon, Filter, Calendar as CalendarIcon, X, Share2, MessageCircle, Navigation2 } from 'lucide-react';
+import { RefreshCw, CheckCircle2, Clock, ChevronRight, LogOut, AlertTriangle, Hexagon, Filter, Calendar as CalendarIcon, X, Share2, MessageCircle, Navigation2, ZapOff, Ban } from 'lucide-react';
 import { DataService } from '../services/dataService';
 
 interface TechDashboardProps {
@@ -28,48 +28,68 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
   // Combina o loading local do botão com o global do download
   const isLoading = loading || isFetching;
 
-  // 🛰️ NEXUS GEOLOCATION TRACKING SYSTEM
+  // 🛰️ NEXUS GEOLOCATION TRACKING SYSTEM (WATCH MODE)
   React.useEffect(() => {
     if (!user || user.role !== UserRole.TECHNICIAN) return;
 
-    const updateLocation = () => {
+    let watchId: number | null = null;
+
+    const startTracking = () => {
       if ("geolocation" in navigator) {
+        console.log("[🛰️ Geolocation] Iniciando monitoramento contínuo (Watch Mode)...");
+
+        // Ping imediato para garantir posição atual
         navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            await DataService.updateTechnicianLocation(user.id, pos.coords.latitude, pos.coords.longitude);
+          },
+          (err) => console.warn("[🛰️ Geolocation] Ping inicial falhou:", err.message),
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+
+        // Configuração do Watch para alta fidelidade e persistência
+        watchId = navigator.geolocation.watchPosition(
           async (position) => {
-            const { latitude, longitude } = position.coords;
-            console.log(`[🛰️ Geolocation] Ping enviado para ID ${user.id}: ${latitude}, ${longitude}`);
+            const { latitude, longitude, accuracy } = position.coords;
+            console.log(`[🛰️ Geolocation] Movimento detectado (Acurácia: ${accuracy.toFixed(1)}m): ${latitude}, ${longitude}`);
+
             try {
+              // Só envia se tiver uma acurácia razoável ou for a primeira vez
               await DataService.updateTechnicianLocation(user.id, latitude, longitude);
             } catch (err) {
-              console.error("[🛰️ Geolocation] Falha no envio:", err);
+              console.error("[🛰️ Geolocation] Erro no DataSync:", err);
             }
           },
           (error) => {
-            console.warn("[🛰️ Geolocation] Erro ao obter posição:", error.message);
+            console.warn(`[🛰️ Geolocation] Erro no monitoramento: (${error.code}) ${error.message}`);
+            // Se falhar o watch, tenta reiniciar após um tempo
+            if (error.code === 3) { // TIMEOUT
+              setTimeout(startTracking, 30000);
+            }
           },
-          { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+          {
+            enableHighAccuracy: true,
+            timeout: 30000,
+            maximumAge: 0
+          }
         );
-      } else {
-        console.error("[🛰️ Geolocation] Navegador não suporta geolocalização.");
       }
     };
 
-    // Ping imediato ao logar
-    updateLocation();
+    startTracking();
 
-    // Ping a cada 10 minutos (600000ms) para economizar bateria e dados
-    const interval = setInterval(updateLocation, 10 * 60 * 1000);
-
-    // 🔋 Background Location Support: Continua enviando mesmo em segundo plano
+    // 🔋 Background Support: Visibility Change
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        updateLocation(); // Atualiza quando volta ao foco
+      // Se voltar a ficar visível, garante que o tracking está vivo
+      if (!document.hidden && !watchId) {
+        startTracking();
       }
     };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user]);
@@ -102,7 +122,14 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
   };
 
   const filteredOrders = orders.filter(order => {
-    const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
+    let matchesStatus = false;
+    if (statusFilter === 'ALL') {
+      matchesStatus = true;
+    } else if (statusFilter === 'PENDING_ASSIGNED') {
+      matchesStatus = order.status === OrderStatus.PENDING || order.status === OrderStatus.ASSIGNED;
+    } else {
+      matchesStatus = order.status === statusFilter;
+    }
 
     let matchesDate = true;
     if (startDate || endDate) {
@@ -134,6 +161,18 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
   const todayCompleted = orders.filter(o => o.status === OrderStatus.COMPLETED).length;
   const inProgress = orders.filter(o => o.status === OrderStatus.IN_PROGRESS).length;
   const pending = orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.ASSIGNED).length;
+  const blocked = orders.filter(o => o.status === OrderStatus.BLOCKED).length;
+  const canceled = orders.filter(o => o.status === OrderStatus.CANCELED).length;
+
+  const handleKPISelect = (status: string) => {
+    setStatusFilter(status);
+    setCurrentPage(1);
+    // Rolagem suave para a lista
+    const listElement = document.getElementById('orders-list');
+    if (listElement) {
+      listElement.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return '---';
@@ -193,18 +232,55 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col items-center">
-            <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg mb-1"><CheckCircle2 size={14} /></div>
-            <p className="text-[7px] text-white/40 uppercase">Concluídas</p><p className="text-sm font-black text-white">{todayCompleted}</p>
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          <div
+            onClick={() => handleKPISelect(OrderStatus.COMPLETED)}
+            className={`cursor-pointer border transition-all rounded-2xl p-3 flex flex-col items-center ${statusFilter === OrderStatus.COMPLETED ? 'bg-emerald-500 border-emerald-400 shadow-lg shadow-emerald-500/30' : 'bg-white/5 border-white/10'}`}
+          >
+            <div className={`p-2 rounded-lg mb-1 ${statusFilter === OrderStatus.COMPLETED ? 'bg-white/20 text-white' : 'bg-emerald-500/20 text-emerald-400'}`}><CheckCircle2 size={14} /></div>
+            <p className={`text-[7px] uppercase ${statusFilter === OrderStatus.COMPLETED ? 'text-white/80' : 'text-white/40'}`}>Concluídas</p>
+            <p className="text-sm font-black text-white">{todayCompleted}</p>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col items-center">
-            <div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg mb-1"><RefreshCw size={14} /></div>
-            <p className="text-[7px] text-white/40 uppercase">Em Execução</p><p className="text-sm font-black text-white">{inProgress}</p>
+          <div
+            onClick={() => handleKPISelect(OrderStatus.IN_PROGRESS)}
+            className={`cursor-pointer border transition-all rounded-2xl p-3 flex flex-col items-center ${statusFilter === OrderStatus.IN_PROGRESS ? 'bg-blue-500 border-blue-400 shadow-lg shadow-blue-500/30' : 'bg-white/5 border-white/10'}`}
+          >
+            <div className={`p-2 rounded-lg mb-1 ${statusFilter === OrderStatus.IN_PROGRESS ? 'bg-white/20 text-white' : 'bg-blue-500/20 text-blue-400'}`}><RefreshCw size={14} /></div>
+            <p className={`text-[7px] uppercase ${statusFilter === OrderStatus.IN_PROGRESS ? 'text-white/80' : 'text-white/40'}`}>Em Execução</p>
+            <p className="text-sm font-black text-white">{inProgress}</p>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col items-center">
-            <div className="p-2 bg-amber-500/20 text-amber-400 rounded-lg mb-1"><Clock size={14} /></div>
-            <p className="text-[7px] text-white/40 uppercase">Pendentes</p><p className="text-sm font-black text-white">{pending}</p>
+          <div
+            onClick={() => handleKPISelect('PENDING_ASSIGNED')}
+            className={`cursor-pointer border transition-all rounded-2xl p-3 flex flex-col items-center ${statusFilter === 'PENDING_ASSIGNED' ? 'bg-amber-500 border-amber-400 shadow-lg shadow-amber-500/30' : 'bg-white/5 border-white/10'}`}
+          >
+            <div className={`p-2 rounded-lg mb-1 ${statusFilter === 'PENDING_ASSIGNED' ? 'bg-white/20 text-white' : 'bg-amber-500/20 text-amber-400'}`}><Clock size={14} /></div>
+            <p className={`text-[7px] uppercase ${statusFilter === 'PENDING_ASSIGNED' ? 'text-white/80' : 'text-white/40'}`}>Pendentes</p>
+            <p className="text-sm font-black text-white">{pending}</p>
+          </div>
+        </div>
+
+        {/* ⚠️ KPI DE EXCEÇÕES (IMPEDIDAS / CANCELADAS) */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <div
+            onClick={() => handleKPISelect(OrderStatus.BLOCKED)}
+            className={`cursor-pointer border transition-all rounded-2xl px-4 py-2.5 flex items-center justify-between ${statusFilter === OrderStatus.BLOCKED ? 'bg-rose-500 border-rose-400 shadow-lg shadow-rose-500/30' : 'bg-rose-500/5 border-rose-500/20'}`}
+          >
+            <div className="flex items-center gap-2">
+              <div className={`p-1.5 rounded-lg ${statusFilter === OrderStatus.BLOCKED ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-400'}`}><ZapOff size={12} /></div>
+              <p className={`text-[8px] font-black uppercase tracking-tight ${statusFilter === OrderStatus.BLOCKED ? 'text-white' : 'text-rose-400'}`}>Impedidas</p>
+            </div>
+            <p className={`text-xs font-black ${statusFilter === OrderStatus.BLOCKED ? 'text-white' : 'text-rose-500'}`}>{blocked}</p>
+          </div>
+
+          <div
+            onClick={() => handleKPISelect(OrderStatus.CANCELED)}
+            className={`cursor-pointer border transition-all rounded-2xl px-4 py-2.5 flex items-center justify-between ${statusFilter === OrderStatus.CANCELED ? 'bg-slate-700 border-slate-600 shadow-lg shadow-slate-700/30' : 'bg-white/5 border-white/10'}`}
+          >
+            <div className="flex items-center gap-2">
+              <div className={`p-1.5 rounded-lg ${statusFilter === OrderStatus.CANCELED ? 'bg-white/20 text-white' : 'bg-slate-500/20 text-slate-400'}`}><Ban size={12} /></div>
+              <p className={`text-[8px] font-black uppercase tracking-tight ${statusFilter === OrderStatus.CANCELED ? 'text-white' : 'text-slate-400'}`}>Canceladas</p>
+            </div>
+            <p className={`text-xs font-black ${statusFilter === OrderStatus.CANCELED ? 'text-white' : 'text-slate-300'}`}>{canceled}</p>
           </div>
         </div>
 
@@ -235,11 +311,11 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[10px] font-black text-white uppercase outline-none focus:border-emerald-500/50 appearance-none"
                 >
                   <option value="ALL">Todos os Status</option>
-                  <option value={OrderStatus.PENDING}>Pendente</option>
-                  <option value={OrderStatus.ASSIGNED}>Atribuído</option>
+                  <option value="PENDING_ASSIGNED">Pendentes (Novo/Atribuído)</option>
                   <option value={OrderStatus.IN_PROGRESS}>Em Execução</option>
-                  <option value={OrderStatus.BLOCKED}>Impedido</option>
                   <option value={OrderStatus.COMPLETED}>Concluído</option>
+                  <option value={OrderStatus.BLOCKED}>Impedido</option>
+                  <option value={OrderStatus.CANCELED}>Cancelado</option>
                 </select>
               </div>
 
@@ -274,7 +350,7 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
         </div>
       </div>
 
-      <div className="p-4 space-y-3 max-w-lg mx-auto">
+      <div id="orders-list" className="p-4 space-y-3 max-w-lg mx-auto">
         {filteredOrders.length === 0 && !isFetching ? (
           <div className="py-20 text-center space-y-4">
             <Clock size={48} className="mx-auto text-slate-300" />
