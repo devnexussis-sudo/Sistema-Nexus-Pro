@@ -63,6 +63,8 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
             }
         } else if (isIOS) {
             alert('Para instalar no iPhone:\n1. Toque no ícone de Compartilhar (quadrado com seta)\n2. Role para baixo e toque em "Adicionar à Tela de Início"');
+        } else {
+            alert('Para instalar no Android:\n1. Toque nos 3 pontos verticais (canto superior direito)\n2. Toque em "Instalar aplicativo" ou "Adicionar à tela inicial"');
         }
     };
 
@@ -205,28 +207,37 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
                         </form>
                     </div>
 
-                    {/* Botão de Instalação ou Instruções */}
+                    {/* Botão de Instalação Pulsante e Aparente */}
                     {!isStandalone && (
-                        <div className="space-y-3">
-                            {(isInstallable || isIOS) ? (
-                                <button
-                                    onClick={handleInstallClick}
-                                    className="w-full group relative py-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl transition-all hover:bg-emerald-500/20 active:scale-95"
-                                >
-                                    <div className="flex items-center justify-center gap-3 text-emerald-400">
-                                        <Download size={18} />
-                                        <span className="text-[9px] font-black uppercase tracking-[0.15em]">
-                                            {isIOS ? 'Instalar no iPhone' : 'Baixar Aplicativo (Android)'}
+                        <div className="pt-2">
+                            <button
+                                onClick={handleInstallClick}
+                                className="w-full relative py-5 bg-emerald-500/10 border-2 border-emerald-500/40 rounded-2xl transition-all active:scale-95 animate-pulse shadow-[0_0_20px_rgba(16,185,129,0.2)] overflow-hidden group"
+                            >
+                                {/* Efeito de brilho passando */}
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-400/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+
+                                <div className="flex flex-col items-center justify-center gap-1 text-emerald-400 relative z-10">
+                                    <div className="flex items-center gap-3">
+                                        <Download size={22} className="animate-bounce" />
+                                        <span className="text-[11px] font-black uppercase tracking-[0.2em]">
+                                            {isIOS ? 'Instalar no iPhone (iOS)' :
+                                                isInstallable ? 'Instalar Agora (Android)' :
+                                                    'Como Instalar o APP'}
                                         </span>
                                     </div>
-                                </button>
-                            ) : (
-                                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl flex items-start gap-3">
-                                    <Info size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                    <p className="text-white/30 text-[8px] font-bold uppercase leading-relaxed text-left">
-                                        Dica: Use Chrome ou Safari para instalar o app na tela inicial.
-                                    </p>
+                                    {!isInstallable && !isIOS && (
+                                        <span className="text-[7px] font-bold uppercase opacity-60 tracking-widest">
+                                            Clique para ver as instruções de instalação
+                                        </span>
+                                    )}
                                 </div>
+                            </button>
+
+                            {!isInstallable && !isIOS && (
+                                <p className="mt-3 text-white/20 text-[8px] font-bold uppercase text-center leading-relaxed px-4">
+                                    Para melhor experiência, instale o Nexus Tech na sua tela de início usando o menu do Chrome ou Safari.
+                                </p>
                             )}
                         </div>
                     )}
