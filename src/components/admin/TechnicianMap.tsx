@@ -72,8 +72,19 @@ export const TechnicianMap: React.FC = () => {
     useEffect(() => {
         loadTechnicians();
         const interval = setInterval(loadTechnicians, 30000); // Refresh every 30s
-        return () => clearInterval(interval);
-    }, []);
+
+        // 🔧 Nexus Map Fix: Garante que o mapa recalcule seu tamanho após a renderização inicial
+        const timer = setTimeout(() => {
+            if (mapInstance) {
+                mapInstance.invalidateSize();
+            }
+        }, 500);
+
+        return () => {
+            clearInterval(interval);
+            clearTimeout(timer);
+        };
+    }, [mapInstance]);
 
     // 🌙 Verifica se virou o dia e limpa cache automaticamente
     useEffect(() => {
