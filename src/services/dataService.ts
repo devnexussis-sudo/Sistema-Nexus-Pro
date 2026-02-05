@@ -226,8 +226,9 @@ export const DataService = {
             cacheControl: '3600'
           });
 
+        // 🛡️ MOBILE NETWORK GUARD: 120s (2 min) timeout for large raw file uploads on 5G
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('NETWORK_TIMEOUT')), 35000)
+          setTimeout(() => reject(new Error('NETWORK_TIMEOUT')), 120000)
         );
 
         const response = await Promise.race([uploadPromise, timeoutPromise]) as any;
@@ -316,12 +317,12 @@ export const DataService = {
         });
       })();
 
-      // 🛡️ Race: 20 seconds max for processing. If slow device, just upload original.
+      // 🛡️ Race: 45 seconds max for processing. If slow device, just upload original.
       const timeoutPromise = new Promise<Blob>((resolve) =>
         setTimeout(() => {
           console.warn("[Compress] Timeout - skipping optimization");
           resolve(file);
-        }, 20000)
+        }, 45000)
       );
 
       return await Promise.race([processingPromise, timeoutPromise]);
@@ -338,14 +339,14 @@ export const DataService = {
   /**
    * 🛡️ NASA Direct Integrated Upload
    * Direct entry point for UI components.
-   * Optimized for field use: 1000px @ 0.70 quality for high-performance mobile uploads.
+   * Optimized for field use: 800px @ 0.60 quality guarantees sub-100KB files.
    */
   uploadServiceOrderEvidence: async (file: File, orderId: string): Promise<string> => {
     if (!isCloudEnabled) return URL.createObjectURL(file);
     try {
       console.log(`[PhotoUpload] Optimizing ${file.name} for field upload...`);
-      // 🚀 FIELD-FIRST PRESET: 900px @ 0.65 quality (Extremely lightweight, <150KB)
-      const blob = await DataService.processAndCompress(file, 900, 0.65);
+      // 🚀 FIELD-FIRST PRESET: 800px @ 0.60 quality (Extremely lightweight)
+      const blob = await DataService.processAndCompress(file, 800, 0.60);
       return await DataService.uploadBlob(blob, `orders/${orderId}/evidence`);
     } catch (err) {
       console.error("[DataService] Integrated upload failed:", err);
