@@ -259,20 +259,18 @@ export const DataService = {
   processAndCompress: async (file: File, maxWidth = 1200, quality = 0.8): Promise<Blob> => {
     // 🛡️ Fail-Safe Wrapper: If anything goes wrong, we MUST return the original file.
     try {
+      // 🚀 SPEED OPTIMIZATION: If file is already small (< 2.5MB), don't risk processing it.
+      if (file.size < 2500000) {
+        console.log("[Compress] File is small enough, skipping compression for stability.");
+        return file;
+      }
+
       let currentBlob: Blob | File = file;
 
       const processingPromise = (async () => {
-        // 1. HEIC
-        const isHeic = file.name.toLowerCase().match(/\.(heic|heif)$/) || file.type === 'image/heic' || file.type === 'image/heif';
-        if (isHeic) {
-          try {
-            const heic2any = (await import('heic2any')).default;
-            const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
-            currentBlob = Array.isArray(result) ? result[0] : result;
-          } catch (e) {
-            console.warn("[Compress] HEIC failed, using raw.", e);
-          }
-        }
+        // 1. HEIC Handling (Simplified)
+        // Most mobile browsers convert HEIC to JPG automatically on upload.
+        // If we receive a raw HEIC, we try to draw it. If that fails, we fallback to raw upload.
 
         // 2. Canvas Resize
         return new Promise<Blob>((resolve, reject) => {
@@ -317,12 +315,12 @@ export const DataService = {
         });
       })();
 
-      // 🛡️ Race: 45 seconds max for processing. If slow device, just upload original.
+      // 🛡️ Race: Only wait 8 seconds. If it takes longer, the device is struggling.
       const timeoutPromise = new Promise<Blob>((resolve) =>
         setTimeout(() => {
-          console.warn("[Compress] Timeout - skipping optimization");
+          console.warn("[Compress] Timeout (8s) - abandoning optimization to preserve UX");
           resolve(file);
-        }, 45000)
+        }, 8000)
       );
 
       return await Promise.race([processingPromise, timeoutPromise]);
