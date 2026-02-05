@@ -214,10 +214,17 @@ export const DataService = {
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.webp`;
     const fullPath = `${tenantId}/${cleanPath}/${fileName}`.replace(/\/+/g, '/');
 
-    console.log(`[Storage] Initializing secure upload to: ${fullPath} (${(blobOrFile.size / 1024).toFixed(2)}KB)`);
+    console.log(`[Storage] 🚀 ===== INICIANDO UPLOAD CORE =====`);
+    console.log(`[Storage] Caminho completo: ${fullPath}`);
+    console.log(`[Storage] Tamanho: ${(blobOrFile.size / 1024).toFixed(2)}KB`);
+    console.log(`[Storage] Tipo: ${blobOrFile.type}`);
+    console.log(`[Storage] Tentativas máximas: ${retryCount + 1}`);
 
     for (let i = 0; i <= retryCount; i++) {
+      console.log(`[Storage] 📡 Tentativa ${i + 1}/${retryCount + 1}...`);
+
       try {
+        console.log(`[Storage]   → Iniciando upload para Supabase...`);
         const uploadPromise = supabase.storage
           .from('nexus-files')
           .upload(fullPath, blobOrFile, {
@@ -226,29 +233,62 @@ export const DataService = {
             cacheControl: '3600'
           });
 
-        // 🛡️ MOBILE NETWORK GUARD: 120s (2 min) timeout for large raw file uploads on 5G
+        console.log(`[Storage]   → Aguardando resposta (timeout: 120s)...`);
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('NETWORK_TIMEOUT')), 120000)
+          setTimeout(() => {
+            console.error(`[Storage]   ❌ TIMEOUT de rede após 120s`);
+            reject(new Error('NETWORK_TIMEOUT'));
+          }, 120000)
         );
 
         const response = await Promise.race([uploadPromise, timeoutPromise]) as any;
 
-        if (response?.error) throw response.error;
-        if (!response?.data) throw new Error("EMPTY_RESPONSE");
+        console.log(`[Storage]   → Resposta recebida:`, {
+          hasError: !!response?.error,
+          hasData: !!response?.data,
+          errorMsg: response?.error?.message
+        });
 
+        if (response?.error) {
+          console.error(`[Storage]   ❌ Erro do Supabase:`, response.error);
+          throw response.error;
+        }
+
+        if (!response?.data) {
+          console.error(`[Storage]   ❌ Resposta vazia do Supabase`);
+          throw new Error("EMPTY_RESPONSE");
+        }
+
+        console.log(`[Storage]   ✅ Upload bem-sucedido, gerando URL pública...`);
         const { data } = supabase.storage
           .from('nexus-files')
           .getPublicUrl(fullPath);
 
-        if (!data?.publicUrl) throw new Error("URL_GENERATION_FAILED");
+        if (!data?.publicUrl) {
+          console.error(`[Storage]   ❌ Falha ao gerar URL pública`);
+          throw new Error("URL_GENERATION_FAILED");
+        }
 
-        console.log(`[Storage] 🚀 Upload successful: ${data.publicUrl}`);
+        console.log(`[Storage] ✅ ===== UPLOAD CONCLUÍDO COM SUCESSO =====`);
+        console.log(`[Storage] URL: ${data.publicUrl}`);
         return data.publicUrl;
+
       } catch (err: any) {
-        console.error(`[Storage] Try ${i + 1} failed:`, err.message);
-        if (i === retryCount) throw err;
+        console.error(`[Storage] ❌ Tentativa ${i + 1} falhou:`);
+        console.error(`[Storage]    Tipo: ${err.name}`);
+        console.error(`[Storage]    Mensagem: ${err.message}`);
+        console.error(`[Storage]    Detalhes:`, err);
+
+        if (i === retryCount) {
+          console.error(`[Storage] ❌ ===== TODAS AS TENTATIVAS FALHARAM =====`);
+          throw err;
+        } else {
+          console.log(`[Storage]    → Tentando novamente em 1s...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
     }
+
     throw new Error("STORAGE_CRITICAL_FAILURE");
   },
 
@@ -379,54 +419,82 @@ export const DataService = {
    * Sempre WebP, sempre < 500KB, sempre rápido
    */
   uploadServiceOrderEvidence: async (file: File, orderId: string): Promise<string> => {
-    if (!isCloudEnabled) return URL.createObjectURL(file);
+    if (!isCloudEnabled) {
+      console.log('[PhotoUpload] ⚠️ Cloud desabilitado, retornando blob URL');
+      return URL.createObjectURL(file);
+    }
 
     const startTime = Date.now();
-    console.log(`[PhotoUpload] 📸 Iniciando processamento: ${file.name} (${(file.size / 1024).toFixed(0)}KB)`);
+    console.log(`[PhotoUpload] 📸 ===== INÍCIO DO UPLOAD =====`);
+    console.log(`[PhotoUpload] Arquivo: ${file.name}, tipo: ${file.type}, tamanho: ${(file.size / 1024).toFixed(0)}KB`);
 
     try {
-      // Compressão inteligente garantindo < 500KB
+      // ETAPA 1: Compressão
+      console.log(`[PhotoUpload] 🔄 ETAPA 1: Iniciando compressão...`);
       const compressedBlob = await DataService.processAndCompress(file);
 
       const compressionTime = Date.now() - startTime;
-      console.log(`[PhotoUpload] ✅ Compressão concluída em ${compressionTime}ms: ${(compressedBlob.size / 1024).toFixed(0)}KB`);
+      console.log(`[PhotoUpload] ✅ ETAPA 1 COMPLETA em ${compressionTime}ms`);
+      console.log(`[PhotoUpload]    → Tamanho: ${(compressedBlob.size / 1024).toFixed(0)}KB`);
+      console.log(`[PhotoUpload]    → Tipo: ${compressedBlob.type}`);
 
-      // 🛡️ VALIDAÇÃO RIGOROSA: Garante WebP e < 500KB
+      // ETAPA 2: Validação
+      console.log(`[PhotoUpload] 🔍 ETAPA 2: Validando...`);
       if (compressedBlob.size > 500 * 1024) {
-        console.error(`[PhotoUpload] ❌ ERRO: Blob ainda muito grande: ${(compressedBlob.size / 1024).toFixed(0)}KB`);
+        console.error(`[PhotoUpload] ❌ VALIDAÇÃO FALHOU: Blob muito grande: ${(compressedBlob.size / 1024).toFixed(0)}KB`);
         throw new Error(`Imagem muito grande (${(compressedBlob.size / 1024).toFixed(0)}KB). Máximo permitido: 500KB`);
       }
 
-      // Cria File com nome WebP explícito (força MIME type correto)
+      if (!compressedBlob.type.includes('webp')) {
+        console.error(`[PhotoUpload] ❌ VALIDAÇÃO FALHOU: Não é WebP. Tipo: ${compressedBlob.type}`);
+        throw new Error(`Formato inválido: ${compressedBlob.type}. Esperado: image/webp`);
+      }
+
+      console.log(`[PhotoUpload] ✅ ETAPA 2 COMPLETA: Validações OK`);
+
+      // ETAPA 3: Criar File WebP
+      console.log(`[PhotoUpload] 📦 ETAPA 3: Criando File WebP...`);
       const webpFile = new File(
         [compressedBlob],
         `photo_${Date.now()}.webp`,
         { type: 'image/webp' }
       );
+      console.log(`[PhotoUpload] ✅ ETAPA 3 COMPLETA: ${webpFile.name}, ${(webpFile.size / 1024).toFixed(0)}KB`);
 
-      console.log(`[PhotoUpload] 📦 Arquivo WebP criado: ${webpFile.name}, tipo: ${webpFile.type}, tamanho: ${(webpFile.size / 1024).toFixed(0)}KB`);
+      // ETAPA 4: Upload para Supabase
+      console.log(`[PhotoUpload] ☁️ ETAPA 4: Iniciando upload para Supabase...`);
+      console.log(`[PhotoUpload]    → Destino: orders/${orderId}/evidence`);
 
-      // Upload para Supabase
+      const uploadStartTime = Date.now();
       const url = await DataService.uploadBlob(webpFile, `orders/${orderId}/evidence`);
+      const uploadTime = Date.now() - uploadStartTime;
+
+      console.log(`[PhotoUpload] ✅ ETAPA 4 COMPLETA em ${uploadTime}ms`);
+      console.log(`[PhotoUpload]    → URL: ${url}`);
 
       const totalTime = Date.now() - startTime;
-      console.log(`[PhotoUpload] 🚀 Upload total concluído em ${totalTime}ms`);
-      console.log(`[PhotoUpload] 📍 URL final: ${url}`);
+      console.log(`[PhotoUpload] 🎉 ===== UPLOAD CONCLUÍDO COM SUCESSO =====`);
+      console.log(`[PhotoUpload] Tempo total: ${totalTime}ms (Compressão: ${compressionTime}ms, Upload: ${uploadTime}ms)`);
 
       return url;
-    } catch (err) {
-      console.error("[PhotoUpload] Erro no upload:", err);
+    } catch (err: any) {
+      const totalTime = Date.now() - startTime;
+      console.error(`[PhotoUpload] ❌ ===== ERRO NO UPLOAD (após ${totalTime}ms) =====`);
+      console.error(`[PhotoUpload] Tipo de erro: ${err.name}`);
+      console.error(`[PhotoUpload] Mensagem: ${err.message}`);
+      console.error(`[PhotoUpload] Stack:`, err.stack);
       throw err;
     }
   },
 
   /**
    * 🛡️ Optimized Blob Upload
-   * Reduced retry count to 1 for photos to prevent long UI hang times on bad connections.
+   * 2 retries for mobile reliability
    */
   uploadBlob: async (blob: Blob, path: string): Promise<string> => {
     if (!isCloudEnabled) return URL.createObjectURL(blob);
-    return DataService._uploadCore(blob, path, 1); // Only 1 retry for large binary
+    console.log(`[Upload Blob] Iniciando upload: ${(blob.size / 1024).toFixed(0)}KB para ${path}`);
+    return DataService._uploadCore(blob, path, 2); // 2 retries for mobile
   },
 
   /**
