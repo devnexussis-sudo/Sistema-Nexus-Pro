@@ -297,114 +297,104 @@ export const DataService = {
    * GARANTIA ABSOLUTA: Sempre retorna arquivo < 500KB em WebP
    * Estratégia: Compressão progressiva brutal até atingir target
    */
-  processAndCompress: async (file: File, maxWidth = 1200, quality = 0.8): Promise<Blob> => {
-    const TARGET_SIZE = 500 * 1024; // 500KB HARD LIMIT
+  /**
+   * 🎯 AGGRESSIVE INTELLIGENT COMPRESSOR (MIT LEVEL)
+   * SUPORTA: HEIC (iPhone), JPEG, PNG, WebP
+   * GARANTIA: Saída SEMPRE WebP < 500KB
+   */
+  processAndCompress: async (file: File): Promise<Blob> => {
+    const TARGET_SIZE = 500 * 1024; // 500KB
+    console.log(`[Compress] 🚀 Iniciando processamento de ${file.name} (${(file.size / 1024).toFixed(0)}KB)`);
 
-    console.log(`[Compress] 🎯 INICIANDO COMPRESSÃO AGRESSIVA`);
-    console.log(`[Compress] Arquivo original: ${file.name}, tipo: ${file.type}, tamanho: ${(file.size / 1024).toFixed(0)}KB`);
+    let workingFile: Blob | File = file;
 
+    // 🍎 TRATAMENTO ESPECIAL PARA HEIC (iPhone)
+    if (file.type.includes('heic') || file.name.toLowerCase().endsWith('.heic')) {
+      console.log('[Compress] 🍎 HEIC detectado. Carregando decodificador...');
+      try {
+        if (!(window as any).heic2any) {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
+
+        const heic2any = (window as any).heic2any;
+        const converted = await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.8
+        });
+
+        workingFile = Array.isArray(converted) ? converted[0] : converted;
+        console.log(`[Compress] ✅ HEIC convertido para JPEG: ${(workingFile.size / 1024).toFixed(0)}KB`);
+      } catch (err) {
+        console.error('[Compress] ❌ Falha ao decodificar HEIC:', err);
+      }
+    }
+
+    // ESTRATÉGIAS DE COMPRESSÃO PROGRESSIVA
+    const strategies = [
+      { width: 1024, quality: 0.75 }, // Tentativa 1: Boa
+      { width: 800, quality: 0.65 },  // Tentativa 2: Média
+      { width: 600, quality: 0.55 },  // Tentativa 3: Econômica
+      { width: 400, quality: 0.45 }   // Tentativa 4: Brutal
+    ];
+
+    const url = URL.createObjectURL(workingFile);
     try {
-      // Estratégias progressivamente mais agressivas
-      const strategies = [
-        { width: 800, quality: 0.75 },  // Tentativa 1
-        { width: 600, quality: 0.65 },  // Tentativa 2
-        { width: 500, quality: 0.55 },  // Tentativa 3
-        { width: 400, quality: 0.45 },  // Tentativa 4
-        { width: 300, quality: 0.35 },  // Tentativa 5 (BRUTAL)
-      ];
-
       for (let attempt = 0; attempt < strategies.length; attempt++) {
-        const strategy = strategies[attempt];
-        console.log(`[Compress] 📐 Tentativa ${attempt + 1}/${strategies.length}: ${strategy.width}px @ ${(strategy.quality * 100).toFixed(0)}%`);
+        const s = strategies[attempt];
+        console.log(`[Compress] 📐 Tentativa ${attempt + 1}: ${s.width}px @ ${s.quality * 100}%`);
 
         try {
-          const compressed = await new Promise<Blob>((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Image decode timeout')), 15000);
+          const blob = await new Promise<Blob>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
 
-            // 🔥 SUPORTE HEIC: Usa createImageBitmap que suporta HEIC nativamente
-            createImageBitmap(file)
-              .then(bitmap => {
-                clearTimeout(timeout);
-                try {
-                  const canvas = document.createElement('canvas');
-                  let width = bitmap.width;
-                  let height = bitmap.height;
+              if (width > s.width || height > s.width) {
+                const ratio = Math.min(s.width / width, s.width / height);
+                width = Math.round(width * ratio);
+                height = Math.round(height * ratio);
+              }
 
-                  // Redimensiona SEMPRE para o target da estratégia
-                  if (width > strategy.width || height > strategy.width) {
-                    if (width > height) {
-                      height = Math.round((height * strategy.width) / width);
-                      width = strategy.width;
-                    } else {
-                      width = Math.round((width * strategy.width) / height);
-                      height = strategy.width;
-                    }
-                  }
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d', { alpha: false });
+              if (!ctx) return reject(new Error('Canvas context error'));
 
-                  canvas.width = width;
-                  canvas.height = height;
-                  const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: false });
+              ctx.fillStyle = '#FFFFFF';
+              ctx.fillRect(0, 0, width, height);
+              ctx.drawImage(img, 0, 0, width, height);
 
-                  if (!ctx) return reject(new Error("Canvas lost"));
-
-                  ctx.fillStyle = "#FFFFFF";
-                  ctx.fillRect(0, 0, width, height);
-                  ctx.imageSmoothingEnabled = true;
-                  ctx.imageSmoothingQuality = 'high';
-                  ctx.drawImage(bitmap, 0, 0, width, height);
-
-                  bitmap.close(); // Libera memória
-
-                  // FORÇA WebP
-                  canvas.toBlob(
-                    blob => {
-                      if (blob) {
-                        console.log(`[Compress]   → Gerado: ${blob.type}, ${(blob.size / 1024).toFixed(0)}KB`);
-                        resolve(blob);
-                      } else {
-                        reject(new Error("toBlob failed"));
-                      }
-                    },
-                    'image/webp',
-                    strategy.quality
-                  );
-                } catch (e) {
-                  reject(e);
-                }
-              })
-              .catch(err => {
-                clearTimeout(timeout);
-                reject(new Error(`Decode failed: ${err.message}`));
-              });
+              canvas.toBlob(
+                (b) => b ? resolve(b) : reject(new Error('Blob null')),
+                'image/webp',
+                s.quality
+              );
+            };
+            img.onerror = () => reject(new Error('Erro ao carregar imagem'));
+            img.src = url;
           });
 
-          // ✅ VALIDAÇÃO CRÍTICA
-          if (!compressed.type.includes('webp')) {
-            console.error(`[Compress] ❌ Browser não suporta WebP encoding! Tipo: ${compressed.type}`);
-            throw new Error('WebP not supported');
+          if (blob.size <= TARGET_SIZE && blob.type === 'image/webp') {
+            console.log(`[Compress] ✅ SUCESSO: ${(blob.size / 1024).toFixed(0)}KB WebP`);
+            return blob;
           }
-
-          // ✅ CHECK DE TAMANHO
-          if (compressed.size <= TARGET_SIZE) {
-            URL.revokeObjectURL(url);
-            console.log(`[Compress] ✅ SUCESSO em ${attempt + 1} tentativa(s): ${(compressed.size / 1024).toFixed(0)}KB WebP`);
-            return compressed;
-          }
-
-          console.log(`[Compress]   ⚠️ Ainda grande (${(compressed.size / 1024).toFixed(0)}KB > 500KB), tentando próxima estratégia...`);
-
+          console.log(`[Compress]   ⚠️ Ainda grande: ${(blob.size / 1024).toFixed(0)}KB`);
         } catch (err) {
-          console.error(`[Compress]   ❌ Falha na tentativa ${attempt + 1}:`, err);
-          // Continua para próxima estratégia
+          console.error(`[Compress] ❌ Tentativa ${attempt + 1} falhou:`, err);
         }
       }
-
-      // Se chegou aqui, todas as tentativas falharam ou ultrapassaram 500KB
-      throw new Error(`Não foi possível comprimir para <500KB após ${strategies.length} tentativas`);
-
-    } catch (err) {
-      console.error("[Compress] ❌ ERRO CRÍTICO:", err);
-      throw new Error('Falha na compressão. Verifique se o navegador suporta WebP.');
+      throw new Error('Não foi possível atingir o target de 500KB');
+    } finally {
+      URL.revokeObjectURL(url);
     }
   },
 
