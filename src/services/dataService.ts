@@ -935,6 +935,60 @@ export const DataService = {
     return getStorage<ServiceOrder[]>(STORAGE_KEYS.ORDERS, MOCK_ORDERS);
   },
 
+  /**
+   * 🚀 Nexus Paginated Orders - Server-Side Pagination
+   * Carrega ordens de forma paginada para performance
+   */
+  getOrdersPaginated: async (
+    page: number = 1,
+    limit: number = 5,
+    technicianId?: string
+  ): Promise<{ orders: ServiceOrder[]; total: number }> => {
+    if (isCloudEnabled) {
+      const tenantId = DataService.getCurrentTenantId();
+
+      if (!tenantId) {
+        console.warn("⚠️ Tenant ID não encontrado.");
+        return { orders: [], total: 0 };
+      }
+
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+
+      let query = DataService.getServiceClient()
+        .from('orders')
+        .select('*', { count: 'exact' })
+        .eq('tenant_id', tenantId);
+
+      // Filtra por técnico se especificado
+      if (technicianId) {
+        query = query.eq('assigned_to', technicianId);
+      }
+
+      // Ordena por data de criação (mais recentes primeiro) e aplica paginação
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) {
+        console.error("❌ Erro ao buscar ordens paginadas:", error.message);
+        return { orders: [], total: 0 };
+      }
+
+      const mapped = (data || []).map(d => DataService._mapOrderFromDB(d));
+      console.log(`✅ Nexus Paginated: ${mapped.length} ordens (página ${page}, total: ${count})`);
+
+      return { orders: mapped, total: count || 0 };
+    }
+
+    // Fallback local (sem paginação real)
+    const all = getStorage<ServiceOrder[]>(STORAGE_KEYS.ORDERS, MOCK_ORDERS);
+    const filtered = technicianId ? all.filter(o => o.assignedTo === technicianId) : all;
+    const from = (page - 1) * limit;
+    return { orders: filtered.slice(from, from + limit), total: filtered.length };
+  },
+
+
   createOrder: async (order: Omit<ServiceOrder, 'id' | 'createdAt' | 'updatedAt'>): Promise<ServiceOrder> => {
     const tid = DataService.getCurrentTenantId();
 

@@ -1,0 +1,54 @@
+{
+  "packageId": "br.com.nexusline.app.twa",
+  "host": "app.nexusline.com.br",
+  "name": "Nexus Tech",
+  "launcherName": "Nexus Tech",
+  "display": "standalone",
+  "themeColor": "#10B981",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#0F172A",
+  "enableNotifications": true,
+  "startUrl": "/tech.html",
+  "iconUrl": "https://app.nexusline.com.br/pwa-icon.png",
+  "maskableIconUrl": "https://app.nexusline.com.br/pwa-icon.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "/Users/alexcruz/Downloads/Nexus Pro 2/nexus-android/nexus-android/android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://app.nexusline.com.br/tech-manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "playBilling": {
+      "enabled": true
+    },
+    "locationDelegation": {
+      "enabled": true
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://app.nexusline.com.br/",
+  "minSdkVersion": 21,
+  "orientation": "portrait-primary",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "1"
+}

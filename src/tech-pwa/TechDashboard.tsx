@@ -9,21 +9,36 @@ import { DataService } from '../services/dataService';
 interface TechDashboardProps {
   user: User;
   orders: ServiceOrder[];
+  totalOrders: number;
+  currentPage: number;
+  itemsPerPage: number;
+  onPageChange: (page: number) => void;
   onUpdateStatus: (orderId: string, status: OrderStatus, notes?: string, formData?: any) => Promise<void>;
   onRefresh: () => Promise<void>;
   onLogout: (e?: React.MouseEvent) => void;
   isFetching?: boolean;
 }
 
-export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUpdateStatus, onRefresh, onLogout, isFetching = false }) => {
+export const TechDashboard: React.FC<TechDashboardProps> = ({
+  user,
+  orders,
+  totalOrders,
+  currentPage,
+  itemsPerPage,
+  onPageChange,
+  onUpdateStatus,
+  onRefresh,
+  onLogout,
+  isFetching = false
+}) => {
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 5;
+  // Paginação agora é controlada pelo componente pai (server-side)
+  const totalPages = Math.ceil(totalOrders / itemsPerPage);
 
   // Combina o loading local do botão com o global do download
   const isLoading = loading || isFetching;
@@ -359,7 +374,7 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
               <button onClick={clearFilters} className="text-[9px] font-black text-emerald-500 uppercase underline">Limpar Filtros</button>
             )}
           </div>
-        ) : filteredOrders.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map(order => {
+        ) : filteredOrders.map(order => {
           const isCritical = order.priority === OrderPriority.CRITICAL || order.priority === OrderPriority.HIGH;
 
           return (
@@ -469,29 +484,29 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
           );
         })}
 
-        {/* CONTROLES DE PAGINAÇÃO */}
-        {filteredOrders.length > ITEMS_PER_PAGE && (
+        {/* CONTROLES DE PAGINAÇÃO (Server-Side) */}
+        {totalPages > 1 && (
           <div className="flex items-center justify-between pt-4 pb-2">
             <button
-              disabled={currentPage === 1}
+              disabled={currentPage === 1 || isFetching}
               onClick={() => {
-                setCurrentPage(prev => Math.max(1, prev - 1));
+                onPageChange(currentPage - 1);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${currentPage === 1 ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-indigo-600 border-indigo-100 shadow-sm active:scale-95'}`}
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${currentPage === 1 || isFetching ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-indigo-600 border-indigo-100 shadow-sm active:scale-95'}`}
             >
               Anterior
             </button>
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Pág. <span className="text-indigo-600">{currentPage}</span> de {Math.ceil(filteredOrders.length / ITEMS_PER_PAGE)}
+              Pág. <span className="text-indigo-600">{currentPage}</span> de {totalPages}
             </span>
             <button
-              disabled={currentPage === Math.ceil(filteredOrders.length / ITEMS_PER_PAGE)}
+              disabled={currentPage === totalPages || isFetching}
               onClick={() => {
-                setCurrentPage(prev => Math.min(Math.ceil(filteredOrders.length / ITEMS_PER_PAGE), prev + 1));
+                onPageChange(currentPage + 1);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${currentPage === Math.ceil(filteredOrders.length / ITEMS_PER_PAGE) ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-indigo-600 border-indigo-100 shadow-sm active:scale-95'}`}
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${currentPage === totalPages || isFetching ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-indigo-600 border-indigo-100 shadow-sm active:scale-95'}`}
             >
               Próxima
             </button>
