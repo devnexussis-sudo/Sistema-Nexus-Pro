@@ -57,13 +57,38 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    let isMounted = true;
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
+
+    // Safety timeout: destrava o carregamento após 8 segundos
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        console.warn('[App] Init Timeout - Forçando carregamento');
+        setIsInitializing(false);
+      }
+    }, 8000);
 
     const initApp = async () => {
       try {
         const { supabase } = await import('./lib/supabase');
+
+        // 1. Check session immediately
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (session?.user && !isSuperMode) {
+          const refreshedUser = await DataService.refreshUser().catch(() => null);
+          if (refreshedUser && isMounted) {
+            setAuth({ user: refreshedUser, isAuthenticated: true });
+          }
+        }
+
+        if (isMounted) setIsInitializing(false);
+
+        // 2. Listen for changes
         supabase.auth.onAuthStateChange(async (event, session) => {
+          if (!isMounted) return;
+
           if (session?.user && !isSuperMode) {
             const refreshedUser = await DataService.refreshUser().catch(() => null);
             if (refreshedUser) {
@@ -76,17 +101,24 @@ const App: React.FC = () => {
           setIsInitializing(false);
         });
       } catch (err) {
-        setIsInitializing(false);
+        console.error("Init Error:", err);
+        if (isMounted) setIsInitializing(false);
       }
     };
     initApp();
 
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+      window.removeEventListener('hashchange', handleHashChange);
+    };
   }, []);
 
   useEffect(() => {
     if (auth.isAuthenticated && auth.user && !isSuperMode) {
-      DataService.getUnreadSystemNotifications(auth.user.id).then(setSystemNotifications);
+      DataService.getUnreadSystemNotifications(auth.user.id)
+        .then(setSystemNotifications)
+        .catch(err => console.error("Falha ao buscar notificações:", err));
     }
   }, [auth.isAuthenticated, auth.user, isSuperMode]);
 
