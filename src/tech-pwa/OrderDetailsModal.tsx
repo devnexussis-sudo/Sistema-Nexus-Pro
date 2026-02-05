@@ -334,12 +334,11 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       // ✅ LIMPA loading IMEDIATAMENTE após adicionar preview (evita spinner duplo)
       setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
 
-      // 🛡️ GUARDIAN: Aborta ativamente após 30s (não só limpa UI)
+      // 🛡️ GUARDIAN: Aborta ativamente após 60s (compressão agora é rápida, tempo é para upload)
       const guardian = setTimeout(() => {
-        console.error('[PhotoUpload] ⏰ GUARDIAN ATIVADO: Upload travado há 30s');
+        console.error('[PhotoUpload] ⏰ GUARDIAN ATIVADO: Upload travado há 60s');
         guardianTriggered = true;
         abortController.abort();
-        setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
 
         // Remove preview failed
         setAnswers(prev => {
@@ -349,8 +348,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         });
 
         URL.revokeObjectURL(previewUrl);
-        alert('Upload demorou muito e foi cancelado. Tente com uma foto menor ou verifique sua conexão.');
-      }, 30000);
+        alert('⏰ Upload cancelado: tempo excedido (60s). Verifique sua conexão de internet.');
+      }, 60000);
 
       try {
         console.log('[PhotoUpload] Chamando DataService.uploadServiceOrderEvidence...');
