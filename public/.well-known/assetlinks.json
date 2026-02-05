@@ -1,0 +1,14 @@
+[
+    {
+        "relation": [
+            "delegate_permission/common.handle_all_urls"
+        ],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "br.com.nexusline.app.twa",
+            "sha256_cert_fingerprints": [
+                "0C:00:53:CE:4E:44:DC:C2:A1:06:71:94:7E:E5:B9:C0:F8:A6:F3:B4:D0:0B:70:53:B8:80:31:E6:15:97:56:AE"
+            ]
+        }
+    }
+]
