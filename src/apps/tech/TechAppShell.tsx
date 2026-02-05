@@ -200,14 +200,21 @@ export const TechAppShell: React.FC = () => {
     };
 
     const handleLogout = async () => {
-        try {
-            const { supabase } = await import('../../lib/supabase');
-            await supabase.auth.signOut();
-        } catch (e) {
-            console.error('[TechAppShell] Logout error:', e);
-        }
+        // 1. Limpeza Otimista (UI Primeiro)
         TechSessionStorage.clear();
         setAuth({ user: null, isAuthenticated: false });
+        stopTracking();
+
+        // 2. Backend em background (Fire-and-forget controlada)
+        try {
+            const { supabase } = await import('../../lib/supabase');
+            // Pequeno delay para garantir que a UI já atualizou
+            setTimeout(async () => {
+                await supabase.auth.signOut().catch(err => console.warn('Background SignOut Error:', err));
+            }, 100);
+        } catch (e) {
+            console.error('[TechAppShell] Logout setup error:', e);
+        }
     };
 
     if (initError) {

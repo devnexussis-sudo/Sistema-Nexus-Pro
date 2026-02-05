@@ -22,12 +22,30 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
             setIsFetchingData(true);
             const o = await DataService.getOrders();
             setOrders(o);
-        } catch (e) {
+            // Salva cache local para offline
+            localStorage.setItem('cached_orders', JSON.stringify(o));
+        } catch (e: any) {
             console.error('[TechApp] Error fetching orders:', e);
+            // Fallback: se falhar, tenta carregar do cache se estiver vazio
+            if (orders.length === 0) {
+                const cached = localStorage.getItem('cached_orders');
+                if (cached) {
+                    setOrders(JSON.parse(cached));
+                    console.log('[TechApp] Loaded from cache after error');
+                }
+            }
         } finally {
             setIsFetchingData(false);
         }
     };
+
+    // Load cache imediato ao montar
+    useEffect(() => {
+        const cached = localStorage.getItem('cached_orders');
+        if (cached) {
+            setOrders(JSON.parse(cached));
+        }
+    }, []);
 
     useEffect(() => {
         if (!auth.isAuthenticated || !auth.user) return;

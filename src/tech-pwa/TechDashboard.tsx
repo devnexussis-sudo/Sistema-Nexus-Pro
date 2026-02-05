@@ -181,7 +181,7 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({ user, orders, onUp
   };
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] pb-24 font-sans overflow-y-auto relative">
+    <div className="min-h-screen bg-[#f1f5f9] pb-24 font-sans relative">
       {/* 🔮 NEXUS IMMERSIVE LOADER - A "bolinha" carregando */}
       {isFetching && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/60 backdrop-blur-md animate-fade-in">
