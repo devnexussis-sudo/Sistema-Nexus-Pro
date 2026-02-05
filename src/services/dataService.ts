@@ -265,6 +265,93 @@ export const DataService = {
     }
   },
 
+  /**
+   * 🛡️ Nexus Blob Compression Engine
+   * Converte File -> Blob (WebP) diretamente sem passar por string Base64 gigante.
+   */
+  compressFileToBlob: async (file: File, maxWidth = 1200, quality = 0.82): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+
+      img.onload = () => {
+        try {
+          URL.revokeObjectURL(img.src); // Limpa memória
+
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Redimensionamento
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error("Canvas context failed"));
+            return;
+          }
+
+          // Fundo branco
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Compressão direta para Blob
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error("Blob conversion failed"));
+            }
+          }, 'image/webp', quality);
+
+        } catch (e) {
+          reject(e);
+        }
+      };
+
+      img.onerror = (e) => {
+        URL.revokeObjectURL(img.src);
+        reject(new Error("Image load failed"));
+      };
+    });
+  },
+
+  /**
+   * 🛡️ Nexus Direct Blob Upload
+   * Sobe um Blob diretamente para o Supabase.
+   */
+  uploadBlob: async (blob: Blob, path: string): Promise<string> => {
+    if (!isCloudEnabled) return URL.createObjectURL(blob); // Mock local
+
+    const tenantId = DataService.getCurrentTenantId() || 'global';
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
+    const fullPath = `${tenantId}/${path}/${fileName}`;
+
+    console.log(`[DataService] Uploading Blob: ${(blob.size / 1024).toFixed(2)}KB to ${fullPath}`);
+
+    const { data, error } = await supabase.storage
+      .from('nexus-files')
+      .upload(fullPath, blob, {
+        contentType: 'image/webp',
+        upsert: true
+      });
+
+    if (error) throw error;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('nexus-files')
+      .getPublicUrl(fullPath);
+
+    return publicUrl;
+  },
+
   login: async (email: string, password?: string): Promise<User | undefined> => {
     if (isCloudEnabled) {
       console.log("=== LOGIN OFICIAL SUPABASE AUTH (SEGURANÇA TOTAL) ===");
