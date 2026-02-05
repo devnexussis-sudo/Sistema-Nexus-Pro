@@ -121,19 +121,23 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
   };
 
   const handleRefresh = async () => {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    // Atualiza as ordens
-    await onRefresh();
+      // Atualiza as ordens
+      await onRefresh();
 
-    // Atualiza o perfil do usuário (incluindo avatar)
-    const updatedUser = await DataService.refreshUserProfile();
-    if (updatedUser) {
-      // Propaga a atualização para o componente pai se necessário
-      window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: updatedUser }));
+      // Atualiza o perfil do usuário (incluindo avatar)
+      const updatedUser = await DataService.refreshUserProfile();
+      if (updatedUser) {
+        // Propaga a atualização para o componente pai se necessário
+        window.dispatchEvent(new CustomEvent('user-profile-updated', { detail: updatedUser }));
+      }
+    } catch (error) {
+      console.error('[TechDashboard] Refresh error:', error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const filteredOrders = orders.filter(order => {
