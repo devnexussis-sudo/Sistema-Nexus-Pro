@@ -26,9 +26,10 @@ interface Technician {
     active?: boolean;
 }
 
-latitude: number;
-longitude: number;
-created_at: string;
+interface LocationHistory {
+    latitude: number;
+    longitude: number;
+    created_at: string;
 }
 
 const createTechIcon = (avatarUrl: string, isMoving: boolean = true) => {
