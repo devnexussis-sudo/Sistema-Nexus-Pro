@@ -153,40 +153,53 @@ export const DataService = {
    * 🎛️ Nexus Image Compression Engine (WebP Optimized)
    * Reduz o peso da imagem drasticamente usando o padrão WebP.
    */
-  compressImage: async (base64: string, maxWidth = 1200, quality = 0.82): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.src = base64;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
+  compressImage: async (base64: string, maxWidth = 800, quality = 0.7): Promise<string> => {
+    return new Promise((resolve) => {
+      try {
+        const img = new Image();
+        img.src = base64;
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
 
-        // Só redimensiona se for maior que o limite
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
+            // Redimensionamento agressivo para Mobile
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
 
-        canvas.width = width;
-        canvas.height = height;
+            canvas.width = width;
+            canvas.height = height;
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(base64); // Fallback se falhar canvas
-          return;
-        }
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              console.warn('Canvas context failed, returning original');
+              resolve(base64);
+              return;
+            }
 
-        // Fundo branco se necessário, embora WebP suporte transparência
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
 
-        // Converte para WebP (Mais qualidade com menos peso)
-        const compressedBase64 = canvas.toDataURL('image/webp', quality);
-        resolve(compressedBase64);
-      };
-      img.onerror = () => resolve(base64);
+            // Tenta comprimir
+            const compressedBase64 = canvas.toDataURL('image/jpeg', quality); // JPEG é mais rápido que WebP para encode em alguns browsers
+            resolve(compressedBase64);
+          } catch (innerErr) {
+            console.error('Error during canvas processing:', innerErr);
+            resolve(base64); // Fallback seguro
+          }
+        };
+        img.onerror = () => {
+          console.warn('Image load failed, returning original');
+          resolve(base64);
+        };
+      } catch (err) {
+        console.error('Critical compression error:', err);
+        resolve(base64);
+      }
     });
   },
 
