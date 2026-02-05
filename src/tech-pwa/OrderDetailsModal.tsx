@@ -28,7 +28,10 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
   const [linkedEquipment, setLinkedEquipment] = useState<any>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const [activePhotoField, setActivePhotoField] = useState<string | null>(null);
-  const [items, setItems] = useState<any[]>(order.items || []);
+  const [items, setItems] = useState<any[]>(() => {
+    // Marca items existentes (do admin) como readonly
+    return (order.items || []).map(item => ({ ...item, readonly: true }));
+  });
   const [stock, setStock] = useState<any[]>([]);
   const [stockSearch, setStockSearch] = useState('');
   const [isStockListOpen, setIsStockListOpen] = useState(false);
@@ -318,13 +321,10 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         const rawBase64 = re.target?.result as string;
 
         try {
-          // 1. Compressão Local
-          const compressedBase64 = await DataService.compressImage(rawBase64);
+          // Upload direto (uploadFile já faz a compressão internamente)
+          const publicUrl = await DataService.uploadFile(rawBase64, `orders/${order.id}/evidence`);
 
-          // 2. Upload Imediato (Background)
-          const publicUrl = await DataService.uploadFile(compressedBase64, `orders/${order.id}/evidence`);
-
-          // 3. Salva a URL
+          // Salva a URL
           setAnswers(prev => {
             const currentVal = prev[fieldId];
             let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
@@ -778,9 +778,16 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
               <div className="space-y-2">
                 {items.length > 0 ? (
                   items.map((item, idx) => (
-                    <div key={item.id || idx} className="bg-white border border-slate-100 rounded-2xl p-3 flex justify-between items-center shadow-sm">
+                    <div key={item.id || idx} className={`border rounded-2xl p-3 flex justify-between items-center shadow-sm ${item.readonly ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-100'}`}>
                       <div className="space-y-0.5">
-                        <p className="text-[10px] font-black text-slate-900 uppercase italic leading-none">{item.description}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] font-black text-slate-900 uppercase italic leading-none">{item.description}</p>
+                          {item.readonly && (
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[7px] font-black uppercase rounded-md border border-amber-200">
+                              Admin
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
                           {item.quantity}un x R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </p>
@@ -789,7 +796,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                         <span className="text-[10px] font-black text-indigo-600 font-mono">
                           R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </span>
-                        {localStatus !== OrderStatus.COMPLETED && (
+                        {localStatus !== OrderStatus.COMPLETED && !item.readonly && (
                           <button
                             onClick={() => setItems(prev => prev.filter((_, i) => i !== idx))}
                             className="p-1.5 bg-red-50 text-red-400 rounded-lg"
