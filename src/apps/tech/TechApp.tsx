@@ -48,9 +48,21 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
         const fetchTechData = async (page: number = 1) => {
             if (!auth.user || fetchInProgressRef.current) return;
 
+            // Timeout de segurança para não travar a UI (8 segundos)
+            const timeoutId = setTimeout(() => {
+                if (mounted) {
+                    setIsFetchingData(false);
+                    console.warn('[TechApp] Fetch timeout hit - releasing UI');
+                }
+                fetchInProgressRef.current = false;
+            }, 8000);
+
             try {
                 fetchInProgressRef.current = true;
-                setIsFetchingData(true);
+
+                // Só liga o spinner se NÃO tiver dados visíveis (cache vazio)
+                // Isso evita tela branca se já tiver cache populado
+                if (orders.length === 0) setIsFetchingData(true);
 
                 const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
                     page,
@@ -70,6 +82,7 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
 
             } catch (e: any) {
                 console.error('[TechApp] Error fetching orders:', e);
+                // Fallback silencioso se já tiver dados
                 if (mounted && orders.length === 0) {
                     const cached = localStorage.getItem('cached_orders');
                     const meta = localStorage.getItem('cached_orders_meta');
@@ -86,8 +99,9 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
                     }
                 }
             } finally {
+                clearTimeout(timeoutId);
                 if (mounted) {
-                    setIsFetchingData(false);
+                    setIsFetchingData(false); // Garante liberação do spinner
                 }
                 fetchInProgressRef.current = false;
             }
