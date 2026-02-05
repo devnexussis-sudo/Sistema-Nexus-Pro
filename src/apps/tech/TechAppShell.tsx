@@ -136,7 +136,17 @@ export const TechAppShell: React.FC = () => {
 
                     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
                         if (session?.user) {
-                            const user = await DataService.refreshUser().catch(() => null);
+                            let user = null;
+                            try {
+                                user = await DataService.refreshUser();
+                            } catch (e: any) {
+                                console.warn('[TechAppShell] AuthState Change Refresh Error:', e);
+                                // Tenta fallback do storage se abortar
+                                if (e.message?.includes('aborted')) {
+                                    user = TechSessionStorage.get<User>();
+                                }
+                            }
+
                             if (user && user.role === UserRole.TECHNICIAN) {
                                 TechSessionStorage.set(user);
                                 setAuth({ user: user, isAuthenticated: true });
@@ -155,6 +165,12 @@ export const TechAppShell: React.FC = () => {
             } catch (err: any) {
                 console.error('[TechAppShell] Init error:', err);
                 if (isMounted) {
+                    // Ignora erros de abort na inicialização geral também, se já tivermos auth
+                    if (err.message?.includes('aborted') && TechSessionStorage.get()) {
+                        console.warn('Silencing init abort error because we have cache');
+                        setIsInitializing(false);
+                        return;
+                    }
                     setInitError(err.message || 'Erro ao conectar');
                 }
             } finally {
@@ -204,12 +220,23 @@ export const TechAppShell: React.FC = () => {
                 </div>
                 <h2 className="text-xl font-black text-white uppercase mb-3">Erro de Conexão</h2>
                 <p className="text-slate-400 text-sm mb-6">{initError}</p>
-                <button
-                    onClick={() => window.location.reload()}
-                    className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm uppercase"
-                >
-                    Tentar Novamente
-                </button>
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="w-full px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm uppercase"
+                    >
+                        Tentar Novamente
+                    </button>
+                    <button
+                        onClick={() => {
+                            TechSessionStorage.clear();
+                            window.location.reload();
+                        }}
+                        className="w-full px-6 py-3 bg-slate-800 text-slate-400 rounded-xl font-bold text-xs uppercase"
+                    >
+                        Sair / Limpar Sessão
+                    </button>
+                </div>
             </div>
         );
     }
