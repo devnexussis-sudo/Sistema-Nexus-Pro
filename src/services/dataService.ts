@@ -153,7 +153,7 @@ export const DataService = {
    * 🎛️ Nexus Image Compression Engine (WebP Optimized)
    * Reduz o peso da imagem drasticamente usando o padrão WebP.
    */
-  compressImage: async (base64: string, maxWidth = 800, quality = 0.7): Promise<string> => {
+  compressImage: async (base64: string, maxWidth = 1200, quality = 0.82): Promise<string> => {
     return new Promise((resolve) => {
       try {
         const img = new Image();
@@ -164,7 +164,7 @@ export const DataService = {
             let width = img.width;
             let height = img.height;
 
-            // Redimensionamento agressivo para Mobile
+            // Redimensionamento (Mantendo qualidade original)
             if (width > maxWidth) {
               height = Math.round((height * maxWidth) / width);
               width = maxWidth;
@@ -180,16 +180,17 @@ export const DataService = {
               return;
             }
 
+            // Fundo branco para garantir opacidade correta
             ctx.fillStyle = "#FFFFFF";
             ctx.fillRect(0, 0, width, height);
             ctx.drawImage(img, 0, 0, width, height);
 
-            // Tenta comprimir
-            const compressedBase64 = canvas.toDataURL('image/jpeg', quality); // JPEG é mais rápido que WebP para encode em alguns browsers
+            // 🚀 VOLTANDO PARA WEBP (Qualidade + Compressão)
+            const compressedBase64 = canvas.toDataURL('image/webp', quality);
             resolve(compressedBase64);
           } catch (innerErr) {
             console.error('Error during canvas processing:', innerErr);
-            resolve(base64); // Fallback seguro
+            resolve(base64); // Fallback
           }
         };
         img.onerror = () => {

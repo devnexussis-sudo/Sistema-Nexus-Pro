@@ -46,22 +46,13 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
 
         // 🚀 Fetch paginado - carrega apenas N ordens por vez
         const fetchTechData = async (page: number = 1) => {
-            if (!auth.user || fetchInProgressRef.current) return;
-
-            // Timeout de segurança para não travar a UI (8 segundos)
-            const timeoutId = setTimeout(() => {
-                if (mounted) {
-                    setIsFetchingData(false);
-                    console.warn('[TechApp] Fetch timeout hit - releasing UI');
-                }
-                fetchInProgressRef.current = false;
-            }, 8000);
+            if (!auth.user) return;
+            if (fetchInProgressRef.current) return;
 
             try {
                 fetchInProgressRef.current = true;
 
-                // Só liga o spinner se NÃO tiver dados visíveis (cache vazio)
-                // Isso evita tela branca se já tiver cache populado
+                // Só mostra loading se não tiver dados em tela
                 if (orders.length === 0) setIsFetchingData(true);
 
                 const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
@@ -82,27 +73,19 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
 
             } catch (e: any) {
                 console.error('[TechApp] Error fetching orders:', e);
-                // Fallback silencioso se já tiver dados
+                // Se der erro e não tiver nada na tela, tenta o cache de novo
                 if (mounted && orders.length === 0) {
                     const cached = localStorage.getItem('cached_orders');
-                    const meta = localStorage.getItem('cached_orders_meta');
                     if (cached) {
                         try {
                             setOrders(JSON.parse(cached));
-                            if (meta) {
-                                const { total } = JSON.parse(meta);
-                                setTotalOrders(total);
-                            }
-                        } catch (err) {
-                            console.error('[TechApp] Cache parse error:', err);
-                        }
+                            const meta = localStorage.getItem('cached_orders_meta');
+                            if (meta) setTotalOrders(JSON.parse(meta).total);
+                        } catch (err) { }
                     }
                 }
             } finally {
-                clearTimeout(timeoutId);
-                if (mounted) {
-                    setIsFetchingData(false); // Garante liberação do spinner
-                }
+                if (mounted) setIsFetchingData(false);
                 fetchInProgressRef.current = false;
             }
         };
@@ -127,7 +110,7 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
                         table: 'orders'
                     }, () => {
                         if (mounted && !fetchInProgressRef.current) {
-                            fetchTechData(currentPage);
+                            fetchTechData(currentPage || 1);
                         }
                     })
                     .subscribe();
