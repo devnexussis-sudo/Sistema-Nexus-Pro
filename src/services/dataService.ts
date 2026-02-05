@@ -256,81 +256,79 @@ export const DataService = {
    * Handles HEIC, handles WebP-to-JPEG Fallback, supports High-Resolution inputs.
    */
   processAndCompress: async (file: File, maxWidth = 1200, quality = 0.8): Promise<Blob> => {
-    let currentBlob: Blob | File = file;
+    // 🛡️ Fail-Safe Wrapper: If anything goes wrong, we MUST return the original file.
+    try {
+      let currentBlob: Blob | File = file;
 
-    // 🛡️ Global Timeout for the entire processing pipeline (HEIC + Canvas + Encoding)
-    const processingTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("COMPRESSION_TIMEOUT")), 45000)
-    );
-
-    const mainPipeline = (async (): Promise<Blob> => {
-      // 🛡️ Phase 1: HEIC Transcoding
-      const isHeic = file.name.toLowerCase().match(/\.(heic|heif)$/) || file.type === 'image/heic' || file.type === 'image/heif';
-      if (isHeic) {
-        console.log("[Compress] HEIC detected, transcoding...");
-        try {
-          const heic2any = (await import('heic2any')).default;
-          const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
-          currentBlob = Array.isArray(result) ? result[0] : result;
-        } catch (e) {
-          console.warn("[Compress] HEIC conversion failed, trying raw...", e);
-        }
-      }
-
-      // 🛡️ Phase 2: Canvas Processing
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        const objectUrl = URL.createObjectURL(currentBlob);
-
-        img.onload = () => {
+      const processingPromise = (async () => {
+        // 1. HEIC
+        const isHeic = file.name.toLowerCase().match(/\.(heic|heif)$/) || file.type === 'image/heic' || file.type === 'image/heif';
+        if (isHeic) {
           try {
-            const canvas = document.createElement('canvas');
-            let { width, height } = img;
-
-            if (width > maxWidth) {
-              height = Math.round((height * maxWidth) / width);
-              width = maxWidth;
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) throw new Error("CANVAS_CONTEXT_LOST");
-
-            ctx.fillStyle = "#FFFFFF";
-            ctx.fillRect(0, 0, width, height);
-            ctx.drawImage(img, 0, 0, width, height);
-
-            URL.revokeObjectURL(objectUrl);
-
-            // 🛡️ Phase 3: Binary Encoding with Fallback
-            canvas.toBlob((blob) => {
-              if (blob) {
-                console.log(`[Compress] Encoded successfully (${(blob.size / 1024).toFixed(2)}KB)`);
-                resolve(blob);
-              } else {
-                canvas.toBlob((fallbackBlob) => {
-                  if (fallbackBlob) resolve(fallbackBlob);
-                  else reject(new Error("ENCODING_FAILURE"));
-                }, 'image/jpeg', quality);
-              }
-            }, 'image/webp', quality);
+            const heic2any = (await import('heic2any')).default;
+            const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
+            currentBlob = Array.isArray(result) ? result[0] : result;
           } catch (e) {
-            URL.revokeObjectURL(objectUrl);
-            reject(e);
+            console.warn("[Compress] HEIC failed, using raw.", e);
           }
-        };
+        }
 
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error("IMAGE_DECODE_FAILURE"));
-        };
+        // 2. Canvas Resize
+        return new Promise<Blob>((resolve, reject) => {
+          const img = new Image();
+          const url = URL.createObjectURL(currentBlob);
 
-        img.src = objectUrl;
-      });
-    })();
+          img.onload = () => {
+            try {
+              URL.revokeObjectURL(url);
+              const canvas = document.createElement('canvas');
+              let { width, height } = img;
 
-    return Promise.race([mainPipeline, processingTimeout]);
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) return resolve(currentBlob instanceof Blob ? currentBlob : file);
+
+              ctx.fillStyle = "#FFFFFF";
+              ctx.fillRect(0, 0, width, height);
+              ctx.drawImage(img, 0, 0, width, height);
+
+              canvas.toBlob(blob => {
+                if (blob) resolve(blob);
+                else resolve(currentBlob instanceof Blob ? currentBlob : file); // Fallback
+              }, 'image/webp', quality);
+            } catch (e) {
+              resolve(currentBlob instanceof Blob ? currentBlob : file); // Fallback
+            }
+          };
+
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(currentBlob instanceof Blob ? currentBlob : file); // Fallback
+          };
+
+          img.src = url;
+        });
+      })();
+
+      // 🛡️ Race: 20 seconds max for processing. If slow device, just upload original.
+      const timeoutPromise = new Promise<Blob>((resolve) =>
+        setTimeout(() => {
+          console.warn("[Compress] Timeout - skipping optimization");
+          resolve(file);
+        }, 20000)
+      );
+
+      return await Promise.race([processingPromise, timeoutPromise]);
+    } catch (criticalErr) {
+      console.error("[Compress] Critical error:", criticalErr);
+      return file; // Ultimate fallback
+    }
   },
 
   compressFileToBlob: async (file: File): Promise<Blob> => {
