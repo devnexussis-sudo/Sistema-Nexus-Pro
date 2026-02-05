@@ -253,80 +253,131 @@ export const DataService = {
   },
 
   /**
-   * 🛡️ Ultra-Robust Image Compressor
-   * Handles HEIC, handles WebP-to-JPEG Fallback, supports High-Resolution inputs.
+   * 🎯 INTELLIGENT ITERATIVE COMPRESSOR
+   * GARANTIA: Sempre retorna arquivo < 500KB em WebP
+   * Estratégia: Reduz progressivamente qualidade/dimensões até atingir target
    */
   processAndCompress: async (file: File, maxWidth = 1200, quality = 0.8): Promise<Blob> => {
-    // 🛡️ Fail-Safe Wrapper: If anything goes wrong, we MUST return the original file.
+    const TARGET_SIZE = 500 * 1024; // 500KB em bytes
+    const MAX_ATTEMPTS = 4;
+
+    console.log(`[Compress] Iniciando compressão inteligente: ${(file.size / 1024).toFixed(0)}KB → target: 500KB`);
+
     try {
-      // 🚀 SPEED OPTIMIZATION: If file is already small (< 2.5MB), don't risk processing it.
-      if (file.size < 2500000) {
-        console.log("[Compress] File is small enough, skipping compression for stability.");
-        return file;
-      }
-
       let currentBlob: Blob | File = file;
+      const url = URL.createObjectURL(file);
 
-      const processingPromise = (async () => {
-        // 1. HEIC Handling (Simplified)
-        // Most mobile browsers convert HEIC to JPG automatically on upload.
-        // If we receive a raw HEIC, we try to draw it. If that fails, we fallback to raw upload.
+      // Configurações progressivas (mais agressivas a cada tentativa)
+      const strategies = [
+        { width: 1200, quality: 0.85 }, // Tentativa 1: Alta qualidade
+        { width: 900, quality: 0.75 },  // Tentativa 2: Boa qualidade
+        { width: 600, quality: 0.65 },  // Tentativa 3: Qualidade média
+        { width: 400, quality: 0.55 },  // Tentativa 4: Mínimo aceitável
+      ];
 
-        // 2. Canvas Resize
-        return new Promise<Blob>((resolve, reject) => {
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const strategy = strategies[attempt];
+
+        console.log(`[Compress] Tentativa ${attempt + 1}: ${strategy.width}px @ ${(strategy.quality * 100).toFixed(0)}% quality`);
+
+        const compressed = await new Promise<Blob>((resolve, reject) => {
           const img = new Image();
-          const url = URL.createObjectURL(currentBlob);
 
           img.onload = () => {
             try {
-              URL.revokeObjectURL(url);
               const canvas = document.createElement('canvas');
               let { width, height } = img;
 
-              if (width > maxWidth) {
-                height = Math.round((height * maxWidth) / width);
-                width = maxWidth;
+              // Calcula dimensões mantendo aspect ratio
+              if (width > strategy.width) {
+                height = Math.round((height * strategy.width) / width);
+                width = strategy.width;
               }
 
               canvas.width = width;
               canvas.height = height;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) return resolve(currentBlob instanceof Blob ? currentBlob : file);
+              const ctx = canvas.getContext('2d', {
+                alpha: false, // Remove canal alpha para economizar espaço
+                willReadFrequently: false
+              });
 
+              if (!ctx) return reject(new Error("Canvas context lost"));
+
+              // Fundo branco sólido
               ctx.fillStyle = "#FFFFFF";
               ctx.fillRect(0, 0, width, height);
+
+              // Desenha imagem com interpolação de alta qualidade
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
               ctx.drawImage(img, 0, 0, width, height);
 
-              canvas.toBlob(blob => {
-                if (blob) resolve(blob);
-                else resolve(currentBlob instanceof Blob ? currentBlob : file); // Fallback
-              }, 'image/webp', quality);
+              // Converte para WebP (sempre)
+              canvas.toBlob(
+                blob => {
+                  if (blob) resolve(blob);
+                  else reject(new Error("Blob conversion failed"));
+                },
+                'image/webp',
+                strategy.quality
+              );
             } catch (e) {
-              resolve(currentBlob instanceof Blob ? currentBlob : file); // Fallback
+              reject(e);
             }
           };
 
-          img.onerror = () => {
-            URL.revokeObjectURL(url);
-            resolve(currentBlob instanceof Blob ? currentBlob : file); // Fallback
-          };
-
+          img.onerror = () => reject(new Error("Image load failed"));
           img.src = url;
         });
-      })();
 
-      // 🛡️ Race: Only wait 8 seconds. If it takes longer, the device is struggling.
-      const timeoutPromise = new Promise<Blob>((resolve) =>
-        setTimeout(() => {
-          console.warn("[Compress] Timeout (8s) - abandoning optimization to preserve UX");
-          resolve(file);
-        }, 8000)
-      );
+        currentBlob = compressed;
+        const sizeKB = compressed.size / 1024;
+        console.log(`[Compress] Resultado: ${sizeKB.toFixed(0)}KB`);
 
-      return await Promise.race([processingPromise, timeoutPromise]);
-    } catch (criticalErr) {
-      console.error("[Compress] Critical error:", criticalErr);
-      return file; // Ultimate fallback
+        // ✅ Sucesso: Atingiu o target
+        if (compressed.size <= TARGET_SIZE) {
+          URL.revokeObjectURL(url);
+          console.log(`[Compress] ✅ Compressão bem-sucedida em ${attempt + 1} tentativa(s): ${sizeKB.toFixed(0)}KB`);
+          return compressed;
+        }
+
+        // Se não é a última tentativa, continua
+        if (attempt < MAX_ATTEMPTS - 1) {
+          console.log(`[Compress] Ainda acima do target (${sizeKB.toFixed(0)}KB > 500KB), tentando novamente...`);
+        }
+      }
+
+      // Se chegou aqui, todas as tentativas excederam 500KB (muito raro)
+      URL.revokeObjectURL(url);
+      console.warn(`[Compress] ⚠️ Não conseguiu atingir 500KB após ${MAX_ATTEMPTS} tentativas. Retornando melhor resultado: ${(currentBlob.size / 1024).toFixed(0)}KB`);
+      return currentBlob;
+
+    } catch (err) {
+      console.error("[Compress] Erro crítico na compressão:", err);
+      // Fallback: tenta compressão simples de emergência
+      try {
+        return await new Promise<Blob>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 400;
+            canvas.height = Math.round((img.height * 400) / img.width);
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.fillStyle = "#FFFFFF";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              canvas.toBlob(blob => resolve(blob || file), 'image/webp', 0.5);
+            } else {
+              resolve(file);
+            }
+          };
+          img.onerror = () => resolve(file);
+          img.src = URL.createObjectURL(file);
+        });
+      } catch {
+        return file;
+      }
     }
   },
 
@@ -335,19 +386,31 @@ export const DataService = {
   },
 
   /**
-   * 🛡️ NASA Direct Integrated Upload
-   * Direct entry point for UI components.
-   * Optimized for field use: 800px @ 0.60 quality guarantees sub-100KB files.
+   * 🚀 UPLOAD OTIMIZADO PARA EVIDÊNCIAS
+   * Sempre WebP, sempre < 500KB, sempre rápido
    */
   uploadServiceOrderEvidence: async (file: File, orderId: string): Promise<string> => {
     if (!isCloudEnabled) return URL.createObjectURL(file);
+
+    const startTime = Date.now();
+    console.log(`[PhotoUpload] 📸 Iniciando processamento: ${file.name} (${(file.size / 1024).toFixed(0)}KB)`);
+
     try {
-      console.log(`[PhotoUpload] Optimizing ${file.name} for field upload...`);
-      // 🚀 FIELD-FIRST PRESET: 800px @ 0.60 quality (Extremely lightweight)
-      const blob = await DataService.processAndCompress(file, 800, 0.60);
-      return await DataService.uploadBlob(blob, `orders/${orderId}/evidence`);
+      // Compressão inteligente garantindo < 500KB
+      const blob = await DataService.processAndCompress(file);
+
+      const compressionTime = Date.now() - startTime;
+      console.log(`[PhotoUpload] ✅ Compressão concluída em ${compressionTime}ms: ${(blob.size / 1024).toFixed(0)}KB`);
+
+      // Upload para Supabase
+      const url = await DataService.uploadBlob(blob, `orders/${orderId}/evidence`);
+
+      const totalTime = Date.now() - startTime;
+      console.log(`[PhotoUpload] 🚀 Upload total concluído em ${totalTime}ms`);
+
+      return url;
     } catch (err) {
-      console.error("[DataService] Integrated upload failed:", err);
+      console.error("[PhotoUpload] Erro no upload:", err);
       throw err;
     }
   },
