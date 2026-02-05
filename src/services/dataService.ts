@@ -253,139 +253,120 @@ export const DataService = {
   },
 
   /**
-   * 🎯 INTELLIGENT ITERATIVE COMPRESSOR
-   * GARANTIA: Sempre retorna arquivo < 500KB em WebP
-   * Estratégia: Reduz progressivamente qualidade/dimensões até atingir target
+   * 🎯 AGGRESSIVE INTELLIGENT COMPRESSOR
+   * GARANTIA ABSOLUTA: Sempre retorna arquivo < 500KB em WebP
+   * Estratégia: Compressão progressiva brutal até atingir target
    */
   processAndCompress: async (file: File, maxWidth = 1200, quality = 0.8): Promise<Blob> => {
-    const TARGET_SIZE = 500 * 1024; // 500KB em bytes
-    const MAX_ATTEMPTS = 4;
+    const TARGET_SIZE = 500 * 1024; // 500KB HARD LIMIT
 
-    console.log(`[Compress] Iniciando compressão inteligente: ${(file.size / 1024).toFixed(0)}KB → target: 500KB`);
+    console.log(`[Compress] 🎯 INICIANDO COMPRESSÃO AGRESSIVA`);
+    console.log(`[Compress] Arquivo original: ${file.name}, tipo: ${file.type}, tamanho: ${(file.size / 1024).toFixed(0)}KB`);
 
     try {
-      let currentBlob: Blob | File = file;
       const url = URL.createObjectURL(file);
 
-      // Configurações progressivas (mais agressivas a cada tentativa)
+      // Estratégias progressivamente mais agressivas
       const strategies = [
-        { width: 1200, quality: 0.85 }, // Tentativa 1: Alta qualidade
-        { width: 900, quality: 0.75 },  // Tentativa 2: Boa qualidade
-        { width: 600, quality: 0.65 },  // Tentativa 3: Qualidade média
-        { width: 400, quality: 0.55 },  // Tentativa 4: Mínimo aceitável
+        { width: 800, quality: 0.75 },  // Tentativa 1
+        { width: 600, quality: 0.65 },  // Tentativa 2
+        { width: 500, quality: 0.55 },  // Tentativa 3
+        { width: 400, quality: 0.45 },  // Tentativa 4
+        { width: 300, quality: 0.35 },  // Tentativa 5 (BRUTAL)
       ];
 
-      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      for (let attempt = 0; attempt < strategies.length; attempt++) {
         const strategy = strategies[attempt];
+        console.log(`[Compress] 📐 Tentativa ${attempt + 1}/${strategies.length}: ${strategy.width}px @ ${(strategy.quality * 100).toFixed(0)}%`);
 
-        console.log(`[Compress] Tentativa ${attempt + 1}: ${strategy.width}px @ ${(strategy.quality * 100).toFixed(0)}% quality`);
+        try {
+          const compressed = await new Promise<Blob>((resolve, reject) => {
+            const img = new Image();
+            const timeout = setTimeout(() => reject(new Error('Image load timeout')), 10000);
 
-        const compressed = await new Promise<Blob>((resolve, reject) => {
-          const img = new Image();
+            img.onload = () => {
+              clearTimeout(timeout);
+              try {
+                const canvas = document.createElement('canvas');
+                let { width, height } = img;
 
-          img.onload = () => {
-            try {
-              const canvas = document.createElement('canvas');
-              let { width, height } = img;
-
-              // Calcula dimensões mantendo aspect ratio
-              if (width > strategy.width) {
-                height = Math.round((height * strategy.width) / width);
-                width = strategy.width;
-              }
-
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext('2d', {
-                alpha: false, // Remove canal alpha para economizar espaço
-                willReadFrequently: false
-              });
-
-              if (!ctx) return reject(new Error("Canvas context lost"));
-
-              // Fundo branco sólido
-              ctx.fillStyle = "#FFFFFF";
-              ctx.fillRect(0, 0, width, height);
-
-              // Desenha imagem com interpolação de alta qualidade
-              ctx.imageSmoothingEnabled = true;
-              ctx.imageSmoothingQuality = 'high';
-              ctx.drawImage(img, 0, 0, width, height);
-
-              // Converte para WebP (sempre) - FORÇANDO O TIPO
-              canvas.toBlob(
-                blob => {
-                  if (blob) {
-                    // ✅ VALIDAÇÃO: Confirma que é WebP
-                    console.log(`[Compress] Blob criado: tipo="${blob.type}", tamanho=${(blob.size / 1024).toFixed(0)}KB`);
-                    if (!blob.type.includes('webp')) {
-                      console.warn(`[Compress] ⚠️ Blob não é WebP! Tipo: ${blob.type}`);
-                    }
-                    resolve(blob);
+                // Redimensiona SEMPRE para o target da estratégia
+                if (width > strategy.width || height > strategy.width) {
+                  if (width > height) {
+                    height = Math.round((height * strategy.width) / width);
+                    width = strategy.width;
                   } else {
-                    reject(new Error("Blob conversion failed"));
+                    width = Math.round((width * strategy.width) / height);
+                    height = strategy.width;
                   }
-                },
-                'image/webp',
-                strategy.quality
-              );
-            } catch (e) {
-              reject(e);
-            }
-          };
+                }
 
-          img.onerror = () => reject(new Error("Image load failed"));
-          img.src = url;
-        });
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: false });
 
-        currentBlob = compressed;
-        const sizeKB = compressed.size / 1024;
-        console.log(`[Compress] Resultado: ${sizeKB.toFixed(0)}KB, tipo: ${compressed.type}`);
+                if (!ctx) return reject(new Error("Canvas lost"));
 
-        // ✅ Sucesso: Atingiu o target
-        if (compressed.size <= TARGET_SIZE) {
-          URL.revokeObjectURL(url);
-          console.log(`[Compress] ✅ Compressão bem-sucedida em ${attempt + 1} tentativa(s): ${sizeKB.toFixed(0)}KB`);
-          return compressed;
-        }
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillRect(0, 0, width, height);
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, width, height);
 
-        // Se não é a última tentativa, continua
-        if (attempt < MAX_ATTEMPTS - 1) {
-          console.log(`[Compress] Ainda acima do target (${sizeKB.toFixed(0)}KB > 500KB), tentando novamente...`);
+                // FORÇA WebP
+                canvas.toBlob(
+                  blob => {
+                    if (blob) {
+                      console.log(`[Compress]   → Gerado: ${blob.type}, ${(blob.size / 1024).toFixed(0)}KB`);
+                      resolve(blob);
+                    } else {
+                      reject(new Error("toBlob failed"));
+                    }
+                  },
+                  'image/webp',
+                  strategy.quality
+                );
+              } catch (e) {
+                reject(e);
+              }
+            };
+
+            img.onerror = () => {
+              clearTimeout(timeout);
+              reject(new Error("Image load error"));
+            };
+
+            img.src = url;
+          });
+
+          // ✅ VALIDAÇÃO CRÍTICA
+          if (!compressed.type.includes('webp')) {
+            console.error(`[Compress] ❌ Browser não suporta WebP encoding! Tipo: ${compressed.type}`);
+            throw new Error('WebP not supported');
+          }
+
+          // ✅ CHECK DE TAMANHO
+          if (compressed.size <= TARGET_SIZE) {
+            URL.revokeObjectURL(url);
+            console.log(`[Compress] ✅ SUCESSO em ${attempt + 1} tentativa(s): ${(compressed.size / 1024).toFixed(0)}KB WebP`);
+            return compressed;
+          }
+
+          console.log(`[Compress]   ⚠️ Ainda grande (${(compressed.size / 1024).toFixed(0)}KB > 500KB), tentando próxima estratégia...`);
+
+        } catch (err) {
+          console.error(`[Compress]   ❌ Falha na tentativa ${attempt + 1}:`, err);
+          // Continua para próxima estratégia
         }
       }
 
-      // Se chegou aqui, todas as tentativas excederam 500KB (muito raro)
+      // Se chegou aqui, todas as tentativas falharam ou ultrapassaram 500KB
       URL.revokeObjectURL(url);
-      console.warn(`[Compress] ⚠️ Não conseguiu atingir 500KB após ${MAX_ATTEMPTS} tentativas. Retornando melhor resultado: ${(currentBlob.size / 1024).toFixed(0)}KB`);
-      return currentBlob;
+      throw new Error(`Não foi possível comprimir para <500KB após ${strategies.length} tentativas`);
 
     } catch (err) {
-      console.error("[Compress] Erro crítico na compressão:", err);
-      // Fallback: tenta compressão simples de emergência
-      try {
-        return await new Promise<Blob>((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 400;
-            canvas.height = Math.round((img.height * 400) / img.width);
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.fillStyle = "#FFFFFF";
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              canvas.toBlob(blob => resolve(blob || file), 'image/webp', 0.5);
-            } else {
-              resolve(file);
-            }
-          };
-          img.onerror = () => resolve(file);
-          img.src = URL.createObjectURL(file);
-        });
-      } catch {
-        return file;
-      }
+      console.error("[Compress] ❌ ERRO CRÍTICO:", err);
+      throw new Error('Falha na compressão. Verifique se o navegador suporta WebP.');
     }
   },
 
