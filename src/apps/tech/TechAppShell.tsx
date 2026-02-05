@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { TechApp } from './TechApp';
 import { DataService } from '../../services/dataService';
 import { AuthState, UserRole, User } from '../../types';
+import { useLocationTracker } from '../../hooks/useLocationTracker';
 
 // Chaves de storage específicas para o Tech App (isoladas do Admin)
 const TECH_SESSION_KEY = 'nexus_tech_session';
@@ -64,6 +65,8 @@ export const TechAppShell: React.FC = () => {
     const [isInitializing, setIsInitializing] = useState(true);
     const [initError, setInitError] = useState<string | null>(null);
 
+    const { startTracking, stopTracking, isTracking, error: gpsError } = useLocationTracker();
+
     useEffect(() => {
         let isMounted = true;
         let unsubscribe: (() => void) | null = null;
@@ -91,6 +94,7 @@ export const TechAppShell: React.FC = () => {
                         if (refreshedUser.role === UserRole.TECHNICIAN) {
                             TechSessionStorage.set(refreshedUser);
                             setAuth({ user: refreshedUser, isAuthenticated: true });
+                            startTracking(); // 📍 Inicia Rastreamento GPS ao logar
                         } else {
                             await supabase.auth.signOut();
                             TechSessionStorage.clear();
@@ -108,11 +112,13 @@ export const TechAppShell: React.FC = () => {
                             if (user && user.role === UserRole.TECHNICIAN) {
                                 TechSessionStorage.set(user);
                                 setAuth({ user: user, isAuthenticated: true });
+                                startTracking(); // 📍 Inicia Rastreamento
                             }
                         }
                     } else if (event === 'SIGNED_OUT') {
                         TechSessionStorage.clear();
                         setAuth({ user: null, isAuthenticated: false });
+                        stopTracking(); // 🛑 Para Rastreamento
                     }
                 });
 
@@ -137,8 +143,9 @@ export const TechAppShell: React.FC = () => {
             isMounted = false;
             clearTimeout(timeoutId);
             if (unsubscribe) unsubscribe();
+            stopTracking();
         };
-    }, []);
+    }, [startTracking, stopTracking]);
 
     const handleLogin = (user: User, rememberMe: boolean = false) => {
         TechSessionStorage.set(user);

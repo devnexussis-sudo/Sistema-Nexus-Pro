@@ -808,22 +808,29 @@ export const DataService = {
     return tech;
   },
 
-  updateTechnicianLocation: async (techId: string, lat: number, lng: number): Promise<void> => {
+  updateTechnicianLocation: async (techId: string, lat: number, lng: number, meta?: { accuracy?: number, speed?: number, heading?: number, batteryLevel?: number }): Promise<void> => {
     if (!isCloudEnabled) return;
 
     try {
-      // 1. Tenta usar RPC (Mais seguro e rápido, bypass RLS)
+      // 1. Tenta usar RPC V2 com Histórico (Mais seguro e rápido, bypass RLS)
       const { error: rpcError } = await DataService.getServiceClient()
-        .rpc('update_tech_location', { p_lat: lat, p_lng: lng });
+        .rpc('update_tech_location_v2', {
+          p_lat: lat,
+          p_lng: lng,
+          p_accuracy: meta?.accuracy || null,
+          p_speed: meta?.speed || null,
+          p_heading: meta?.heading || null,
+          p_battery: meta?.batteryLevel || null
+        });
 
       if (!rpcError) {
-        console.log(`[🚀 Nexus Sync] RPC: Geolocalização atualizada via Função Segura.`);
+        // console.log(`[🚀 Nexus Sync] RPC: Geolocalização com histórico atualizada.`);
         return;
       }
 
-      console.warn("[🚀 Nexus Sync] RPC falhou, tentando método direto...", rpcError);
+      console.warn("[🚀 Nexus Sync] RPC V2 falhou, tentando fallback (sem histórico)...", rpcError);
 
-      // 2. Fallback para Update direto (caso a RPC não exista ou falhe)
+      // 2. Fallback para Update direto (Apenas última posição, sem histórico)
       const { error } = await DataService.getServiceClient()
         .from('technicians')
         .update({
@@ -833,15 +840,14 @@ export const DataService = {
         })
         .eq('id', techId);
 
-      if (error) {
-        console.error("❌ Erro no Supabase ao atualizar localização:", error.message);
-      } else {
-        console.log(`✅ Localização atualizada via Tabela com sucesso.`);
-      }
-    } catch (error) {
-      console.error("Erro ao atualizar localização do técnico:", error);
+      if (error) throw error;
+
+    } catch (e) {
+      console.error("[DataService] Erro ao atualizar localização:", e);
     }
   },
+
+
 
 
   // Helper para mapear ServiceOrder do Front (camelCase) para o DB (snake_case)
