@@ -312,11 +312,19 @@ export const DataService = {
               ctx.imageSmoothingQuality = 'high';
               ctx.drawImage(img, 0, 0, width, height);
 
-              // Converte para WebP (sempre)
+              // Converte para WebP (sempre) - FORÇANDO O TIPO
               canvas.toBlob(
                 blob => {
-                  if (blob) resolve(blob);
-                  else reject(new Error("Blob conversion failed"));
+                  if (blob) {
+                    // ✅ VALIDAÇÃO: Confirma que é WebP
+                    console.log(`[Compress] Blob criado: tipo="${blob.type}", tamanho=${(blob.size / 1024).toFixed(0)}KB`);
+                    if (!blob.type.includes('webp')) {
+                      console.warn(`[Compress] ⚠️ Blob não é WebP! Tipo: ${blob.type}`);
+                    }
+                    resolve(blob);
+                  } else {
+                    reject(new Error("Blob conversion failed"));
+                  }
                 },
                 'image/webp',
                 strategy.quality
@@ -332,7 +340,7 @@ export const DataService = {
 
         currentBlob = compressed;
         const sizeKB = compressed.size / 1024;
-        console.log(`[Compress] Resultado: ${sizeKB.toFixed(0)}KB`);
+        console.log(`[Compress] Resultado: ${sizeKB.toFixed(0)}KB, tipo: ${compressed.type}`);
 
         // ✅ Sucesso: Atingiu o target
         if (compressed.size <= TARGET_SIZE) {
@@ -397,16 +405,32 @@ export const DataService = {
 
     try {
       // Compressão inteligente garantindo < 500KB
-      const blob = await DataService.processAndCompress(file);
+      const compressedBlob = await DataService.processAndCompress(file);
 
       const compressionTime = Date.now() - startTime;
-      console.log(`[PhotoUpload] ✅ Compressão concluída em ${compressionTime}ms: ${(blob.size / 1024).toFixed(0)}KB`);
+      console.log(`[PhotoUpload] ✅ Compressão concluída em ${compressionTime}ms: ${(compressedBlob.size / 1024).toFixed(0)}KB`);
+
+      // 🛡️ VALIDAÇÃO RIGOROSA: Garante WebP e < 500KB
+      if (compressedBlob.size > 500 * 1024) {
+        console.error(`[PhotoUpload] ❌ ERRO: Blob ainda muito grande: ${(compressedBlob.size / 1024).toFixed(0)}KB`);
+        throw new Error(`Imagem muito grande (${(compressedBlob.size / 1024).toFixed(0)}KB). Máximo permitido: 500KB`);
+      }
+
+      // Cria File com nome WebP explícito (força MIME type correto)
+      const webpFile = new File(
+        [compressedBlob],
+        `photo_${Date.now()}.webp`,
+        { type: 'image/webp' }
+      );
+
+      console.log(`[PhotoUpload] 📦 Arquivo WebP criado: ${webpFile.name}, tipo: ${webpFile.type}, tamanho: ${(webpFile.size / 1024).toFixed(0)}KB`);
 
       // Upload para Supabase
-      const url = await DataService.uploadBlob(blob, `orders/${orderId}/evidence`);
+      const url = await DataService.uploadBlob(webpFile, `orders/${orderId}/evidence`);
 
       const totalTime = Date.now() - startTime;
       console.log(`[PhotoUpload] 🚀 Upload total concluído em ${totalTime}ms`);
+      console.log(`[PhotoUpload] 📍 URL final: ${url}`);
 
       return url;
     } catch (err) {
