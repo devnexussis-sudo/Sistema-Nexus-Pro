@@ -1,9 +1,11 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { TechLogin } from '../../tech-pwa/TechLogin';
 import { TechDashboard } from '../../tech-pwa/TechDashboard';
 import { DataService } from '../../services/dataService';
 import { AuthState, User, UserRole, ServiceOrder, OrderStatus } from '../../types';
+
+const ITEMS_PER_PAGE = 5;
 
 interface TechAppProps {
     auth: AuthState;
@@ -13,45 +15,75 @@ interface TechAppProps {
 
 export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => {
     const [orders, setOrders] = useState<ServiceOrder[]>([]);
+    const [totalOrders, setTotalOrders] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
     const [isFetchingData, setIsFetchingData] = useState(false);
     const channelRef = useRef<any>(null);
 
-    const fetchTechData = async () => {
+    // 🚀 Fetch paginado - carrega apenas N ordens por vez
+    const fetchTechData = useCallback(async (page: number = 1) => {
         if (!auth.user) return;
+
         try {
             setIsFetchingData(true);
-            const o = await DataService.getOrders();
-            setOrders(o);
-            // Salva cache local para offline
-            localStorage.setItem('cached_orders', JSON.stringify(o));
+            const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
+                page,
+                ITEMS_PER_PAGE,
+                auth.user.id // Filtra apenas ordens do técnico logado
+            );
+
+            setOrders(fetchedOrders);
+            setTotalOrders(total);
+            setCurrentPage(page);
+
+            // Cache apenas da página atual
+            localStorage.setItem('cached_orders', JSON.stringify(fetchedOrders));
+            localStorage.setItem('cached_orders_meta', JSON.stringify({ page, total }));
+
         } catch (e: any) {
             console.error('[TechApp] Error fetching orders:', e);
-            // Fallback: se falhar, tenta carregar do cache se estiver vazio
+            // Fallback: carregar do cache
             if (orders.length === 0) {
                 const cached = localStorage.getItem('cached_orders');
+                const meta = localStorage.getItem('cached_orders_meta');
                 if (cached) {
                     setOrders(JSON.parse(cached));
+                    if (meta) {
+                        const { total } = JSON.parse(meta);
+                        setTotalOrders(total);
+                    }
                     console.log('[TechApp] Loaded from cache after error');
                 }
             }
         } finally {
             setIsFetchingData(false);
         }
-    };
+    }, [auth.user?.id]);
 
-    // Load cache imediato ao montar
+    // Callback para mudança de página (vindo do Dashboard)
+    const handlePageChange = useCallback((newPage: number) => {
+        fetchTechData(newPage);
+    }, [fetchTechData]);
+
+    // Load cache imediato ao montar (UI instantânea)
     useEffect(() => {
         const cached = localStorage.getItem('cached_orders');
+        const meta = localStorage.getItem('cached_orders_meta');
         if (cached) {
             setOrders(JSON.parse(cached));
+            if (meta) {
+                const { page, total } = JSON.parse(meta);
+                setCurrentPage(page || 1);
+                setTotalOrders(total || 0);
+            }
         }
     }, []);
 
     useEffect(() => {
         if (!auth.isAuthenticated || !auth.user) return;
 
-        // Fetch inicial
-        fetchTechData();
+        // Fetch inicial (página 1)
+        fetchTechData(1);
 
         // Configura realtime listener
         let mounted = true;
@@ -60,7 +92,6 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
             try {
                 const { supabase } = await import('../../lib/supabase');
 
-                // Remove canal anterior se existir
                 if (channelRef.current) {
                     supabase.removeChannel(channelRef.current);
                 }
@@ -72,7 +103,8 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
                         schema: 'public',
                         table: 'orders'
                     }, () => {
-                        if (mounted) fetchTechData();
+                        // Quando houver mudança, recarrega a página atual
+                        if (mounted) fetchTechData(currentPage);
                     })
                     .subscribe();
             } catch (e) {
@@ -84,7 +116,6 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
 
         return () => {
             mounted = false;
-            // Cleanup do canal
             (async () => {
                 const { supabase } = await import('../../lib/supabase');
                 if (channelRef.current) {
@@ -92,23 +123,25 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
                 }
             })();
         };
-    }, [auth.isAuthenticated, auth.user?.id]);
+    }, [auth.isAuthenticated, auth.user?.id, fetchTechData]);
 
     if (!auth.isAuthenticated) {
         return <TechLogin onLogin={(user) => onLogin(user, true)} />;
     }
 
-    const userOrders = orders.filter(o => o.assignedTo === auth.user?.id);
-
     return (
         <TechDashboard
             user={auth.user!}
-            orders={userOrders}
+            orders={orders}
+            totalOrders={totalOrders}
+            currentPage={currentPage}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={handlePageChange}
             onUpdateStatus={async (id, s, n, d) => {
                 await DataService.updateOrderStatus(id, s, n, d);
-                await fetchTechData();
+                await fetchTechData(currentPage);
             }}
-            onRefresh={fetchTechData}
+            onRefresh={() => fetchTechData(currentPage)}
             onLogout={onLogout}
             isFetching={isFetchingData}
         />
