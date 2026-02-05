@@ -182,10 +182,13 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       alert("O nome do responsável pela assinatura é obrigatório.");
       return;
     }
-    if (!answers['Assinatura do Cliente - CPF']) {
-      alert("O CPF do responsável pela assinatura é obrigatório.");
-      return;
-    }
+
+    // Captura automática de data e hora da assinatura
+    const now = new Date();
+    const signatureDate = now.toLocaleDateString('pt-BR');
+    const signatureTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    answers['Assinatura do Cliente - Data'] = signatureDate;
+    answers['Assinatura do Cliente - Hora'] = signatureTime;
 
     setLoading(true);
     try {
@@ -210,8 +213,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
             // 🛡️ Nexus Semantic Anchor: Injeta os metadados de acompanhante se for assinatura
             if (field.type === FormFieldType.SIGNATURE) {
               if (answers[`${field.id}_name`]) semanticAnswers[`${field.label} - Nome`] = answers[`${field.id}_name`];
-              if (answers[`${field.id}_cpf`]) semanticAnswers[`${field.label} - CPF`] = answers[`${field.id}_cpf`];
-              if (answers[`${field.id}_birth`]) semanticAnswers[`${field.label} - Nascimento`] = answers[`${field.id}_birth`];
+              if (answers[`${field.id}_date`]) semanticAnswers[`${field.label} - Data`] = answers[`${field.id}_date`];
+              if (answers[`${field.id}_time`]) semanticAnswers[`${field.label} - Hora`] = answers[`${field.id}_time`];
             }
           }
         });
@@ -220,8 +223,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       // 🛡️ Nexus Semantic Injection: Garante que os campos fixos de assinatura sejam salvos
       if (answers['Assinatura do Cliente']) semanticAnswers['Assinatura do Cliente'] = answers['Assinatura do Cliente'];
       if (answers['Assinatura do Cliente - Nome']) semanticAnswers['Assinatura do Cliente - Nome'] = answers['Assinatura do Cliente - Nome'];
-      if (answers['Assinatura do Cliente - CPF']) semanticAnswers['Assinatura do Cliente - CPF'] = answers['Assinatura do Cliente - CPF'];
-      if (answers['Assinatura do Cliente - Nascimento']) semanticAnswers['Assinatura do Cliente - Nascimento'] = answers['Assinatura do Cliente - Nascimento'];
+      if (answers['Assinatura do Cliente - Data']) semanticAnswers['Assinatura do Cliente - Data'] = answers['Assinatura do Cliente - Data'];
+      if (answers['Assinatura do Cliente - Hora']) semanticAnswers['Assinatura do Cliente - Hora'] = answers['Assinatura do Cliente - Hora'];
 
       // Se o mapeamento semântico gerou dados, usamos ele; caso contrário, fallback para answers original
       const finalFormData = Object.keys(semanticAnswers).length > 0 ? semanticAnswers : answers;
@@ -941,18 +944,12 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[8px] font-black text-gray-400 uppercase">Documento</p>
+                        <p className="text-[8px] font-black text-gray-400 uppercase">Data/Hora</p>
                         <p className="text-[11px] font-bold text-slate-900 leading-none mt-1">
-                          {answers['Assinatura do Cliente - CPF'] || 'N/D'}
+                          {answers['Assinatura do Cliente - Data'] || 'N/D'} às {answers['Assinatura do Cliente - Hora'] || 'N/D'}
                         </p>
                       </div>
                     </div>
-                    {answers['Assinatura do Cliente - Nascimento'] && (
-                      <div className="pt-4 border-t border-gray-50">
-                        <p className="text-[8px] font-black text-gray-400 uppercase text-center">Data de Nascimento</p>
-                        <p className="text-[10px] font-bold text-slate-900 text-center mt-1">{answers['Assinatura do Cliente - Nascimento']}</p>
-                      </div>
-                    )}
                     {answers['Assinatura do Cliente'] && (
                       <div className="pt-4 border-t border-gray-50">
                         <img
@@ -976,37 +973,20 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                         onChange={e => setAnswers(prev => ({ ...prev, 'Assinatura do Cliente - Nome': e.target.value.toUpperCase() }))}
                       />
 
-                      <div className="space-y-5">
+                      <div className="grid grid-cols-2 gap-3">
                         <Input
-                          label="Documento (CPF) *"
-                          placeholder="000.000.000-00"
-                          inputMode="numeric"
-                          className="rounded-2xl py-5 font-black bg-gray-50 border-gray-100 text-slate-800"
-                          value={answers['Assinatura do Cliente - CPF'] || ''}
-                          onChange={e => {
-                            const v = e.target.value.replace(/\D/g, "").substring(0, 11);
-                            let fmt = v;
-                            // 🛡️ Máscara CPF Resiliente
-                            if (v.length > 9) fmt = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-                            else if (v.length > 6) fmt = v.replace(/(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3");
-                            else if (v.length > 3) fmt = v.replace(/(\d{3})(\d{0,3})/, "$1.$2");
-                            setAnswers(prev => ({ ...prev, 'Assinatura do Cliente - CPF': fmt }));
-                          }}
+                          label="Data da Assinatura"
+                          placeholder="DD/MM/AAAA"
+                          disabled
+                          className="rounded-2xl py-5 font-black bg-gray-100 border-gray-200 text-slate-500"
+                          value={answers['Assinatura do Cliente - Data'] || new Date().toLocaleDateString('pt-BR')}
                         />
                         <Input
-                          label="Data de Nascimento (Opcional)"
-                          placeholder="DD/MM/AAAA"
-                          inputMode="numeric"
-                          className="rounded-2xl py-5 font-black bg-gray-50 border-gray-100 text-slate-800"
-                          value={answers['Assinatura do Cliente - Nascimento'] || ''}
-                          onChange={e => {
-                            const v = e.target.value.replace(/\D/g, "").substring(0, 8);
-                            let fmt = v;
-                            // 🛡️ Máscara Data Resiliente
-                            if (v.length > 4) fmt = v.replace(/(\d{2})(\d{2})(\d{0,4})/, "$1/$2/$3");
-                            else if (v.length > 2) fmt = v.replace(/(\d{2})(\d{0,2})/, "$1/$2");
-                            setAnswers(prev => ({ ...prev, 'Assinatura do Cliente - Nascimento': fmt }));
-                          }}
+                          label="Hora da Assinatura"
+                          placeholder="HH:MM"
+                          disabled
+                          className="rounded-2xl py-5 font-black bg-gray-100 border-gray-200 text-slate-500"
+                          value={answers['Assinatura do Cliente - Hora'] || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         />
                       </div>
                     </div>

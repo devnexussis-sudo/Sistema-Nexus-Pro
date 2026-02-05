@@ -402,11 +402,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     })?.[1] || ''}
                   </div>
                   <div className="text-[6.5px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Assinatura do Cliente / Preposto</div>
-                  {Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('cpf'))?.[1] && (
-                    <div className="text-[6px] font-bold text-slate-400 uppercase mt-0.5">
-                      CPF: {Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('cpf'))?.[1]}
-                    </div>
-                  )}
+                  {(Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('data'))?.[1] ||
+                    Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('hora'))?.[1]) && (
+                      <div className="text-[6px] font-bold text-slate-400 uppercase mt-0.5">
+                        {Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('data') && k.toLowerCase().includes('assinatura'))?.[1]} às {Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('hora') && k.toLowerCase().includes('assinatura'))?.[1]}
+                      </div>
+                    )}
                 </div>
               </div>
             </div>
