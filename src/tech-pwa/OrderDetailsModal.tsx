@@ -319,47 +319,40 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         }
       }
 
-      console.log('[PhotoUpload] Reading file as base64...');
-      const reader = new FileReader();
-      reader.onload = async (re) => {
-        const rawBase64 = re.target?.result as string;
-        console.log('[PhotoUpload] File read complete, starting upload...');
+      // 🔄 STREAM ENGINE: Substitui FileReader por processamento direto de Blob
+      console.log('[PhotoUpload] Starting Stream Processing...');
 
-        try {
-          // Upload direto (uploadFile já faz a compressão internamente)
-          const publicUrl = await DataService.uploadFile(rawBase64, `orders/${order.id}/evidence`);
-          console.log('[PhotoUpload] Upload complete:', publicUrl);
+      try {
+        // 1. Compressão Direta (File -> Blob)
+        console.log('[PhotoUpload] Compressing to Blob...');
+        const compressedBlob = await DataService.compressFileToBlob(processedFile);
+        console.log(`[PhotoUpload] Compression done. Size: ${(compressedBlob.size / 1024).toFixed(2)} KB`);
 
-          // Salva a URL
-          setAnswers(prev => {
-            const currentVal = prev[fieldId];
-            let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
+        // 2. Upload Direto (BlobStream)
+        console.log('[PhotoUpload] Uploading Blob...');
+        const publicUrl = await DataService.uploadBlob(compressedBlob, `orders/${order.id}/evidence`);
+        console.log('[PhotoUpload] Upload complete:', publicUrl);
 
-            if (currentPhotos.length >= 3) {
-              alert("Limite máximo de 3 fotos atingido para este campo.");
-              return prev;
-            }
+        // 3. Salva URL
+        setAnswers(prev => {
+          const currentVal = prev[fieldId];
+          let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
 
-            return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
-          });
+          if (currentPhotos.length >= 3) {
+            alert("Limite máximo de 3 fotos atingido para este campo.");
+            return prev;
+          }
+          return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
+        });
 
-        } catch (err) {
-          console.error("[PhotoUpload] Erro no upload imediato:", err);
-          alert("Erro ao enviar foto. Verifique sua conexão e tente novamente.");
-        } finally {
-          console.log('[PhotoUpload] Cleaning up upload state');
-          setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
-        }
-      };
-
-      reader.onerror = (err) => {
-        console.error('[PhotoUpload] FileReader error:', err);
+      } catch (err) {
+        console.error("[PhotoUpload] Stream Error:", err);
+        alert("Erro ao processar imagem. Tente novamente.");
+      } finally {
         setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
-      };
-
-      reader.readAsDataURL(processedFile);
+      }
     } catch (err) {
-      console.error("[PhotoUpload] Erro no processamento da câmera:", err);
+      console.error("[PhotoUpload] Critical Error:", err);
       setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
     }
   };
