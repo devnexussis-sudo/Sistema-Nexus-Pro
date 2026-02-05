@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { TechLogin } from '../../tech-pwa/TechLogin';
 import { TechDashboard } from '../../tech-pwa/TechDashboard';
 import { DataService } from '../../services/dataService';
@@ -19,62 +19,22 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
     const [currentPage, setCurrentPage] = useState(1);
     const [isFetchingData, setIsFetchingData] = useState(false);
     const channelRef = useRef<any>(null);
-
-    // 🚀 Fetch paginado - carrega apenas N ordens por vez
-    const fetchTechData = useCallback(async (page: number = 1) => {
-        if (!auth.user) return;
-
-        try {
-            setIsFetchingData(true);
-            const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
-                page,
-                ITEMS_PER_PAGE,
-                auth.user.id // Filtra apenas ordens do técnico logado
-            );
-
-            setOrders(fetchedOrders);
-            setTotalOrders(total);
-            setCurrentPage(page);
-
-            // Cache apenas da página atual
-            localStorage.setItem('cached_orders', JSON.stringify(fetchedOrders));
-            localStorage.setItem('cached_orders_meta', JSON.stringify({ page, total }));
-
-        } catch (e: any) {
-            console.error('[TechApp] Error fetching orders:', e);
-            // Fallback: carregar do cache
-            if (orders.length === 0) {
-                const cached = localStorage.getItem('cached_orders');
-                const meta = localStorage.getItem('cached_orders_meta');
-                if (cached) {
-                    setOrders(JSON.parse(cached));
-                    if (meta) {
-                        const { total } = JSON.parse(meta);
-                        setTotalOrders(total);
-                    }
-                    console.log('[TechApp] Loaded from cache after error');
-                }
-            }
-        } finally {
-            setIsFetchingData(false);
-        }
-    }, [auth.user?.id]);
-
-    // Callback para mudança de página (vindo do Dashboard)
-    const handlePageChange = useCallback((newPage: number) => {
-        fetchTechData(newPage);
-    }, [fetchTechData]);
+    const fetchInProgressRef = useRef(false);
 
     // Load cache imediato ao montar (UI instantânea)
     useEffect(() => {
         const cached = localStorage.getItem('cached_orders');
         const meta = localStorage.getItem('cached_orders_meta');
         if (cached) {
-            setOrders(JSON.parse(cached));
-            if (meta) {
-                const { page, total } = JSON.parse(meta);
-                setCurrentPage(page || 1);
-                setTotalOrders(total || 0);
+            try {
+                setOrders(JSON.parse(cached));
+                if (meta) {
+                    const { page, total } = JSON.parse(meta);
+                    setCurrentPage(page || 1);
+                    setTotalOrders(total || 0);
+                }
+            } catch (e) {
+                console.error('[TechApp] Error loading cache:', e);
             }
         }
     }, []);
@@ -82,12 +42,61 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
     useEffect(() => {
         if (!auth.isAuthenticated || !auth.user) return;
 
-        // Fetch inicial (página 1)
+        let mounted = true;
+
+        // 🚀 Fetch paginado - carrega apenas N ordens por vez
+        const fetchTechData = async (page: number = 1) => {
+            if (!auth.user || fetchInProgressRef.current) return;
+
+            try {
+                fetchInProgressRef.current = true;
+                setIsFetchingData(true);
+
+                const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
+                    page,
+                    ITEMS_PER_PAGE,
+                    auth.user.id
+                );
+
+                if (!mounted) return;
+
+                setOrders(fetchedOrders);
+                setTotalOrders(total);
+                setCurrentPage(page);
+
+                // Cache apenas da página atual
+                localStorage.setItem('cached_orders', JSON.stringify(fetchedOrders));
+                localStorage.setItem('cached_orders_meta', JSON.stringify({ page, total }));
+
+            } catch (e: any) {
+                console.error('[TechApp] Error fetching orders:', e);
+                if (mounted && orders.length === 0) {
+                    const cached = localStorage.getItem('cached_orders');
+                    const meta = localStorage.getItem('cached_orders_meta');
+                    if (cached) {
+                        try {
+                            setOrders(JSON.parse(cached));
+                            if (meta) {
+                                const { total } = JSON.parse(meta);
+                                setTotalOrders(total);
+                            }
+                        } catch (err) {
+                            console.error('[TechApp] Cache parse error:', err);
+                        }
+                    }
+                }
+            } finally {
+                if (mounted) {
+                    setIsFetchingData(false);
+                }
+                fetchInProgressRef.current = false;
+            }
+        };
+
+        // Fetch inicial
         fetchTechData(1);
 
         // Configura realtime listener
-        let mounted = true;
-
         const setupRealtime = async () => {
             try {
                 const { supabase } = await import('../../lib/supabase');
@@ -103,8 +112,9 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
                         schema: 'public',
                         table: 'orders'
                     }, () => {
-                        // Quando houver mudança, recarrega a página atual
-                        if (mounted) fetchTechData(currentPage);
+                        if (mounted && !fetchInProgressRef.current) {
+                            fetchTechData(currentPage);
+                        }
                     })
                     .subscribe();
             } catch (e) {
@@ -116,14 +126,75 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
 
         return () => {
             mounted = false;
+            fetchInProgressRef.current = false;
             (async () => {
-                const { supabase } = await import('../../lib/supabase');
-                if (channelRef.current) {
-                    supabase.removeChannel(channelRef.current);
+                try {
+                    const { supabase } = await import('../../lib/supabase');
+                    if (channelRef.current) {
+                        supabase.removeChannel(channelRef.current);
+                    }
+                } catch (e) {
+                    console.error('[TechApp] Cleanup error:', e);
                 }
             })();
         };
-    }, [auth.isAuthenticated, auth.user?.id, fetchTechData]);
+    }, [auth.isAuthenticated, auth.user?.id]);
+
+    // Callback para mudança de página
+    const handlePageChange = async (newPage: number) => {
+        if (!auth.user || fetchInProgressRef.current) return;
+
+        try {
+            fetchInProgressRef.current = true;
+            setIsFetchingData(true);
+
+            const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
+                newPage,
+                ITEMS_PER_PAGE,
+                auth.user.id
+            );
+
+            setOrders(fetchedOrders);
+            setTotalOrders(total);
+            setCurrentPage(newPage);
+
+            localStorage.setItem('cached_orders', JSON.stringify(fetchedOrders));
+            localStorage.setItem('cached_orders_meta', JSON.stringify({ page: newPage, total }));
+
+        } catch (e: any) {
+            console.error('[TechApp] Error changing page:', e);
+        } finally {
+            setIsFetchingData(false);
+            fetchInProgressRef.current = false;
+        }
+    };
+
+    const handleRefresh = async () => {
+        if (!auth.user || fetchInProgressRef.current) return;
+
+        try {
+            fetchInProgressRef.current = true;
+            setIsFetchingData(true);
+
+            const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
+                currentPage,
+                ITEMS_PER_PAGE,
+                auth.user.id
+            );
+
+            setOrders(fetchedOrders);
+            setTotalOrders(total);
+
+            localStorage.setItem('cached_orders', JSON.stringify(fetchedOrders));
+            localStorage.setItem('cached_orders_meta', JSON.stringify({ page: currentPage, total }));
+
+        } catch (e: any) {
+            console.error('[TechApp] Error refreshing:', e);
+        } finally {
+            setIsFetchingData(false);
+            fetchInProgressRef.current = false;
+        }
+    };
 
     if (!auth.isAuthenticated) {
         return <TechLogin onLogin={(user) => onLogin(user, true)} />;
@@ -139,9 +210,9 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
             onPageChange={handlePageChange}
             onUpdateStatus={async (id, s, n, d) => {
                 await DataService.updateOrderStatus(id, s, n, d);
-                await fetchTechData(currentPage);
+                await handleRefresh();
             }}
-            onRefresh={() => fetchTechData(currentPage)}
+            onRefresh={handleRefresh}
             onLogout={onLogout}
             isFetching={isFetchingData}
         />
