@@ -331,6 +331,9 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         return { ...prev, [fieldId]: [...currentPhotos, previewUrl] };
       });
 
+      // ✅ LIMPA loading IMEDIATAMENTE após adicionar preview (evita spinner duplo)
+      setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+
       // 🛡️ GUARDIAN: Aborta ativamente após 30s (não só limpa UI)
       const guardian = setTimeout(() => {
         console.error('[PhotoUpload] ⏰ GUARDIAN ATIVADO: Upload travado há 30s');
@@ -408,10 +411,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
               : `Erro: ${err.message || 'Desconhecido'}`;
 
         alert(`Falha no upload: ${errorMsg}`);
-      } finally {
-        if (!guardianTriggered) {
-          setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
-        }
       }
     } catch (err) {
       console.error("[PhotoUpload] ❌ ERRO CRÍTICO:", err);
