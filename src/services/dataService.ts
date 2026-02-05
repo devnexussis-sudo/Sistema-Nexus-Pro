@@ -304,8 +304,6 @@ export const DataService = {
     console.log(`[Compress] Arquivo original: ${file.name}, tipo: ${file.type}, tamanho: ${(file.size / 1024).toFixed(0)}KB`);
 
     try {
-      const url = URL.createObjectURL(file);
-
       // Estratégias progressivamente mais agressivas
       const strategies = [
         { width: 800, quality: 0.75 },  // Tentativa 1
@@ -321,62 +319,63 @@ export const DataService = {
 
         try {
           const compressed = await new Promise<Blob>((resolve, reject) => {
-            const img = new Image();
-            const timeout = setTimeout(() => reject(new Error('Image load timeout')), 10000);
+            const timeout = setTimeout(() => reject(new Error('Image decode timeout')), 15000);
 
-            img.onload = () => {
-              clearTimeout(timeout);
-              try {
-                const canvas = document.createElement('canvas');
-                let { width, height } = img;
+            // 🔥 SUPORTE HEIC: Usa createImageBitmap que suporta HEIC nativamente
+            createImageBitmap(file)
+              .then(bitmap => {
+                clearTimeout(timeout);
+                try {
+                  const canvas = document.createElement('canvas');
+                  let width = bitmap.width;
+                  let height = bitmap.height;
 
-                // Redimensiona SEMPRE para o target da estratégia
-                if (width > strategy.width || height > strategy.width) {
-                  if (width > height) {
-                    height = Math.round((height * strategy.width) / width);
-                    width = strategy.width;
-                  } else {
-                    width = Math.round((width * strategy.width) / height);
-                    height = strategy.width;
-                  }
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: false });
-
-                if (!ctx) return reject(new Error("Canvas lost"));
-
-                ctx.fillStyle = "#FFFFFF";
-                ctx.fillRect(0, 0, width, height);
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(img, 0, 0, width, height);
-
-                // FORÇA WebP
-                canvas.toBlob(
-                  blob => {
-                    if (blob) {
-                      console.log(`[Compress]   → Gerado: ${blob.type}, ${(blob.size / 1024).toFixed(0)}KB`);
-                      resolve(blob);
+                  // Redimensiona SEMPRE para o target da estratégia
+                  if (width > strategy.width || height > strategy.width) {
+                    if (width > height) {
+                      height = Math.round((height * strategy.width) / width);
+                      width = strategy.width;
                     } else {
-                      reject(new Error("toBlob failed"));
+                      width = Math.round((width * strategy.width) / height);
+                      height = strategy.width;
                     }
-                  },
-                  'image/webp',
-                  strategy.quality
-                );
-              } catch (e) {
-                reject(e);
-              }
-            };
+                  }
 
-            img.onerror = () => {
-              clearTimeout(timeout);
-              reject(new Error("Image load error"));
-            };
+                  canvas.width = width;
+                  canvas.height = height;
+                  const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: false });
 
-            img.src = url;
+                  if (!ctx) return reject(new Error("Canvas lost"));
+
+                  ctx.fillStyle = "#FFFFFF";
+                  ctx.fillRect(0, 0, width, height);
+                  ctx.imageSmoothingEnabled = true;
+                  ctx.imageSmoothingQuality = 'high';
+                  ctx.drawImage(bitmap, 0, 0, width, height);
+
+                  bitmap.close(); // Libera memória
+
+                  // FORÇA WebP
+                  canvas.toBlob(
+                    blob => {
+                      if (blob) {
+                        console.log(`[Compress]   → Gerado: ${blob.type}, ${(blob.size / 1024).toFixed(0)}KB`);
+                        resolve(blob);
+                      } else {
+                        reject(new Error("toBlob failed"));
+                      }
+                    },
+                    'image/webp',
+                    strategy.quality
+                  );
+                } catch (e) {
+                  reject(e);
+                }
+              })
+              .catch(err => {
+                clearTimeout(timeout);
+                reject(new Error(`Decode failed: ${err.message}`));
+              });
           });
 
           // ✅ VALIDAÇÃO CRÍTICA
@@ -401,7 +400,6 @@ export const DataService = {
       }
 
       // Se chegou aqui, todas as tentativas falharam ou ultrapassaram 500KB
-      URL.revokeObjectURL(url);
       throw new Error(`Não foi possível comprimir para <500KB após ${strategies.length} tentativas`);
 
     } catch (err) {
