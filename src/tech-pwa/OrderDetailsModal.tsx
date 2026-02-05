@@ -294,8 +294,16 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
 
   // 🛡️ NEXUS PHOTO PROCESSOR: Função unificada para processar fotos (API nativa ou file input)
   const processPhotoFile = async (file: File, fieldId: string) => {
-    console.log('[PhotoUpload] Starting photo processing for field:', fieldId);
+    console.log('[PhotoUpload] ===== INÍCIO DO PROCESSO =====');
+    console.log('[PhotoUpload] Field:', fieldId);
+    console.log('[PhotoUpload] File:', { name: file.name, size: file.size, type: file.type });
+    console.log('[PhotoUpload] Device:', { userAgent: navigator.userAgent });
+    
     setUploadingFields(prev => ({ ...prev, [fieldId]: true }));
+
+    // 🛡️ ABORT CONTROLLER: Permite cancelar o upload se travar
+    const abortController = new AbortController();
+    let guardianTriggered = false;
 
     try {
       if (file.type.startsWith('video/')) {
@@ -304,44 +312,75 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         return;
       }
 
-      // 🚀 INTEGRATED NASA ENGINE: Unifica processamento, compressão e upload
-      console.log('[PhotoUpload] Initiating integrated upload flow...');
+      console.log('[PhotoUpload] Iniciando upload integrado...');
 
-      // 🛡️ GUARDIAN TIMEOUT: Garante que o spinner NUNCA trave a tela, mesmo em falhas catastróficas
+      // 🛡️ GUARDIAN: Aborta ativamente após 30s (não só limpa UI)
       const guardian = setTimeout(() => {
-        console.warn('[PhotoUpload] Guardian Triggered: Forcing loader clearance.');
+        console.error('[PhotoUpload] ⏰ GUARDIAN ATIVADO: Upload travado há 30s');
+        guardianTriggered = true;
+        abortController.abort();
         setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
-      }, 60000);
+        alert('Upload demorou muito e foi cancelado. Tente com uma foto menor ou verifique sua conexão.');
+      }, 30000);
 
       try {
+        console.log('[PhotoUpload] Chamando DataService.uploadServiceOrderEvidence...');
+        const startTime = Date.now();
+        
         const publicUrl = await DataService.uploadServiceOrderEvidence(file, order.id);
+        
+        const elapsed = Date.now() - startTime;
+        console.log(`[PhotoUpload] ✅ Upload concluído em ${elapsed}ms`);
+        console.log('[PhotoUpload] URL:', publicUrl);
+        
         clearTimeout(guardian);
-        console.log('[PhotoUpload] Integrated upload success:', publicUrl);
 
-        // Atualiza UI com a nova imagem
-        setAnswers(prev => {
-          const currentVal = prev[fieldId];
-          let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
+        // Só atualiza UI se não foi abortado
+        if (!guardianTriggered) {
+          console.log('[PhotoUpload] Atualizando UI com nova imagem...');
+          setAnswers(prev => {
+            const currentVal = prev[fieldId];
+            let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
 
-          if (currentPhotos.length >= 3) {
-            alert("Limite máximo de 3 fotos atingido para este campo.");
-            return prev;
-          }
-          return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
-        });
+            if (currentPhotos.length >= 3) {
+              alert("Limite máximo de 3 fotos atingido para este campo.");
+              return prev;
+            }
+            return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
+          });
+          console.log('[PhotoUpload] ✅ Imagem adicionada com sucesso!');
+        }
 
       } catch (err: any) {
         clearTimeout(guardian);
-        console.error("[PhotoUpload] Integrated Error:", err);
-        const errorMsg = err.message === 'COMPRESSION_TIMEOUT' ? 'Tempo esgotado ao processar imagem. Tente uma foto menor ou com melhor conexão.' :
-          err.message === 'NETWORK_TIMEOUT' ? 'Falha na rede. Verifique seu sinal de internet.' :
-            'Erro ao processar imagem. Tente novamente.';
+        
+        if (guardianTriggered) {
+          console.log('[PhotoUpload] Erro ignorado pois Guardian já tratou.');
+          return;
+        }
+
+        console.error("[PhotoUpload] ❌ ERRO NO UPLOAD:", {
+          message: err.message,
+          name: err.name,
+          stack: err.stack
+        });
+
+        const errorMsg = err.message === 'COMPRESSION_TIMEOUT' 
+          ? 'Tempo esgotado ao processar imagem. Tente uma foto menor.' 
+          : err.message === 'NETWORK_TIMEOUT' 
+          ? 'Falha na rede. Verifique seu sinal de internet.' 
+          : err.name === 'AbortError'
+          ? 'Upload cancelado (tempo excedido).'
+          : `Erro: ${err.message || 'Desconhecido'}`;
+        
         alert(`Falha no upload: ${errorMsg}`);
       } finally {
-        setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+        if (!guardianTriggered) {
+          setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+        }
       }
     } catch (err) {
-      console.error("[PhotoUpload] Critical Error:", err);
+      console.error("[PhotoUpload] ❌ ERRO CRÍTICO:", err);
       setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
     }
   };
