@@ -89,16 +89,44 @@ export const TechAppShell: React.FC = () => {
                 if (sessionError) throw sessionError;
 
                 if (session?.user) {
-                    const refreshedUser = await DataService.refreshUser().catch(() => null);
-                    if (isMounted && refreshedUser) {
-                        if (refreshedUser.role === UserRole.TECHNICIAN) {
+                    let refreshedUser = null;
+                    try {
+                        refreshedUser = await DataService.refreshUser();
+                    } catch (refreshErr: any) {
+                        console.warn('[TechAppShell] Falha no refresh do user:', refreshErr);
+                        // Se for erro de abort/network, tentamos seguir com o usuário da sessão se tivermos metadados suficientes
+                        // Mas idealmente precisamos do refresh. Vamos silenciar o erro fatal se for "abort"
+                        if (refreshErr.message?.includes('aborted')) {
+                            // Ignora abort e tenta seguir
+                        }
+                    }
+
+                    if (isMounted) {
+                        // Se refresh falhou, usamos null. Se sucesso, usamos o user.
+                        // Mas precisamos que user não seja null para entrar.
+                        // Se refresh falhar, infelizmente pode ser inseguro entrar.
+                        // VAMOS FAZER UM RETRY SIMPLES?
+                        if (!refreshedUser) {
+                            // Tentativa de fallback: se falhou refresh, tenta recuperar do storage local pra não bloquear
+                            const stored = TechSessionStorage.get<User>();
+                            if (stored && stored.id === session.user.id) {
+                                refreshedUser = stored;
+                                console.log('[TechAppShell] Usando usuário em cache após falha de refresh.');
+                            }
+                        }
+
+                        if (refreshedUser && refreshedUser.role === UserRole.TECHNICIAN) {
                             TechSessionStorage.set(refreshedUser);
                             setAuth({ user: refreshedUser, isAuthenticated: true });
                             startTracking(); // 📍 Inicia Rastreamento GPS ao logar
-                        } else {
+                        } else if (refreshedUser) {
+                            // Usuário existe mas não é tech
                             await supabase.auth.signOut();
                             TechSessionStorage.clear();
                         }
+                        // Se refreshedUser for null (erro persistente), o loading vai parar no finally e mostrar o app deslogado?
+                        // Não, se session existe mas user não, ele não seta nada.
+                        // O ideal é deixar cair no catch se for crítico, mas abort não é crítico.
                     }
                 }
 
