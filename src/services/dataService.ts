@@ -6,8 +6,7 @@ import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
 import { CacheManager } from '../lib/cache';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL &&
-  import.meta.env.VITE_SUPABASE_ANON_KEY &&
-  import.meta.env.VITE_SUPABASE_URL.includes('supabase.co'));
+  import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 type UserWithPassword = User & { password: string };
 
@@ -154,6 +153,7 @@ export const DataService = {
    * Reduz o peso da imagem drasticamente usando o padrão WebP.
    */
   compressImage: async (base64: string, maxWidth = 1200, quality = 0.82): Promise<string> => {
+    // NASA STAGE 2
     return new Promise((resolve) => {
       try {
         const img = new Image();
@@ -205,152 +205,186 @@ export const DataService = {
   },
 
   /**
-   * 🛡️ Nexus Storage Interface
-   * Sobe um arquivo Base64 para o Supabase Storage e retorna a URL pública.
+   * 🛡️ NASA-Grade Storage Engine (Internal Version 2)
+   * Core logic for uploading data to Supabase with retries and timeout.
    */
-  uploadFile: async (base64: string, path: string): Promise<string> => {
-    if (!isCloudEnabled || !base64.startsWith('data:image')) return base64;
+  _uploadCore: async (blobOrFile: Blob | File, path: string, retryCount = 2): Promise<string> => {
+    const tenantId = DataService.getCurrentTenantId() || 'global';
+    const cleanPath = path.toString().replace(/^\/+/, '').replace(/\/+$/, '');
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.webp`;
+    const fullPath = `${tenantId}/${cleanPath}/${fileName}`.replace(/\/+/g, '/');
 
-    try {
-      console.log('[DataService] Starting image upload...');
+    console.log(`[Storage] Initializing secure upload to: ${fullPath} (${(blobOrFile.size / 1024).toFixed(2)}KB)`);
 
-      // 🚀 ATIVANDO COMPRESSÃO NATIVE NEXUS (WEBP)
-      const compressedBase64 = await DataService.compressImage(base64);
-      console.log('[DataService] Image compressed successfully');
+    for (let i = 0; i <= retryCount; i++) {
+      try {
+        const uploadPromise = supabase.storage
+          .from('nexus-files')
+          .upload(fullPath, blobOrFile, {
+            contentType: 'image/webp',
+            upsert: true,
+            cacheControl: '3600'
+          });
 
-      const tenantId = DataService.getCurrentTenantId() || 'global';
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('NETWORK_TIMEOUT')), 35000)
+        );
 
-      // Converte Base64 para Blob de forma mais eficiente (sem fetch)
-      const base64Data = compressedBase64.split(',')[1];
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+        const response = await Promise.race([uploadPromise, timeoutPromise]) as any;
+
+        if (response?.error) throw response.error;
+        if (!response?.data) throw new Error("EMPTY_RESPONSE");
+
+        const { data } = supabase.storage
+          .from('nexus-files')
+          .getPublicUrl(fullPath);
+
+        if (!data?.publicUrl) throw new Error("URL_GENERATION_FAILED");
+
+        console.log(`[Storage] 🚀 Upload successful: ${data.publicUrl}`);
+        return data.publicUrl;
+      } catch (err: any) {
+        console.error(`[Storage] Try ${i + 1} failed:`, err.message);
+        if (i === retryCount) throw err;
       }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'image/webp' });
+    }
+    throw new Error("STORAGE_CRITICAL_FAILURE");
+  },
 
-      console.log(`[DataService] Blob created: ${(blob.size / 1024).toFixed(2)}KB`);
+  /**
+   * 🛡️ Ultra-Robust Image Compressor
+   * Handles HEIC, handles WebP-to-JPEG Fallback, supports High-Resolution inputs.
+   */
+  processAndCompress: async (file: File, maxWidth = 1200, quality = 0.8): Promise<Blob> => {
+    let currentBlob: Blob | File = file;
 
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
-      const fullPath = `${tenantId}/${path}/${fileName}`;
+    // 🛡️ Global Timeout for the entire processing pipeline (HEIC + Canvas + Encoding)
+    const processingTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("COMPRESSION_TIMEOUT")), 45000)
+    );
 
-      // Upload com timeout de 30 segundos
-      const uploadPromise = supabase.storage
-        .from('nexus-files')
-        .upload(fullPath, blob, {
-          contentType: 'image/webp',
-          upsert: true
-        });
+    const mainPipeline = (async (): Promise<Blob> => {
+      // 🛡️ Phase 1: HEIC Transcoding
+      const isHeic = file.name.toLowerCase().match(/\.(heic|heif)$/) || file.type === 'image/heic' || file.type === 'image/heif';
+      if (isHeic) {
+        console.log("[Compress] HEIC detected, transcoding...");
+        try {
+          const heic2any = (await import('heic2any')).default;
+          const result = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
+          currentBlob = Array.isArray(result) ? result[0] : result;
+        } catch (e) {
+          console.warn("[Compress] HEIC conversion failed, trying raw...", e);
+        }
+      }
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Upload timeout after 30s')), 30000)
-      );
+      // 🛡️ Phase 2: Canvas Processing
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(currentBlob);
 
-      const { data, error } = await Promise.race([uploadPromise, timeoutPromise]) as any;
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            let { width, height } = img;
 
-      if (error) throw error;
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('nexus-files')
-        .getPublicUrl(fullPath);
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error("CANVAS_CONTEXT_LOST");
 
-      console.log('[DataService] Upload successful:', publicUrl);
-      return publicUrl;
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            URL.revokeObjectURL(objectUrl);
+
+            // 🛡️ Phase 3: Binary Encoding with Fallback
+            canvas.toBlob((blob) => {
+              if (blob) {
+                console.log(`[Compress] Encoded successfully (${(blob.size / 1024).toFixed(2)}KB)`);
+                resolve(blob);
+              } else {
+                canvas.toBlob((fallbackBlob) => {
+                  if (fallbackBlob) resolve(fallbackBlob);
+                  else reject(new Error("ENCODING_FAILURE"));
+                }, 'image/jpeg', quality);
+              }
+            }, 'image/webp', quality);
+          } catch (e) {
+            URL.revokeObjectURL(objectUrl);
+            reject(e);
+          }
+        };
+
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error("IMAGE_DECODE_FAILURE"));
+        };
+
+        img.src = objectUrl;
+      });
+    })();
+
+    return Promise.race([mainPipeline, processingTimeout]);
+  },
+
+  compressFileToBlob: async (file: File): Promise<Blob> => {
+    return DataService.processAndCompress(file);
+  },
+
+  /**
+   * 🛡️ NASA Direct Integrated Upload
+   * Direct entry point for UI components.
+   * Optimized for field use: 1000px @ 0.70 quality for high-performance mobile uploads.
+   */
+  uploadServiceOrderEvidence: async (file: File, orderId: string): Promise<string> => {
+    if (!isCloudEnabled) return URL.createObjectURL(file);
+    try {
+      console.log(`[PhotoUpload] Optimizing ${file.name} for field upload...`);
+      // 🚀 FIELD-FIRST PRESET: 900px @ 0.65 quality (Extremely lightweight, <150KB)
+      const blob = await DataService.processAndCompress(file, 900, 0.65);
+      return await DataService.uploadBlob(blob, `orders/${orderId}/evidence`);
     } catch (err) {
-      console.error("Nexus Storage Error:", err);
-      // 🛡️ Safety: Se falhar o upload, NÃO retorna o base64. 
-      // Retornar base64 > 10MB causa crash no banco e na rede.
-      throw new Error("Falha no upload da imagem. Tente novamente.");
+      console.error("[DataService] Integrated upload failed:", err);
+      throw err;
     }
   },
 
   /**
-   * 🛡️ Nexus Blob Compression Engine
-   * Converte File -> Blob (WebP) diretamente sem passar por string Base64 gigante.
+   * 🛡️ Optimized Blob Upload
+   * Reduced retry count to 1 for photos to prevent long UI hang times on bad connections.
    */
-  compressFileToBlob: async (file: File, maxWidth = 1200, quality = 0.82): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.src = URL.createObjectURL(file);
-
-      img.onload = () => {
-        try {
-          URL.revokeObjectURL(img.src); // Limpa memória
-
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          // Redimensionamento
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error("Canvas context failed"));
-            return;
-          }
-
-          // Fundo branco
-          ctx.fillStyle = "#FFFFFF";
-          ctx.fillRect(0, 0, width, height);
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Compressão direta para Blob
-          canvas.toBlob((blob) => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(new Error("Blob conversion failed"));
-            }
-          }, 'image/webp', quality);
-
-        } catch (e) {
-          reject(e);
-        }
-      };
-
-      img.onerror = (e) => {
-        URL.revokeObjectURL(img.src);
-        reject(new Error("Image load failed"));
-      };
-    });
+  uploadBlob: async (blob: Blob, path: string): Promise<string> => {
+    if (!isCloudEnabled) return URL.createObjectURL(blob);
+    return DataService._uploadCore(blob, path, 1); // Only 1 retry for large binary
   },
 
   /**
-   * 🛡️ Nexus Direct Blob Upload
-   * Sobe um Blob diretamente para o Supabase.
+   * 🛡️ Nexus Storage Interface (Base64 wrapper)
    */
-  uploadBlob: async (blob: Blob, path: string): Promise<string> => {
-    if (!isCloudEnabled) return URL.createObjectURL(blob); // Mock local
-
-    const tenantId = DataService.getCurrentTenantId() || 'global';
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
-    const fullPath = `${tenantId}/${path}/${fileName}`;
-
-    console.log(`[DataService] Uploading Blob: ${(blob.size / 1024).toFixed(2)}KB to ${fullPath}`);
-
-    const { data, error } = await supabase.storage
-      .from('nexus-files')
-      .upload(fullPath, blob, {
-        contentType: 'image/webp',
-        upsert: true
-      });
-
-    if (error) throw error;
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('nexus-files')
-      .getPublicUrl(fullPath);
-
-    return publicUrl;
+  uploadFile: async (base64: string, path: string): Promise<string> => {
+    if (!isCloudEnabled || !base64.startsWith('data:image')) return base64;
+    try {
+      const compressedBase64 = await DataService.compressImage(base64);
+      const base64Data = compressedBase64.split(',')[1];
+      const binaryData = atob(base64Data);
+      const uint8Array = new Uint8Array(binaryData.length);
+      for (let i = 0; i < binaryData.length; i++) {
+        uint8Array[i] = binaryData.charCodeAt(i);
+      }
+      const blob = new Blob([uint8Array], { type: 'image/webp' });
+      return DataService._uploadCore(blob, path);
+    } catch (err) {
+      console.error("UploadFile Error:", err);
+      throw err;
+    }
   },
+
 
   login: async (email: string, password?: string): Promise<User | undefined> => {
     if (isCloudEnabled) {

@@ -157,6 +157,13 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
   };
 
   const handleFinalizeService = async () => {
+    // 🛡️ Nexus Sync Guard: Verifica se ainda há uploads em processamento
+    const isUploading = Object.values(uploadingFields).some(v => v === true);
+    if (isUploading) {
+      alert("Aguarde a conclusão do envio das fotos antes de finalizar o atendimento.");
+      return;
+    }
+
     if (linkedForm) {
       const missing = linkedForm.fields.find(f => {
         // 🧠 Lógica de Visibilidade: Só exige se estiver visível
@@ -291,49 +298,27 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
     setUploadingFields(prev => ({ ...prev, [fieldId]: true }));
 
     try {
-      // Validação extra de segurança
       if (file.type.startsWith('video/')) {
         alert('Apenas fotos são permitidas neste campo.');
         setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
         return;
       }
 
-      let processedFile = file;
+      // 🚀 INTEGRATED NASA ENGINE: Unifica processamento, compressão e upload
+      console.log('[PhotoUpload] Initiating integrated upload flow...');
 
-      // 🛡️ Nexus HEIC Intelligence
-      const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
-      if (isHeic) {
-        console.log('[PhotoUpload] HEIC detected, converting...');
-        try {
-          const heic2any = (await import('heic2any')).default;
-          const convertedBlob = await heic2any({
-            blob: file,
-            toType: 'image/jpeg',
-            quality: 0.8
-          });
-          const simpleBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
-          processedFile = new File([simpleBlob], file.name.split('.')[0] + '.jpg', { type: 'image/jpeg' });
-          console.log('[PhotoUpload] HEIC conversion successful');
-        } catch (err) {
-          console.error("Falha na transcodificação HEIC Nexus:", err);
-        }
-      }
-
-      // 🔄 STREAM ENGINE: Substitui FileReader por processamento direto de Blob
-      console.log('[PhotoUpload] Starting Stream Processing...');
+      // 🛡️ GUARDIAN TIMEOUT: Garante que o spinner NUNCA trave a tela, mesmo em falhas catastróficas
+      const guardian = setTimeout(() => {
+        console.warn('[PhotoUpload] Guardian Triggered: Forcing loader clearance.');
+        setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+      }, 60000);
 
       try {
-        // 1. Compressão Direta (File -> Blob)
-        console.log('[PhotoUpload] Compressing to Blob...');
-        const compressedBlob = await DataService.compressFileToBlob(processedFile);
-        console.log(`[PhotoUpload] Compression done. Size: ${(compressedBlob.size / 1024).toFixed(2)} KB`);
+        const publicUrl = await DataService.uploadServiceOrderEvidence(file, order.id);
+        clearTimeout(guardian);
+        console.log('[PhotoUpload] Integrated upload success:', publicUrl);
 
-        // 2. Upload Direto (BlobStream)
-        console.log('[PhotoUpload] Uploading Blob...');
-        const publicUrl = await DataService.uploadBlob(compressedBlob, `orders/${order.id}/evidence`);
-        console.log('[PhotoUpload] Upload complete:', publicUrl);
-
-        // 3. Salva URL
+        // Atualiza UI com a nova imagem
         setAnswers(prev => {
           const currentVal = prev[fieldId];
           let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
@@ -345,9 +330,13 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
         });
 
-      } catch (err) {
-        console.error("[PhotoUpload] Stream Error:", err);
-        alert("Erro ao processar imagem. Tente novamente.");
+      } catch (err: any) {
+        clearTimeout(guardian);
+        console.error("[PhotoUpload] Integrated Error:", err);
+        const errorMsg = err.message === 'COMPRESSION_TIMEOUT' ? 'Tempo esgotado ao processar imagem. Tente uma foto menor ou com melhor conexão.' :
+          err.message === 'NETWORK_TIMEOUT' ? 'Falha na rede. Verifique seu sinal de internet.' :
+            'Erro ao processar imagem. Tente novamente.';
+        alert(`Falha no upload: ${errorMsg}`);
       } finally {
         setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
       }
