@@ -298,7 +298,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
     console.log('[PhotoUpload] Field:', fieldId);
     console.log('[PhotoUpload] File:', { name: file.name, size: file.size, type: file.type });
     console.log('[PhotoUpload] Device:', { userAgent: navigator.userAgent });
-    
+
     setUploadingFields(prev => ({ ...prev, [fieldId]: true }));
 
     // 🛡️ ABORT CONTROLLER: Permite cancelar o upload se travar
@@ -314,46 +314,72 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
 
       console.log('[PhotoUpload] Iniciando upload integrado...');
 
+      // 🎯 OPTIMISTIC UI: Mostra preview IMEDIATAMENTE (melhor UX)
+      const previewUrl = URL.createObjectURL(file);
+      setAnswers(prev => {
+        const currentVal = prev[fieldId];
+        let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
+
+        if (currentPhotos.length >= 3) {
+          alert("Limite máximo de 3 fotos atingido para este campo.");
+          URL.revokeObjectURL(previewUrl);
+          setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+          return prev;
+        }
+
+        // Adiciona preview temporário (será substituído pela URL real)
+        return { ...prev, [fieldId]: [...currentPhotos, previewUrl] };
+      });
+
       // 🛡️ GUARDIAN: Aborta ativamente após 30s (não só limpa UI)
       const guardian = setTimeout(() => {
         console.error('[PhotoUpload] ⏰ GUARDIAN ATIVADO: Upload travado há 30s');
         guardianTriggered = true;
         abortController.abort();
         setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+
+        // Remove preview failed
+        setAnswers(prev => {
+          const currentVal = prev[fieldId];
+          let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
+          return { ...prev, [fieldId]: currentPhotos.filter(url => url !== previewUrl) };
+        });
+
+        URL.revokeObjectURL(previewUrl);
         alert('Upload demorou muito e foi cancelado. Tente com uma foto menor ou verifique sua conexão.');
       }, 30000);
 
       try {
         console.log('[PhotoUpload] Chamando DataService.uploadServiceOrderEvidence...');
         const startTime = Date.now();
-        
+
         const publicUrl = await DataService.uploadServiceOrderEvidence(file, order.id);
-        
+
         const elapsed = Date.now() - startTime;
         console.log(`[PhotoUpload] ✅ Upload concluído em ${elapsed}ms`);
         console.log('[PhotoUpload] URL:', publicUrl);
-        
+
         clearTimeout(guardian);
 
         // Só atualiza UI se não foi abortado
         if (!guardianTriggered) {
-          console.log('[PhotoUpload] Atualizando UI com nova imagem...');
+          console.log('[PhotoUpload] Substituindo preview por URL permanente...');
+
+          // Substitui preview temporário pela URL real
           setAnswers(prev => {
             const currentVal = prev[fieldId];
             let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
-
-            if (currentPhotos.length >= 3) {
-              alert("Limite máximo de 3 fotos atingido para este campo.");
-              return prev;
-            }
-            return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
+            const updatedPhotos = currentPhotos.map(url => url === previewUrl ? publicUrl : url);
+            return { ...prev, [fieldId]: updatedPhotos };
           });
+
+          URL.revokeObjectURL(previewUrl);
           console.log('[PhotoUpload] ✅ Imagem adicionada com sucesso!');
         }
 
       } catch (err: any) {
         clearTimeout(guardian);
-        
+
         if (guardianTriggered) {
           console.log('[PhotoUpload] Erro ignorado pois Guardian já tratou.');
           return;
@@ -365,14 +391,22 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           stack: err.stack
         });
 
-        const errorMsg = err.message === 'COMPRESSION_TIMEOUT' 
-          ? 'Tempo esgotado ao processar imagem. Tente uma foto menor.' 
-          : err.message === 'NETWORK_TIMEOUT' 
-          ? 'Falha na rede. Verifique seu sinal de internet.' 
-          : err.name === 'AbortError'
-          ? 'Upload cancelado (tempo excedido).'
-          : `Erro: ${err.message || 'Desconhecido'}`;
-        
+        // Remove preview em caso de erro
+        setAnswers(prev => {
+          const currentVal = prev[fieldId];
+          let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
+          return { ...prev, [fieldId]: currentPhotos.filter(url => url !== previewUrl) };
+        });
+        URL.revokeObjectURL(previewUrl);
+
+        const errorMsg = err.message === 'COMPRESSION_TIMEOUT'
+          ? 'Tempo esgotado ao processar imagem. Tente uma foto menor.'
+          : err.message === 'NETWORK_TIMEOUT'
+            ? 'Falha na rede. Verifique seu sinal de internet.'
+            : err.name === 'AbortError'
+              ? 'Upload cancelado (tempo excedido).'
+              : `Erro: ${err.message || 'Desconhecido'}`;
+
         alert(`Falha no upload: ${errorMsg}`);
       } finally {
         if (!guardianTriggered) {
