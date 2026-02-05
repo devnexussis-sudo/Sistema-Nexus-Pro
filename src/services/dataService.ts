@@ -212,24 +212,42 @@ export const DataService = {
     if (!isCloudEnabled || !base64.startsWith('data:image')) return base64;
 
     try {
+      console.log('[DataService] Starting image upload...');
+
       // 🚀 ATIVANDO COMPRESSÃO NATIVE NEXUS (WEBP)
       const compressedBase64 = await DataService.compressImage(base64);
+      console.log('[DataService] Image compressed successfully');
 
       const tenantId = DataService.getCurrentTenantId() || 'global';
-      // Converte Base64 comprimido para Blob
-      const response = await fetch(compressedBase64);
-      const blob = await response.blob();
-      const contentType = 'image/webp'; // Agora forçamos WebP por economia
+
+      // Converte Base64 para Blob de forma mais eficiente (sem fetch)
+      const base64Data = compressedBase64.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/webp' });
+
+      console.log(`[DataService] Blob created: ${(blob.size / 1024).toFixed(2)}KB`);
 
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
       const fullPath = `${tenantId}/${path}/${fileName}`;
 
-      const { data, error } = await supabase.storage
+      // Upload com timeout de 30 segundos
+      const uploadPromise = supabase.storage
         .from('nexus-files')
         .upload(fullPath, blob, {
-          contentType,
+          contentType: 'image/webp',
           upsert: true
         });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Upload timeout after 30s')), 30000)
+      );
+
+      const { data, error } = await Promise.race([uploadPromise, timeoutPromise]) as any;
 
       if (error) throw error;
 
@@ -237,6 +255,7 @@ export const DataService = {
         .from('nexus-files')
         .getPublicUrl(fullPath);
 
+      console.log('[DataService] Upload successful:', publicUrl);
       return publicUrl;
     } catch (err) {
       console.error("Nexus Storage Error:", err);

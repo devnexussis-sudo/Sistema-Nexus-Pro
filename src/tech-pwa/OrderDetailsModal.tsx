@@ -287,6 +287,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
 
   // 🛡️ NEXUS PHOTO PROCESSOR: Função unificada para processar fotos (API nativa ou file input)
   const processPhotoFile = async (file: File, fieldId: string) => {
+    console.log('[PhotoUpload] Starting photo processing for field:', fieldId);
     setUploadingFields(prev => ({ ...prev, [fieldId]: true }));
 
     try {
@@ -302,6 +303,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       // 🛡️ Nexus HEIC Intelligence
       const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
       if (isHeic) {
+        console.log('[PhotoUpload] HEIC detected, converting...');
         try {
           const heic2any = (await import('heic2any')).default;
           const convertedBlob = await heic2any({
@@ -311,18 +313,22 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           });
           const simpleBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
           processedFile = new File([simpleBlob], file.name.split('.')[0] + '.jpg', { type: 'image/jpeg' });
+          console.log('[PhotoUpload] HEIC conversion successful');
         } catch (err) {
           console.error("Falha na transcodificação HEIC Nexus:", err);
         }
       }
 
+      console.log('[PhotoUpload] Reading file as base64...');
       const reader = new FileReader();
       reader.onload = async (re) => {
         const rawBase64 = re.target?.result as string;
+        console.log('[PhotoUpload] File read complete, starting upload...');
 
         try {
           // Upload direto (uploadFile já faz a compressão internamente)
           const publicUrl = await DataService.uploadFile(rawBase64, `orders/${order.id}/evidence`);
+          console.log('[PhotoUpload] Upload complete:', publicUrl);
 
           // Salva a URL
           setAnswers(prev => {
@@ -338,15 +344,22 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           });
 
         } catch (err) {
-          console.error("Erro no upload imediato:", err);
+          console.error("[PhotoUpload] Erro no upload imediato:", err);
           alert("Erro ao enviar foto. Verifique sua conexão e tente novamente.");
         } finally {
+          console.log('[PhotoUpload] Cleaning up upload state');
           setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
         }
       };
+
+      reader.onerror = (err) => {
+        console.error('[PhotoUpload] FileReader error:', err);
+        setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+      };
+
       reader.readAsDataURL(processedFile);
     } catch (err) {
-      console.error("Erro no processamento da câmera:", err);
+      console.error("[PhotoUpload] Erro no processamento da câmera:", err);
       setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
     }
   };
