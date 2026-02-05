@@ -312,70 +312,46 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         return;
       }
 
-      console.log('[PhotoUpload] Iniciando upload integrado...');
+      // Verifica limite de fotos ANTES de processar
+      const currentVal = answers[fieldId];
+      let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
+      if (currentPhotos.length >= 3) {
+        alert("Limite máximo de 3 fotos atingido para este campo.");
+        setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+        return;
+      }
 
-      // 🎯 OPTIMISTIC UI: Mostra preview IMEDIATAMENTE (melhor UX)
-      const previewUrl = URL.createObjectURL(file);
-      setAnswers(prev => {
-        const currentVal = prev[fieldId];
-        let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
+      console.log('[PhotoUpload] Iniciando processamento completo...');
 
-        if (currentPhotos.length >= 3) {
-          alert("Limite máximo de 3 fotos atingido para este campo.");
-          URL.revokeObjectURL(previewUrl);
-          setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
-          return prev;
-        }
-
-        // Adiciona preview temporário (será substituído pela URL real)
-        return { ...prev, [fieldId]: [...currentPhotos, previewUrl] };
-      });
-
-      // ✅ LIMPA loading IMEDIATAMENTE após adicionar preview (evita spinner duplo)
-      setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
-
-      // 🛡️ GUARDIAN: Aborta ativamente após 60s (compressão agora é rápida, tempo é para upload)
+      // 🛡️ GUARDIAN: Aborta ativamente após 90s (compressão + upload)
       const guardian = setTimeout(() => {
-        console.error('[PhotoUpload] ⏰ GUARDIAN ATIVADO: Upload travado há 60s');
+        console.error('[PhotoUpload] ⏰ GUARDIAN ATIVADO: Processo travado há 90s');
         guardianTriggered = true;
         abortController.abort();
-
-        // Remove preview failed
-        setAnswers(prev => {
-          const currentVal = prev[fieldId];
-          let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
-          return { ...prev, [fieldId]: currentPhotos.filter(url => url !== previewUrl) };
-        });
-
-        URL.revokeObjectURL(previewUrl);
-        alert('⏰ Upload cancelado: tempo excedido (60s). Verifique sua conexão de internet.');
-      }, 60000);
+        setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+        alert('⏰ Upload cancelado: tempo excedido (90s). Verifique sua conexão de internet.');
+      }, 90000);
 
       try {
-        console.log('[PhotoUpload] Chamando DataService.uploadServiceOrderEvidence...');
+        console.log('[PhotoUpload] Iniciando compressão + upload...');
         const startTime = Date.now();
 
         const publicUrl = await DataService.uploadServiceOrderEvidence(file, order.id);
 
         const elapsed = Date.now() - startTime;
-        console.log(`[PhotoUpload] ✅ Upload concluído em ${elapsed}ms`);
+        console.log(`[PhotoUpload] ✅ Processo concluído em ${elapsed}ms`);
         console.log('[PhotoUpload] URL:', publicUrl);
 
         clearTimeout(guardian);
 
-        // Só atualiza UI se não foi abortado
+        // ✅ Só atualiza UI se não foi abortado E se teve sucesso
         if (!guardianTriggered) {
-          console.log('[PhotoUpload] Substituindo preview por URL permanente...');
-
-          // Substitui preview temporário pela URL real
+          console.log('[PhotoUpload] Adicionando imagem comprimida à UI...');
           setAnswers(prev => {
             const currentVal = prev[fieldId];
             let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
-            const updatedPhotos = currentPhotos.map(url => url === previewUrl ? publicUrl : url);
-            return { ...prev, [fieldId]: updatedPhotos };
+            return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
           });
-
-          URL.revokeObjectURL(previewUrl);
           console.log('[PhotoUpload] ✅ Imagem adicionada com sucesso!');
         }
 
@@ -387,19 +363,11 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           return;
         }
 
-        console.error("[PhotoUpload] ❌ ERRO NO UPLOAD:", {
+        console.error("[PhotoUpload] ❌ ERRO NO PROCESSO:", {
           message: err.message,
           name: err.name,
           stack: err.stack
         });
-
-        // Remove preview em caso de erro
-        setAnswers(prev => {
-          const currentVal = prev[fieldId];
-          let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
-          return { ...prev, [fieldId]: currentPhotos.filter(url => url !== previewUrl) };
-        });
-        URL.revokeObjectURL(previewUrl);
 
         const errorMsg = err.message === 'COMPRESSION_TIMEOUT'
           ? 'Tempo esgotado ao processar imagem. Tente uma foto menor.'
@@ -407,9 +375,15 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
             ? 'Falha na rede. Verifique seu sinal de internet.'
             : err.name === 'AbortError'
               ? 'Upload cancelado (tempo excedido).'
-              : `Erro: ${err.message || 'Desconhecido'}`;
+              : err.message?.includes('WebP')
+                ? 'Seu navegador não suporta compressão WebP. Tente outro navegador.'
+                : `Erro no upload: ${err.message || 'Desconhecido'}`;
 
         alert(`Falha no upload: ${errorMsg}`);
+      } finally {
+        if (!guardianTriggered) {
+          setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
+        }
       }
     } catch (err) {
       console.error("[PhotoUpload] ❌ ERRO CRÍTICO:", err);
