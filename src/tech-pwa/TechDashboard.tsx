@@ -43,71 +43,49 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
   // Combina o loading local do botão com o global do download
   const isLoading = loading || isFetching;
 
-  // 🛰️ NEXUS GEOLOCATION TRACKING SYSTEM (WATCH MODE)
+  // 🛰️ NEXUS GEOLOCATION TRACKING SYSTEM (STABLE WATCH)
   React.useEffect(() => {
-    if (!user || user.role !== UserRole.TECHNICIAN) return;
+    if (!user?.id || user.role !== UserRole.TECHNICIAN) return;
 
     let watchId: number | null = null;
+    let isMounted = true;
 
     const startTracking = () => {
-      if ("geolocation" in navigator) {
-        console.log("[🛰️ Geolocation] Iniciando monitoramento contínuo (Watch Mode)...");
+      if ("geolocation" in navigator && isMounted) {
+        // console.log("[🛰️ Geolocation] Watch Mode Iniciado...");
 
-        // Ping imediato para garantir posição atual
+        // Ping de posição inicial
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
-            await DataService.updateTechnicianLocation(user.id, pos.coords.latitude, pos.coords.longitude);
+            if (isMounted) await DataService.updateTechnicianLocation(user.id, pos.coords.latitude, pos.coords.longitude);
           },
-          (err) => console.warn("[🛰️ Geolocation] Ping inicial falhou:", err.message),
-          { enableHighAccuracy: true, timeout: 10000 }
+          (err) => console.warn("[🛰️ Geolocation] Initial ping failed:", err.message),
+          { enableHighAccuracy: true, timeout: 15000 }
         );
 
-        // Configuração do Watch para alta fidelidade e persistência
         watchId = navigator.geolocation.watchPosition(
           async (position) => {
-            const { latitude, longitude, accuracy } = position.coords;
-            console.log(`[🛰️ Geolocation] Movimento detectado (Acurácia: ${accuracy.toFixed(1)}m): ${latitude}, ${longitude}`);
-
+            if (!isMounted) return;
+            const { latitude, longitude } = position.coords;
             try {
-              // Só envia se tiver uma acurácia razoável ou for a primeira vez
               await DataService.updateTechnicianLocation(user.id, latitude, longitude);
-            } catch (err) {
-              console.error("[🛰️ Geolocation] Erro no DataSync:", err);
-            }
+            } catch (err) { }
           },
           (error) => {
-            console.warn(`[🛰️ Geolocation] Erro no monitoramento: (${error.code}) ${error.message}`);
-            // Se falhar o watch, tenta reiniciar após um tempo
-            if (error.code === 3) { // TIMEOUT
-              setTimeout(startTracking, 30000);
-            }
+            console.warn(`[🛰️ Geolocation] Watch error: (${error.code})`);
           },
-          {
-            enableHighAccuracy: true,
-            timeout: 30000,
-            maximumAge: 0
-          }
+          { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
         );
       }
     };
 
     startTracking();
 
-    // 🔋 Background Support: Visibility Change
-    const handleVisibilityChange = () => {
-      // Se voltar a ficar visível, garante que o tracking está vivo
-      if (!document.hidden && !watchId) {
-        startTracking();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
+      isMounted = false;
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user]);
+  }, [user?.id]); // 🎯 Estabilidade: Depende apenas do ID
 
   const handleUpdateStatus = async (orderId: string, status: OrderStatus, notes?: string, formData?: any, items?: any[]) => {
     // Quando executa uma OS, manda a localização também
@@ -201,27 +179,25 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] pb-24 font-sans relative">
-      {/* 🔮 NEXUS IMMERSIVE LOADER - A "bolinha" carregando */}
-      {isFetching && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/60 backdrop-blur-md animate-fade-in">
-          <div className="relative">
-            {/* Círculo externo pulsante */}
-            <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping scale-150"></div>
-            {/* A Bolinha (Spinner) */}
-            <div className="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin shadow-xl"></div>
-            {/* Logo Central Mini (Identidade Nexus) */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-10 h-10 bg-[#0f172a] rounded-xl flex items-center justify-center shadow-lg border border-white/10">
-                <Hexagon size={20} className="text-emerald-400 fill-emerald-400/10" />
-              </div>
+      {/* 🔮 NEXUS IMMERSIVE LOADER - Estabilidade via opacity (evita NotFoundError) */}
+      <div
+        className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/60 backdrop-blur-md transition-opacity duration-300 pointer-events-none ${isFetching ? 'opacity-100 pointer-events-auto' : 'opacity-0'}`}
+        aria-hidden={!isFetching}
+      >
+        <div className="relative">
+          <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping scale-150"></div>
+          <div className="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin shadow-xl"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-10 h-10 bg-[#0f172a] rounded-xl flex items-center justify-center shadow-lg border border-white/10">
+              <Hexagon size={20} className="text-emerald-400 fill-emerald-400/10" />
             </div>
           </div>
-          <div className="mt-8 flex flex-col items-center gap-1">
-            <p className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em] italic animate-pulse">Sincronizando</p>
-            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Baixando Ordens de Serviço...</p>
-          </div>
         </div>
-      )}
+        <div className="mt-8 flex flex-col items-center gap-1">
+          <p className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em] italic animate-pulse">Sincronizando</p>
+          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Sincronizando Dados...</p>
+        </div>
+      </div>
 
       <div className="bg-[#0f172a] px-6 py-4 sticky top-0 z-50 shadow-2xl border-b border-white/5">
         <div className="flex justify-between items-center mb-4">

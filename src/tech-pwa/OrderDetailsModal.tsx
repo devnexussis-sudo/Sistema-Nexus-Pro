@@ -366,13 +366,15 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
 
         // ✅ Só atualiza UI se não foi abortado E se teve sucesso
         if (!guardianTriggered) {
-          console.log('[PhotoUpload] Adicionando imagem comprimida à UI...');
+          console.log('[PhotoUpload] 🎯 Adicionando imagem comprimida à UI...');
           setAnswers(prev => {
             const currentVal = prev[fieldId];
             let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
-            return { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
+            const newState = { ...prev, [fieldId]: [...currentPhotos, publicUrl] };
+            console.log('[PhotoUpload] ✅ Novo estado de respostas:', newState[fieldId]);
+            return newState;
           });
-          console.log('[PhotoUpload] ✅ Imagem adicionada com sucesso!');
+          console.log('[PhotoUpload] 🏁 Processo finalizado com sucesso.');
         }
 
       } catch (err: any) {
@@ -733,20 +735,21 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                                       {/* Botão de Adicionar Mais (se < 3) */}
                                       {photos.length < 3 && localStatus !== OrderStatus.COMPLETED && (
                                         <button
+                                          key={`btn-add-${field.id}`}
                                           disabled={uploadingFields[field.id]}
                                           onClick={() => handlePhotoUpload(field.id)}
                                           className="h-32 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-all"
                                         >
                                           {uploadingFields[field.id] ? (
-                                            <>
+                                            <div key="loader-seq" className="flex flex-col items-center gap-1">
                                               <Loader2 size={24} className="animate-spin text-indigo-600" />
-                                              <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 animate-pulse">Carregando...</span>
-                                            </>
+                                              <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 animate-pulse">Enviando...</span>
+                                            </div>
                                           ) : (
-                                            <>
+                                            <div key="add-seq" className="flex flex-col items-center gap-1">
                                               <Camera size={24} />
                                               <span className="text-[8px] font-black uppercase tracking-widest">Adicionar</span>
-                                            </>
+                                            </div>
                                           )}
                                         </button>
                                       )}
