@@ -161,9 +161,12 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     }, [systemNotifications]);
 
     const handleManualRefresh = async () => {
+        if (isRefreshing) return;
         setIsRefreshing(true);
+        console.log('[AdminApp] 🔄 Atualizando dados manualmente...');
         await fetchGlobalData();
-        setTimeout(() => setIsRefreshing(false), 600);
+        // Garante pelo menos 1s de feedback visual
+        setTimeout(() => setIsRefreshing(false), 1000);
     };
 
     const hasPermission = (module: keyof UserPermissions, action: 'read' | 'create' | 'update' | 'delete' | null = 'read'): boolean => {
@@ -275,7 +278,14 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                             <span className="text-[10px] font-black text-slate-900 uppercase italic">{auth.user?.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button onClick={handleManualRefresh} className="p-2.5 rounded-2xl border bg-white"><RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} /></button>
+                            <button
+                                onClick={handleManualRefresh}
+                                disabled={isRefreshing}
+                                className="p-2.5 rounded-2xl border bg-white shadow-sm hover:bg-slate-50 active:scale-95 transition-all text-slate-600 hover:text-indigo-600"
+                                title="Atualizar Dados"
+                            >
+                                <RefreshCw size={18} className={isRefreshing ? 'animate-spin text-indigo-600' : ''} />
+                            </button>
                             <button onClick={() => setShowInbox(!showInbox)} className="p-2.5 rounded-2xl border bg-white"><Bell size={18} /></button>
                         </div>
                     </div>
