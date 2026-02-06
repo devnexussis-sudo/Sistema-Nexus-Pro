@@ -84,33 +84,33 @@ export const TechDashboardV2: React.FC = () => {
             </header>
 
             {/* MAIN CONTENT AREA */}
-            <main className="flex-1 px-4 pt-20 pb-28 animate-in overflow-y-auto">
+            <main className="flex-1 px-4 pt-[5.5rem] pb-28 animate-in overflow-y-auto w-full"> {/* PT ajustado para altura do header */}
 
                 {/* ABA 1: HOME (LISTA DE OS) */}
                 {activeTab === 'home' && (
-                    <div className="space-y-2">
-                        {/* Filters & Search sticky */}
-                        <div className="sticky top-20 z-40 bg-slate-50 pt-2 pb-1 space-y-2">
+                    <div className="space-y-4">
+                        {/* Filters & Search sticky - Ajustado position e z-index */}
+                        <div className="sticky top-0 z-40 bg-slate-50 pt-2 pb-2 space-y-2 -mx-4 px-4 shadow-sm border-b border-indigo-50/50 backdrop-blur-sm bg-slate-50/95">
                             {/* Datas Coloridas */}
                             <div className="flex gap-2">
                                 <div className="flex-1 relative group">
-                                    <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-                                        <span className="text-[9px] font-black uppercase text-indigo-500">DE</span>
+                                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                                        <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider">DE</span>
                                     </div>
                                     <input
                                         type="date"
-                                        className="w-full bg-white border-2 border-indigo-100 rounded-xl pl-8 pr-2 py-2 text-[10px] font-bold text-indigo-900 outline-none focus:border-indigo-500 uppercase shadow-sm"
+                                        className="w-full bg-white border-2 border-indigo-100 rounded-xl pl-9 pr-2 py-2.5 text-[10px] font-bold text-indigo-900 outline-none focus:border-indigo-500 uppercase shadow-sm transition-all"
                                         value={filters.startDate}
                                         onChange={(e) => refreshData({ newFilters: { startDate: e.target.value } })}
                                     />
                                 </div>
                                 <div className="flex-1 relative group">
-                                    <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-                                        <span className="text-[9px] font-black uppercase text-indigo-500">ATÉ</span>
+                                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                                        <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider">ATÉ</span>
                                     </div>
                                     <input
                                         type="date"
-                                        className="w-full bg-white border-2 border-indigo-100 rounded-xl pl-8 pr-2 py-2 text-[10px] font-bold text-indigo-900 outline-none focus:border-indigo-500 uppercase shadow-sm"
+                                        className="w-full bg-white border-2 border-indigo-100 rounded-xl pl-9 pr-2 py-2.5 text-[10px] font-bold text-indigo-900 outline-none focus:border-indigo-500 uppercase shadow-sm transition-all"
                                         value={filters.endDate}
                                         onChange={(e) => refreshData({ newFilters: { endDate: e.target.value } })}
                                     />
@@ -118,7 +118,7 @@ export const TechDashboardV2: React.FC = () => {
                             </div>
 
                             {/* Status Filter Scrollable Colorido */}
-                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                            <div className="flex gap-2 overflow-x-auto pb-1 pt-1 scrollbar-hide">
                                 {[
                                     { id: 'ALL', label: 'Todos', color: 'slate' },
                                     { id: OrderStatus.ASSIGNED, label: 'Pendentes', color: 'indigo' },
@@ -133,23 +133,23 @@ export const TechDashboardV2: React.FC = () => {
 
                                     switch (st.color) {
                                         case 'indigo':
-                                            activeClass = 'bg-indigo-600 border-indigo-600 text-white shadow-indigo-500/30';
+                                            activeClass = 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-500/30 transform scale-105';
                                             inactiveClass = 'bg-white border-indigo-100 text-indigo-600 hover:bg-indigo-50';
                                             break;
                                         case 'amber':
-                                            activeClass = 'bg-amber-500 border-amber-500 text-white shadow-amber-500/30';
+                                            activeClass = 'bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-500/30 transform scale-105';
                                             inactiveClass = 'bg-white border-amber-100 text-amber-600 hover:bg-amber-50';
                                             break;
                                         case 'emerald':
-                                            activeClass = 'bg-emerald-500 border-emerald-500 text-white shadow-emerald-500/30';
+                                            activeClass = 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/30 transform scale-105';
                                             inactiveClass = 'bg-white border-emerald-100 text-emerald-600 hover:bg-emerald-50';
                                             break;
                                         case 'red':
-                                            activeClass = 'bg-red-500 border-red-500 text-white shadow-red-500/30';
+                                            activeClass = 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/30 transform scale-105';
                                             inactiveClass = 'bg-white border-red-100 text-red-600 hover:bg-red-50';
                                             break;
                                         default: // slate/all
-                                            activeClass = 'bg-slate-700 border-slate-700 text-white shadow-slate-500/30';
+                                            activeClass = 'bg-slate-800 border-slate-800 text-white shadow-lg shadow-slate-500/30 transform scale-105';
                                             inactiveClass = 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50';
                                     }
 
@@ -157,7 +157,7 @@ export const TechDashboardV2: React.FC = () => {
                                         <button
                                             key={st.id}
                                             onClick={() => refreshData({ newFilters: { status: st.id as any } })}
-                                            className={`whitespace-nowrap px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-sm ${isActive ? activeClass : inactiveClass
+                                            className={`whitespace-nowrap px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-sm flex-shrink-0 ${isActive ? activeClass : inactiveClass
                                                 }`}
                                         >
                                             {st.label}
@@ -167,8 +167,8 @@ export const TechDashboardV2: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Lista de Ordens Compacta */}
-                        <div className="space-y-3 pt-1">
+                        {/* Lista de Ordens Compacta - Padding Top seguro */}
+                        <div className="space-y-4 pt-2 pb-4">
                             {orders.length === 0 ? (
                                 <div className="py-12 text-center text-slate-400 bg-white border border-dashed border-slate-200 rounded-[2rem]">
                                     <ListTodo size={32} className="mx-auto text-slate-300 mb-3" />
