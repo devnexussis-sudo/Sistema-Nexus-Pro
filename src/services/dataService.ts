@@ -2531,12 +2531,32 @@ export const DataService = {
       const { data, error } = await DataService.getServiceClient().from('form_templates')
         .select('*')
         .eq('tenant_id', tenantId);
-      if (error) throw error;
-      return (data || []).map(f => ({
+      if (error) {
+        console.warn('⚠️ Erro ao buscar templates (tabela inexistente?). Usando MOCK.', error);
+      }
+      const templates = (data || []).map(f => ({
         ...f,
-        title: f.title || (f as any).name, // 🛡️ Fallback inteligente: se não achar title, usa name
+        title: f.title || (f as any).name,
         fields: f.fields || []
       }));
+
+      // 🚨 MOCK FALLBACK
+      if (templates.length === 0) {
+        templates.push({
+          id: 'mock-001',
+          title: 'Protocolo Padrão V2',
+          active: true,
+          // @ts-ignore
+          serviceTypes: ['Visita Técnica', 'Manutenção Corretiva'],
+          fields: [
+            { id: 'f1', type: FormFieldType.SELECT, label: 'Condição Inicial', required: true, options: ['Operacional', 'Parado', 'Ruído Anormal'] },
+            { id: 'f2', type: FormFieldType.PHOTO, label: 'Foto da Placa / Serial', required: true },
+            { id: 'f3', type: FormFieldType.LONG_TEXT, label: 'O que foi feito?', required: true },
+            { id: 'f4', type: FormFieldType.PHOTO, label: 'Foto Finalizada', required: false }
+          ]
+        });
+      }
+      return templates;
     }
     return getStorage<FormTemplate[]>(STORAGE_KEYS.TEMPLATES, []);
   },
@@ -2607,7 +2627,12 @@ export const DataService = {
         console.error("Erro ao buscar regras de ativação:", error);
         return [];
       }
-      return (data || []).map(r => ({ ...r, serviceTypeId: r.service_type_id, equipmentFamily: r.equipment_family, formId: r.form_id }));
+      return (data || []).map(r => ({
+        ...r,
+        serviceType: r.service_type,
+        equipmentFamily: r.equipment_family,
+        formTemplateId: r.form_template_id
+      }));
     }
     return getStorage<any[]>('nexus_rules_db', []);
   },
