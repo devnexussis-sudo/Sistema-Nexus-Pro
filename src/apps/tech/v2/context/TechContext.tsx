@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { User, ServiceOrder, AuthState, UserRole } from '../../../../types';
+import { User, ServiceOrder, AuthState, UserRole, OrderStatus } from '../../../../types';
 import { DataService } from '../../../../services/dataService';
 
 interface TechContextType {
@@ -11,6 +11,7 @@ interface TechContextType {
     login: (email: string, pass: string) => Promise<void>;
     logout: () => void;
     refreshData: () => Promise<void>;
+    updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
 }
 
 const TechContext = createContext<TechContextType | undefined>(undefined);
@@ -99,6 +100,18 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         stopGPS();
     }, [stopGPS]);
 
+    const updateOrderStatus = useCallback(async (id: string, status: OrderStatus) => {
+        try {
+            await DataService.updateOrderStatus(id, status);
+            if (mountedRef.current) {
+                setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+            }
+        } catch (e) {
+            console.error("[Context-V2] Update Status Error:", e);
+            throw e;
+        }
+    }, []);
+
     // EFETUAR SYNC AO LOGAR
     useEffect(() => {
         if (auth.isAuthenticated) {
@@ -119,7 +132,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [stopGPS]);
 
     return (
-        <TechContext.Provider value={{ auth, orders, isSyncing, gpsStatus, login, logout, refreshData }}>
+        <TechContext.Provider value={{ auth, orders, isSyncing, gpsStatus, login, logout, refreshData, updateOrderStatus }}>
             {children}
         </TechContext.Provider>
     );

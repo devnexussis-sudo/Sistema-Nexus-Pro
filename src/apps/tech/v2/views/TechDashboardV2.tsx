@@ -14,12 +14,13 @@ import {
     Clock,
     CheckCircle2
 } from 'lucide-react';
-
-import { OrderStatus, OrderPriority } from '../../../../types';
+import { OrderDetailsV2 } from './OrderDetailsV2';
+import { OrderStatus, OrderPriority, ServiceOrder } from '../../../../types';
 
 export const TechDashboardV2: React.FC = () => {
-    const { auth, orders, isSyncing, refreshData, logout } = useTech();
+    const { auth, orders, isSyncing, refreshData, logout, updateOrderStatus } = useTech();
     const [activeTab, setActiveTab] = useState('home');
+    const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
 
     if (!auth.user) return null;
 
@@ -89,7 +90,11 @@ export const TechDashboardV2: React.FC = () => {
                         </div>
                     ) : (
                         orders.map(order => (
-                            <div key={order.id} className="os-card glass cursor-pointer flex items-center justify-between">
+                            <div
+                                key={order.id}
+                                onClick={() => setSelectedOrder(order)}
+                                className="os-card glass cursor-pointer flex items-center justify-between"
+                            >
                                 <div className="flex items-center gap-4">
                                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${order.priority === OrderPriority.CRITICAL || order.priority === OrderPriority.HIGH ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-500'}`}>
                                         <LayoutDashboard size={20} />
@@ -130,6 +135,17 @@ export const TechDashboardV2: React.FC = () => {
                     <span className="text-[8px] font-black uppercase">Ajustes</span>
                 </button>
             </nav>
+
+            {selectedOrder && (
+                <OrderDetailsV2
+                    order={selectedOrder}
+                    onClose={() => setSelectedOrder(null)}
+                    onUpdateStatus={async (status) => {
+                        await updateOrderStatus(selectedOrder.id, status);
+                        setSelectedOrder(prev => prev ? { ...prev, status } : null);
+                    }}
+                />
+            )}
         </div>
     );
 };
