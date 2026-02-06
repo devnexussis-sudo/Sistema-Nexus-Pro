@@ -18,6 +18,7 @@ import { OrderStatus, OrderPriority, ServiceOrder } from '../../../../types';
 
 export const TechDashboardV2: React.FC = () => {
     const { auth, orders, isSyncing, refreshData, logout, updateOrderStatus } = useTech();
+    const [activeTab, setActiveTab] = useState('home');
     const [activeFilter, setActiveFilter] = useState<OrderStatus | 'ALL'>('ALL');
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -144,9 +145,9 @@ export const TechDashboardV2: React.FC = () => {
                             >
                                 {/* Lateral Color Strip Indicator */}
                                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-500' :
-                                        order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-500' :
-                                            order.priority === OrderPriority.CRITICAL ? 'bg-red-500' :
-                                                'bg-indigo-500'
+                                    order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-500' :
+                                        order.priority === OrderPriority.CRITICAL ? 'bg-red-500' :
+                                            'bg-indigo-500'
                                     }`}></div>
 
                                 <div className="flex items-start justify-between mb-4 pl-3">
@@ -159,13 +160,13 @@ export const TechDashboardV2: React.FC = () => {
                                         </h4>
                                     </div>
                                     <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-50 text-emerald-600' :
-                                            order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-50 text-amber-600' :
-                                                order.priority === OrderPriority.CRITICAL ? 'bg-red-50 text-red-500' :
-                                                    'bg-indigo-50 text-indigo-600'
+                                        order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-50 text-amber-600' :
+                                            order.priority === OrderPriority.CRITICAL ? 'bg-red-50 text-red-500' :
+                                                'bg-indigo-50 text-indigo-600'
                                         }`}>
                                         <div className={`w-1.5 h-1.5 rounded-full ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-500' :
-                                                order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-500' :
-                                                    'bg-indigo-500'
+                                            order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-500' :
+                                                'bg-indigo-500'
                                             }`}></div>
                                         {order.status}
                                     </div>
