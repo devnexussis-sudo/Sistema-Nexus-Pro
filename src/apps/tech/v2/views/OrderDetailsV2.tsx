@@ -34,9 +34,11 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
     const [signerName, setSignerName] = useState(order.signatureName || '');
     const [signerDoc, setSignerDoc] = useState(order.signatureDoc || '');
 
-    // 🔄 Load Logic (Template) - Usando Activation Rules
+    // 🔄 Load Logic (Template)    // Load Template Checklist
     useEffect(() => {
         const loadTemplate = async () => {
+            console.log('[OrderDetails] 🔄 Iniciando carga de checklist (v2.1 - Fallback Robust)...', { type: order.operationType, serial: order.equipmentSerial });
+            setIsLoading(true);
             if (!template) {
                 try {
                     console.log('[OrderDetails] 🔍 Carregando checklist para:', order.operationType);
