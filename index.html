@@ -6,6 +6,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Nexus Pro</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gray: {
+              750: '#2d3748',
+              850: '#1a202c',
+              950: '#0d1117',
+            },
+            primary: {
+              500: '#6366f1', // Indigo for Admin
+              600: '#4f46e5',
+            },
+            tech: {
+              500: '#10b981', // Emerald for Tech
+              600: '#059669',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0f172a">
