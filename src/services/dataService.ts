@@ -279,16 +279,37 @@ export const DataService = {
 
     let workingFile: Blob | File = file;
 
-    // 🍎 HEIC Decoder (Fallback Global)
-    if (file.type.includes('heic') || file.name.toLowerCase().endsWith('.heic')) {
+    // 🍎 HEIC/HEIF Decoder (Crucial para iPhones)
+    if (file.type.includes('heic') || file.type.includes('heif') || file.name.toLowerCase().endsWith('.heic')) {
       try {
-        const heic2any = (window as any).heic2any;
+        let heic2any = (window as any).heic2any;
+
+        // Injeção dinâmica caso não esteja no window (PWA Resiliência)
+        if (!heic2any) {
+          console.log("[Compress] 📦 Loading heic2any dynamic...");
+          await new Promise((res, rej) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+            script.onload = res;
+            script.onerror = rej;
+            document.head.appendChild(script);
+          });
+          heic2any = (window as any).heic2any;
+        }
+
         if (heic2any) {
-          const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.7 });
+          const converted = await heic2any({
+            blob: file,
+            toType: 'image/jpeg',
+            quality: 0.6
+          });
           workingFile = Array.isArray(converted) ? converted[0] : converted;
+          console.log("[Compress] ✅ HEIC Converted");
         }
       } catch (e) {
-        console.warn("[Compress] HEIC Decode Failed");
+        console.warn("[Compress] ⚠️ HEIC Decode Failed:", e);
+        // Se falhar a conversão de um HEIC, não podemos continuar pois o Image() vai dar erro.
+        throw new Error('HEIC_DECODE_ERROR');
       }
     }
 
