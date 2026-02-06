@@ -187,6 +187,9 @@ export interface ServiceOrder {
   formData?: Record<string, any>;
   items?: OrderItem[];
   showValueToClient?: boolean;
+  signature?: string; // Base64 da assinatura digital
+  signatureName?: string; // Nome de quem assinou
+  signatureDoc?: string; // CPF/Documento de quem assinou
 }
 
 

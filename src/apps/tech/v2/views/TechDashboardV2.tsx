@@ -114,25 +114,27 @@ export const TechDashboardV2: React.FC = () => {
                 </div>
             </main>
 
-            {/* Bottom Tab Bar Premium (Glass) */}
-            <nav className="tab-bar glass m-4 rounded-[32px]">
-                <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 ${activeTab === 'home' ? 'text-emerald-500' : 'text-slate-500'}`}>
-                    <LayoutDashboard size={20} />
-                    <span className="text-[8px] font-black uppercase">Dashboard</span>
-                </button>
-                <button onClick={() => setActiveTab('orders')} className={`flex flex-col items-center gap-1 ${activeTab === 'orders' ? 'text-emerald-500' : 'text-slate-500'}`}>
-                    <ListTodo size={20} />
-                    <span className="text-[8px] font-black uppercase">Tarefas</span>
-                </button>
-                <button onClick={() => setActiveTab('map')} className={`flex flex-col items-center gap-1 ${activeTab === 'map' ? 'text-emerald-500' : 'text-slate-500'}`}>
-                    <MapPin size={20} />
-                    <span className="text-[8px] font-black uppercase">Rota</span>
-                </button>
-                <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 ${activeTab === 'settings' ? 'text-emerald-500' : 'text-slate-500'}`}>
-                    <Settings size={20} />
-                    <span className="text-[8px] font-black uppercase">Ajustes</span>
-                </button>
-            </nav>
+            {/* Bottom Tab Bar Premium (Glass) - Esconde quando modal está aberto */}
+            {!selectedOrder && (
+                <nav className="tab-bar glass m-4 rounded-[32px]">
+                    <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 ${activeTab === 'home' ? 'text-emerald-500' : 'text-slate-500'}`}>
+                        <LayoutDashboard size={20} />
+                        <span className="text-[8px] font-black uppercase">Dashboard</span>
+                    </button>
+                    <button onClick={() => setActiveTab('orders')} className={`flex flex-col items-center gap-1 ${activeTab === 'orders' ? 'text-emerald-500' : 'text-slate-500'}`}>
+                        <ListTodo size={20} />
+                        <span className="text-[8px] font-black uppercase">Tarefas</span>
+                    </button>
+                    <button onClick={() => setActiveTab('map')} className={`flex flex-col items-center gap-1 ${activeTab === 'map' ? 'text-emerald-500' : 'text-slate-500'}`}>
+                        <MapPin size={20} />
+                        <span className="text-[8px] font-black uppercase">Rota</span>
+                    </button>
+                    <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 ${activeTab === 'settings' ? 'text-emerald-500' : 'text-slate-500'}`}>
+                        <Settings size={20} />
+                        <span className="text-[8px] font-black uppercase">Ajustes</span>
+                    </button>
+                </nav>
+            )}
 
             {selectedOrder && (
                 <OrderDetailsV2
