@@ -89,15 +89,34 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         return;
                     }
 
-                    // 🚨 SUPER FALLBACK: Se tudo falhar, usa o Mock, se disponível
-                    const mockTemplate = templates.find((t: any) => t.id.startsWith('mock-'));
-                    if (mockTemplate) {
-                        console.warn('[OrderDetails] ⚠️ Nenhum template específico. Usando Mock Padrão.');
-                        setTemplate(mockTemplate);
+                    // 🚨 SUPER FALLBACK: Se tudo falhar, usa o Mock da lista ou cria um Genérico
+                    let finalFallback = templates.find((t: any) => t.id.startsWith('mock-'));
+
+                    if (!finalFallback) {
+                        // Se nem o Mock veio do DataService (porque havia outros templates), CRIAMOS UM NA HORA.
+                        // Isso garante que NUNCA ficaremos sem checklist.
+                        console.warn('[OrderDetails] ⚠️ Criando Checklist Genérico (Ultimate Fallback).');
+                        finalFallback = {
+                            id: 'fallback-generic-v99',
+                            title: `Checklist: ${order.operationType || 'Padrão'}`,
+                            active: true,
+                            serviceTypes: [],
+                            fields: [
+                                { id: 'gl_status', type: 'SELECT', label: 'Status do Equipamento', required: true, options: ['Funcionando', 'Parado', 'Com Defeito'] },
+                                { id: 'gl_photo_1', type: 'PHOTO', label: 'Foto Inicial', required: true },
+                                { id: 'gl_desc', type: 'LONG_TEXT', label: 'Relatório Técnico', required: true },
+                                { id: 'gl_photo_2', type: 'PHOTO', label: 'Foto Final', required: false }
+                            ]
+                        };
+                    }
+
+                    if (finalFallback) {
+                        console.log('[OrderDetails] ✅ Usando Checklist de Fallback.');
+                        setTemplate(finalFallback);
                         return;
                     }
 
-                    console.warn('[OrderDetails] ❌ Checklist realmente não encontrado para:', order.operationType);
+                    console.error('[OrderDetails] ❌ IMPOSSÍVEL CARREGAR CHECKLIST (Isso não deve acontecer).');
                 } catch (e) {
                     console.error("[OrderDetails] ❌ Erro ao carregar checklist:", e);
                 }
