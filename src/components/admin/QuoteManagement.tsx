@@ -8,40 +8,7 @@ import {
     Eye, Link, ExternalLink, Globe, ClipboardCheck, ShieldCheck, Box, Signature as SignatureIcon,
     AlertCircle
 } from 'lucide-react';
-import { Customer, OrderStatus, OrderPriority, ServiceOrder, StockItem } from '../../types';
-
-interface QuoteItem {
-    id: string;
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    total: number;
-}
-
-interface Quote {
-    id: string;
-    customerName: string;
-    customerAddress: string;
-    title: string;
-    description: string;
-    items: QuoteItem[];
-    totalValue: number;
-    status: 'ABERTO' | 'APROVADO' | 'REJEITADO' | 'CONVERTIDO' | 'PENDENTE';
-    notes?: string;
-    validUntil?: string;
-    linkedOrderId?: string;
-    createdAt: string;
-    publicToken?: string;
-    // Auditoria Digital
-    approvedByName?: string;
-    approvalDocument?: string;
-    approvalBirthDate?: string;
-    approvalSignature?: string;
-    approvedAt?: string;
-    approvalMetadata?: any;
-    approvalLatitude?: number;
-    approvalLongitude?: number;
-}
+import { Customer, OrderStatus, OrderPriority, ServiceOrder, StockItem, Quote, QuoteItem } from '../../types';
 
 interface QuoteManagementProps {
     quotes: Quote[];
