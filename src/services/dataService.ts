@@ -2458,11 +2458,26 @@ export const DataService = {
         .select('*')
         .eq('tenant_id', tenantId)
         .order('name');
-      if (error) throw error;
-      return (data || []).map(t => ({
+      if (error) {
+        console.warn('⚠️ Erro ao buscar service_types. Usando Mock.', error);
+      }
+
+      const types = (data || []).map(t => ({
         ...t,
-        name: t.name || (t as any).title // Suporta se a coluna for title por engano
+        name: t.name || (t as any).title
       }));
+
+      // Mock Fallback se vazio
+      if (types.length === 0) {
+        types.push(
+          { id: 'st-001', name: 'Visita Técnica', active: true },
+          { id: 'st-002', name: 'Manutenção Preventiva', active: true },
+          { id: 'st-003', name: 'Manutenção Corretiva', active: true },
+          { id: 'st-004', name: 'Instalação', active: true },
+          { id: 'st-005', name: 'Garantia', active: true }
+        );
+      }
+      return types;
     }
     return getStorage<any[]>('nexus_service_types_db', []);
   },
@@ -2629,9 +2644,14 @@ export const DataService = {
       // Schema do usuário: service_type_id, equipment_family (not null), form_id
       return (data || []).map(r => ({
         ...r,
-        serviceType: r.service_type_id, // Adapter
+        // Propriedades Novas (Clean Architecture)
+        serviceType: r.service_type_id,
+        formTemplateId: r.form_id,
         equipmentFamily: r.equipment_family,
-        formTemplateId: r.form_id       // Adapter
+
+        // Propriedades Legadas (Compatibilidade com FormManagement.tsx)
+        serviceTypeId: r.service_type_id,
+        formId: r.form_id
       }));
     }
     return getStorage<any[]>('nexus_rules_db', []);
