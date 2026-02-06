@@ -51,7 +51,12 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 } catch (e) { }
             },
             (err) => {
-                console.warn("[GPS-V2] ⚠️ Erro de sinal:", err.message);
+                // Filtra erros comuns de ambiente de desenvolvimento/perda de sinal momentânea
+                if (err.message.includes('Timeout') || err.message.includes('unavailable') || err.message.includes('kCLErrorLocationUnknown')) {
+                    console.debug("[GPS-V2] ℹ️ Sinal instável ou indisponível (Tentando novamente...):", err.message);
+                } else {
+                    console.warn("[GPS-V2] ⚠️ Erro de sinal:", err.message);
+                }
                 // Não desativa, apenas loga. Em túneis o sinal volta sozinho.
             },
             { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 }
