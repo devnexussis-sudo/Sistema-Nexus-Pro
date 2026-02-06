@@ -275,23 +275,37 @@ export const DataService = {
    */
   processAndCompress: async (file: File, signal?: AbortSignal): Promise<Blob> => {
     const TARGET_SIZE = 480 * 1024; // 480KB
-    console.log(`[Compress] 🧪 Processing ${file.name}`);
+    const fileName = (file.name || '').toLowerCase();
+    const fileType = (file.type || '').toLowerCase();
+
+    console.log(`[Compress] 🧪 v5.2 - Analysis: ${fileName} | Type: ${fileType} | Size: ${(file.size / 1024).toFixed(0)}KB`);
 
     let workingFile: Blob | File = file;
 
     // 🍎 HEIC/HEIF Decoder (Crucial para iPhones)
-    if (file.type.includes('heic') || file.type.includes('heif') || file.name.toLowerCase().endsWith('.heic')) {
+    const isHeic = fileType.includes('heic') || fileType.includes('heif') ||
+      fileName.endsWith('.heic') || fileName.endsWith('.heif') || fileName.endsWith('.hif');
+
+    if (isHeic) {
+      console.log("[Compress] 🍎 HEIC/HEIF Detected - Starting conversion...");
       try {
         let heic2any = (window as any).heic2any;
 
-        // Injeção dinâmica caso não esteja no window (PWA Resiliência)
+        // Injeção dinâmica ultra-resiliente
         if (!heic2any) {
-          console.log("[Compress] 📦 Loading heic2any dynamic...");
+          console.log("[Compress] 📦 heic2any not in window, injecting script...");
           await new Promise((res, rej) => {
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
-            script.onload = res;
-            script.onerror = rej;
+            script.async = true;
+            script.onload = () => {
+              console.log("[Compress] 📦 heic2any script loaded successfully");
+              res(true);
+            };
+            script.onerror = (e) => {
+              console.error("[Compress] ❌ Failed to load heic2any script:", e);
+              rej(new Error('HEIC_LIB_LOAD_FAIL'));
+            };
             document.head.appendChild(script);
           });
           heic2any = (window as any).heic2any;
@@ -318,8 +332,14 @@ export const DataService = {
       // 1. Carrega Imagem com Timeout
       const img = new Image();
       const loadPromise = new Promise((res, rej) => {
-        img.onload = res;
-        img.onerror = () => rej(new Error('IMG_LOAD_FAIL'));
+        img.onload = () => {
+          console.log(`[Compress] 🖼️ Image loaded: ${img.width}x${img.height}`);
+          res(true);
+        };
+        img.onerror = () => {
+          console.error("[Compress] ❌ IMG_LOAD_FAIL details:", { name: file.name, type: file.type, size: file.size });
+          rej(new Error(`IMG_LOAD_FAIL: ${file.name} (${file.type || 'no-type'})`));
+        };
         img.src = url;
       });
       const loadTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('IMG_LOAD_TIMEOUT')), 15000));
