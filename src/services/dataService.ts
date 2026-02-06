@@ -1142,6 +1142,10 @@ export const DataService = {
       notes: order.notes,
       items: order.items,
       show_value_to_client: order.showValueToClient,
+      billing_status: order.billingStatus,
+      payment_method: order.paymentMethod,
+      paid_at: order.paidAt,
+      billing_notes: order.billingNotes,
       updated_at: new Date().toISOString()
     };
   },
@@ -1174,7 +1178,11 @@ export const DataService = {
       endDate: data.end_date || data.endDate,
       notes: data.notes,
       items: data.items || [],
-      showValueToClient: data.show_value_to_client ?? data.showValueToClient ?? false
+      showValueToClient: data.show_value_to_client ?? data.showValueToClient ?? false,
+      billingStatus: data.billing_status || 'PENDING',
+      paymentMethod: data.payment_method,
+      paidAt: data.paid_at,
+      billingNotes: data.billing_notes
     };
   },
 
@@ -1585,7 +1593,11 @@ export const DataService = {
       approvedByName: data.approved_by_name,
       approvedAt: data.approved_at,
       createdAt: data.created_at,
-      updatedAt: data.updated_at
+      updatedAt: data.updated_at,
+      billingStatus: data.billing_status || 'PENDING',
+      paymentMethod: data.payment_method,
+      paidAt: data.paid_at,
+      billingNotes: data.billing_notes
     };
   },
 
@@ -1780,6 +1792,10 @@ export const DataService = {
         notes: quote.notes,
         valid_until: quote.validUntil,
         linked_order_id: quote.linkedOrderId,
+        billing_status: quote.billingStatus,
+        payment_method: quote.paymentMethod,
+        paid_at: quote.paidAt,
+        billing_notes: quote.billingNotes,
         updated_at: new Date().toISOString()
       };
       const { data, error } = await DataService.getServiceClient().from('quotes').update(dbPayload).eq('id', quote.id).select();

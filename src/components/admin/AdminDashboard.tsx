@@ -41,101 +41,66 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   const handleExportExcel = () => {
-    const selectedOrders = orders.filter(o => selectedOrderIds.includes(o.id));
-    if (selectedOrders.length === 0) return;
+    // Se tiver seleção, usa a seleção. Se não, usa o que está filtrado na tela.
+    const ordersToExport = selectedOrderIds.length > 0
+      ? orders.filter(o => selectedOrderIds.includes(o.id))
+      : filteredOrders;
 
-    // 1. Preparar os dados brutos exatamente como no Banco de Dados
-    const exportData = selectedOrders.map(o => ({
-      id: o.id,
-      tenantId: o.tenantId || '',
-      title: o.title,
-      description: o.description,
-      customerName: o.customerName,
-      customerAddress: o.customerAddress,
-      status: o.status,
-      priority: o.priority,
-      operationType: o.operationType || '',
-      assignedTo: o.assignedTo || '',
-      formId: o.formId || '',
-      equipmentName: o.equipmentName || '',
-      equipmentModel: o.equipmentModel || '',
-      equipmentSerial: o.equipmentSerial || '',
-      createdAt: o.createdAt,
-      updatedAt: o.updatedAt,
-      scheduledDate: o.scheduledDate,
-      scheduledTime: o.scheduledTime || '',
-      startDate: o.startDate || '',
-      endDate: o.endDate || '',
-      notes: o.notes || '',
-      formData: JSON.stringify(o.formData || {})
-    }));
+    if (ordersToExport.length === 0) {
+      alert("Nenhuma ordem encontrada para exportar.");
+      return;
+    }
 
-    // 2. Criar a planilha a partir dos dados (Formato Nativo Excel)
+    // 1. Preparar os dados para exportação com colunas solicitadas
+    const exportData = ordersToExport.map(o => {
+      const itemsValue = o.items?.reduce((acc, i) => acc + i.total, 0) || 0;
+      const value = itemsValue || (o.formData as any)?.totalValue || (o.formData as any)?.price || 0;
+
+      return {
+        'ID O.S.': o.id,
+        'Data Agendada': o.scheduledDate,
+        'Cliente': o.customerName,
+        'Título': o.title,
+        'Descrição': o.description,
+        'Técnico': o.assignedTo || 'N/A',
+        'Status': o.status,
+        'Prioridade': o.priority,
+        'Valor Total': value,
+        'Status Financeiro': o.billingStatus || 'PENDENTE',
+        'Data de Abertura': o.createdAt,
+        'Data de Conclusão': o.endDate || 'N/A'
+      };
+    });
+
+    // 2. Criar a planilha a partir dos dados
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Ordens de Servico");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Atividades Nexus");
 
-    // 3. Ajustar largura das colunas automaticamente para melhor visualização
+    // 3. Ajustar largura das colunas
     const wscols = [
       { wch: 15 }, // id
-      { wch: 15 }, // tenantId
+      { wch: 15 }, // date
+      { wch: 30 }, // client
       { wch: 30 }, // title
-      { wch: 50 }, // description
-      { wch: 25 }, // customerName
-      { wch: 40 }, // customerAddress
+      { wch: 50 }, // desc
+      { wch: 20 }, // tech
       { wch: 15 }, // status
-      { wch: 10 }, // priority
-      { wch: 15 }, // operationType
-      { wch: 20 }, // assignedTo
-      { wch: 15 }, // formId
-      { wch: 20 }, // equipmentName
-      { wch: 20 }, // equipmentModel
-      { wch: 20 }, // equipmentSerial
-      { wch: 20 }, // createdAt
-      { wch: 20 }, // updatedAt
-      { wch: 15 }, // scheduledDate
-      { wch: 12 }, // scheduledTime
-      { wch: 15 }, // startDate
-      { wch: 15 }, // endDate
-      { wch: 40 }, // notes
-      { wch: 60 }, // formData
+      { wch: 12 }, // priority
+      { wch: 15 }, // value
+      { wch: 15 }, // billing
+      { wch: 20 }, // created
+      { wch: 20 }, // closed
     ];
     worksheet['!cols'] = wscols;
 
-    // 4. Gerar arquivo e disparar download (Ajuste Específico para Chrome / Localhost)
+    // 4. Gerar arquivo e disparar download
     try {
-      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'binary' });
-
-      const s2ab = (s: string) => {
-        const buf = new ArrayBuffer(s.length);
-        const view = new Uint8Array(buf);
-        for (let i = 0; i !== s.length; ++i) view[i] = s.charCodeAt(i) & 0xFF;
-        return buf;
-      };
-
-      const blob = new Blob([s2ab(wbout)], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      });
-
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-
-      link.href = url;
-      link.download = "nexus_export.xlsx";
-
-      document.body.appendChild(link);
-      link.click();
-
-      // Delay maior para o Chrome processar o arquivo binário antes de limpar o link
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 5000);
-
-      console.log("✅ Exportação Chrome finalizada.");
+      XLSX.writeFile(workbook, `atividades_nexus_${new Date().toISOString().split('T')[0]}.xlsx`);
+      console.log("✅ Exportação finalizada.");
     } catch (err) {
-      console.error("❌ Falha na exportação Chrome:", err);
-      alert("Erro ao gerar o arquivo para o Chrome.");
+      console.error("❌ Falha na exportação:", err);
+      alert("Erro ao gerar o arquivo Excel.");
     }
   };
 

@@ -190,6 +190,12 @@ export interface ServiceOrder {
   signature?: string; // Base64 da assinatura digital
   signatureName?: string; // Nome de quem assinou
   signatureDoc?: string; // CPF/Documento de quem assinou
+
+  // Financeiro
+  billingStatus?: 'PENDING' | 'PAID';
+  paymentMethod?: string;
+  paidAt?: string;
+  billingNotes?: string;
 }
 
 
@@ -256,6 +262,45 @@ export interface Contract {
   };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface QuoteItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Quote {
+  id: string;
+  customerName: string;
+  customerAddress: string;
+  title: string;
+  description: string;
+  items: QuoteItem[];
+  totalValue: number;
+  status: 'ABERTO' | 'APROVADO' | 'REJEITADO' | 'CONVERTIDO' | 'PENDENTE';
+  notes?: string;
+  validUntil?: string;
+  linkedOrderId?: string;
+  createdAt: string;
+  publicToken?: string;
+  // Auditoria Digital
+  approvedByName?: string;
+  approvalDocument?: string;
+  approvalBirthDate?: string;
+  approvalSignature?: string;
+  approvedAt?: string;
+  approvalMetadata?: any;
+  approvalLatitude?: number;
+  approvalLongitude?: number;
+
+  // Financeiro
+  billingStatus?: 'PENDING' | 'PAID';
+  paymentMethod?: string;
+  paidAt?: string;
+  billingNotes?: string;
 }
 
 export interface AuthState {

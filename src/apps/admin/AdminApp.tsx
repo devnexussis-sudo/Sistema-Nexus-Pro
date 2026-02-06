@@ -348,7 +348,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     {currentView === 'forms' && <FormManagement />}
                     {currentView === 'users' && <UserManagement />}
                     {currentView === 'settings' && <SettingsPage />}
-                    {currentView === 'financial' && <FinancialDashboard orders={orders} quotes={quotes} />}
+                    {currentView === 'financial' && <FinancialDashboard orders={orders} quotes={quotes} techs={techs} onRefresh={fetchGlobalData} />}
                     {currentView === 'calendar' && <OrderCalendar orders={orders} techs={techs} customers={customers} />}
                 </div>
             </main>
