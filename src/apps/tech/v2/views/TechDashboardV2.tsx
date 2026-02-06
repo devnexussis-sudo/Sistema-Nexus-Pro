@@ -37,23 +37,10 @@ import { OrderDetailsV2 } from './OrderDetailsV2';
 import { OrderStatus, OrderPriority, ServiceOrder } from '../../../../types';
 
 export const TechDashboardV2: React.FC = () => {
-    const { auth, orders, isSyncing, refreshData, logout, updateOrderStatus } = useTech();
+    const { auth, orders, isSyncing, refreshData, logout, updateOrderStatus, pagination, filters } = useTech();
     const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'settings'>('home');
-    const [activeFilter, setActiveFilter] = useState<OrderStatus | 'ALL'>('ALL');
-    const [searchTerm, setSearchTerm] = useState('');
     const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    // Filter Logic for Home
-    const filteredOrders = orders.filter(o => {
-        const matchesStatus = activeFilter === 'ALL' || o.status === activeFilter;
-        const matchesSearch = o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            o.id.includes(searchTerm) ||
-            (o.equipmentName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-        return matchesStatus && matchesSearch;
-    });
-
-    const getStatusCount = (status: OrderStatus) => orders.filter(o => o.status === status).length;
 
     const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -109,30 +96,65 @@ export const TechDashboardV2: React.FC = () => {
                 {/* ABA 1: HOME (LISTA DE OS) */}
                 {activeTab === 'home' && (
                     <div className="space-y-6">
-                        {/* Search Bar Clean */}
-                        <div className="sticky top-20 z-40 bg-slate-50 pt-2 pb-4">
-                            <div className="relative group shadow-sm rounded-2xl bg-white">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
+                        {/* Filters & Search sticky */}
+                        <div className="sticky top-20 z-40 bg-slate-50 pt-2 pb-2 space-y-2">
+                            {/* Datas */}
+                            <div className="flex gap-2">
                                 <input
-                                    type="text"
-                                    placeholder="Buscar OS, cliente..."
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
-                                    className="w-full bg-transparent border border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                                    type="date"
+                                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-indigo-500 uppercase"
+                                    value={filters.startDate}
+                                    onChange={(e) => refreshData({ newFilters: { startDate: e.target.value } })}
                                 />
+                                <input
+                                    type="date"
+                                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-indigo-500 uppercase"
+                                    value={filters.endDate}
+                                    onChange={(e) => refreshData({ newFilters: { endDate: e.target.value } })}
+                                />
+                            </div>
+
+                            {/* Status Filter Scrollable */}
+                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                {['ALL', OrderStatus.ASSIGNED, OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED, OrderStatus.BLOCKED].map((st) => (
+                                    <button
+                                        key={st}
+                                        onClick={() => refreshData({ newFilters: { status: st as any } })}
+                                        className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${filters.status === st
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20'
+                                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                                            }`}
+                                    >
+                                        {st === 'ALL' ? 'Todos' : st}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
-                        {/* Lista de Ordens */}
-                        <div className="space-y-3">
-                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-2 mb-2">Suas Ordens ({filteredOrders.length})</h3>
-                            {filteredOrders.length === 0 ? (
+                        {/* Search Bar (Local Filter on current page usually, but here we might want server search? Let's keep strict local for now or visual only) */}
+                        {/* O usuário pediu filtro de datas e status. A busca textual pode ser local na página ou server? 
+                            Ideal server, mas vou manter visual por enquanto, focando nos filtros pedidos.
+                        */}
+
+                        {/* Lista de Ordens - Padding top aumentado para evitar corte */}
+                        <div className="space-y-3 pt-2">
+                            <div className="flex justify-between items-center px-1">
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    {new Date(filters.startDate).toLocaleDateString()} - {new Date(filters.endDate).toLocaleDateString()}
+                                </h3>
+                                <span className="text-[9px] font-bold bg-indigo-50 text-indigo-500 px-2 py-1 rounded-lg">
+                                    Total: {pagination.total}
+                                </span>
+                            </div>
+
+                            {orders.length === 0 ? (
                                 <div className="py-12 text-center text-slate-400 bg-white border border-dashed border-slate-200 rounded-[2rem]">
                                     <ListTodo size={32} className="mx-auto text-slate-300 mb-3" />
                                     <p className="text-xs font-bold opacity-60">Nenhuma ordem encontrada.</p>
+                                    <button onClick={() => refreshData({ newFilters: { status: 'ALL', startDate: '', endDate: '' } })} className="mt-4 text-[10px] font-black uppercase text-indigo-500 hover:underline">Limpar Filtros</button>
                                 </div>
                             ) : (
-                                filteredOrders.map(order => (
+                                orders.map(order => (
                                     <div
                                         key={order.id}
                                         onClick={() => setSelectedOrder(order)}
@@ -172,6 +194,29 @@ export const TechDashboardV2: React.FC = () => {
                                 ))
                             )}
                         </div>
+
+                        {/* Paginação */}
+                        {pagination.totalPages > 1 && (
+                            <div className="flex items-center justify-between pt-4 pb-8">
+                                <button
+                                    disabled={pagination.page <= 1}
+                                    onClick={() => refreshData({ page: pagination.page - 1 })}
+                                    className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 disabled:opacity-50 active:scale-95 transition-all"
+                                >
+                                    Anterior
+                                </button>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    Página {pagination.page} de {pagination.totalPages}
+                                </span>
+                                <button
+                                    disabled={pagination.page >= pagination.totalPages}
+                                    onClick={() => refreshData({ page: pagination.page + 1 })}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-500/30 disabled:opacity-50 active:scale-95 transition-all"
+                                >
+                                    Próxima
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -179,38 +224,51 @@ export const TechDashboardV2: React.FC = () => {
                 {activeTab === 'dashboard' && (
                     <div className="space-y-6">
                         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 text-center">
-                            <h2 className="text-2xl font-black text-slate-900">{orders.length}</h2>
-                            <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Total de Ordens</p>
+                            <h2 className="text-2xl font-black text-slate-900">{pagination.total}</h2>
+                            <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Total Encontrado</p>
+                            <p className="text-[9px] text-slate-300 mt-1">Baseado nos filtros atuais</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="p-5 rounded-[2rem] bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden">
+                            <button
+                                onClick={() => refreshData({ newFilters: { status: OrderStatus.COMPLETED } })}
+                                className="p-5 rounded-[2rem] bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden text-left active:scale-95 transition-all"
+                            >
                                 <CheckCircle2 size={28} className="mb-3 opacity-80" />
-                                <h3 className="text-3xl font-black mb-1">{getStatusCount(OrderStatus.COMPLETED)}</h3>
-                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Concluídas</p>
+                                <h3 className="text-lg font-black mb-1">Concluídas</h3>
+                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Filtrar</p>
                                 <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-white opacity-10 rounded-full blur-xl" />
-                            </div>
+                            </button>
 
-                            <div className="p-5 rounded-[2rem] bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 relative overflow-hidden">
+                            <button
+                                onClick={() => refreshData({ newFilters: { status: OrderStatus.ASSIGNED } })}
+                                className="p-5 rounded-[2rem] bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 relative overflow-hidden text-left active:scale-95 transition-all"
+                            >
                                 <Clock size={28} className="mb-3 opacity-80" />
-                                <h3 className="text-3xl font-black mb-1">{getStatusCount(OrderStatus.ASSIGNED)}</h3>
-                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Pendentes</p>
+                                <h3 className="text-lg font-black mb-1">Pendentes</h3>
+                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Filtrar</p>
                                 <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-white opacity-10 rounded-full blur-xl" />
-                            </div>
+                            </button>
 
-                            <div className="p-5 rounded-[2rem] bg-amber-500 text-white shadow-lg shadow-amber-500/20 relative overflow-hidden">
+                            <button
+                                onClick={() => refreshData({ newFilters: { status: OrderStatus.IN_PROGRESS } })}
+                                className="p-5 rounded-[2rem] bg-amber-500 text-white shadow-lg shadow-amber-500/20 relative overflow-hidden text-left active:scale-95 transition-all"
+                            >
                                 <ListTodo size={28} className="mb-3 opacity-80" />
-                                <h3 className="text-3xl font-black mb-1">{getStatusCount(OrderStatus.IN_PROGRESS)}</h3>
-                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Executando</p>
+                                <h3 className="text-lg font-black mb-1">Executando</h3>
+                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Filtrar</p>
                                 <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-white opacity-10 rounded-full blur-xl" />
-                            </div>
+                            </button>
 
-                            <div className="p-5 rounded-[2rem] bg-red-500 text-white shadow-lg shadow-red-500/20 relative overflow-hidden">
+                            <button
+                                onClick={() => refreshData({ newFilters: { status: OrderStatus.BLOCKED } })}
+                                className="p-5 rounded-[2rem] bg-red-500 text-white shadow-lg shadow-red-500/20 relative overflow-hidden text-left active:scale-95 transition-all"
+                            >
                                 <MapPin size={28} className="mb-3 opacity-80" />
-                                <h3 className="text-3xl font-black mb-1">{getStatusCount(OrderStatus.BLOCKED)}</h3>
-                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Impedidas</p>
+                                <h3 className="text-lg font-black mb-1">Impedidas</h3>
+                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Filtrar</p>
                                 <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-white opacity-10 rounded-full blur-xl" />
-                            </div>
+                            </button>
                         </div>
                     </div>
                 )}
