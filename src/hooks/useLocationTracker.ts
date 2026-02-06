@@ -82,30 +82,25 @@ export const useLocationTracker = () => {
 
         if (shouldSend) {
             try {
-                // Tenta pegar bateria se disponível (Browser API)
-                let batteryLevel = null;
-                if ((navigator as any).getBattery) {
-                    try {
-                        const battery = await (navigator as any).getBattery();
-                        batteryLevel = battery.level * 100;
-                    } catch (e) { /* ignore */ }
+                // Obtem ID do usuário logado (Prioriza fontes do Tech App)
+                let userId = null;
+                const techUserStr = localStorage.getItem('nexus_tech_session') || localStorage.getItem('nexus_tech_persistent');
+
+                if (techUserStr) {
+                    const user = JSON.parse(techUserStr);
+                    userId = user.id || user.uid;
+                } else {
+                    const legacyUser = SessionStorage.get('user');
+                    if (legacyUser) userId = legacyUser.id;
                 }
 
-                // Obtem ID do usuário logado
-                const user = SessionStorage.get('user');
-                if (user?.id) {
-                    await DataService.updateTechnicianLocation(user.id, latitude, longitude, {
-                        accuracy,
-                        speed,
-                        heading,
-                        batteryLevel
-                    });
-
+                if (userId) {
+                    await DataService.updateTechnicianLocation(userId, latitude, longitude);
                     lastSentRef.current = { lat: latitude, lng: longitude, time: now };
-                    console.log(`[📍 GPS] Localização enviada: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+                    // console.log(`[📍 GPS] Sync: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
                 }
             } catch (error) {
-                console.error('[📍 GPS] Erro ao enviar localização:', error);
+                // console.warn('[📍 GPS] Sync Fallback:', error);
             }
         }
 

@@ -18,8 +18,8 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
     const [totalOrders, setTotalOrders] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
     const [isFetchingData, setIsFetchingData] = useState(false);
-    const channelRef = useRef<any>(null);
     const fetchInProgressRef = useRef(false);
+    const mountedRef = useRef(false);
 
     // Load cache imediato ao montar (UI instantânea)
     useEffect(() => {
@@ -39,103 +39,76 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
         }
     }, []);
 
+    // 🚀 Motor de dados centralizado
+    const fetchTechData = useCallback(async (page: number = 1, silent: boolean = false) => {
+        if (!auth.user || fetchInProgressRef.current) return;
+
+        try {
+            fetchInProgressRef.current = true;
+            if (!silent && orders.length === 0) setIsFetchingData(true);
+
+            // console.log(`[TechApp] 📡 Buscando dados (página ${page})...`);
+            const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
+                page,
+                ITEMS_PER_PAGE,
+                auth.user.id
+            );
+
+            if (!mountedRef.current) return;
+
+            setOrders(fetchedOrders);
+            setTotalOrders(total);
+            setCurrentPage(page);
+
+            localStorage.setItem('cached_orders', JSON.stringify(fetchedOrders));
+            localStorage.setItem('cached_orders_meta', JSON.stringify({ page, total }));
+
+        } catch (e: any) {
+            console.error('[TechApp] Fetch Error:', e);
+        } finally {
+            if (mountedRef.current) setIsFetchingData(false);
+            fetchInProgressRef.current = false;
+        }
+    }, [auth.user, orders.length]);
+
+    // 1. Efeito de Inicialização (Montagem)
     useEffect(() => {
-        if (!auth.isAuthenticated || !auth.user) return;
-
-        let mounted = true;
-
-        // 🚀 Fetch paginado - carrega apenas N ordens por vez
-        const fetchTechData = async (page: number = 1) => {
-            if (!auth.user) return;
-            if (fetchInProgressRef.current) return;
-
-            try {
-                fetchInProgressRef.current = true;
-
-                // Só mostra loading se não tiver dados em tela
-                if (orders.length === 0) setIsFetchingData(true);
-
-                const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
-                    page,
-                    ITEMS_PER_PAGE,
-                    auth.user.id
-                );
-
-                if (!mounted) return;
-
-                setOrders(fetchedOrders);
-                setTotalOrders(total);
-                setCurrentPage(page);
-
-                // Cache apenas da página atual
-                localStorage.setItem('cached_orders', JSON.stringify(fetchedOrders));
-                localStorage.setItem('cached_orders_meta', JSON.stringify({ page, total }));
-
-            } catch (e: any) {
-                console.error('[TechApp] Error fetching orders:', e);
-                // Se der erro e não tiver nada na tela, tenta o cache de novo
-                if (mounted && orders.length === 0) {
-                    const cached = localStorage.getItem('cached_orders');
-                    if (cached) {
-                        try {
-                            setOrders(JSON.parse(cached));
-                            const meta = localStorage.getItem('cached_orders_meta');
-                            if (meta) setTotalOrders(JSON.parse(meta).total);
-                        } catch (err) { }
-                    }
-                }
-            } finally {
-                if (mounted) setIsFetchingData(false);
-                fetchInProgressRef.current = false;
-            }
-        };
-
-        // Fetch inicial
+        mountedRef.current = true;
         fetchTechData(1);
+        return () => { mountedRef.current = false; };
+    }, []); // Só roda no mount real
 
-        // Configura realtime listener
+    // 2. Efeito de Realtime (Reativo)
+    useEffect(() => {
+        if (!auth.isAuthenticated || !auth.user?.id) return;
+
+        let channel: any = null;
+
         const setupRealtime = async () => {
             try {
                 const { supabase } = await import('../../lib/supabase');
-
-                if (channelRef.current) {
-                    supabase.removeChannel(channelRef.current);
-                }
-
-                channelRef.current = supabase
-                    .channel(`tech-orders-${auth.user?.id}`)
-                    .on('postgres_changes', {
-                        event: '*',
-                        schema: 'public',
-                        table: 'orders'
-                    }, () => {
-                        if (mounted && !fetchInProgressRef.current) {
-                            fetchTechData(currentPage || 1);
-                        }
+                channel = supabase
+                    .channel(`tech-ord-${auth.user?.id}`)
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+                        // Faz um refresh silencioso mantendo a página atual
+                        fetchTechData(currentPage, true);
                     })
                     .subscribe();
             } catch (e) {
-                console.error('[TechApp] Error setting up realtime:', e);
+                console.error('[TechApp] Realtime Setup Error:', e);
             }
         };
 
         setupRealtime();
 
         return () => {
-            mounted = false;
-            fetchInProgressRef.current = false;
-            (async () => {
-                try {
-                    const { supabase } = await import('../../lib/supabase');
-                    if (channelRef.current) {
-                        supabase.removeChannel(channelRef.current);
-                    }
-                } catch (e) {
-                    console.error('[TechApp] Cleanup error:', e);
-                }
-            })();
+            if (channel) {
+                import('../../lib/supabase').then(({ supabase }) => {
+                    supabase.removeChannel(channel);
+                });
+            }
         };
-    }, [auth.isAuthenticated, auth.user?.id]);
+    }, [auth.isAuthenticated, auth.user?.id, currentPage, fetchTechData]);
 
     // Callback para mudança de página
     const handlePageChange = useCallback(async (newPage: number) => {
