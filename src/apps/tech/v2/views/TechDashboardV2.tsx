@@ -24,28 +24,56 @@ export const TechDashboardV2: React.FC = () => {
     const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Utilitário de Compressão simples
+    const compressImage = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target?.result as string;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800;
+                    const scaleSize = MAX_WIDTH / img.width;
+                    const width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
+                    const height = (img.width > MAX_WIDTH) ? img.height * scaleSize : img.height;
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+
+                    // Compressão agressiva para garantir tamanho pequeno (< 100kb idealmente para avatar)
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    resolve(dataUrl);
+                };
+                img.onerror = (err) => reject(err);
+            };
+            reader.onerror = (err) => reject(err);
+        });
+    };
+
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file && auth.user) {
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-                const base64 = reader.result as string;
-                try {
-                    // Upload REAL para o Supabase e atualização do cadastro
-                    const publicUrl = await DataService.updateTechnicianAvatar(auth.user!.id, base64);
+            try {
+                // 1. Compressão no Cliente
+                const compressedBase64 = await compressImage(file);
 
-                    // Atualiza sessão local com a nova URL
-                    const newAuth = { ...auth, user: { ...auth.user!, avatar: publicUrl } };
-                    localStorage.setItem('nexus_tech_session_v2', JSON.stringify(newAuth.user));
+                // 2. Upload Otimizado
+                const publicUrl = await DataService.updateTechnicianAvatar(auth.user!.id, compressedBase64);
 
-                    // Recarrega para aplicar visualmente em todo o app
-                    window.location.reload();
-                } catch (err) {
-                    console.error("Erro ao fazer upload da foto:", err);
-                    alert("Falha ao atualizar foto. Verifique sua conexão.");
-                }
-            };
-            reader.readAsDataURL(file);
+                // 3. Atualiza sessão local com a nova URL
+                const newAuth = { ...auth, user: { ...auth.user!, avatar: publicUrl } };
+                localStorage.setItem('nexus_tech_session_v2', JSON.stringify(newAuth.user));
+
+                // 4. Recarrega para aplicar visualmente (Necessário pois o Avatar está no Header global)
+                window.location.reload();
+            } catch (err) {
+                console.error("Erro ao processar/enviar foto:", err);
+                alert("Falha ao atualizar foto. Tente uma imagem menor.");
+            }
         }
     };
 

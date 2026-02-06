@@ -75,11 +75,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
 
 
   return (
-    <div className="h-screen w-screen fixed inset-0 flex items-center justify-center bg-[#111422] relative overflow-hidden">
-      <div className={`absolute top-0 left-0 w-[500px] h-[500px] rounded-full blur-[120px] -translate-x-1/2 -translate-y-1/2 ${roleMode === 'admin' ? 'bg-indigo-600/10' : 'bg-emerald-600/10'}`}></div>
-      <div className={`absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full blur-[120px] translate-x-1/2 translate-y-1/2 ${roleMode === 'admin' ? 'bg-indigo-600/10' : 'bg-emerald-600/10'}`}></div>
+    <div className="h-screen w-screen fixed inset-0 flex items-center justify-center bg-slate-50 relative overflow-hidden">
+      {/* Background Decorativo Sutil (Grid) */}
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
+      <div className="absolute inset-0 bg-gradient-to-tr from-slate-100 via-slate-50 to-slate-100"></div>
 
-      <div className="w-full max-w-md p-10 bg-[#161929]/90 border border-white/5 rounded-[3rem] shadow-2xl relative z-10 backdrop-blur-xl animate-fade-in-up">
+      <div className="w-full max-w-md p-10 bg-white/80 border border-white rounded-[3rem] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] relative z-10 backdrop-blur-xl animate-fade-in-up">
         <div className="text-center mb-10">
           <div className="flex justify-center mb-6">
             <div
@@ -92,18 +93,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
               </div>
             </div>
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tighter italic flex justify-center items-center gap-1 select-none">
+          <h1 className="text-3xl font-black text-slate-800 tracking-tighter italic flex justify-center items-center gap-1 select-none">
             NEXUS<span className={roleMode === 'admin' ? 'text-indigo-500' : 'text-emerald-500'}>.PRO</span>
           </h1>
-          <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">Plataforma de Gestão Técnica</p>
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">Plataforma de Gestão Técnica</p>
         </div>
 
-        <div className="flex bg-black/20 p-1.5 rounded-2xl mb-10 border border-white/5">
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-10 border border-slate-200">
           <button
             onClick={() => switchMode('admin')}
             className={`flex-1 flex items-center justify-center py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${roleMode === 'admin'
-              ? 'bg-indigo-600 text-white shadow-lg'
-              : 'text-gray-500 hover:text-gray-300'
+              ? 'bg-white text-indigo-600 shadow-sm border border-slate-200'
+              : 'text-slate-400 hover:text-slate-600'
               }`}
           >
             <ShieldCheck size={14} className="mr-2" /> Administrativo
@@ -111,8 +112,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
           <button
             onClick={() => switchMode('tech')}
             className={`flex-1 flex items-center justify-center py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${roleMode === 'tech'
-              ? 'bg-emerald-600 text-white shadow-lg'
-              : 'text-gray-500 hover:text-gray-300'
+              ? 'bg-white text-emerald-600 shadow-sm border border-slate-200'
+              : 'text-slate-400 hover:text-slate-600'
               }`}
           >
             <Wrench size={14} className="mr-2" /> Técnico Campo
@@ -121,25 +122,25 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2">Acesso Identificado</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Acesso Identificado</label>
             <Input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              icon={<Mail size={18} />}
+              icon={<Mail size={18} className="text-slate-400" />}
               required
-              className="bg-white/10 border-white/20 text-white placeholder-white/40 rounded-2xl py-4 focus:bg-white/20"
+              className="bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 rounded-2xl py-4 focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-200 transition-all font-bold"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-2">Chave de Segurança</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Chave de Segurança</label>
             <Input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              icon={<Lock size={18} />}
+              icon={<Lock size={18} className="text-slate-400" />}
               required
-              className="bg-white/10 border-white/20 text-white placeholder-white/20 rounded-2xl py-4 focus:bg-white/20"
+              className="bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 rounded-2xl py-4 focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-200 transition-all font-bold"
             />
           </div>
 
@@ -149,18 +150,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
                 type="checkbox"
                 checked={keepConnected}
                 onChange={(e) => setKeepConnected(e.target.checked)}
-                className="w-5 h-5 rounded-lg border-white/20 bg-white/5 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                className="w-5 h-5 rounded-lg border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500 cursor-pointer"
               />
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest group-hover:text-white transition-colors">Manter conectado</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest group-hover:text-slate-600 transition-colors">Manter conectado</span>
             </label>
           </div>
 
-          {error && <div className="text-red-500 text-[10px] font-black uppercase text-center bg-red-500/10 p-3 rounded-xl border border-red-500/20">{error}</div>}
+          {error && <div className="text-red-500 text-[10px] font-black uppercase text-center bg-red-50 p-3 rounded-xl border border-red-100">{error}</div>}
 
           <Button
             type="submit"
             variant={roleMode === 'admin' ? 'primary' : 'tech-primary'}
-            className={`w-full py-5 rounded-2xl font-black text-sm uppercase italic tracking-tight shadow-2xl ${roleMode === 'admin' ? 'shadow-indigo-500/20' : 'shadow-emerald-500/20'}`}
+            className={`w-full py-5 rounded-2xl font-black text-sm uppercase italic tracking-tight shadow-xl ${roleMode === 'admin' ? 'shadow-indigo-500/20' : 'shadow-emerald-500/20'}`}
             isLoading={loading}
           >
             Autenticar no Sistema
@@ -168,8 +169,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
         </form>
 
         <div className="mt-10 text-center">
-          <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-6"></div>
-          <p className="text-[9px] text-gray-500 font-bold uppercase tracking-[0.2em]">Versão Enterprise v2.5.0</p>
+          <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent mb-6"></div>
+          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">Versão Enterprise v2.5.0</p>
         </div>
       </div>
     </div>
