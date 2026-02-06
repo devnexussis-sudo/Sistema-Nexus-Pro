@@ -34,6 +34,28 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
     const [signerName, setSignerName] = useState(order.signatureName || '');
     const [signerDoc, setSignerDoc] = useState(order.signatureDoc || '');
 
+    // Block State
+    const [showBlockModal, setShowBlockModal] = useState(false);
+    const [blockReason, setBlockReason] = useState('');
+
+    const handleBlockOrder = async () => {
+        if (!blockReason.trim()) return;
+        setIsLoading(true);
+        try {
+            await onUpdateStatus(OrderStatus.BLOCKED, `IMPEDIMENTO: ${blockReason}`, {
+                impediment_reason: blockReason,
+                impediment_at: new Date().toISOString()
+            });
+            onClose();
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao registrar impedimento.");
+        } finally {
+            setIsLoading(false);
+            setShowBlockModal(false);
+        }
+    };
+
     // 🔄 Load Logic (Template)    // Load Template Checklist
     useEffect(() => {
         const loadTemplate = async () => {
@@ -335,21 +357,38 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
             {/* FIXED BOTTOM: TABS + ACTIONS */}
             <div className="fixed bottom-0 left-0 right-0 bg-[#0f172a] rounded-t-[2rem] shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.3)] z-[200] pb-6 pt-2">
                 {/* Main Action Button (Floating on top of nav) */}
-                <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-full px-6 flex justify-center">
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-full px-6 flex justify-center gap-3">
                     {order.status === OrderStatus.PENDING || order.status === OrderStatus.ASSIGNED ? (
-                        <button
-                            onClick={async () => {
-                                setIsLoading(true);
-                                await onUpdateStatus(OrderStatus.IN_PROGRESS);
-                                setActiveSection('checklist'); // 🚀 Auto-switch workflow
-                                setIsLoading(false);
-                            }}
-                            disabled={isLoading}
-                            className="w-full max-w-sm py-4 bg-indigo-600 rounded-2xl text-white font-black uppercase text-sm tracking-widest shadow-xl shadow-indigo-600/30 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-indigo-500"
-                        >
-                            {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white rounded-full border-t-transparent" /> : <Play size={18} fill="currentColor" />}
-                            Iniciar Execução
-                        </button>
+                        <>
+                            <button
+                                onClick={() => setShowBlockModal(true)}
+                                disabled={isLoading}
+                                className="w-12 h-12 bg-red-100 rounded-2xl text-red-500 border border-red-200 shadow-lg shadow-red-500/10 active:scale-95 transition-all flex items-center justify-center hover:bg-red-200"
+                                title="Impedir Atendimento"
+                            >
+                                <Ban size={20} />
+                            </button>
+
+                            <button
+                                onClick={async () => {
+                                    setIsLoading(true);
+                                    try {
+                                        await onUpdateStatus(OrderStatus.IN_PROGRESS);
+                                        setActiveSection('checklist');
+                                    } catch (err) {
+                                        console.error(err);
+                                        alert("Erro ao iniciar execução. Tente novamente.");
+                                    } finally {
+                                        setIsLoading(false);
+                                    }
+                                }}
+                                disabled={isLoading}
+                                className="flex-1 max-w-xs py-4 bg-indigo-600 rounded-2xl text-white font-black uppercase text-sm tracking-widest shadow-xl shadow-indigo-600/30 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-indigo-500"
+                            >
+                                {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white rounded-full border-t-transparent" /> : <Play size={18} fill="currentColor" />}
+                                Iniciar Execução
+                            </button>
+                        </>
                     ) : order.status === OrderStatus.IN_PROGRESS && activeSection === 'finish' ? (
                         <button
                             onClick={handleFinish}
@@ -364,6 +403,45 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         </button>
                     ) : null}
                 </div>
+
+                {/* MODAL IMPEDIMENTO */}
+                {showBlockModal && (
+                    <div className="fixed inset-0 z-[300] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in zoom-in duration-200">
+                        <div className="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl space-y-6">
+                            <div className="text-center space-y-2">
+                                <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto text-red-500 mb-4">
+                                    <Ban size={28} />
+                                </div>
+                                <h3 className="text-xl font-black text-slate-900 uppercase italic">Impedir Atendimento</h3>
+                                <p className="text-xs text-slate-500 font-medium">Descreva o motivo pelo qual este atendimento não pode ser realizado.</p>
+                            </div>
+
+                            <textarea
+                                className="w-full h-32 bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-red-100 resize-none"
+                                placeholder="Ex: Cliente ausente, chuva forte, falta de material..."
+                                value={blockReason}
+                                onChange={e => setBlockReason(e.target.value)}
+                                autoFocus
+                            />
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={() => { setShowBlockModal(false); setBlockReason(''); }}
+                                    className="py-3 rounded-xl border border-slate-200 text-slate-500 font-black uppercase text-xs hover:bg-slate-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleBlockOrder}
+                                    disabled={!blockReason.trim() || isLoading}
+                                    className="py-3 rounded-xl bg-red-500 text-white font-black uppercase text-xs shadow-lg shadow-red-500/20 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100"
+                                >
+                                    {isLoading ? 'Processando...' : 'Confirmar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* TAB BAR NAVIGATION */}
                 <div className="flex justify-between items-end px-6 pt-8 pb-2">

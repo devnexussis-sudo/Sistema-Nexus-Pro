@@ -697,27 +697,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
                   const keys = Object.keys(data);
                   const findValue = (targetToken: string) => {
-                    if (data[targetToken]) return data[targetToken];
+                    const exact = data[targetToken];
+                    if (exact) return exact;
+
+                    // Busca por chave exata no App V2
+                    if (targetToken === 'signature' && data.signature) return data.signature;
+                    if (targetToken === 'signatureName' && data.signatureName) return data.signatureName;
+                    if (targetToken === 'signatureDoc' && data.signatureDoc) return data.signatureDoc;
+
                     const foundKey = keys.find(k => normalize(k).includes(normalize(targetToken)));
                     return foundKey ? data[foundKey] : null;
                   };
 
-                  let signature = data['Assinatura do Cliente'];
-                  if (!signature) signature = findValue('assinaturadocliente');
-                  if (!signature) signature = findValue('assinatura');
-                  if (!signature) signature = findValue('signature');
+                  let signature = data.signature || findValue('Assinatura do Cliente') || findValue('assinaturadocliente') || findValue('assinatura');
 
-                  let name = data['Assinatura do Cliente - Nome'];
-                  if (!name) name = findValue('assinaturadoclientenome');
-                  if (!name) name = findValue('responsavel');
-                  if (!name) name = findValue('nome');
+                  let name = data.signatureName || findValue('Assinatura do Cliente - Nome') || findValue('assinaturadoclientenome') || findValue('responsavel') || findValue('nome');
 
-                  let cpf = data['Assinatura do Cliente - CPF'];
-                  if (!cpf) cpf = findValue('assinaturadoclientecpf');
-                  if (!cpf) cpf = findValue('cpf');
+                  let cpf = data.signatureDoc || findValue('Assinatura do Cliente - CPF') || findValue('assinaturadoclientecpf') || findValue('cpf');
 
-                  let birth = data['Assinatura do Cliente - Nascimento'];
-                  if (!birth) birth = findValue('assinaturadoclientenascimento');
+                  let birth = findValue('Assinatura do Cliente - Nascimento') || findValue('assinaturadoclientenascimento');
 
                   return (
                     <>
@@ -742,7 +740,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       <div>
                         {name && <p className="text-xs font-black text-slate-900 uppercase italic">{name}</p>}
                         <p className="text-[8px] font-bold text-slate-400 uppercase mt-1 flex justify-center gap-3">
-                          {cpf && <span>CPF: {cpf}</span>}
+                          {cpf && <span>DOC: {cpf}</span>}
                           {birth && <span>• Nascimento: {birth}</span>}
                         </p>
                       </div>

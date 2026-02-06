@@ -633,6 +633,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         if (Array.isArray(val)) return false;
                         if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) return false;
                         if (key.includes('Assinatura') || key.includes('impediment')) return false;
+                        // Hide internal V2 fields
+                        if (['signature', 'signatureName', 'signatureDoc', 'finishedAt'].includes(key)) return false;
                         return true;
                       }).map(([key, val]) => (
                         <div key={key} className="flex justify-between items-center p-6 bg-slate-50 rounded-2xl border border-slate-100 group hover:bg-indigo-50 hover:border-indigo-100 transition-all">
@@ -784,9 +786,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                     {(() => {
                       const data = selectedOrder.formData || {};
-                      const signature = data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string')?.[1];
-                      const name = data['Assinatura do Cliente - Nome'] || selectedOrder.customerName;
-                      const cpf = data['Assinatura do Cliente - CPF'] || 'N/D';
+                      const signature = data.signature || data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string')?.[1];
+                      const name = data.signatureName || data['Assinatura do Cliente - Nome'] || selectedOrder.customerName;
+                      const cpf = data.signatureDoc || data['Assinatura do Cliente - CPF'] || 'N/D';
 
                       return (
                         <div className="space-y-6">

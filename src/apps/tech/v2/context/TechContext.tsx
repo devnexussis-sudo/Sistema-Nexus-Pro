@@ -137,8 +137,13 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     localStorage.setItem('nexus_tech_cache_v2', JSON.stringify(fetchedOrders));
                 }
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error("[Context-V2] Sync Error:", e);
+            // 🛡️ Nexus Auto-Recovery: Se a sessão expirou (401/JWT), força logout para o usuário logar novamente e corrigir o token.
+            if (e?.message?.includes('JWT') || e?.code === 'PGRST301' || e?.status === 401 || e?.status === 403) {
+                console.warn("[TechContext] Sessão expirada detectada. Realizando logout automático...");
+                logout();
+            }
         } finally {
             if (mountedRef.current) setIsSyncing(false);
         }
