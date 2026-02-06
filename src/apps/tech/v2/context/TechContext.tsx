@@ -11,7 +11,7 @@ interface TechContextType {
     login: (email: string, pass: string) => Promise<void>;
     logout: () => void;
     refreshData: () => Promise<void>;
-    updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
+    updateOrderStatus: (id: string, status: OrderStatus, notes?: string, formData?: any) => Promise<void>;
 }
 
 const TechContext = createContext<TechContextType | undefined>(undefined);
@@ -100,11 +100,11 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         stopGPS();
     }, [stopGPS]);
 
-    const updateOrderStatus = useCallback(async (id: string, status: OrderStatus) => {
+    const updateOrderStatus = useCallback(async (id: string, status: OrderStatus, notes?: string, formData?: any) => {
         try {
-            await DataService.updateOrderStatus(id, status);
+            await DataService.updateOrderStatus(id, status, notes, formData);
             if (mountedRef.current) {
-                setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+                setOrders(prev => prev.map(o => o.id === id ? { ...o, status, notes, formData: { ...o.formData, ...formData } } : o));
             }
         } catch (e) {
             console.error("[Context-V2] Update Status Error:", e);
