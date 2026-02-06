@@ -15,6 +15,26 @@ interface OrderDetailsModalProps {
 }
 
 export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onClose, onUpdateStatus }) => {
+  // 🔊 NEXUS DIAGNOSTIC SYSTEM (Mobile Debugging)
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error("[🔴 Global Error]", event.error);
+      // Opcional: alert(`[Erro do Sistema] ${event.message}`);
+    };
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      console.error("[🔴 Unhandled Rejection]", event.reason);
+      if (typeof event.reason === 'string' && event.reason.includes('TENANT_MISSING')) {
+        alert("🚨 Sessão expirada ou inválida. Por favor, saia e logue novamente.");
+      }
+    };
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, []);
+
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [notes, setNotes] = useState(order.notes || '');
@@ -369,17 +389,17 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           stack: err.stack
         });
 
-        const errorMsg = err.message === 'COMPRESSION_TIMEOUT'
-          ? 'Tempo esgotado ao processar imagem. Tente uma foto menor.'
-          : err.message === 'NETWORK_TIMEOUT'
-            ? 'Falha na rede. Verifique seu sinal de internet.'
-            : err.name === 'AbortError'
-              ? 'Upload cancelado (tempo excedido).'
-              : err.message?.includes('WebP')
-                ? 'Seu navegador não suporta compressão WebP. Tente outro navegador.'
-                : `Erro no upload: ${err.message || 'Desconhecido'}`;
+        const errorMsg = err.message === 'COMPRESSION_TIMEOUT' || err.message === 'IMG_LOAD_TIMEOUT'
+          ? 'Tempo esgotado ao processar imagem. Sua foto pode ser muito grande para a memória do celular.'
+          : err.message === 'NETWORK_TIMEOUT_45S' || err.message === 'NETWORK_TIMEOUT'
+            ? 'A internet falhou ao enviar. Tente novamente em um local com sinal melhor.'
+            : err.message === 'AUTH_TENANT_MISSING'
+              ? 'Falha de autenticação (Tenant ID). Por favor, relogue no app.'
+              : err.name === 'AbortError'
+                ? 'Upload cancelado pelo sistema (Guardian).'
+                : `Erro no upload: ${err.message || 'Falha de comunicação'}`;
 
-        alert(`Falha no upload: ${errorMsg}`);
+        alert(`❌ Erro no Processo: ${errorMsg}`);
       } finally {
         if (!guardianTriggered) {
           setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
