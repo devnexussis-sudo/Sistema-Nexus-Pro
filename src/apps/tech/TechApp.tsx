@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { TechLogin } from '../../tech-pwa/TechLogin';
 import { TechDashboard } from '../../tech-pwa/TechDashboard';
 import { DataService } from '../../services/dataService';
@@ -138,7 +138,7 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
     }, [auth.isAuthenticated, auth.user?.id]);
 
     // Callback para mudança de página
-    const handlePageChange = async (newPage: number) => {
+    const handlePageChange = useCallback(async (newPage: number) => {
         if (!auth.user || fetchInProgressRef.current) return;
 
         try {
@@ -164,9 +164,9 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
             setIsFetchingData(false);
             fetchInProgressRef.current = false;
         }
-    };
+    }, [auth.user, currentPage]);
 
-    const handleRefresh = async () => {
+    const handleRefresh = useCallback(async () => {
         if (!auth.user || fetchInProgressRef.current) return;
 
         try {
@@ -191,7 +191,12 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
             setIsFetchingData(false);
             fetchInProgressRef.current = false;
         }
-    };
+    }, [auth.user, currentPage]);
+
+    const handleUpdateStatus = useCallback(async (id: string, s: OrderStatus, n?: string, d?: any) => {
+        await DataService.updateOrderStatus(id, s, n, d);
+        await handleRefresh();
+    }, [handleRefresh]);
 
     if (!auth.isAuthenticated) {
         return <TechLogin onLogin={(user) => onLogin(user, true)} />;
@@ -205,10 +210,7 @@ export const TechApp: React.FC<TechAppProps> = ({ auth, onLogin, onLogout }) => 
             currentPage={currentPage}
             itemsPerPage={ITEMS_PER_PAGE}
             onPageChange={handlePageChange}
-            onUpdateStatus={async (id, s, n, d) => {
-                await DataService.updateOrderStatus(id, s, n, d);
-                await handleRefresh();
-            }}
+            onUpdateStatus={handleUpdateStatus}
             onRefresh={handleRefresh}
             onLogout={onLogout}
             isFetching={isFetchingData}
