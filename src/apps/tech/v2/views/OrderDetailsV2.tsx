@@ -380,11 +380,13 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 onClick={async () => {
                                     setIsLoading(true);
                                     try {
+                                        // 1. Update Server & Context
                                         await onUpdateStatus(OrderStatus.IN_PROGRESS);
+                                        // 2. Force UI Switch (Redundant but Safe)
                                         setActiveSection('checklist');
                                     } catch (err) {
                                         console.error(err);
-                                        alert("Erro ao iniciar execução. Tente novamente.");
+                                        alert("Erro ao iniciar execução. Verifique sua conexão.");
                                     } finally {
                                         setIsLoading(false);
                                     }
@@ -393,7 +395,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 className="flex-1 max-w-xs py-4 bg-indigo-600 rounded-2xl text-white font-black uppercase text-sm tracking-widest shadow-xl shadow-indigo-600/30 active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-indigo-500"
                             >
                                 {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white rounded-full border-t-transparent" /> : <Play size={18} fill="currentColor" />}
-                                Iniciar Execução
+                                INICIAR AGORA 🚀
                             </button>
                         </>
                     ) : order.status === OrderStatus.IN_PROGRESS && activeSection === 'finish' ? (

@@ -434,7 +434,7 @@ export const TechDashboardV2: React.FC = () => {
                         </div>
 
                         <div className="text-center pt-8 opacity-40">
-                            <p className="text-[9px] font-black uppercase tracking-[0.2em]">Nexus Tech v2.5</p>
+                            <p className="text-[9px] font-black uppercase tracking-[0.2em]">Nexus Tech v2.6.0-stable (Hotfix)</p>
                         </div>
                     </div>
                 )}
