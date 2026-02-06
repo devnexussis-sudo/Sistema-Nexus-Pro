@@ -326,7 +326,7 @@ export const DataService = {
         const converted = await heic2any({
           blob: file,
           toType: 'image/jpeg',
-          quality: 0.8
+          quality: 0.5
         });
 
         workingFile = Array.isArray(converted) ? converted[0] : converted;
@@ -338,10 +338,9 @@ export const DataService = {
 
     // ESTRATÉGIAS DE COMPRESSÃO PROGRESSIVA
     const strategies = [
-      { width: 1024, quality: 0.75 }, // Tentativa 1: Boa
-      { width: 800, quality: 0.65 },  // Tentativa 2: Média
-      { width: 600, quality: 0.55 },  // Tentativa 3: Econômica
-      { width: 400, quality: 0.45 }   // Tentativa 4: Brutal
+      { width: 800, quality: 0.70 },  // Tentativa 1: Rápida
+      { width: 600, quality: 0.60 },  // Tentativa 2: Mais rápida
+      { width: 400, quality: 0.40 }   // Tentativa 3: Brutal
     ];
 
     const url = URL.createObjectURL(workingFile);
