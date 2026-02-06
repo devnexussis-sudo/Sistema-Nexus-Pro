@@ -15,7 +15,7 @@
 
 * {
     -webkit-tap-highlight-color: transparent;
-    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 input,
@@ -30,8 +30,16 @@ body {
     margin: 0;
     padding: 0;
     overflow-x: hidden;
-    overscroll-behavior-y: contain;
-    /* Previne o bounce do Safari que quebra o layout */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    user-select: none;
+}
+
+button,
+.os-card,
+a {
+    cursor: pointer;
+    touch-action: manipulation;
 }
 
 /* Glassmorphism Classes */

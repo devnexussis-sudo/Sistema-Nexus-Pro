@@ -43,7 +43,7 @@
       background-color: #05070a;
       margin: 0;
       font-family: 'Inter', sans-serif;
-      overflow: hidden;
+      overflow-x: hidden;
     }
 
     #loading-screen {
@@ -105,7 +105,12 @@
     // Remove splash quando o React carregar
     window.addEventListener('nexus-ready', () => {
       const splash = document.getElementById('loading-screen');
-      if (splash) splash.classList.add('fade-out');
+      if (splash) {
+        splash.classList.add('fade-out');
+        setTimeout(() => {
+          splash.style.display = 'none';
+        }, 500);
+      }
     });
   </script>
 </body>
