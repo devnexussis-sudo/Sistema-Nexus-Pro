@@ -24,15 +24,22 @@ export const TechDashboardV2: React.FC = () => {
     const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // 🔄 Sync Selected Order with Context
+    // 🔄 Sync Selected Order with Context (Refinado para evitar reversos otimistas)
     React.useEffect(() => {
         if (selectedOrder) {
             const freshOrder = orders.find(o => o.id === selectedOrder.id);
-            if (freshOrder && (freshOrder.status !== selectedOrder.status || freshOrder.notes !== selectedOrder.notes)) {
-                setSelectedOrder(freshOrder);
+            if (freshOrder) {
+                // Só atualiza se o status for "mais avançado" ou se houver mudança relevante e não estivermos em transição
+                const statusOrder = [OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED, OrderStatus.BLOCKED];
+                const currentIdx = statusOrder.indexOf(selectedOrder.status as any);
+                const freshIdx = statusOrder.indexOf(freshOrder.status as any);
+
+                if (freshIdx > currentIdx || (freshOrder.notes !== selectedOrder.notes && freshIdx >= currentIdx)) {
+                    setSelectedOrder(freshOrder);
+                }
             }
         }
-    }, [orders, selectedOrder]);
+    }, [orders]); // Removido selectedOrder da dep array para evitar loop de re-sync parcial
 
     // Utilitário de Compressão simples
     const compressImage = (file: File): Promise<string> => {
@@ -484,7 +491,7 @@ export const TechDashboardV2: React.FC = () => {
                     order={selectedOrder}
                     onClose={() => setSelectedOrder(null)}
                     onUpdateStatus={async (status, notes, formData) => {
-                        // 🚀 OPTIMISTIC UPDATE: Atualiza a UI imediatamente para destravar o usuário
+                        // 🚀 ULTRA OPTIMISTIC UPDATE: Muda o estado local IMEDIATAMENTE
                         const updatedOrder = {
                             ...selectedOrder,
                             status,
@@ -494,18 +501,20 @@ export const TechDashboardV2: React.FC = () => {
                             signatureName: formData?.signatureName || selectedOrder.signatureName,
                             signatureDoc: formData?.signatureDoc || selectedOrder.signatureDoc
                         };
+                        
+                        // Atualiza a UI agora
                         setSelectedOrder(updatedOrder);
 
-                        // Sync em Background (Sem travar a UI)
+                        // Sync em Background (Sem travar a UI com await)
+                        // Atribuímos a uma variável mas não damos await nela aqui para o caller fechar o loading
                         updateOrderStatus(selectedOrder.id, status, notes, formData).catch(err => {
-                            console.error("Erro crítico no sync background:", err);
-                            alert("Atenção: A sincronização falhou, mas você pode continuar operando.");
+                            console.error("[Tech-V2] Background Sync Failed:", err);
                         });
+                        
+                        return Promise.resolve();
                     }}
                 />
             )}
         </div>
-    );
-};
     );
 };
