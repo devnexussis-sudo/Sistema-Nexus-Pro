@@ -21,6 +21,7 @@ export const TechDashboardV2: React.FC = () => {
     const [activeTab, setActiveTab] = useState('home');
     const [activeFilter, setActiveFilter] = useState<OrderStatus | 'ALL'>('ALL');
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
 
     if (!auth.user) return null;
 
