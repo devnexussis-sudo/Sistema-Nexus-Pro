@@ -2537,6 +2537,8 @@ export const DataService = {
       const templates = (data || []).map(f => ({
         ...f,
         title: f.title || (f as any).name,
+        // Schema do usuário usa targetType, mas frontend espera serviceTypes[]. Fazemos o Adapter:
+        serviceTypes: f.targetType ? [f.targetType] : [],
         fields: f.fields || []
       }));
 
@@ -2565,18 +2567,16 @@ export const DataService = {
     const tid = DataService.getCurrentTenantId();
     if (isCloudEnabled) {
       try {
-        // 🛡️ Nexus ID Engine: Garante que nunca enviamos ID nulo para uma coluna NOT NULL
-        // Se for novo (sem id ou id legado 'f-'), deixamos o banco gerar OU enviamos um novo se necessário
         const dbPayload: any = {
           title: template.title,
           fields: template.fields || [],
           active: template.active ?? true,
-          tenant_id: tid
+          tenant_id: tid,
+          targetType: template.serviceTypes?.[0] || 'Geral', // Adapter para o schema existente
+          targetFamily: template.targetFamily || 'Todos'
         };
 
-        // Se houver um ID válido (não 'f-...'), preservamos.
-        // Se não houver, o default gen_random_uuid() do banco cuidará, ou geramos um aqui
-        if (template.id && !template.id.startsWith('f-')) {
+        if (template.id && !template.id.startsWith('f-') && !template.id.startsWith('mock-')) {
           dbPayload.id = template.id;
         }
 
@@ -2586,7 +2586,6 @@ export const DataService = {
           .single();
 
         if (error) {
-          // Se o banco reclamar de ID nulo mesmo assim, tentamos uma última vez com um UUID gerado por nós
           if (error.message.includes('null value in column "id"')) {
             dbPayload.id = crypto.randomUUID();
             const retry = await DataService.getServiceClient().from('form_templates').upsert([dbPayload]).select().single();
@@ -2627,11 +2626,12 @@ export const DataService = {
         console.error("Erro ao buscar regras de ativação:", error);
         return [];
       }
+      // Schema do usuário: service_type_id, equipment_family (not null), form_id
       return (data || []).map(r => ({
         ...r,
-        serviceType: r.service_type,
+        serviceType: r.service_type_id, // Adapter
         equipmentFamily: r.equipment_family,
-        formTemplateId: r.form_template_id
+        formTemplateId: r.form_id       // Adapter
       }));
     }
     return getStorage<any[]>('nexus_rules_db', []);
@@ -2643,12 +2643,11 @@ export const DataService = {
       try {
         const dbRule: any = {
           tenant_id: tid,
-          service_type_id: rule.serviceTypeId,
-          equipment_family: rule.equipmentFamily,
-          form_id: rule.formId
+          service_type_id: rule.serviceTypeId || rule.serviceType, // Adapter
+          equipment_family: rule.equipmentFamily || 'Todos',
+          form_id: rule.formId || rule.formTemplateId
         };
 
-        // Se houver ID persistido e sem prefixo local, usamos ele
         if (rule.id && !rule.id.toString().startsWith('r-')) {
           dbRule.id = rule.id;
         }
@@ -2656,7 +2655,6 @@ export const DataService = {
         const { data, error } = await DataService.getServiceClient().from('activation_rules').upsert([dbRule]).select().single();
 
         if (error) {
-          // Fallback: se reclamar de ID nulo, geramos um no cliente
           if (error.message.includes('null value in column "id"')) {
             dbRule.id = crypto.randomUUID();
             const retry = await DataService.getServiceClient().from('activation_rules').upsert([dbRule]).select().single();
@@ -2673,6 +2671,7 @@ export const DataService = {
     }
     return rule;
   },
+
 
   deleteActivationRule: async (id: string) => {
     if (isCloudEnabled) {
