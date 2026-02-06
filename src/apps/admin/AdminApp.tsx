@@ -21,7 +21,7 @@ import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, RefreshCw, Package, ArrowRight,
-    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight
+    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff
 } from 'lucide-react';
 import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, Customer, Equipment, StockItem } from '../../types';
 import { Button } from '../../components/ui/Button';
@@ -124,10 +124,37 @@ export const AdminApp: React.FC<AdminAppProps> = ({
         return () => clearInterval(interval);
     }, [contracts, auth.user]);
 
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    useEffect(() => {
+        const handleStatusChange = () => {
+            setIsOnline(navigator.onLine);
+        };
+        window.addEventListener('online', handleStatusChange);
+        window.addEventListener('offline', handleStatusChange);
+        return () => {
+            window.removeEventListener('online', handleStatusChange);
+            window.removeEventListener('offline', handleStatusChange);
+        };
+    }, []);
+
     const fetchGlobalData = async () => {
+        if (!navigator.onLine) {
+            console.warn('[AdminApp] ⚠️ Sem conexão. Abortando atualização.');
+            setIsFetchingData(false);
+            return;
+        }
+
         try {
             setIsFetchingData(true);
-            const [o, c_list, q_list, t, c, e, s] = await Promise.all([
+
+            // Timeout de 15s para evitar loading infinito
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Tempo limite de conexão excedido (15s). Verifique sua internet.')), 15000)
+            );
+
+            // Promise de dados reais
+            const dataPromise = Promise.all([
                 DataService.getOrders(),
                 DataService.getContracts(),
                 DataService.getQuotes(),
@@ -136,6 +163,10 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 DataService.getEquipments(),
                 DataService.getStockItems()
             ]);
+
+            // Corrida: Quem chegar primeiro ganha. Se o timeout ganhar, lança erro.
+            const [o, c_list, q_list, t, c, e, s] = await Promise.race([dataPromise, timeoutPromise]) as any;
+
             setOrders(o);
             setContracts(c_list);
             setQuotes(q_list);
@@ -144,7 +175,8 @@ export const AdminApp: React.FC<AdminAppProps> = ({
             setEquipments(e);
             setStockItems(s);
         } catch (e) {
-            console.error(e);
+            console.error('[AdminApp] ❌ Erro de conexão/timeout:', e);
+            // Em produção, poderíamos usar um Toast aqui
         } finally {
             setIsFetchingData(false);
         }
@@ -164,9 +196,15 @@ export const AdminApp: React.FC<AdminAppProps> = ({
         if (isRefreshing) return;
         setIsRefreshing(true);
         console.log('[AdminApp] 🔄 Atualizando dados manualmente...');
-        await fetchGlobalData();
-        // Garante pelo menos 1s de feedback visual
-        setTimeout(() => setIsRefreshing(false), 1000);
+
+        try {
+            await fetchGlobalData();
+        } catch (e) {
+            console.error('[AdminApp] Erro no refresh manual:', e);
+        } finally {
+            // Garante feedback visual mínimo e desliga o spinner SEMPRE
+            setTimeout(() => setIsRefreshing(false), 1000);
+        }
     };
 
     const hasPermission = (module: keyof UserPermissions, action: 'read' | 'create' | 'update' | 'delete' | null = 'read'): boolean => {
@@ -278,6 +316,12 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                             <span className="text-[10px] font-black text-slate-900 uppercase italic">{auth.user?.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
+                            {!isOnline && (
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-full animate-pulse">
+                                    <WifiOff size={14} className="text-red-500" />
+                                    <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Offline</span>
+                                </div>
+                            )}
                             <button
                                 onClick={handleManualRefresh}
                                 disabled={isRefreshing}
