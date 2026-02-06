@@ -336,7 +336,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         console.log('[PhotoUpload] Iniciando compressão + upload...');
         const startTime = Date.now();
 
-        const publicUrl = await DataService.uploadServiceOrderEvidence(file, order.id);
+        const publicUrl = await DataService.uploadServiceOrderEvidence(file, order.id, abortController.signal);
 
         const elapsed = Date.now() - startTime;
         console.log(`[PhotoUpload] ✅ Processo concluído em ${elapsed}ms`);
