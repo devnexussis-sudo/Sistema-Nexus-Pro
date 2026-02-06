@@ -61,9 +61,10 @@ export const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onEnd, onClear
         const { x, y } = getCoords(e);
         ctx.beginPath();
         ctx.moveTo(x, y);
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2.5; // Calibrado: traço mais fino e elegante
         ctx.lineCap = 'round';
-        ctx.strokeStyle = '#FFFFFF'; // Assinatura branca para tema dark
+        ctx.lineJoin = 'round'; // Suaviza cantos
+        ctx.strokeStyle = '#4f46e5'; // Indigo-600 para combinar com painel Admin
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
@@ -88,16 +89,19 @@ export const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onEnd, onClear
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Limpa canvas retina-aware
+
         setHasSignature(false);
         if (onClear) onClear();
     };
 
     return (
-        <div className="relative w-full h-48 bg-white/5 border-2 border-dashed border-white/20 rounded-2xl overflow-hidden touch-none">
+        <div className="relative w-full h-56 bg-white border-2 border-indigo-100 rounded-[2rem] overflow-hidden touch-none shadow-inner">
             <canvas
                 ref={canvasRef}
-                className="w-full h-full"
+                className="w-full h-full cursor-crosshair"
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={endDrawing}
@@ -107,14 +111,14 @@ export const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onEnd, onClear
                 onTouchEnd={endDrawing}
             />
             {!hasSignature && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-500 text-xs font-bold uppercase tracking-widest opacity-50">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-indigo-200 text-sm font-black uppercase tracking-[0.2em] italic">
                     Assine aqui
                 </div>
             )}
             {hasSignature && (
                 <button
                     onClick={clear}
-                    className="absolute top-2 right-2 text-xs text-red-400 font-bold uppercase tracking-wider bg-red-500/10 px-2 py-1 rounded"
+                    className="absolute top-4 right-4 text-[10px] text-red-500 font-black uppercase tracking-widest bg-red-50 px-4 py-2 rounded-xl hover:bg-red-100 transition-colors shadow-sm"
                 >
                     Limpar
                 </button>
