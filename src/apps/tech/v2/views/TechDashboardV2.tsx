@@ -24,6 +24,16 @@ export const TechDashboardV2: React.FC = () => {
     const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // 🔄 Sync Selected Order with Context
+    React.useEffect(() => {
+        if (selectedOrder) {
+            const freshOrder = orders.find(o => o.id === selectedOrder.id);
+            if (freshOrder && (freshOrder.status !== selectedOrder.status || freshOrder.notes !== selectedOrder.notes)) {
+                setSelectedOrder(freshOrder);
+            }
+        }
+    }, [orders, selectedOrder]);
+
     // Utilitário de Compressão simples
     const compressImage = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {

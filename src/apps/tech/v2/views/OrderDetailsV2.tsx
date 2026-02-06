@@ -153,6 +153,13 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
         setAnswers(prev => ({ ...prev, [fieldId]: value }));
     };
 
+    // 🚀 Auto-Switch to Checklist when Status changes to IN_PROGRESS
+    useEffect(() => {
+        if (order.status === OrderStatus.IN_PROGRESS && activeSection === 'info') {
+            setActiveSection('checklist');
+        }
+    }, [order.status, activeSection]);
+
     const handleSaveChecklist = async () => {
         setIsLoading(true);
         try {
