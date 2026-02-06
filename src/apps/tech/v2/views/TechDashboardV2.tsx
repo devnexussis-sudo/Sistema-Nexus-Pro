@@ -18,95 +18,174 @@ import { OrderStatus, OrderPriority, ServiceOrder } from '../../../../types';
 
 export const TechDashboardV2: React.FC = () => {
     const { auth, orders, isSyncing, refreshData, logout, updateOrderStatus } = useTech();
-    const [activeTab, setActiveTab] = useState('home');
-    const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+    const [activeFilter, setActiveFilter] = useState<OrderStatus | 'ALL'>('ALL');
+    const [searchTerm, setSearchTerm] = useState('');
 
     if (!auth.user) return null;
 
+    const filteredOrders = orders.filter(o => {
+        const matchesStatus = activeFilter === 'ALL' || o.status === activeFilter;
+        const matchesSearch = o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            o.id.includes(searchTerm) ||
+            (o.equipmentName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+        return matchesStatus && matchesSearch;
+    });
+
+    const getStatusCount = (status: OrderStatus) => orders.filter(o => o.status === status).length;
+
     return (
-        <div className="min-h-screen bg-[#f8fafc] pb-32 text-slate-900">
-            {/* Header Glass White */}
-            <header className="fixed w-full top-0 z-50 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full border-2 border-indigo-100 overflow-hidden bg-indigo-50">
-                        <img src={auth.user.avatar || `https://ui-avatars.com/api/?name=${auth.user.name}&background=e0e7ff&color=4338ca`} alt="Avatar" />
+        <div className="min-h-screen bg-slate-100 pb-32 font-sans selection:bg-indigo-500/30">
+            {/* Header Dark (Admin Style) */}
+            <header className="fixed w-full top-0 z-50 px-6 py-5 flex justify-between items-center bg-[#0f172a] shadow-lg shadow-indigo-900/10 rounded-b-[2rem]">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl border-2 border-indigo-500/30 overflow-hidden bg-slate-800 p-0.5">
+                        <img className="w-full h-full rounded-xl object-cover" src={auth.user.avatar || `https://ui-avatars.com/api/?name=${auth.user.name}&background=6366f1&color=fff`} alt="Avatar" />
                     </div>
                     <div>
-                        <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Técnico</p>
-                        <h1 className="text-sm font-bold text-slate-900 tracking-tight">{auth.user.name}</h1>
+                        <p className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-0.5">Técnico</p>
+                        <h1 className="text-base font-bold text-white tracking-tight">{auth.user.name}</h1>
                     </div>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={refreshData} className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 active:scale-95 transition-transform hover:bg-slate-100">
-                        <RefreshCw size={18} className={`text-indigo-600 ${isSyncing ? 'animate-spin' : ''}`} />
+                <div className="flex gap-3">
+                    <button onClick={refreshData} className="p-3 rounded-xl bg-white/5 border border-white/10 active:scale-95 transition-all hover:bg-white/10 group">
+                        <RefreshCw size={20} className={`text-indigo-400 group-hover:text-white transition-colors ${isSyncing ? 'animate-spin' : ''}`} />
                     </button>
-                    <button onClick={logout} className="p-2.5 rounded-2xl bg-red-50 border border-red-100 text-red-500 active:scale-95 transition-transform hover:bg-red-100">
-                        <LogOut size={18} />
+                    <button onClick={logout} className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 active:scale-95 transition-all hover:bg-red-500/20">
+                        <LogOut size={20} />
                     </button>
                 </div>
             </header>
 
-            <main className="px-6 pt-24 space-y-8 animate-in">
-                {/* Salutation */}
-                <div>
-                    <h2 className="text-2xl font-black italic uppercase tracking-tighter text-slate-900">
-                        Nexus <span className="text-indigo-600">Tech</span>
-                    </h2>
+            <main className="px-6 pt-32 space-y-8 animate-in mt-2">
+
+                {/* KPI Dashboard Funcional */}
+                <div className="space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 pl-2">Visão Geral</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button
+                            onClick={() => setActiveFilter(activeFilter === OrderStatus.COMPLETED ? 'ALL' : OrderStatus.COMPLETED)}
+                            className={`p-4 rounded-3xl border transition-all active:scale-95 text-left relative overflow-hidden group ${activeFilter === OrderStatus.COMPLETED ? 'bg-emerald-500 text-white border-emerald-400 shadow-lg shadow-emerald-500/30' : 'bg-white border-slate-200 text-slate-600'}`}
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <CheckCircle2 size={24} className={activeFilter === OrderStatus.COMPLETED ? 'text-white' : 'text-emerald-500'} />
+                                <span className="text-2xl font-black">{getStatusCount(OrderStatus.COMPLETED)}</span>
+                            </div>
+                            <p className="text-[10px] font-black uppercase tracking-wider opacity-80">Concluídas</p>
+                            <div className={`absolute -right-4 -bottom-4 w-16 h-16 rounded-full blur-2xl opacity-50 ${activeFilter === OrderStatus.COMPLETED ? 'bg-white' : 'bg-emerald-500'}`}></div>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveFilter(activeFilter === OrderStatus.ASSIGNED ? 'ALL' : OrderStatus.ASSIGNED)}
+                            className={`p-4 rounded-3xl border transition-all active:scale-95 text-left relative overflow-hidden ${activeFilter === OrderStatus.ASSIGNED ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-600/30' : 'bg-white border-slate-200 text-slate-600'}`}
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <Clock size={24} className={activeFilter === OrderStatus.ASSIGNED ? 'text-white' : 'text-indigo-600'} />
+                                <span className="text-2xl font-black">{getStatusCount(OrderStatus.ASSIGNED)}</span>
+                            </div>
+                            <p className="text-[10px] font-black uppercase tracking-wider opacity-80">Atribuídas</p>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveFilter(activeFilter === OrderStatus.IN_PROGRESS ? 'ALL' : OrderStatus.IN_PROGRESS)}
+                            className={`p-4 rounded-3xl border transition-all active:scale-95 text-left relative overflow-hidden ${activeFilter === OrderStatus.IN_PROGRESS ? 'bg-amber-500 text-white border-amber-400 shadow-lg shadow-amber-500/30' : 'bg-white border-slate-200 text-slate-600'}`}
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <ListTodo size={24} className={activeFilter === OrderStatus.IN_PROGRESS ? 'text-white' : 'text-amber-500'} />
+                                <span className="text-2xl font-black">{getStatusCount(OrderStatus.IN_PROGRESS)}</span>
+                            </div>
+                            <p className="text-[10px] font-black uppercase tracking-wider opacity-80">Executando</p>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveFilter(activeFilter === OrderStatus.BLOCKED ? 'ALL' : OrderStatus.BLOCKED)}
+                            className={`p-4 rounded-3xl border transition-all active:scale-95 text-left relative overflow-hidden ${activeFilter === OrderStatus.BLOCKED ? 'bg-red-500 text-white border-red-400 shadow-lg shadow-red-500/30' : 'bg-white border-slate-200 text-slate-600'}`}
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <MapPin size={24} className={activeFilter === OrderStatus.BLOCKED ? 'text-white' : 'text-red-500'} />
+                                <span className="text-2xl font-black">{getStatusCount(OrderStatus.BLOCKED)}</span>
+                            </div>
+                            <p className="text-[10px] font-black uppercase tracking-wider opacity-80">Impedidas</p>
+                        </button>
+                    </div>
                 </div>
 
-                {/* KPI Grid - Clean White */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-5 rounded-[2rem] relative overflow-hidden shadow-sm border border-slate-100">
-                        <CheckCircle2 size={24} className="text-indigo-600 mb-4" />
-                        <p className="text-[10px] font-black uppercase text-slate-400">Concluídas</p>
-                        <p className="text-3xl font-black text-slate-900">{orders.filter(o => o.status === OrderStatus.COMPLETED).length}</p>
-                        <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-indigo-50 rounded-full -z-0"></div>
-                    </div>
-                    <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100">
-                        <Clock size={24} className="text-amber-500 mb-4" />
-                        <p className="text-[10px] font-black uppercase text-slate-400">Pendentes</p>
-                        <p className="text-3xl font-black text-slate-900">{orders.filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.ASSIGNED).length}</p>
-                    </div>
-                </div>
-
-                {/* Search Bar Clean */}
-                <div className="relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                {/* Search Bar Refined */}
+                <div className="relative group shadow-sm rounded-2xl">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
                     <input
                         type="text"
-                        placeholder="Buscar Ordem de Serviço..."
-                        className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-50 focus:border-indigo-200 transition-all placeholder:text-slate-400"
+                        placeholder="Buscar por cliente, ID ou equipamento..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-300 transition-all placeholder:text-slate-400"
                     />
                 </div>
 
-                {/* OS List Clean */}
-                <div className="space-y-4">
-                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 pl-2">Agenda de Hoje</h3>
-                    {orders.length === 0 ? (
-                        <div className="py-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-3xl">
-                            <p className="text-sm font-bold">Nenhuma ordem encontrada hoje.</p>
+                {/* OS List - Beautiful Cards */}
+                <div className="space-y-4 pb-24">
+                    <div className="flex items-center justify-between pl-2 pr-2">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">
+                            {activeFilter === 'ALL' ? 'Todas as Ordens' : `Filtro: ${activeFilter}`}
+                        </h3>
+                        <span className="text-[10px] font-bold py-1 px-2.5 bg-slate-200 rounded-lg text-slate-500">{filteredOrders.length}</span>
+                    </div>
+
+                    {filteredOrders.length === 0 ? (
+                        <div className="py-16 text-center text-slate-400 bg-white border border-dashed border-slate-200 rounded-[2.5rem]">
+                            <p className="text-sm font-bold opacity-60">Nenhuma ordem encontrada.</p>
+                            <button onClick={() => { setActiveFilter('ALL'); setSearchTerm('') }} className="mt-4 text-[10px] font-black uppercase text-indigo-500 hover:underline">Limpar Filtros</button>
                         </div>
                     ) : (
-                        orders.map(order => (
+                        filteredOrders.map(order => (
                             <div
                                 key={order.id}
                                 onClick={() => setSelectedOrder(order)}
-                                className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 cursor-pointer flex items-center justify-between active:scale-[0.98] transition-transform hover:border-indigo-200 hover:shadow-md"
+                                className="group bg-white p-5 rounded-[2rem] shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] border border-slate-100 cursor-pointer relative overflow-hidden transition-all hover:border-indigo-200 hover:shadow-xl hover:-translate-y-1 active:scale-[0.98]"
                             >
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${order.priority === OrderPriority.CRITICAL || order.priority === OrderPriority.HIGH ? 'bg-red-50 text-red-500' : 'bg-indigo-50 text-indigo-600'}`}>
-                                        <LayoutDashboard size={20} />
-                                    </div>
+                                {/* Lateral Color Strip Indicator */}
+                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-500' :
+                                        order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-500' :
+                                            order.priority === OrderPriority.CRITICAL ? 'bg-red-500' :
+                                                'bg-indigo-500'
+                                    }`}></div>
+
+                                <div className="flex items-start justify-between mb-4 pl-3">
                                     <div>
-                                        <h4 className="font-bold text-sm tracking-tight text-slate-900">{order.customerName}</h4>
-                                        <p className="text-[10px] text-slate-500 uppercase font-bold">{order.operationType || 'Visita Técnica'}</p>
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">
+                                            {order.id.slice(0, 8)} • {new Date(order.scheduledDate || order.createdAt).toLocaleDateString()}
+                                        </p>
+                                        <h4 className="font-bold text-base text-slate-900 leading-tight group-hover:text-indigo-600 transition-colors">
+                                            {order.customerName}
+                                        </h4>
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                    <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-50 text-emerald-600' :
+                                            order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-50 text-amber-600' :
+                                                order.priority === OrderPriority.CRITICAL ? 'bg-red-50 text-red-500' :
+                                                    'bg-indigo-50 text-indigo-600'
+                                        }`}>
+                                        <div className={`w-1.5 h-1.5 rounded-full ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-500' :
+                                                order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-500' :
+                                                    'bg-indigo-500'
+                                            }`}></div>
                                         {order.status}
                                     </div>
-                                    <ChevronRight size={18} className="text-slate-300" />
+                                </div>
+
+                                <div className="pl-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors">
+                                            {order.operationType?.toLowerCase().includes('instala') ? <Settings size={18} /> :
+                                                order.operationType?.toLowerCase().includes('manuten') ? <RefreshCw size={18} /> :
+                                                    <LayoutDashboard size={18} />}
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-slate-700">{order.operationType || 'Visita Técnica'}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase">{order.equipmentName || 'Equipamento Geral'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
+                                        <ChevronRight size={16} />
+                                    </div>
                                 </div>
                             </div>
                         ))
@@ -114,24 +193,35 @@ export const TechDashboardV2: React.FC = () => {
                 </div>
             </main>
 
-            {/* Bottom Tab Bar Premium (Clean White) - Esconde quando modal está aberto */}
+            {/* Bottom Tab Bar Dark (Admin Style) */}
             {!selectedOrder && (
-                <nav className="fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-white/40 shadow-2xl rounded-[2.5rem] p-5 flex justify-between items-center z-40">
-                    <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center gap-1 transition-all active:scale-90 ${activeTab === 'home' ? 'text-indigo-600' : 'text-slate-400'}`}>
-                        <div className={`p-1 rounded-xl ${activeTab === 'home' ? 'bg-indigo-50' : 'bg-transparent'}`}><LayoutDashboard size={20} /></div>
-                        <span className="text-[8px] font-black uppercase tracking-widest">Início</span>
+                <nav className="fixed bottom-0 left-0 right-0 bg-[#0f172a] rounded-t-[2.5rem] p-4 pb-8 flex justify-between items-center z-40 shadow-[0_-10px_40px_-5px_rgba(0,0,0,0.15)] border-t border-white/5">
+                    <button onClick={() => setActiveTab('home')} className={`flex-1 flex flex-col items-center gap-1.5 transition-all active:scale-90 group ${activeTab === 'home' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                        <div className={`p-2 rounded-2xl transition-all ${activeTab === 'home' ? 'bg-indigo-600 shadow-lg shadow-indigo-600/40' : 'bg-transparent'}`}>
+                            <LayoutDashboard size={22} className="" />
+                        </div>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${activeTab === 'home' ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>Início</span>
                     </button>
-                    <button onClick={() => setActiveTab('orders')} className={`flex flex-col items-center gap-1 transition-all active:scale-90 ${activeTab === 'orders' ? 'text-indigo-600' : 'text-slate-400'}`}>
-                        <div className={`p-1 rounded-xl ${activeTab === 'orders' ? 'bg-indigo-50' : 'bg-transparent'}`}><ListTodo size={20} /></div>
-                        <span className="text-[8px] font-black uppercase tracking-widest">Tarefas</span>
+
+                    <button onClick={() => setActiveTab('orders')} className={`flex-1 flex flex-col items-center gap-1.5 transition-all active:scale-90 group ${activeTab === 'orders' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                        <div className={`p-2 rounded-2xl transition-all ${activeTab === 'orders' ? 'bg-indigo-600 shadow-lg shadow-indigo-600/40' : 'bg-transparent'}`}>
+                            <ListTodo size={22} className="" />
+                        </div>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${activeTab === 'orders' ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>Tarefas</span>
                     </button>
-                    <button onClick={() => setActiveTab('map')} className={`flex flex-col items-center gap-1 transition-all active:scale-90 ${activeTab === 'map' ? 'text-indigo-600' : 'text-slate-400'}`}>
-                        <div className={`p-1 rounded-xl ${activeTab === 'map' ? 'bg-indigo-50' : 'bg-transparent'}`}><MapPin size={20} /></div>
-                        <span className="text-[8px] font-black uppercase tracking-widest">Rota</span>
+
+                    <button onClick={() => setActiveTab('map')} className={`flex-1 flex flex-col items-center gap-1.5 transition-all active:scale-90 group ${activeTab === 'map' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                        <div className={`p-2 rounded-2xl transition-all ${activeTab === 'map' ? 'bg-indigo-600 shadow-lg shadow-indigo-600/40' : 'bg-transparent'}`}>
+                            <MapPin size={22} className="" />
+                        </div>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${activeTab === 'map' ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>Rota</span>
                     </button>
-                    <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 transition-all active:scale-90 ${activeTab === 'settings' ? 'text-indigo-600' : 'text-slate-400'}`}>
-                        <div className={`p-1 rounded-xl ${activeTab === 'settings' ? 'bg-indigo-50' : 'bg-transparent'}`}><Settings size={20} /></div>
-                        <span className="text-[8px] font-black uppercase tracking-widest">Conta</span>
+
+                    <button onClick={() => setActiveTab('settings')} className={`flex-1 flex flex-col items-center gap-1.5 transition-all active:scale-90 group ${activeTab === 'settings' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                        <div className={`p-2 rounded-2xl transition-all ${activeTab === 'settings' ? 'bg-indigo-600 shadow-lg shadow-indigo-600/40' : 'bg-transparent'}`}>
+                            <Settings size={22} className="" />
+                        </div>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${activeTab === 'settings' ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>Conta</span>
                     </button>
                 </nav>
             )}
