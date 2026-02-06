@@ -2031,9 +2031,17 @@ export const DataService = {
     // 3. Sync Database
     const { supabase: client } = await import('../lib/supabase');
     const tid = DataService.getCurrentTenantId();
-    const { error } = await client.from('orders').update(updatePayload)
+
+    const dbPromise = client.from('orders').update(updatePayload)
       .eq('id', id)
       .eq('tenant_id', tid);
+
+    // Safety Timeout 10s
+    const timeoutPromise = new Promise<{ error: any }>((_, reject) =>
+      setTimeout(() => reject(new Error("Database Request Timeout")), 10000)
+    );
+
+    const { error } = await Promise.race([dbPromise, timeoutPromise]) as any;
 
     if (error) {
       console.error("Erro técnico no Nexus Sync:", error);
