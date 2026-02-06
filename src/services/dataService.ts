@@ -70,6 +70,16 @@ export const DataService = {
 
   getCurrentTenantId: (): string | undefined => {
     try {
+      // Prioriza fontes do Tech App se estiver no contexto Tech
+      const isTechPath = window.location.pathname.includes('/tech') || window.location.hash.includes('/tech');
+      if (isTechPath) {
+        const techUser = localStorage.getItem('nexus_tech_session') || localStorage.getItem('nexus_tech_persistent');
+        if (techUser) {
+          const user = JSON.parse(techUser);
+          return user.tenantId || user.tenant_id;
+        }
+      }
+
       const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
       if (userStr) {
         const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
@@ -77,7 +87,7 @@ export const DataService = {
         if (tid) return tid;
       }
     } catch (e) {
-      console.error("Erro ao recuperar tenant do usuário:", e);
+      console.error("[DataService] Erro ao recuperar tenant:", e);
     }
     return SessionStorage.get('current_tenant') || undefined;
   },
@@ -205,24 +215,19 @@ export const DataService = {
   },
 
   /**
-   * 🛡️ NASA-Grade Storage Engine (Internal Version 3)
-   * Core logic for uploading data to Supabase with retries and timeout.
+   * 🛡️ NASA-Grade Storage Engine (Internal Version 4)
+   * Core logic for uploading data to Supabase with automatic retries and AbortSignal support.
    */
-  _uploadCore: async (blobOrFile: Blob | File, path: string, retryCount = 2, signal?: AbortSignal): Promise<string> => {
+  _uploadCore: async (blobOrFile: Blob | File, path: string, retryCount = 3, signal?: AbortSignal): Promise<string> => {
     const tenantId = DataService.getCurrentTenantId() || 'global';
     const cleanPath = path.toString().replace(/^\/+/, '').replace(/\/+$/, '');
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.webp`;
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
     const fullPath = `${tenantId}/${cleanPath}/${fileName}`.replace(/\/+/g, '/');
 
-    console.log(`[Storage] 🚀 ===== INICIANDO UPLOAD CORE =====`);
-    console.log(`[Storage] Caminho completo: ${fullPath}`);
-    console.log(`[Storage] Tamanho: ${(blobOrFile.size / 1024).toFixed(2)}KB`);
-    console.log(`[Storage] Tipo: ${blobOrFile.type}`);
+    console.log(`[Storage] 📤 Iniciando upload: ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)`);
 
     for (let i = 0; i <= retryCount; i++) {
       if (signal?.aborted) throw new Error('AbortError');
-
-      console.log(`[Storage] 📡 Tentativa ${i + 1}/${retryCount + 1}...`);
 
       try {
         const { data, error } = await supabase.storage
@@ -233,101 +238,101 @@ export const DataService = {
             cacheControl: '3600'
           });
 
-        if (error) {
-          console.error(`[Storage] ❌ Erro do Supabase:`, error);
-          throw error;
-        }
-
-        if (!data) throw new Error("EMPTY_RESPONSE");
+        if (error) throw error;
+        if (!data) throw new Error("EMPTY_STORAGE_RESPONSE");
 
         const { data: urlData } = supabase.storage
           .from('nexus-files')
           .getPublicUrl(fullPath);
 
+        console.log(`[Storage] ✅ Upload concluído: ${urlData.publicUrl}`);
         return urlData.publicUrl;
 
       } catch (err: any) {
         if (err.name === 'AbortError' || signal?.aborted) throw err;
 
-        console.error(`[Storage] ❌ Tentativa ${i + 1} falhou:`, err.message);
+        console.warn(`[Storage] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
 
-        if (i === retryCount) throw err;
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (i === retryCount) {
+          console.error(`[Storage] ❌ Falha crítica após ${retryCount + 1} tentativas.`);
+          throw err;
+        }
+
+        // Exponential backoff
+        const delay = Math.pow(2, i) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 
-    throw new Error("STORAGE_CRITICAL_FAILURE");
+    throw new Error("STORAGE_UNREACHABLE");
   },
 
   /**
-   * 🎯 AGGRESSIVE INTELLIGENT COMPRESSOR (PRO LEVEL)
-   * SUPORTA: HEIC, JPEG, PNG, WebP
-   * GARANTIA: Saída SEMPRE WebP < 450KB para margem de segurança
+   * 🎯 AGGRESSIVE INTELLIGENT COMPRESSOR (ULTRA LEVEL)
+   * Resiliência NASA: Captura qualquer formato, garante WebP < 450KB.
    */
   processAndCompress: async (file: File, signal?: AbortSignal): Promise<Blob> => {
-    const TARGET_SIZE = 480 * 1024; // 480KB para garantir folga
-    console.log(`[Compress] 🚀 Processando ${file.name} (${(file.size / 1024).toFixed(0)}KB)`);
+    const TARGET_SIZE = 450 * 1024; // Margem de segurança
+    console.log(`[Compress] 🧪 Iniciando: ${file.name} (${file.type})`);
 
     let workingFile: Blob | File = file;
 
-    // 🍎 HEIC/HEIF Decoder (iPhone optimized)
+    // 🍎 Suporte HEIC/HEIF
     if (file.type.includes('heic') || file.type.includes('heif') || file.name.toLowerCase().endsWith('.heic')) {
       try {
-        if (!(window as any).heic2any) {
-          console.log('[Compress] 🍎 Carregando decodificador HEIC...');
-          await new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-          });
-        }
+        const { default: heic2any } = await import('heic2any' as any).catch(async () => {
+          // Fallback CDN se import falhar no PWA
+          if (!(window as any).heic2any) {
+            await new Promise((res, rej) => {
+              const s = document.createElement('script');
+              s.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+              s.onload = res; s.onerror = rej;
+              document.head.appendChild(s);
+            });
+          }
+          return { default: (window as any).heic2any };
+        });
 
         if (signal?.aborted) throw new Error('AbortError');
 
-        const heic2any = (window as any).heic2any;
         const converted = await heic2any({
           blob: file,
           toType: 'image/jpeg',
-          quality: 0.6
+          quality: 0.7
         });
-
         workingFile = Array.isArray(converted) ? converted[0] : converted;
-      } catch (err) {
-        console.warn('[Compress] 🍎 Fallback HEIC falhou, tentando processar direto');
+      } catch (hErr) {
+        console.warn('[Compress] HEIC failing, continuing with raw', hErr);
       }
     }
 
-    // ESTRATÉGIAS DINÂMICAS (WebP Optimized)
+    // Estratégias de Redimensionamento
     const strategies = [
-      { width: 1200, quality: 0.80 }, // S1: Premium
-      { width: 1000, quality: 0.70 }, // S2: Balanced
-      { width: 800, quality: 0.60 },  // S3: Conservative
-      { width: 600, quality: 0.50 }   // S4: Minimum
+      { w: 1280, q: 0.8 },
+      { w: 1024, q: 0.7 },
+      { w: 800, q: 0.6 },
+      { w: 640, q: 0.5 }
     ];
 
     const url = URL.createObjectURL(workingFile);
     try {
       const img = new Image();
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = () => reject(new Error('IMG_LOAD_ERROR'));
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = () => rej(new Error('IMG_LOAD_FAIL'));
         img.src = url;
       });
 
-      for (let s of strategies) {
+      for (const s of strategies) {
         if (signal?.aborted) throw new Error('AbortError');
 
-        console.log(`[Compress] 📐 Tentativa: ${s.width}px @ ${s.quality}`);
-
-        const blob = await new Promise<Blob>((resolve, reject) => {
+        const blob = await new Promise<Blob>((res, rej) => {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
 
-          if (width > s.width || height > s.width) {
-            const ratio = Math.min(s.width / width, s.width / height);
+          if (width > s.w || height > s.w) {
+            const ratio = Math.min(s.w / width, s.w / height);
             width = Math.round(width * ratio);
             height = Math.round(height * ratio);
           }
@@ -335,7 +340,7 @@ export const DataService = {
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d', { alpha: false });
-          if (!ctx) return reject(new Error('CANVAS_ERROR'));
+          if (!ctx) return rej(new Error('CANVAS_CONTEXT_FAIL'));
 
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
@@ -343,16 +348,16 @@ export const DataService = {
           ctx.fillRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
 
-          canvas.toBlob((b) => b ? resolve(b) : reject(new Error('BLOB_NULL')), 'image/webp', s.quality);
+          canvas.toBlob((b) => b ? res(b) : rej(new Error('BLOB_NULL')), 'image/webp', s.q);
         });
 
         if (blob.size <= TARGET_SIZE) {
-          console.log(`[Compress] ✅ OK: ${(blob.size / 1024).toFixed(0)}KB`);
+          console.log(`[Compress] ✅ Sucesso: ${(blob.size / 1024).toFixed(0)}KB (${s.w}px)`);
           return blob;
         }
       }
 
-      throw new Error('COMPRESSION_LIMIT_REACHED');
+      throw new Error('FINAL_COMPRESSION_OVERSIZE');
     } finally {
       URL.revokeObjectURL(url);
     }

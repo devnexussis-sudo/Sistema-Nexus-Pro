@@ -12,14 +12,15 @@ const TECH_PERSISTENT_KEY = 'nexus_tech_persistent';
 const TechSessionStorage = {
     set: (value: any) => {
         try {
-            sessionStorage.setItem(TECH_SESSION_KEY, JSON.stringify(value));
+            // Nexus Deep Sync: Usamos localStorage para que o DataService consiga ler o tenant fora do React
+            localStorage.setItem(TECH_SESSION_KEY, JSON.stringify(value));
         } catch (e) {
             console.error('TechSessionStorage.set error:', e);
         }
     },
     get: <T = any>(): T | null => {
         try {
-            const data = sessionStorage.getItem(TECH_SESSION_KEY);
+            const data = localStorage.getItem(TECH_SESSION_KEY);
             return data ? JSON.parse(data) : null;
         } catch (e) {
             return null;
@@ -27,7 +28,7 @@ const TechSessionStorage = {
     },
     clear: () => {
         try {
-            sessionStorage.removeItem(TECH_SESSION_KEY);
+            localStorage.removeItem(TECH_SESSION_KEY);
             localStorage.removeItem(TECH_PERSISTENT_KEY);
         } catch (e) {
             console.error('TechSessionStorage.clear error:', e);
