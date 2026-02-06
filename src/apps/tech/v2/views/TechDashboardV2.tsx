@@ -6,7 +6,6 @@ import {
     ListTodo,
     MapPin,
     Settings,
-    Bell,
     Search,
     RefreshCw,
     LogOut,
@@ -48,7 +47,6 @@ export const TechDashboardV2: React.FC = () => {
             </header>
 
             <main className="px-6 mt-6 space-y-8 animate-in text-slate-50">
-
                 {/* Salutation */}
                 <div>
                     <h2 className="text-2xl font-black italic uppercase italic tracking-tighter">
@@ -93,7 +91,7 @@ export const TechDashboardV2: React.FC = () => {
                             <div
                                 key={order.id}
                                 onClick={() => setSelectedOrder(order)}
-                                className="os-card glass cursor-pointer flex items-center justify-between"
+                                className="os-card glass cursor-pointer flex items-center justify-between active:scale-[0.98] transition-transform"
                             >
                                 <div className="flex items-center gap-4">
                                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${order.priority === OrderPriority.CRITICAL || order.priority === OrderPriority.HIGH ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-500'}`}>
@@ -140,9 +138,17 @@ export const TechDashboardV2: React.FC = () => {
                 <OrderDetailsV2
                     order={selectedOrder}
                     onClose={() => setSelectedOrder(null)}
-                    onUpdateStatus={async (status) => {
-                        await updateOrderStatus(selectedOrder.id, status);
-                        setSelectedOrder(prev => prev ? { ...prev, status } : null);
+                    onUpdateStatus={async (status, notes, formData) => {
+                        await updateOrderStatus(selectedOrder.id, status, notes, formData);
+                        setSelectedOrder(prev => prev ? {
+                            ...prev,
+                            status,
+                            notes: notes || prev.notes,
+                            formData: { ...prev.formData, ...formData },
+                            signature: formData?.signature || prev.signature,
+                            signatureName: formData?.signatureName || prev.signatureName,
+                            signatureDoc: formData?.signatureDoc || prev.signatureDoc
+                        } : null);
                     }}
                 />
             )}
