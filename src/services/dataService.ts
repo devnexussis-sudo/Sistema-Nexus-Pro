@@ -1170,7 +1170,8 @@ export const DataService = {
   getOrdersPaginated: async (
     page: number = 1,
     limit: number = 5,
-    technicianId?: string
+    technicianId?: string,
+    filters?: { status?: OrderStatus; startDate?: string; endDate?: string }
   ): Promise<{ orders: ServiceOrder[]; total: number }> => {
     if (isCloudEnabled) {
       const tenantId = DataService.getCurrentTenantId();
@@ -1191,6 +1192,17 @@ export const DataService = {
       // Filtra por técnico se especificado
       if (technicianId) {
         query = query.eq('assigned_to', technicianId);
+      }
+
+      // 🔍 Filtros Avançados
+      if (filters?.status && filters.status !== 'ALL' as any) {
+        query = query.eq('status', filters.status);
+      }
+      if (filters?.startDate) {
+        query = query.gte('scheduled_date', filters.startDate); // ou created_at
+      }
+      if (filters?.endDate) {
+        query = query.lte('scheduled_date', filters.endDate);
       }
 
       // Ordena por data de criação (mais recentes primeiro) e aplica paginação

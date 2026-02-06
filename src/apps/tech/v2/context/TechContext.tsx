@@ -3,14 +3,29 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { User, ServiceOrder, AuthState, UserRole, OrderStatus } from '../../../../types';
 import { DataService } from '../../../../services/dataService';
 
+interface PaginationState {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+}
+
+interface FilterState {
+    status: OrderStatus | 'ALL';
+    startDate: string;
+    endDate: string;
+}
+
 interface TechContextType {
     auth: AuthState;
     orders: ServiceOrder[];
     isSyncing: boolean;
     gpsStatus: 'active' | 'error' | 'inactive';
+    pagination: PaginationState;
+    filters: FilterState;
     login: (email: string, pass: string) => Promise<void>;
     logout: () => void;
-    refreshData: () => Promise<void>;
+    refreshData: (params?: { page?: number; newFilters?: Partial<FilterState> }) => Promise<void>;
     updateOrderStatus: (id: string, status: OrderStatus, notes?: string, formData?: any) => Promise<void>;
 }
 
@@ -31,6 +46,14 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [orders, setOrders] = useState<ServiceOrder[]>([]);
     const [isSyncing, setIsSyncing] = useState(false);
     const [gpsStatus, setGpsStatus] = useState<'active' | 'error' | 'inactive'>('inactive');
+
+    // Estado local de paginação e filtros
+    const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0, totalPages: 0 });
+    const [filters, setFilters] = useState<FilterState>(() => {
+        // Default: Dia Atual
+        const today = new Date().toISOString().split('T')[0];
+        return { status: 'ALL', startDate: today, endDate: today };
+    });
 
     const watchIdRef = useRef<number | null>(null);
     const mountedRef = useRef(true);
@@ -72,20 +95,54 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     // 🔄 MOTOR DE SINCRONIZAÇÃO (Inteligente)
-    const refreshData = useCallback(async () => {
+    const refreshData = useCallback(async (params?: { page?: number; newFilters?: Partial<FilterState> }) => {
         if (!auth.user?.id) return;
+
         setIsSyncing(true);
+
+        // Calcula novos estados baseados nos params ou usa o atual
+        const targetPage = params?.page || (params?.newFilters ? 1 : pagination.page);
+        const targetFilters = { ...filters, ...(params?.newFilters || {}) };
+
+        // Se mudou filtros, atualiza estado
+        if (params?.newFilters) setFilters(targetFilters);
+
         try {
-            // Buscamos as ordens sem paginação agressiva para o modo offline simplificado
-            const { orders: fetched } = await DataService.getOrdersPaginated(1, 50, auth.user.id);
-            if (mountedRef.current) setOrders(fetched);
-            localStorage.setItem('nexus_tech_cache_v2', JSON.stringify(fetched));
+            console.log(`[TechContext] Fetching page ${targetPage} with filters:`, targetFilters);
+
+            const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
+                targetPage,
+                10, // Limit fixo 10 por página conforme solicitado
+                auth.user.id,
+                {
+                    status: targetFilters.status === 'ALL' ? undefined : targetFilters.status,
+                    startDate: targetFilters.startDate,
+                    endDate: targetFilters.endDate
+                }
+            );
+
+            if (mountedRef.current) {
+                // Se for página 1, substitui. Se for > 1, append (opcional, mas aqui vamos substituir pq é paginação clássica ou load more?)
+                // O usuário pediu "mudar de página abaixo", então é substituição clássica de lista, não infinite scroll.
+                setOrders(fetchedOrders);
+                setPagination({
+                    page: targetPage,
+                    limit: 10,
+                    total: total,
+                    totalPages: Math.ceil(total / 10)
+                });
+
+                // Cache apenas da primeira página/filtro default para offline rápido
+                if (targetPage === 1 && !params?.newFilters) {
+                    localStorage.setItem('nexus_tech_cache_v2', JSON.stringify(fetchedOrders));
+                }
+            }
         } catch (e) {
             console.error("[Context-V2] Sync Error:", e);
         } finally {
             if (mountedRef.current) setIsSyncing(false);
         }
-    }, [auth.user?.id]);
+    }, [auth.user?.id, filters, pagination.page]);
 
     // 🚪 AUTH ACTIONS
     const login = async (email: string, pass: string) => {
@@ -103,12 +160,14 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAuth({ user: null, isAuthenticated: false });
         setOrders([]);
         stopGPS();
+        localStorage.removeItem('nexus_tech_cache_v2');
     }, [stopGPS]);
 
     const updateOrderStatus = useCallback(async (id: string, status: OrderStatus, notes?: string, formData?: any) => {
         try {
             await DataService.updateOrderStatus(id, status, notes, formData);
             if (mountedRef.current) {
+                // Atualização Otimista local
                 setOrders(prev => prev.map(o => o.id === id ? { ...o, status, notes, formData: { ...o.formData, ...formData } } : o));
             }
         } catch (e) {
@@ -117,27 +176,28 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, []);
 
-    // EFETUAR SYNC AO LOGAR
+    // EFETUAR SYNC AO LOGAR (Apenas Page 1 Default)
     useEffect(() => {
         if (auth.isAuthenticated) {
-            refreshData();
             startGPS();
+            // Carrega cache first
+            const cached = localStorage.getItem('nexus_tech_cache_v2');
+            if (cached) setOrders(JSON.parse(cached));
+
+            // Then sync fresh
+            refreshData({ page: 1 });
         } else {
             stopGPS();
         }
-    }, [auth.isAuthenticated, refreshData, startGPS, stopGPS]);
+    }, [auth.isAuthenticated, startGPS, stopGPS]); // refreshData removido da dep array para evitar loop, pois refreshData muda com filters
 
     useEffect(() => {
         mountedRef.current = true;
-        // Carrega cache offline imediato
-        const cached = localStorage.getItem('nexus_tech_cache_v2');
-        if (cached) setOrders(JSON.parse(cached));
-
         return () => { mountedRef.current = false; stopGPS(); };
     }, [stopGPS]);
 
     return (
-        <TechContext.Provider value={{ auth, orders, isSyncing, gpsStatus, login, logout, refreshData, updateOrderStatus }}>
+        <TechContext.Provider value={{ auth, orders, isSyncing, gpsStatus, pagination, filters, login, logout, refreshData, updateOrderStatus }}>
             {children}
         </TechContext.Provider>
     );
