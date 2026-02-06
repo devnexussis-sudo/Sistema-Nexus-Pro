@@ -44,13 +44,24 @@ export const TechDashboardV2: React.FC = () => {
 
     const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
+        if (file && auth.user) {
             const reader = new FileReader();
-            reader.onloadend = () => {
-                // Em um app real, isso salvaria no banco. Aqui salvamos no LocalStorage para demo.
-                const newAuth = { ...auth, user: { ...auth.user!, avatar: reader.result as string } };
-                localStorage.setItem('nexus_tech_session_v2', JSON.stringify(newAuth.user));
-                window.location.reload(); // Recarrega para aplicar
+            reader.onloadend = async () => {
+                const base64 = reader.result as string;
+                try {
+                    // Upload REAL para o Supabase e atualização do cadastro
+                    const publicUrl = await DataService.updateTechnicianAvatar(auth.user!.id, base64);
+
+                    // Atualiza sessão local com a nova URL
+                    const newAuth = { ...auth, user: { ...auth.user!, avatar: publicUrl } };
+                    localStorage.setItem('nexus_tech_session_v2', JSON.stringify(newAuth.user));
+
+                    // Recarrega para aplicar visualmente em todo o app
+                    window.location.reload();
+                } catch (err) {
+                    console.error("Erro ao fazer upload da foto:", err);
+                    alert("Falha ao atualizar foto. Verifique sua conexão.");
+                }
             };
             reader.readAsDataURL(file);
         }

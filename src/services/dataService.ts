@@ -1036,6 +1036,47 @@ export const DataService = {
     return tech;
   },
 
+  /**
+   * 📸 Atualiza o Avatar do Técnico
+   */
+  updateTechnicianAvatar: async (userId: string, base64Image: string): Promise<string> => {
+    if (isCloudEnabled) {
+      try {
+        console.log(`[Avatar] 📸 Iniciando upload de avatar para ${userId}...`);
+
+        // 1. Upload da Imagem
+        const publicUrl = await DataService.uploadFile(base64Image, `technicians/${userId}/avatar`);
+
+        console.log(`[Avatar] ✅ Upload concluído: ${publicUrl}`);
+
+        // 2. Atualiza a tabela technicians ou users
+        // Tenta technicians primeiro
+        const { error: techError } = await DataService.getServiceClient()
+          .from('technicians')
+          .update({ avatar: publicUrl })
+          .eq('id', userId);
+
+        if (techError) {
+          console.warn("[Avatar] ⚠️ Falha ao atualizar tabela 'technicians', tentando 'users'...", techError.message);
+          const { error: userError } = await DataService.getServiceClient()
+            .from('users')
+            .update({ avatar: publicUrl })
+            .eq('id', userId);
+
+          if (userError) throw userError;
+        }
+
+        return publicUrl;
+      } catch (error) {
+        console.error("[Avatar] ❌ Erro ao atualizar avatar:", error);
+        throw error;
+      }
+    }
+
+    // Fallback Local
+    return base64Image;
+  },
+
   updateTechnicianLocation: async (techId: string, lat: number, lng: number, meta?: { accuracy?: number, speed?: number, heading?: number, batteryLevel?: number }): Promise<void> => {
     if (!isCloudEnabled) return;
 
