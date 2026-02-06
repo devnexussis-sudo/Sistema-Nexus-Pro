@@ -173,7 +173,15 @@ export const TechDashboardV2: React.FC = () => {
                                 <div className="py-12 text-center text-slate-400 bg-white border border-dashed border-slate-200 rounded-[2rem]">
                                     <ListTodo size={32} className="mx-auto text-slate-300 mb-3" />
                                     <p className="text-xs font-bold opacity-60">Nenhuma ordem encontrada.</p>
-                                    <button onClick={() => refreshData({ newFilters: { status: 'ALL', startDate: '', endDate: '' } })} className="mt-4 text-[10px] font-black uppercase text-indigo-500 hover:underline">Limpar Filtros</button>
+                                    <button
+                                        onClick={() => {
+                                            const today = new Date().toISOString().split('T')[0];
+                                            refreshData({ newFilters: { status: 'ALL', startDate: today, endDate: today } });
+                                        }}
+                                        className="mt-4 text-[10px] font-black uppercase text-indigo-500 hover:underline"
+                                    >
+                                        Limpar Filtros (Voltar para Hoje)
+                                    </button>
                                 </div>
                             ) : (
                                 orders.map(order => (
