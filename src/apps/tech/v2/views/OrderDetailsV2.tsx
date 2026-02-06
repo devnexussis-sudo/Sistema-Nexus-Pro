@@ -143,7 +143,11 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                     console.error('[OrderDetails] ❌ IMPOSSÍVEL CARREGAR CHECKLIST (Isso não deve acontecer).');
                 } catch (e) {
                     console.error("[OrderDetails] ❌ Erro ao carregar checklist:", e);
+                } finally {
+                    setIsLoading(false);
                 }
+            } else {
+                setIsLoading(false);
             }
         };
         loadTemplate();
