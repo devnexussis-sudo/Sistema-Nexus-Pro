@@ -170,7 +170,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
 
         <div className="mt-10 text-center">
           <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent mb-6"></div>
-          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">Versão Enterprise v2.5.0</p>
+          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">Versão Enterprise v2.6.0-stable (Hotfix)</p>
         </div>
       </div>
     </div>
