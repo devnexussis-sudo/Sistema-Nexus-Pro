@@ -43,49 +43,8 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
   // Combina o loading local do botão com o global do download
   const isLoading = loading || isFetching;
 
-  // 🛰️ NEXUS GEOLOCATION TRACKING SYSTEM (STABLE WATCH)
-  React.useEffect(() => {
-    if (!user?.id || user.role !== UserRole.TECHNICIAN) return;
-
-    let watchId: number | null = null;
-    let isMounted = true;
-
-    const startTracking = () => {
-      if ("geolocation" in navigator && isMounted) {
-        // console.log("[🛰️ Geolocation] Watch Mode Iniciado...");
-
-        // Ping de posição inicial
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            if (isMounted) await DataService.updateTechnicianLocation(user.id, pos.coords.latitude, pos.coords.longitude);
-          },
-          (err) => console.warn("[🛰️ Geolocation] Initial ping failed:", err.message),
-          { enableHighAccuracy: true, timeout: 15000 }
-        );
-
-        watchId = navigator.geolocation.watchPosition(
-          async (position) => {
-            if (!isMounted) return;
-            const { latitude, longitude } = position.coords;
-            try {
-              await DataService.updateTechnicianLocation(user.id, latitude, longitude);
-            } catch (err) { }
-          },
-          (error) => {
-            console.warn(`[🛰️ Geolocation] Watch error: (${error.code})`);
-          },
-          { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
-        );
-      }
-    };
-
-    startTracking();
-
-    return () => {
-      isMounted = false;
-      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-    };
-  }, [user?.id]); // 🎯 Estabilidade: Depende apenas do ID
+  // 🛰️ NEXUS GEOLOCATION - Gerenciado via Shell/Hook centralizado
+  // Removido o tracker local para evitar conflito de hardware e loops de render
 
   const handleUpdateStatus = async (orderId: string, status: OrderStatus, notes?: string, formData?: any, items?: any[]) => {
     // Quando executa uma OS, manda a localização também
