@@ -1,8 +1,9 @@
 
+
 import React, { useState } from 'react';
-import { FormField, FormFieldType } from '../../../../../types';
+import { FormField, FormFieldType } from '../../../../types';
 import { Camera, Check } from 'lucide-react';
-import { DataService } from '../../../../../services/dataService';
+import { DataService } from '../../../../services/dataService';
 
 interface ChecklistRendererProps {
     fields: FormField[];
@@ -64,8 +65,8 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
                                         key={opt}
                                         onClick={() => onAnswerChange(field.id, opt)}
                                         className={`py-3 px-2 rounded-xl text-[10px] font-bold uppercase tracking-wide border transition-all ${answers[field.id] === opt
-                                                ? 'bg-emerald-500 border-emerald-500 text-white'
-                                                : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'
+                                            ? 'bg-emerald-500 border-emerald-500 text-white'
+                                            : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'
                                             }`}
                                     >
                                         {opt}
