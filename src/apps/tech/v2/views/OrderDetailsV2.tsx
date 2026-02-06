@@ -171,16 +171,16 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
 
     return (
         <div className="fixed inset-0 z-[100] bg-[#f8fafc] flex flex-col animate-in text-slate-900">
-            {/* Header Premium Clean */}
-            <div className="bg-white/90 backdrop-blur-md px-6 pt-12 pb-6 flex justify-between items-center sticky top-0 z-10 border-b border-indigo-100 shadow-sm">
-                <button onClick={onClose} className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 active:scale-95 transition-all text-slate-500 hover:text-indigo-600">
-                    <X size={20} />
+            {/* Header Premium Clean - Mais Compacto */}
+            <div className="bg-white/90 backdrop-blur-md px-6 pt-6 pb-4 flex justify-between items-center sticky top-0 z-10 border-b border-indigo-100 shadow-sm">
+                <button onClick={onClose} className="p-2 rounded-xl bg-slate-50 border border-slate-200 active:scale-95 transition-all text-slate-500 hover:text-indigo-600">
+                    <X size={18} />
                 </button>
                 <div className="text-center">
-                    <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest">Ordem de Serviço</p>
+                    <p className="text-[9px] font-black uppercase text-indigo-400 tracking-widest">Ordem de Serviço</p>
                     <h2 className="text-sm font-bold text-slate-900 tracking-tight">#{order.id.slice(0, 8)}</h2>
                 </div>
-                <div className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${order.priority === OrderPriority.CRITICAL || order.priority === OrderPriority.HIGH ? 'bg-red-50 text-red-500' : 'bg-indigo-50 text-indigo-600'}`}>
+                <div className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${order.priority === OrderPriority.CRITICAL || order.priority === OrderPriority.HIGH ? 'bg-red-50 text-red-500' : 'bg-indigo-50 text-indigo-600'}`}>
                     {order.priority}
                 </div>
             </div>

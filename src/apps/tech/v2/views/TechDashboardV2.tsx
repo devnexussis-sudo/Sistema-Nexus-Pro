@@ -1,22 +1,3 @@
-
-import React, { useState } from 'react';
-import { useTech } from '../context/TechContext';
-import {
-    LayoutDashboard,
-    ListTodo,
-    MapPin,
-    Settings,
-    Search,
-    RefreshCw,
-    LogOut,
-    ChevronRight,
-    Clock,
-    CheckCircle2
-} from 'lucide-react';
-import { OrderDetailsV2 } from './OrderDetailsV2';
-import { OrderStatus, OrderPriority, ServiceOrder } from '../../../../types';
-
-
 import React, { useState, useRef } from 'react';
 import { useTech } from '../context/TechContext';
 import {
@@ -35,6 +16,7 @@ import {
 } from 'lucide-react';
 import { OrderDetailsV2 } from './OrderDetailsV2';
 import { OrderStatus, OrderPriority, ServiceOrder } from '../../../../types';
+import { DataService } from '../../../../services/dataService';
 
 export const TechDashboardV2: React.FC = () => {
     const { auth, orders, isSyncing, refreshData, logout, updateOrderStatus, pagination, filters } = useTech();
@@ -102,62 +84,91 @@ export const TechDashboardV2: React.FC = () => {
             </header>
 
             {/* MAIN CONTENT AREA */}
-            <main className="flex-1 px-6 pt-24 pb-28 animate-in overflow-y-auto">
+            <main className="flex-1 px-4 pt-20 pb-28 animate-in overflow-y-auto">
 
                 {/* ABA 1: HOME (LISTA DE OS) */}
                 {activeTab === 'home' && (
-                    <div className="space-y-6">
+                    <div className="space-y-2">
                         {/* Filters & Search sticky */}
-                        <div className="sticky top-20 z-40 bg-slate-50 pt-2 pb-2 space-y-2">
-                            {/* Datas */}
+                        <div className="sticky top-20 z-40 bg-slate-50 pt-2 pb-1 space-y-2">
+                            {/* Datas Coloridas */}
                             <div className="flex gap-2">
-                                <input
-                                    type="date"
-                                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-indigo-500 uppercase"
-                                    value={filters.startDate}
-                                    onChange={(e) => refreshData({ newFilters: { startDate: e.target.value } })}
-                                />
-                                <input
-                                    type="date"
-                                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-indigo-500 uppercase"
-                                    value={filters.endDate}
-                                    onChange={(e) => refreshData({ newFilters: { endDate: e.target.value } })}
-                                />
+                                <div className="flex-1 relative group">
+                                    <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+                                        <span className="text-[9px] font-black uppercase text-indigo-500">DE</span>
+                                    </div>
+                                    <input
+                                        type="date"
+                                        className="w-full bg-white border-2 border-indigo-100 rounded-xl pl-8 pr-2 py-2 text-[10px] font-bold text-indigo-900 outline-none focus:border-indigo-500 uppercase shadow-sm"
+                                        value={filters.startDate}
+                                        onChange={(e) => refreshData({ newFilters: { startDate: e.target.value } })}
+                                    />
+                                </div>
+                                <div className="flex-1 relative group">
+                                    <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+                                        <span className="text-[9px] font-black uppercase text-indigo-500">ATÉ</span>
+                                    </div>
+                                    <input
+                                        type="date"
+                                        className="w-full bg-white border-2 border-indigo-100 rounded-xl pl-8 pr-2 py-2 text-[10px] font-bold text-indigo-900 outline-none focus:border-indigo-500 uppercase shadow-sm"
+                                        value={filters.endDate}
+                                        onChange={(e) => refreshData({ newFilters: { endDate: e.target.value } })}
+                                    />
+                                </div>
                             </div>
 
-                            {/* Status Filter Scrollable */}
+                            {/* Status Filter Scrollable Colorido */}
                             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                                {['ALL', OrderStatus.ASSIGNED, OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED, OrderStatus.BLOCKED].map((st) => (
-                                    <button
-                                        key={st}
-                                        onClick={() => refreshData({ newFilters: { status: st as any } })}
-                                        className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${filters.status === st
-                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20'
-                                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
-                                            }`}
-                                    >
-                                        {st === 'ALL' ? 'Todos' : st}
-                                    </button>
-                                ))}
+                                {[
+                                    { id: 'ALL', label: 'Todos', color: 'slate' },
+                                    { id: OrderStatus.ASSIGNED, label: 'Pendentes', color: 'indigo' },
+                                    { id: OrderStatus.IN_PROGRESS, label: 'Executando', color: 'amber' },
+                                    { id: OrderStatus.COMPLETED, label: 'Concluídas', color: 'emerald' },
+                                    { id: OrderStatus.BLOCKED, label: 'Impedidas', color: 'red' }
+                                ].map((st) => {
+                                    const isActive = filters.status === st.id;
+                                    // Map color prop to tailwind classes dynamic check isnt great for purifier so explicit map:
+                                    let activeClass = '';
+                                    let inactiveClass = '';
+
+                                    switch (st.color) {
+                                        case 'indigo':
+                                            activeClass = 'bg-indigo-600 border-indigo-600 text-white shadow-indigo-500/30';
+                                            inactiveClass = 'bg-white border-indigo-100 text-indigo-600 hover:bg-indigo-50';
+                                            break;
+                                        case 'amber':
+                                            activeClass = 'bg-amber-500 border-amber-500 text-white shadow-amber-500/30';
+                                            inactiveClass = 'bg-white border-amber-100 text-amber-600 hover:bg-amber-50';
+                                            break;
+                                        case 'emerald':
+                                            activeClass = 'bg-emerald-500 border-emerald-500 text-white shadow-emerald-500/30';
+                                            inactiveClass = 'bg-white border-emerald-100 text-emerald-600 hover:bg-emerald-50';
+                                            break;
+                                        case 'red':
+                                            activeClass = 'bg-red-500 border-red-500 text-white shadow-red-500/30';
+                                            inactiveClass = 'bg-white border-red-100 text-red-600 hover:bg-red-50';
+                                            break;
+                                        default: // slate/all
+                                            activeClass = 'bg-slate-700 border-slate-700 text-white shadow-slate-500/30';
+                                            inactiveClass = 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50';
+                                    }
+
+                                    return (
+                                        <button
+                                            key={st.id}
+                                            onClick={() => refreshData({ newFilters: { status: st.id as any } })}
+                                            className={`whitespace-nowrap px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-sm ${isActive ? activeClass : inactiveClass
+                                                }`}
+                                        >
+                                            {st.label}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
-                        {/* Search Bar (Local Filter on current page usually, but here we might want server search? Let's keep strict local for now or visual only) */}
-                        {/* O usuário pediu filtro de datas e status. A busca textual pode ser local na página ou server? 
-                            Ideal server, mas vou manter visual por enquanto, focando nos filtros pedidos.
-                        */}
-
-                        {/* Lista de Ordens - Padding top aumentado para evitar corte */}
-                        <div className="space-y-3 pt-2">
-                            <div className="flex justify-between items-center px-1">
-                                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    {new Date(filters.startDate).toLocaleDateString()} - {new Date(filters.endDate).toLocaleDateString()}
-                                </h3>
-                                <span className="text-[9px] font-bold bg-indigo-50 text-indigo-500 px-2 py-1 rounded-lg">
-                                    Total: {pagination.total}
-                                </span>
-                            </div>
-
+                        {/* Lista de Ordens Compacta */}
+                        <div className="space-y-3 pt-1">
                             {orders.length === 0 ? (
                                 <div className="py-12 text-center text-slate-400 bg-white border border-dashed border-slate-200 rounded-[2rem]">
                                     <ListTodo size={32} className="mx-auto text-slate-300 mb-3" />
@@ -168,38 +179,74 @@ export const TechDashboardV2: React.FC = () => {
                                 orders.map(order => (
                                     <div
                                         key={order.id}
-                                        onClick={() => setSelectedOrder(order)}
-                                        className="bg-white p-4 rounded-[1.5rem] shadow-sm border border-slate-100 cursor-pointer relative overflow-hidden transition-all active:scale-[0.98] active:bg-slate-50"
+                                        className="bg-white p-4 rounded-[1.5rem] shadow-sm border border-slate-100 relative overflow-hidden transition-all active:scale-[0.98] active:bg-slate-50 group"
                                     >
-                                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-500' :
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-500' :
                                             order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-500' :
                                                 order.priority === OrderPriority.CRITICAL ? 'bg-red-500' :
                                                     'bg-indigo-500'
                                             }`}></div>
 
-                                        <div className="pl-3 flex justify-between items-start">
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md">
+                                        <div className="pl-3" onClick={() => setSelectedOrder(order)}>
+                                            {/* Header do Card */}
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg w-fit mb-1">
                                                         #{order.id.slice(0, 6)}
                                                     </span>
-                                                    <span className="text-[9px] font-bold text-slate-400">
-                                                        {new Date(order.scheduledDate || order.createdAt).toLocaleDateString()}
-                                                    </span>
+                                                    <h4 className="font-bsold text-sm text-slate-900 leading-tight">
+                                                        {order.customerName}
+                                                    </h4>
                                                 </div>
-                                                <h4 className="font-bold text-sm text-slate-800 leading-tight mb-1">
-                                                    {order.customerName}
-                                                </h4>
-                                                <p className="text-xs text-slate-500 truncate max-w-[200px]">
-                                                    {order.equipmentName || 'Equipamento não especificado'}
-                                                </p>
+                                                <div className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-50 text-emerald-600' :
+                                                    order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-50 text-amber-600 animate-pulse' :
+                                                        'bg-indigo-50 text-indigo-600'
+                                                    }`}>
+                                                    {order.status === OrderStatus.IN_PROGRESS ? 'Executando' :
+                                                        order.status === OrderStatus.COMPLETED ? 'Concluída' : 'Pendente'}
+                                                </div>
                                             </div>
-                                            <div className="flex flex-col items-end gap-2">
-                                                <div className={`w-2 h-2 rounded-full ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-500' :
-                                                    order.status === OrderStatus.IN_PROGRESS ? 'animate-pulse bg-amber-500' :
-                                                        'bg-indigo-500'
-                                                    }`} />
+
+                                            {/* Details */}
+                                            <div className="space-y-1 mb-3">
+                                                <div className="flex items-center gap-2 text-slate-500">
+                                                    <LayoutDashboard size={12} className="text-slate-400" />
+                                                    <p className="text-xs font-semibold truncate max-w-[220px]">
+                                                        {order.equipmentName || 'Equipamento genérico'}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-slate-500">
+                                                    <Clock size={12} className="text-slate-400" />
+                                                    <p className="text-xs font-semibold">
+                                                        {new Date(order.scheduledDate || order.createdAt).toLocaleDateString()} às {new Date(order.scheduledDate || order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                </div>
                                             </div>
+                                        </div>
+
+                                        {/* Botão de GPS no Rodapé do Card */}
+                                        <div className="pl-3 mt-2 pt-2 border-t border-slate-50 flex justify-between items-center">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (order.customerAddress) {
+                                                        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.customerAddress)}`, '_blank');
+                                                    } else {
+                                                        alert("Endereço não disponível.");
+                                                    }
+                                                }}
+                                                className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-600 px-3 py-2 rounded-xl transition-colors"
+                                            >
+                                                <MapPin size={14} />
+                                                <span className="text-[10px] font-black uppercase tracking-wider">Ir para Local</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => setSelectedOrder(order)}
+                                                className="p-2 text-slate-300 hover:text-indigo-500 transition-colors"
+                                            >
+                                                <ChevronRight size={18} />
+                                            </button>
                                         </div>
                                     </div>
                                 ))
