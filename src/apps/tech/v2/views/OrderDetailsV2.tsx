@@ -34,30 +34,65 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
     const [signerName, setSignerName] = useState(order.signatureName || '');
     const [signerDoc, setSignerDoc] = useState(order.signatureDoc || '');
 
-    // 🔄 Load Logic (Template)
+    // 🔄 Load Logic (Template) - Usando Activation Rules
     useEffect(() => {
         const loadTemplate = async () => {
-            if (activeSection === 'checklist' && !template) {
+            if (!template) {
                 try {
-                    // 1. Tenta carregar regra de ativação baseada no Tipo de Serviço e Família (se houver)
-                    // Simplificação V2: Tenta buscar template padrão ou específico
-                    const templates = await DataService.getFormTemplates();
-                    // Lógica simples: Pega o primeiro que der match ou um padrão.
-                    // Idealmente: DataService.getRelevantTemplate(order)
-                    // Vou usar uma heurística simples: buscar por nome do serviço
-                    const match = templates.find(t => t.serviceTypes.includes(order.operationType || ''));
-                    if (match) {
-                        setTemplate(match);
-                    } else if (templates.length > 0) {
-                        setTemplate(templates[0]); // Fallback para o primeiro disponível
+                    console.log('[OrderDetails] 🔍 Carregando checklist para:', order.operationType);
+
+                    // Busca regras, templates e equipamentos
+                    const [rules, templates, equipments] = await Promise.all([
+                        DataService.getActivationRules(),
+                        DataService.getFormTemplates(),
+                        DataService.getEquipments()
+                    ]);
+
+                    console.log('[OrderDetails] 📊 Dados:', { rules: rules.length, templates: templates.length, equipments: equipments.length });
+
+                    // Identifica a família do equipamento
+                    let equipmentFamily = '';
+                    const equipment = equipments.find((e: any) =>
+                        (order.equipmentSerial && e.serialNumber === order.equipmentSerial) ||
+                        (order.equipmentName && e.model === order.equipmentName)
+                    );
+
+                    if (equipment) {
+                        equipmentFamily = equipment.familyName;
+                        console.log('[OrderDetails] 🎯 Equipamento encontrado:', equipment.model, 'Família:', equipmentFamily);
                     }
+
+                    // Busca regra de ativação que combina serviceType + family
+                    const matchingRule = rules.find((r: any) =>
+                        r.serviceType === order.operationType &&
+                        (!r.equipmentFamily || r.equipmentFamily === equipmentFamily)
+                    );
+
+                    if (matchingRule && matchingRule.formTemplateId) {
+                        const foundTemplate = templates.find((t: any) => t.id === matchingRule.formTemplateId);
+                        if (foundTemplate) {
+                            console.log('[OrderDetails] ✅ Template encontrado via regra:', foundTemplate.name);
+                            setTemplate(foundTemplate);
+                            return;
+                        }
+                    }
+
+                    // Fallback: Busca template por serviceType
+                    const fallbackTemplate = templates.find((t: any) => t.serviceTypes?.includes(order.operationType));
+                    if (fallbackTemplate) {
+                        console.log('[OrderDetails] ⚠️ Template encontrado via fallback:', fallbackTemplate.name);
+                        setTemplate(fallbackTemplate);
+                        return;
+                    }
+
+                    console.warn('[OrderDetails] ⚠️ Nenhum template encontrado para:', order.operationType);
                 } catch (e) {
-                    console.error("Erro ao carregar checklist:", e);
+                    console.error("[OrderDetails] ❌ Erro ao carregar checklist:", e);
                 }
             }
         };
         loadTemplate();
-    }, [activeSection, order.operationType]);
+    }, [order.operationType, order.equipmentSerial, order.equipmentName]);
 
     const handleAnswerChange = (fieldId: string, value: any) => {
         setAnswers(prev => ({ ...prev, [fieldId]: value }));
@@ -147,28 +182,12 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         onClick={() => setActiveSection('finish')}
                         className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${activeSection === 'finish' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500'}`}
                     >
-                        Assinatura
+                        Finalizar
                     </button>
                 </div>
 
                 {activeSection === 'info' && (
                     <div className="space-y-6 animate-in">
-                        {/* Start Button Contextual */}
-                        {(order.status === OrderStatus.PENDING || order.status === OrderStatus.ASSIGNED) && (
-                            <button
-                                onClick={async () => {
-                                    setIsLoading(true);
-                                    await onUpdateStatus(OrderStatus.IN_PROGRESS);
-                                    setIsLoading(false);
-                                }}
-                                disabled={isLoading}
-                                className="w-full py-5 bg-emerald-500 rounded-[24px] text-white font-black uppercase text-sm tracking-widest shadow-xl shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-                            >
-                                {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white rounded-full border-t-transparent" /> : <Play size={20} fill="currentColor" />}
-                                Iniciar Atendimento
-                            </button>
-                        )}
-
                         {/* Client Info */}
                         <div className="space-y-4">
                             <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-1">Cliente & Local</h4>
@@ -219,15 +238,17 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 />
                                 <button
                                     onClick={handleSaveChecklist}
-                                    className="w-full py-4 bg-white/5 border border-emerald-500/30 text-emerald-400 rounded-2xl font-bold uppercase text-xs tracking-widest"
+                                    disabled={isLoading}
+                                    className="w-full py-4 bg-white/5 border border-emerald-500/30 text-emerald-400 rounded-2xl font-bold uppercase text-xs tracking-widest active:scale-95 transition-all"
                                 >
-                                    Salvar Progresso
+                                    {isLoading ? 'Salvando...' : 'Salvar Progresso'}
                                 </button>
                             </>
                         ) : (
                             <div className="py-12 text-center glass rounded-[32px] border-dashed border-white/10">
                                 <AlertCircle size={40} className="mx-auto text-slate-700 mb-4" />
-                                <p className="text-slate-500 text-sm font-bold">Nenhum checklist vinculado.</p>
+                                <p className="text-slate-500 text-sm font-bold">Carregando checklist...</p>
+                                <p className="text-xs text-slate-600 mt-2">Verifique o console para debug</p>
                             </div>
                         )}
                     </div>
@@ -235,62 +256,125 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
 
                 {activeSection === 'finish' && (
                     <div className="space-y-6 animate-in">
-                        <div className="space-y-4">
-                            <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-1">Responsável pelo Recebimento</h4>
-
-                            <div className="glass p-4 rounded-3xl space-y-4">
-                                <div className="flex items-center gap-3 bg-black/20 p-3 rounded-2xl border border-white/5">
-                                    <User size={18} className="text-slate-500" />
-                                    <input
-                                        type="text"
-                                        placeholder="Nome Completo"
-                                        value={signerName}
-                                        onChange={e => setSignerName(e.target.value)}
-                                        className="bg-transparent w-full text-sm text-white outline-none placeholder:text-slate-600"
-                                    />
+                        {/* Informações de Quem Assinou */}
+                        {order.signature && order.status === OrderStatus.COMPLETED && (
+                            <div className="glass-emerald p-6 rounded-[32px] border-2 border-emerald-500/20 space-y-4">
+                                <h4 className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Assinado por</h4>
+                                <div className="flex items-center gap-4">
+                                    <div className="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500">
+                                        <User size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="text-lg font-black text-white">{order.signatureName}</p>
+                                        <p className="text-xs text-slate-400">{order.signatureDoc || 'Sem documento'}</p>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-3 bg-black/20 p-3 rounded-2xl border border-white/5">
-                                    <span className="text-slate-500 text-xs font-bold w-[18px] text-center">ID</span>
-                                    <input
-                                        type="text"
-                                        placeholder="CPF / Documento (Opcional)"
-                                        value={signerDoc}
-                                        onChange={e => setSignerDoc(e.target.value)}
-                                        className="bg-transparent w-full text-sm text-white outline-none placeholder:text-slate-600"
-                                    />
+                                <div className="aspect-[3/1] bg-black/20 rounded-2xl overflow-hidden border border-white/10">
+                                    <img src={order.signature} alt="Assinatura" className="w-full h-full object-contain" />
                                 </div>
                             </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-1">Assinatura Digital</h4>
-                            <SignatureCanvas
-                                onEnd={setSignature}
-                                onClear={() => setSignature(null)}
-                            />
-                        </div>
-
-                        {order.status === OrderStatus.IN_PROGRESS && (
-                            <button
-                                onClick={handleFinish}
-                                disabled={isLoading || !signature || !signerName}
-                                className={`w-full py-5 rounded-[24px] font-black uppercase text-sm tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 ${signature && signerName
-                                        ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                                        : 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                                    }`}
-                            >
-                                {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white rounded-full border-t-transparent" /> : <CheckCircle2 size={20} />}
-                                Finalizar Ordem
-                            </button>
                         )}
 
-                        {order.status !== OrderStatus.IN_PROGRESS && (
-                            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs text-center font-bold">
-                                Inicie o atendimento para habilitar a finalização.
-                            </div>
+                        {order.status !== OrderStatus.COMPLETED && (
+                            <>
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-1">Responsável pelo Recebimento</h4>
+
+                                    <div className="glass p-4 rounded-3xl space-y-4">
+                                        <div className="flex items-center gap-3 bg-black/20 p-3 rounded-2xl border border-white/5">
+                                            <User size={18} className="text-slate-500" />
+                                            <input
+                                                type="text"
+                                                placeholder="Nome Completo"
+                                                value={signerName}
+                                                onChange={e => setSignerName(e.target.value)}
+                                                className="bg-transparent w-full text-sm text-white outline-none placeholder:text-slate-600"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-3 bg-black/20 p-3 rounded-2xl border border-white/5">
+                                            <span className="text-slate-500 text-xs font-bold w-[18px] text-center">ID</span>
+                                            <input
+                                                type="text"
+                                                placeholder="CPF / Documento (Opcional)"
+                                                value={signerDoc}
+                                                onChange={e => setSignerDoc(e.target.value)}
+                                                className="bg-transparent w-full text-sm text-white outline-none placeholder:text-slate-600"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest pl-1">Assinatura Digital</h4>
+                                    <SignatureCanvas
+                                        onEnd={setSignature}
+                                        onClear={() => setSignature(null)}
+                                    />
+                                </div>
+
+                                {order.status !== OrderStatus.IN_PROGRESS && (
+                                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs text-center font-bold">
+                                        Inicie o atendimento para habilitar a finalização.
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
+            </div>
+
+            {/* Bottom Actions Premium - Z-INDEX ALTO para ficar acima da tab-bar */}
+            <div className="glass px-6 pt-4 pb-8 fixed bottom-0 left-0 right-0 z-[200] flex gap-3">
+                {order.status === OrderStatus.PENDING || order.status === OrderStatus.ASSIGNED ? (
+                    <button
+                        onClick={async () => {
+                            setIsLoading(true);
+                            await onUpdateStatus(OrderStatus.IN_PROGRESS);
+                            setIsLoading(false);
+                        }}
+                        disabled={isLoading}
+                        className="flex-[2] py-4 bg-emerald-500 rounded-2xl text-white font-black uppercase text-sm tracking-widest shadow-xl shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                        {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white rounded-full border-t-transparent" /> : <Play size={18} fill="currentColor" />}
+                        Iniciar Atendimento
+                    </button>
+                ) : order.status === OrderStatus.IN_PROGRESS ? (
+                    <button
+                        onClick={handleFinish}
+                        disabled={isLoading || !signature || !signerName}
+                        className={`flex-[2] py-4 rounded-2xl font-black uppercase text-sm tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 ${signature && signerName
+                                ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                                : 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                            }`}
+                    >
+                        {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white rounded-full border-t-transparent" /> : <CheckCircle2 size={18} />}
+                        Finalizar Ordem
+                    </button>
+                ) : (
+                    <button
+                        disabled
+                        className="flex-[2] py-4 bg-slate-800 rounded-2xl text-slate-500 font-black uppercase text-sm tracking-widest opacity-50 flex items-center justify-center gap-2"
+                    >
+                        <CheckCircle2 size={18} />
+                        Serviço Finalizado
+                    </button>
+                )}
+
+                <button
+                    onClick={async () => {
+                        if (confirm('Deseja realmente impedir esta OS?')) {
+                            setIsLoading(true);
+                            await onUpdateStatus(OrderStatus.BLOCKED, 'Impedimento registrado pelo técnico via App V2');
+                            setIsLoading(false);
+                            onClose();
+                        }
+                    }}
+                    disabled={order.status === OrderStatus.COMPLETED || order.status === OrderStatus.BLOCKED}
+                    className="flex-1 py-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-30"
+                >
+                    <Ban size={16} />
+                    Impedir
+                </button>
             </div>
         </div>
     );
