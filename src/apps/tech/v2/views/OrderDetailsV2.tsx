@@ -77,15 +77,27 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         }
                     }
 
-                    // Fallback: Busca template por serviceType
-                    const fallbackTemplate = templates.find((t: any) => t.serviceTypes?.includes(order.operationType));
+                    // Fallback: Busca template por serviceType (Agora mais flexível e case-insensitive)
+                    const fallbackTemplate = templates.find((t: any) =>
+                        t.serviceTypes?.some((st: string) => st.toLowerCase() === (order.operationType || '').toLowerCase()) ||
+                        t.title?.toLowerCase().includes((order.operationType || '').toLowerCase())
+                    );
+
                     if (fallbackTemplate) {
-                        console.log('[OrderDetails] ⚠️ Template encontrado via fallback:', fallbackTemplate.name);
+                        console.log('[OrderDetails] ⚠️ Template encontrado via fallback inteligente:', fallbackTemplate.title);
                         setTemplate(fallbackTemplate);
                         return;
                     }
 
-                    console.warn('[OrderDetails] ⚠️ Nenhum template encontrado para:', order.operationType);
+                    // 🚨 SUPER FALLBACK: Se tudo falhar, usa o Mock, se disponível
+                    const mockTemplate = templates.find((t: any) => t.id.startsWith('mock-'));
+                    if (mockTemplate) {
+                        console.warn('[OrderDetails] ⚠️ Nenhum template específico. Usando Mock Padrão.');
+                        setTemplate(mockTemplate);
+                        return;
+                    }
+
+                    console.warn('[OrderDetails] ❌ Checklist realmente não encontrado para:', order.operationType);
                 } catch (e) {
                     console.error("[OrderDetails] ❌ Erro ao carregar checklist:", e);
                 }
@@ -343,8 +355,8 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         onClick={handleFinish}
                         disabled={isLoading || !signature || !signerName}
                         className={`flex-[2] py-4 rounded-2xl font-black uppercase text-sm tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 ${signature && signerName
-                                ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                                : 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                            ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                            : 'bg-slate-800 text-slate-600 cursor-not-allowed'
                             }`}
                     >
                         {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white rounded-full border-t-transparent" /> : <CheckCircle2 size={18} />}
