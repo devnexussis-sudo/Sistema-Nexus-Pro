@@ -8,6 +8,35 @@
   <title>Nexus Tech Pro</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
+  <!-- Tailwind CDN (Requerido pela arquitetura atual do projeto) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gray: {
+              750: '#2d3748',
+              850: '#1a202c',
+              950: '#0d1117',
+            },
+            primary: {
+              500: '#10b981', // Emerald for Tech
+              600: '#059669',
+            },
+            tech: {
+              500: '#10b981',
+              600: '#059669',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+
   <!-- Critical Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -22,18 +51,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
     rel="stylesheet">
 
-  <!-- 
-    🛑 ATENÇÃO: Carregamento do Tailwind CDN removido para evitar conflitos com o bundle do Vite.
-    A estilização deve vir agora exclusivamente do bundle gerado, que processa os arquivos .css em /src/styles/
-  -->
-
   <style>
     /* Estilos de tela de loading inicial (Splash) */
     body {
       background-color: #0f172a;
       margin: 0;
       font-family: 'Inter', sans-serif;
-      overflow: hidden;
+      overflow-x: hidden;
     }
 
     #root-loading {
@@ -45,6 +69,7 @@
       z-index: 9999;
       flex-direction: column;
       gap: 1rem;
+      background-color: #0f172a;
     }
 
     .spinner {
@@ -61,28 +86,47 @@
         transform: rotate(360deg);
       }
     }
+
+    /* Previne FOUC (Flash of Unstyled Content) */
+    .loading #root {
+      opacity: 0;
+    }
+
+    #root {
+      transition: opacity 0.5s ease-in;
+    }
   </style>
 
   <script>
-    // Inicialização do Service Worker para PWA
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/tech-sw.js').catch(e => console.error('SW Error:', e));
       });
     }
+
+    // Gerenciador de Splash Screen
+    window.addEventListener('DOMContentLoaded', () => {
+      const loader = document.getElementById('root-loading');
+      // O bundle do TechApp cuidará de esconder isso quando estiver pronto
+      // Mas garantimos um fallback caso o React demore
+      window.addEventListener('load', () => {
+        // setTimeout(() => { if(loader) loader.style.opacity = '0'; }, 500);
+      });
+    });
   </script>
 </head>
 
-<body>
+<body class="bg-[#f1f5f9] text-slate-900 antialiased selection:bg-emerald-500 selection:text-white">
   <div id="root">
+    <!-- O Loader será removido ou escondido pelo TechDashboard quando fetching for false -->
     <div id="root-loading">
       <div class="spinner"></div>
-      <div style="color: #64748b; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em;">
+      <div
+        style="color: #10b981; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; animation: pulse 2s infinite;">
         Nexus Pro</div>
     </div>
   </div>
 
-  <!-- O Vite substituirá este script pelo bundle final -->
   <script type="module" src="/src/tech-index.tsx"></script>
 </body>
 
