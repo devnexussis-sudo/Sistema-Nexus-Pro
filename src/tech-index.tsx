@@ -3,7 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './styles/tech.css';
 import 'leaflet/dist/leaflet.css';
-import { TechAppShell } from './apps/tech/TechAppShell';
+import { TechAppV2 } from './apps/tech/v2/TechAppV2';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const rootElement = document.getElementById('root');
@@ -15,7 +15,7 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
     <React.StrictMode>
         <ErrorBoundary>
-            <TechAppShell />
+            <TechAppV2 />
         </ErrorBoundary>
     </React.StrictMode>
 );

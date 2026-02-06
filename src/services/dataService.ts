@@ -445,6 +445,19 @@ export const DataService = {
       throw err;
     }
   },
+  logout: async () => {
+    try {
+      if (isCloudEnabled) {
+        const { supabase } = await import('../lib/supabase');
+        await supabase.auth.signOut();
+      }
+      SessionStorage.clear();
+      localStorage.removeItem('nexus_tech_session_v2');
+      localStorage.removeItem('nexus_tech_cache_v2');
+    } catch (e) {
+      console.error("Logout Error:", e);
+    }
+  },
 
 
   login: async (email: string, password?: string): Promise<User | undefined> => {

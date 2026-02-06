@@ -1,0 +1,123 @@
+/* 
+    NEXUS TECH 2.0 - PREMIUM DESIGN SYSTEM
+    Alma: Minimalista, Escura, Resiliente.
+*/
+
+:root {
+    --nexus-emerald: #10b981;
+    --nexus-emerald-glow: rgba(16, 185, 129, 0.2);
+    --nexus-bg: #05070a;
+    --nexus-card: #0f1218;
+    --nexus-border: rgba(255, 255, 255, 0.06);
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+}
+
+* {
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+input,
+textarea {
+    user-select: auto;
+}
+
+body {
+    background-color: var(--nexus-bg);
+    color: #f8fafc;
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    /* Previne o bounce do Safari que quebra o layout */
+}
+
+/* Glassmorphism Classes */
+.glass {
+    background: rgba(15, 18, 24, 0.8);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--nexus-border);
+}
+
+.glass-emerald {
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+/* Tab Bar Mobile (Estilo iOS) */
+.tab-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(70px + var(--safe-bottom));
+    padding-bottom: var(--safe-bottom);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 1000;
+}
+
+/* Dashboard Cards */
+.os-card {
+    border-radius: 24px;
+    padding: 20px;
+    margin-bottom: 16px;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.os-card:active {
+    transform: scale(0.97);
+}
+
+/* Status Badges */
+.status-pill {
+    padding: 6px 12px;
+    border-radius: 99px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Scrollbars Invisíveis mas funcionais */
+::-webkit-scrollbar {
+    width: 0px;
+}
+
+/* Animações de Entrada */
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.animate-in {
+    animation: slideUp 0.4s ease-out forwards;
+}
+
+/* Shimmer Loading */
+.shimmer {
+    background: linear-gradient(90deg, #0f1218 25%, #1a1f26 50%, #0f1218 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
