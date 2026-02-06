@@ -484,19 +484,28 @@ export const TechDashboardV2: React.FC = () => {
                     order={selectedOrder}
                     onClose={() => setSelectedOrder(null)}
                     onUpdateStatus={async (status, notes, formData) => {
-                        await updateOrderStatus(selectedOrder.id, status, notes, formData);
-                        setSelectedOrder(prev => prev ? {
-                            ...prev,
+                        // 🚀 OPTIMISTIC UPDATE: Atualiza a UI imediatamente para destravar o usuário
+                        const updatedOrder = {
+                            ...selectedOrder,
                             status,
-                            notes: notes || prev.notes,
-                            formData: { ...prev.formData, ...formData },
-                            signature: formData?.signature || prev.signature,
-                            signatureName: formData?.signatureName || prev.signatureName,
-                            signatureDoc: formData?.signatureDoc || prev.signatureDoc
-                        } : null);
+                            notes: notes || selectedOrder.notes,
+                            formData: { ...selectedOrder.formData, ...formData },
+                            signature: formData?.signature || selectedOrder.signature,
+                            signatureName: formData?.signatureName || selectedOrder.signatureName,
+                            signatureDoc: formData?.signatureDoc || selectedOrder.signatureDoc
+                        };
+                        setSelectedOrder(updatedOrder);
+
+                        // Sync em Background (Sem travar a UI)
+                        updateOrderStatus(selectedOrder.id, status, notes, formData).catch(err => {
+                            console.error("Erro crítico no sync background:", err);
+                            alert("Atenção: A sincronização falhou, mas você pode continuar operando.");
+                        });
                     }}
                 />
             )}
         </div>
+    );
+};
     );
 };
