@@ -619,6 +619,8 @@ export const DataService = {
       } as User & { enabledModules: any };
 
       // SINCRONIZAÇÃO AUTOMÁTICA
+      // DESABILITADO TEMPORARIAMENTE PARA EVITAR ERRO 400 (Bad Request)
+      /*
       if (tenantId) {
         await DataService.getServiceClient().from('users').upsert([{
           id: user.id,
@@ -631,6 +633,7 @@ export const DataService = {
           avatar: user.avatar
         }]);
       }
+      */
 
       SessionStorage.set('user', user);
       if (user.tenantId) SessionStorage.set('current_tenant', user.tenantId);
