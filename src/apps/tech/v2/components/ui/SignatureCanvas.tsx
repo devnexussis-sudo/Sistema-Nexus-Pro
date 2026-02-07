@@ -61,10 +61,10 @@ export const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onEnd, onClear
         const { x, y } = getCoords(e);
         ctx.beginPath();
         ctx.moveTo(x, y);
-        ctx.lineWidth = 2.5; // Calibrado: traço mais fino e elegante
+        ctx.lineWidth = 3; // Traço levemente mais encorpado para maior legibilidade
         ctx.lineCap = 'round';
-        ctx.lineJoin = 'round'; // Suaviza cantos
-        ctx.strokeStyle = '#4f46e5'; // Indigo-600 para combinar com painel Admin
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#1c2d4f'; // Azul Primário Nexus Pro
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
@@ -98,7 +98,7 @@ export const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onEnd, onClear
     };
 
     return (
-        <div className="relative w-full h-56 bg-white border-2 border-indigo-100 rounded-[2rem] overflow-hidden touch-none shadow-inner">
+        <div className="relative w-full h-56 bg-white border border-slate-200 rounded-lg overflow-hidden touch-none shadow-none">
             <canvas
                 ref={canvasRef}
                 className="w-full h-full cursor-crosshair"
@@ -111,14 +111,14 @@ export const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onEnd, onClear
                 onTouchEnd={endDrawing}
             />
             {!hasSignature && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-indigo-200 text-sm font-black uppercase tracking-[0.2em] italic">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-200 text-sm font-black uppercase tracking-[0.2em] italic">
                     Assine aqui
                 </div>
             )}
             {hasSignature && (
                 <button
                     onClick={clear}
-                    className="absolute top-4 right-4 text-[10px] text-red-500 font-black uppercase tracking-widest bg-red-50 px-4 py-2 rounded-xl hover:bg-red-100 transition-colors shadow-sm"
+                    className="absolute top-4 right-4 text-[9px] text-rose-500 font-black uppercase tracking-widest bg-rose-50 px-4 py-2 rounded-lg hover:bg-rose-100 transition-colors shadow-none border border-rose-100"
                 >
                     Limpar
                 </button>

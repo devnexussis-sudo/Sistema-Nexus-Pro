@@ -54,14 +54,20 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 🔐 AUTH STATE com recuperação multi-camada
     const [auth, setAuth] = useState<AuthState>(() => {
         try {
-            // Priority 1: localStorage
+            // Priority 1: localStorage (PWA Persistence)
             const stored = localStorage.getItem(STORAGE_KEYS.SESSION);
+            const storedTenant = localStorage.getItem(STORAGE_KEYS.TENANT);
+
             if (stored) {
                 const user = JSON.parse(stored);
-                // Restaurar tenant_id para o SessionStorage
-                if (user.tenantId) {
-                    SessionStorage.set(STORAGE_KEYS.TENANT, user.tenantId);
+
+                // Redundant restoration of Tenant ID to SessionStorage (used by DataService)
+                const tenantToUse = user.tenantId || storedTenant;
+                if (tenantToUse) {
+                    SessionStorage.set(STORAGE_KEYS.TENANT, tenantToUse);
+                    if (!storedTenant) localStorage.setItem(STORAGE_KEYS.TENANT, tenantToUse);
                 }
+
                 return { user, isAuthenticated: true };
             }
 
@@ -71,6 +77,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const user = typeof sessionUser === 'string' ? JSON.parse(sessionUser) : sessionUser;
                 if (user.role === UserRole.TECHNICIAN) {
                     localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(user));
+                    if (user.tenantId) localStorage.setItem(STORAGE_KEYS.TENANT, user.tenantId);
                     return { user, isAuthenticated: true };
                 }
             }
@@ -349,6 +356,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (user && user.role === UserRole.TECHNICIAN) {
             localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(user));
             if (user.tenantId) {
+                localStorage.setItem(STORAGE_KEYS.TENANT, user.tenantId);
                 SessionStorage.set(STORAGE_KEYS.TENANT, user.tenantId);
             }
             setAuth({ user, isAuthenticated: true });
@@ -374,6 +382,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem(STORAGE_KEYS.CACHE);
         localStorage.removeItem(STORAGE_KEYS.CACHE_META);
         localStorage.removeItem(STORAGE_KEYS.LAST_SYNC);
+        localStorage.removeItem(STORAGE_KEYS.TENANT);
         SessionStorage.remove(STORAGE_KEYS.TENANT);
 
         setConnectivity({ isOnline: navigator.onLine, isSessionValid: false, lastSync: null });
@@ -396,10 +405,11 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
                             const freshUser = await DataService.refreshUser();
                             if (freshUser && mountedRef.current) {
                                 localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(freshUser));
-                                setAuth({ user: freshUser, isAuthenticated: true });
                                 if (freshUser.tenantId) {
+                                    localStorage.setItem(STORAGE_KEYS.TENANT, freshUser.tenantId);
                                     SessionStorage.set(STORAGE_KEYS.TENANT, freshUser.tenantId);
                                 }
+                                setAuth({ user: freshUser, isAuthenticated: true });
                             }
                         } catch (e) {
                             console.error('[TechContext] Auth Sync Error:', e);

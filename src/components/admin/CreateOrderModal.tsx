@@ -316,20 +316,20 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   );
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-4 sm:p-8 overflow-hidden">
-      <div className="bg-white rounded-[3rem] w-full max-w-[96vw] h-[92vh] shadow-[0_32px_128px_rgba(0,0,0,0.2)] border border-white/50 overflow-hidden flex flex-col animate-scale-up">
+    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 sm:p-8 overflow-hidden">
+      <div className="bg-white rounded-lg w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
 
         {/* HEADER COMPACTO */}
-        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <div className="px-8 py-6 border-b border-primary-600 flex justify-between items-center bg-primary-500">
           <div className="flex items-center gap-4">
-            <div className="w-11 h-11 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+            <div className="w-11 h-11 bg-white/10 rounded-md flex items-center justify-center text-white border border-white/20">
               {initialData ? <Edit3 size={20} /> : <Plus size={20} />}
             </div>
             <div>
-              <h2 className="text-lg font-black text-slate-900 uppercase tracking-tighter italic leading-none">
+              <h2 className="text-lg font-black text-white uppercase tracking-tighter italic leading-none">
                 {initialData ? `Protocolo #${initialData.id}` : 'Novo Chamado'}
               </h2>
-              <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mt-1 italic">
+              <p className="text-[9px] font-black text-white/70 uppercase tracking-widest mt-1 italic">
                 Nexus Operacional • Registro Técnico
               </p>
             </div>
@@ -339,15 +339,15 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
             <div className="flex items-center gap-2">
               {[1, 2, 3, 4].map((s) => (
                 <div key={s} className="flex items-center">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black transition-all border ${step === s ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : (step > s ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-200 text-slate-400')
+                  <div className={`w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-black transition-all border ${step === s ? 'bg-white border-white text-primary-500 shadow-md' : (step > s ? 'bg-success-500 border-success-500 text-white' : 'bg-white/10 border-white/20 text-white/50')
                     }`}>
                     {step > s ? <CheckCircle2 size={14} /> : s}
                   </div>
-                  {s < 4 && <div className={`w-6 h-0.5 mx-0.5 rounded-full ${step > s ? 'bg-emerald-500' : 'bg-slate-200'}`} />}
+                  {s < 4 && <div className={`w-6 h-0.5 mx-0.5 rounded-full ${step > s ? 'bg-success-500' : 'bg-white/10'}`} />}
                 </div>
               ))}
             </div>
-            <button onClick={onClose} className="p-2 text-slate-300 hover:text-slate-900 transition-all">
+            <button onClick={onClose} className="p-2 text-white/50 hover:text-white transition-all">
               <X size={20} />
             </button>
           </div>
@@ -357,16 +357,16 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           {step === 1 && (
             <div className="animate-fade-in space-y-6">
               {!initialData && (
-                <div className="flex bg-slate-100 p-1 rounded-xl w-fit mx-auto mb-6 border border-slate-200">
+                <div className="flex bg-slate-100 p-1 rounded-lg w-fit mx-auto mb-6 border border-slate-200">
                   <button
                     onClick={() => setSearchMode('client')}
-                    className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${searchMode === 'client' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-6 py-2 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${searchMode === 'client' ? 'bg-white text-primary-500 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     Por Cliente
                   </button>
                   <button
                     onClick={() => setSearchMode('serial')}
-                    className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${searchMode === 'serial' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-6 py-2 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${searchMode === 'serial' ? 'bg-white text-primary-500 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     Por Serial
                   </button>
@@ -383,7 +383,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <Input
                     placeholder={searchMode === 'client' ? "Nome do cliente..." : "Número de série..."}
                     value={searchMode === 'client' ? clientSearch : serialSearch}
-                    className="rounded-xl py-4 font-bold text-sm border-slate-200 focus:ring-indigo-50"
+                    className="rounded-lg py-4 font-bold text-sm border-slate-200 focus:ring-primary-100"
                     onChange={e => {
                       if (searchMode === 'client') { setClientSearch(e.target.value); setIsClientListOpen(true); }
                       else { setSerialSearch(e.target.value); setIsSerialListOpen(true); }
@@ -439,17 +439,17 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                       <div
                         key={eq.id}
                         onClick={() => handleEquipmentToggle(eq.id)}
-                        className={`flex items-center gap-4 p-4 rounded-2xl border transition-all cursor-pointer ${selectedEquipIds.includes(eq.id) ? 'border-indigo-600 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-slate-50/30 hover:border-slate-200'
+                        className={`flex items-center gap-4 p-4 rounded-lg border transition-all cursor-pointer ${selectedEquipIds.includes(eq.id) ? 'border-primary-500 bg-primary-50 shadow-none' : 'border-slate-200 bg-slate-50 hover:border-slate-300'
                           }`}
                       >
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${selectedEquipIds.includes(eq.id) ? 'bg-indigo-600 text-white shadow-md' : 'bg-white border border-slate-100 text-slate-300'}`}>
+                        <div className={`w-9 h-9 rounded-md flex items-center justify-center ${selectedEquipIds.includes(eq.id) ? 'bg-primary-500 text-white' : 'bg-white border border-slate-200 text-slate-300'}`}>
                           <Box size={16} />
                         </div>
                         <div className="flex-1">
                           <p className="text-[10px] font-black uppercase text-slate-700 truncate">{eq.model}</p>
                           <p className="text-[9px] text-slate-400 italic font-bold">#{eq.serialNumber}</p>
                         </div>
-                        {selectedEquipIds.includes(eq.id) && <CheckCircle2 size={16} className="text-indigo-600" />}
+                        {selectedEquipIds.includes(eq.id) && <CheckCircle2 size={16} className="text-primary-500" />}
                       </div>
                     ))}
                     {equipments.filter(e => e.customerId === selectedClientId).length === 0 && (
@@ -498,7 +498,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                       <div className="space-y-1.5">
                         <span className="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-widest">Tipo de Atendimento</span>
                         <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase text-slate-700 focus:ring-2 focus:ring-indigo-100 transition-all outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[10px] font-black uppercase text-slate-700 focus:ring-2 focus:ring-primary-100 transition-all outline-none"
                           value={formData.operationType}
                           onChange={e => setFormData({ ...formData, operationType: e.target.value })}
                         >
@@ -508,7 +508,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                       <div className="space-y-1.5">
                         <span className="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-widest">Prioridade Crítica</span>
                         <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-black uppercase text-slate-700 focus:ring-2 focus:ring-indigo-100 transition-all outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[10px] font-black uppercase text-slate-700 focus:ring-2 focus:ring-primary-100 transition-all outline-none"
                           value={formData.priority}
                           onChange={e => setFormData({ ...formData, priority: e.target.value as OrderPriority })}
                         >
@@ -557,10 +557,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         key={t.id}
                         type="button"
                         onClick={() => handleSelectTechnician(t.id)}
-                        className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${formData.assignedTo === t.id ? 'border-indigo-600 bg-indigo-50 shadow-sm' : 'border-slate-100 bg-slate-50/50 hover:border-slate-200'
+                        className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${formData.assignedTo === t.id ? 'border-primary-500 bg-primary-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'
                           }`}
                       >
-                        <img src={t.avatar} className="w-8 h-8 rounded-lg object-cover border border-white shadow-sm" alt={t.name} />
+                        <img src={t.avatar} className="w-8 h-8 rounded-md object-cover border border-white" alt={t.name} />
                         <div>
                           <p className="text-[10px] font-black uppercase text-slate-700">{t.name}</p>
                           <p className="text-[8px] text-slate-400 font-bold italic">{t.email}</p>
@@ -715,9 +715,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               </div>
 
               {/* Totalizador */}
-              <div className="bg-indigo-600 p-8 rounded-[2.5rem] flex justify-between items-center text-white shadow-xl shadow-indigo-600/20">
+              <div className="bg-primary-500 p-8 rounded-lg flex justify-between items-center text-white shadow-none">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                  <div className="w-12 h-12 bg-white/10 rounded-md flex items-center justify-center backdrop-blur-md">
                     <DollarSign size={24} />
                   </div>
                   <div>
@@ -790,7 +790,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               <Button
                 type="button"
                 key={`next-btn-${step}`}
-                className="rounded-xl px-8 py-2.5 font-black text-[10px] uppercase italic tracking-wider shadow-md"
+                className="rounded-lg px-8 py-2.5 font-black text-[10px] uppercase italic tracking-wider shadow-none"
                 onClick={() => {
                   if (step === 1) goToStep2();
                   else if (step === 2) setStep(3);

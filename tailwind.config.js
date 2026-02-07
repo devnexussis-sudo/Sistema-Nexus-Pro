@@ -13,11 +13,21 @@ export default {
                     950: '#0d1117',
                 },
                 primary: {
-                    500: '#6366f1', // Indigo for Admin
-                    600: '#4f46e5',
+                    50: '#f2f5f9',
+                    100: '#e1e8f0',
+                    200: '#c7d3e3',
+                    300: '#a1b6cf',
+                    400: '#7391b4',
+                    500: '#1c2d4f', // Nexus Pro Primary
+                    600: '#162441',
+                    700: '#121d33',
+                },
+                success: {
+                    500: '#10b981',
+                    600: '#059669', // Emerald Sucesso
                 },
                 tech: {
-                    500: '#10b981', // Emerald for Tech
+                    500: '#10b981',
                     600: '#059669',
                 }
             },

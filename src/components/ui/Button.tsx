@@ -6,23 +6,24 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
 }
 
-export const Button: React.FC<ButtonProps> = ({ 
-  children, 
-  variant = 'primary', 
-  size = 'md', 
-  isLoading, 
-  className = '', 
+export const Button: React.FC<ButtonProps> = ({
+  children,
+  variant = 'primary',
+  size = 'md',
+  isLoading,
+  className = '',
   disabled,
-  ...props 
+  ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed rounded-lg active:scale-95';
-  
+  const baseStyles = 'inline-flex items-center justify-center font-black uppercase tracking-tight transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed rounded-lg active:scale-95 text-[10px]';
+
   const variants = {
-    primary: 'bg-primary-600 hover:bg-primary-500 text-white shadow-lg shadow-primary-500/30',
-    'tech-primary': 'bg-tech-600 hover:bg-tech-500 text-white shadow-lg shadow-tech-500/30',
-    secondary: 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300',
-    danger: 'bg-red-600 hover:bg-red-500 text-white',
-    ghost: 'bg-transparent hover:bg-gray-100 text-gray-500 hover:text-gray-900',
+    primary: 'bg-primary-500 hover:bg-primary-600 text-white border-b-2 border-primary-700 shadow-sm active:border-b-0',
+    'tech-primary': 'bg-success-600 hover:bg-success-500 text-white border-b-2 border-success-800 shadow-sm active:border-b-0',
+    success: 'bg-success-500 hover:bg-success-600 text-white border-b-2 border-success-700 shadow-sm active:border-b-0',
+    secondary: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm',
+    danger: 'bg-rose-600 hover:bg-rose-500 text-white border-b-2 border-rose-800 shadow-sm active:border-b-0',
+    ghost: 'bg-transparent hover:bg-slate-100 text-slate-500 hover:text-slate-900',
   };
 
   const sizes = {
