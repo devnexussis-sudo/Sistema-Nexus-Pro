@@ -317,14 +317,14 @@ export const SettingsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('company')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'company' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'company' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Building2 size={14} /> Organização
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('system')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'system' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'system' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Terminal size={14} /> Sistema
           </button>
@@ -350,7 +350,7 @@ export const SettingsPage: React.FC = () => {
             form="settings-form"
             type="submit"
             isLoading={loading}
-            className="rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/20 text-white whitespace-nowrap bg-indigo-600 hover:bg-indigo-700"
+            className="rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-primary-600/20 text-white whitespace-nowrap bg-primary-600 hover:bg-primary-700"
           >
             <Save size={16} className="mr-2" /> Salvar
           </Button>
@@ -366,7 +366,7 @@ export const SettingsPage: React.FC = () => {
                 {/* SEÇÃO PRINCIPAL - IGUAL AO SUPER ADMIN */}
                 <section className="bg-white p-10 rounded-[4rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-12">
                   <div className="flex items-center gap-6 border-b border-gray-50 pb-8">
-                    <div className="p-5 bg-indigo-600 text-white rounded-[1.5rem] shadow-xl shadow-indigo-600/20">
+                    <div className="p-5 bg-primary-600 text-white rounded-[1.5rem] shadow-xl shadow-primary-600/20">
                       <Building2 size={32} />
                     </div>
                     <div>
@@ -503,7 +503,7 @@ export const SettingsPage: React.FC = () => {
                     <div className="space-y-2 text-center md:text-left">
                       <div className="flex items-center gap-2 justify-center md:justify-start">
                         <h4 className="text-xs font-black text-gray-900 uppercase">Logotipo da Empresa</h4>
-                        <UploadCloud size={12} className="text-indigo-500" />
+                        <UploadCloud size={12} className="text-primary-500" />
                       </div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase leading-tight w-48 italic">
                         Clique na imagem para trocar a Logotipo oficial da sua instância.
@@ -513,18 +513,18 @@ export const SettingsPage: React.FC = () => {
                       <div
                         onClick={() => fileInputRef.current?.click()}
                         className={`w-32 h-32 rounded-[2.5rem] border-2 border-dashed flex items-center justify-center transition-all relative overflow-hidden group shadow-inner cursor-pointer ${company.logoUrl
-                          ? 'border-indigo-100 bg-indigo-50/30'
-                          : 'border-gray-300 bg-gray-50 hover:border-indigo-400 hover:bg-white'}`}
+                          ? 'border-primary-100 bg-primary-50/30'
+                          : 'border-gray-300 bg-gray-50 hover:border-primary-400 hover:bg-white'}`}
                       >
                         {company.logoUrl ? (
                           <>
                             <img src={company.logoUrl} alt="Company Logo" className="w-full h-full object-contain p-4" />
-                            <div className="absolute inset-0 bg-indigo-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute inset-0 bg-primary-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                               <Camera size={28} className="text-white" />
                             </div>
                           </>
                         ) : (
-                          <div className="flex flex-col items-center gap-1 text-gray-400 group-hover:text-indigo-500">
+                          <div className="flex flex-col items-center gap-1 text-gray-400 group-hover:text-primary-500">
                             <UploadCloud size={32} />
                             <span className="text-[9px] font-black uppercase">Subir Logo</span>
                           </div>
@@ -553,15 +553,15 @@ export const SettingsPage: React.FC = () => {
 
                 {/* SEÇÃO DE OS - IGUAL AO SUPER ADMIN */}
                 <section className="bg-[#0f172a] p-10 rounded-[4rem] border border-white/5 shadow-2xl space-y-10 text-white relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/10 blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-primary-600/10 blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
 
                   <div className="flex items-center gap-6 border-b border-white/5 pb-8 relative z-10">
-                    <div className="p-5 bg-indigo-500 text-white rounded-[1.5rem] shadow-xl shadow-indigo-500/20">
+                    <div className="p-5 bg-primary-500 text-white rounded-[1.5rem] shadow-xl shadow-primary-500/20">
                       <ListOrdered size={32} />
                     </div>
                     <div>
                       <h2 className="text-2xl font-black uppercase italic tracking-tighter">Regras de Protocolos (O.S.)</h2>
-                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Configuração de numeração e identificação.</p>
+                      <p className="text-[10px] font-black text-primary-400 uppercase tracking-widest mt-1">Configuração de numeração e identificação.</p>
                     </div>
                   </div>
 
@@ -589,8 +589,8 @@ export const SettingsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="p-8 bg-indigo-600/10 rounded-[2.5rem] border border-indigo-500/20 flex gap-6 items-center relative z-10">
-                    <ShieldAlert className="text-indigo-400 flex-shrink-0" size={32} />
+                  <div className="p-8 bg-primary-600/10 rounded-[2.5rem] border border-primary-500/20 flex gap-6 items-center relative z-10">
+                    <ShieldAlert className="text-primary-400 flex-shrink-0" size={32} />
                     <p className="text-xs font-bold text-gray-300 leading-relaxed italic">
                       Nota Técnica: Estas regras definem como os novos protocolos serão gerados. Alterações impactam apenas futuras ordens de serviço.
                     </p>
@@ -602,7 +602,7 @@ export const SettingsPage: React.FC = () => {
               <div className="space-y-10 animate-fade-in">
                 <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-8">
                   <div className="flex items-center gap-4 border-b border-gray-50 pb-6">
-                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                    <div className="p-3 bg-primary-50 text-primary-600 rounded-2xl">
                       <Languages size={24} />
                     </div>
                     <div>
@@ -615,7 +615,7 @@ export const SettingsPage: React.FC = () => {
                     <div className="w-full">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2 block">Idioma do Sistema</label>
                       <select
-                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-indigo-100 appearance-none shadow-sm"
+                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-primary-100 appearance-none shadow-sm"
                         value={params.language}
                         onChange={e => setParams({ ...params, language: e.target.value as any })}
                       >
@@ -627,7 +627,7 @@ export const SettingsPage: React.FC = () => {
                     <div className="w-full">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2 block">Fuso Horário Operacional</label>
                       <select
-                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-indigo-100 appearance-none shadow-sm"
+                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-primary-100 appearance-none shadow-sm"
                         defaultValue="UTC-3"
                       >
                         <option value="UTC-3">(UTC-03:00) Brasília</option>
@@ -640,7 +640,7 @@ export const SettingsPage: React.FC = () => {
 
                 <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-10">
                   <div className="flex items-center gap-4 border-b border-gray-50 pb-6">
-                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                    <div className="p-3 bg-primary-50 text-primary-600 rounded-2xl">
                       <Smartphone size={24} />
                     </div>
                     <div>
@@ -651,7 +651,7 @@ export const SettingsPage: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-                      <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.useGps ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                      <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.useGps ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
                         <Navigation size={28} />
                       </div>
                       <div className="flex-1">
@@ -660,7 +660,7 @@ export const SettingsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, useGps: !params.useGps })}
-                            className={`w-14 h-7 rounded-full relative transition-colors ${params.useGps ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                            className={`w-14 h-7 rounded-full relative transition-colors ${params.useGps ? 'bg-primary-600' : 'bg-gray-300'}`}
                           >
                             <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.useGps ? 'left-8' : 'left-1'}`}></div>
                           </button>
@@ -672,7 +672,7 @@ export const SettingsPage: React.FC = () => {
                     </div>
 
                     <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-                      <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.notifyClient ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                      <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.notifyClient ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
                         <BellRing size={28} />
                       </div>
                       <div className="flex-1">
@@ -681,7 +681,7 @@ export const SettingsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, notifyClient: !params.notifyClient })}
-                            className={`w-14 h-7 rounded-full relative transition-colors ${params.notifyClient ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                            className={`w-14 h-7 rounded-full relative transition-colors ${params.notifyClient ? 'bg-primary-600' : 'bg-gray-300'}`}
                           >
                             <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.notifyClient ? 'left-8' : 'left-1'}`}></div>
                           </button>

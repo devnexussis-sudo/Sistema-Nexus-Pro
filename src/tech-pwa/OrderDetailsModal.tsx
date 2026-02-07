@@ -439,7 +439,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       {showConfirm && (
         <div className="absolute inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-bounce-in text-center space-y-6 border border-white/20">
-            <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner border border-indigo-100">
+            <div className="w-20 h-20 bg-primary-50 text-primary-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner border border-primary-100">
               <Play size={40} fill="currentColor" />
             </div>
             <div className="space-y-2">
@@ -487,7 +487,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
         <div className="p-3 px-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
-              <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-100 uppercase">OS #{order.id}</span>
+              <span className="text-[9px] font-black text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded-md border border-primary-100 uppercase">OS #{order.id}</span>
               <PriorityBadge priority={order.priority} />
             </div>
             <h2 className="text-lg font-black text-gray-900 leading-tight uppercase italic">{order.title}</h2>
@@ -499,7 +499,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           {/* SEÇÃO DO EQUIPAMENTO - PREPARAÇÃO DO TÉCNICO */}
           <div className="bg-slate-50 border border-slate-200 p-4 rounded-3xl space-y-3">
             <div className="flex items-center gap-2 text-slate-900 mb-1">
-              <div className="p-1.5 bg-indigo-600 rounded-lg text-white shadow-md"><Box size={16} /></div>
+              <div className="p-1.5 bg-primary-600 rounded-lg text-white shadow-md"><Box size={16} /></div>
               <div>
                 <h3 className="text-xs font-black uppercase italic tracking-tight">Ativo do Cliente</h3>
               </div>
@@ -516,7 +516,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
               </div>
               <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm col-span-2">
                 <p className="text-[7px] font-black text-slate-400 uppercase mb-0.5">Família / Categoria Técnica</p>
-                <p className="text-[10px] font-black text-indigo-600 uppercase italic">{linkedEquipment?.familyName || 'Padrão'}</p>
+                <p className="text-[10px] font-black text-primary-600 uppercase italic">{linkedEquipment?.familyName || 'Padrão'}</p>
               </div>
             </div>
 
@@ -557,7 +557,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                 )}
                 {order.endDate && (
                   <div>
-                    <p className="text-[6px] font-black text-indigo-400 uppercase tracking-widest">Check-Out</p>
+                    <p className="text-[6px] font-black text-primary-400 uppercase tracking-widest">Check-Out</p>
                     <p className="text-[10px] font-black">{new Date(order.endDate).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 )}
@@ -648,10 +648,10 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           ) : (localStatus === OrderStatus.IN_PROGRESS || localStatus === OrderStatus.COMPLETED) ? (
             linkedForm ? (
               <section className="space-y-6 pt-4 animate-fade-in">
-                <div className={`p-5 rounded-[2rem] border flex items-center gap-4 mb-4 ${localStatus === OrderStatus.COMPLETED ? 'bg-indigo-50 border-indigo-100' : 'bg-emerald-50 border-emerald-100'}`}>
-                  <div className="p-3 bg-white rounded-xl shadow-sm text-indigo-600"><FileText size={20} /></div>
+                <div className={`p-5 rounded-[2rem] border flex items-center gap-4 mb-4 ${localStatus === OrderStatus.COMPLETED ? 'bg-primary-50 border-primary-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                  <div className="p-3 bg-white rounded-xl shadow-sm text-primary-600"><FileText size={20} /></div>
                   <div>
-                    <h4 className={`text-[9px] font-black uppercase tracking-widest ${localStatus === OrderStatus.COMPLETED ? 'text-indigo-600' : 'text-emerald-600'}`}>
+                    <h4 className={`text-[9px] font-black uppercase tracking-widest ${localStatus === OrderStatus.COMPLETED ? 'text-primary-600' : 'text-emerald-600'}`}>
                       Checklist Vinculado (Regra de Processo)
                     </h4>
                     <p className="text-sm font-black text-slate-900">{linkedForm.title}</p>
@@ -688,7 +688,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                                   key={opt}
                                   disabled={localStatus === OrderStatus.COMPLETED}
                                   onClick={() => setAnswers(prev => ({ ...prev, [field.id]: opt }))}
-                                  className={`w-full py-5 px-6 rounded-2xl text-xs font-black text-left transition-all border-2 ${selectedVal === opt ? 'bg-indigo-600 border-indigo-700 text-white shadow-xl' : 'bg-gray-50 border-gray-100 text-gray-400'
+                                  className={`w-full py-5 px-6 rounded-2xl text-xs font-black text-left transition-all border-2 ${selectedVal === opt ? 'bg-primary-600 border-primary-700 text-white shadow-xl' : 'bg-gray-50 border-gray-100 text-gray-400'
                                     }`}
                                 >
                                   {opt}
@@ -738,12 +738,12 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                                           key={`btn-add-${field.id}`}
                                           disabled={uploadingFields[field.id]}
                                           onClick={() => handlePhotoUpload(field.id)}
-                                          className="h-32 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-all"
+                                          className="h-32 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-slate-400 hover:text-primary-600 hover:border-primary-300 hover:bg-primary-50 transition-all"
                                         >
                                           {uploadingFields[field.id] ? (
                                             <div key="loader-seq" className="flex flex-col items-center gap-1">
-                                              <Loader2 size={24} className="animate-spin text-indigo-600" />
-                                              <span className="text-[8px] font-black uppercase tracking-widest text-indigo-600 animate-pulse">Enviando...</span>
+                                              <Loader2 size={24} className="animate-spin text-primary-600" />
+                                              <span className="text-[8px] font-black uppercase tracking-widest text-primary-600 animate-pulse">Enviando...</span>
                                             </div>
                                           ) : (
                                             <div key="add-seq" className="flex flex-col items-center gap-1">
@@ -761,14 +761,14 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                                     <button
                                       disabled={localStatus === OrderStatus.COMPLETED || uploadingFields[field.id]}
                                       onClick={() => handlePhotoUpload(field.id)}
-                                      className="w-full py-8 flex flex-col items-center gap-3 text-slate-400 hover:text-indigo-600 transition-colors"
+                                      className="w-full py-8 flex flex-col items-center gap-3 text-slate-400 hover:text-primary-600 transition-colors"
                                     >
                                       {uploadingFields[field.id] ? (
                                         <div className="flex flex-col items-center gap-2">
-                                          <div className="p-4 bg-indigo-50 rounded-full shadow-inner">
-                                            <Loader2 size={32} className="animate-spin text-indigo-600" />
+                                          <div className="p-4 bg-primary-50 rounded-full shadow-inner">
+                                            <Loader2 size={32} className="animate-spin text-primary-600" />
                                           </div>
-                                          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 animate-pulse">Processando Imagem...</span>
+                                          <span className="text-[10px] font-black uppercase tracking-widest text-primary-600 animate-pulse">Processando Imagem...</span>
                                         </div>
                                       ) : (
                                         <>
@@ -802,7 +802,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                 </div>
               </section>
             ) : (
-              <div className="py-20 flex flex-col items-center justify-center gap-4 text-indigo-600 animate-pulse">
+              <div className="py-20 flex flex-col items-center justify-center gap-4 text-primary-600 animate-pulse">
                 <Loader2 size={40} className="animate-spin" />
                 <p className="text-[10px] font-black uppercase tracking-widest italic">Sincronizando com a Matriz de Processos...</p>
               </div>
@@ -830,7 +830,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                 {localStatus !== OrderStatus.COMPLETED && (
                   <button
                     onClick={() => setIsStockListOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase italic shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 text-white rounded-lg text-[9px] font-black uppercase italic shadow-lg shadow-primary-600/20 active:scale-95 transition-all"
                   >
                     <Plus size={12} /> Adicionar Item
                   </button>
@@ -856,7 +856,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-black text-indigo-600 font-mono">
+                        <span className="text-[10px] font-black text-primary-600 font-mono">
                           R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </span>
                         {localStatus !== OrderStatus.COMPLETED && !item.readonly && (
@@ -878,9 +878,9 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
               </div>
 
               {/* TOTAL PARCIAL */}
-              <div className="bg-indigo-50 border border-indigo-100/50 p-4 rounded-2xl flex justify-between items-center">
-                <span className="text-[10px] font-black text-indigo-400 uppercase italic">Valor Realizado</span>
-                <span className="text-xl font-black text-indigo-700 italic tracking-tighter">
+              <div className="bg-primary-50 border border-primary-100/50 p-4 rounded-2xl flex justify-between items-center">
+                <span className="text-[10px] font-black text-primary-400 uppercase italic">Valor Realizado</span>
+                <span className="text-xl font-black text-primary-700 italic tracking-tighter">
                   R$ {items.reduce((acc, i) => acc + i.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </span>
               </div>
@@ -965,7 +965,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                           <p className="text-[10px] font-black text-slate-900 uppercase italic">{item.description}</p>
                           <p className="text-[8px] font-bold text-slate-400 uppercase">Estoque: {item.currentStock}un • R$ {item.sellPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                         </div>
-                        <Plus size={16} className="text-indigo-600" />
+                        <Plus size={16} className="text-primary-600" />
                       </button>
                     ))}
                   </div>
@@ -992,14 +992,14 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
           {/* SEÇÃO DE ASSINATURA FIXA E OBRIGATÓRIA */}
           {(localStatus === OrderStatus.IN_PROGRESS || localStatus === OrderStatus.COMPLETED) && (
             <section className="space-y-6 pt-6 border-t border-gray-50 pb-20">
-              <div className="bg-indigo-50/50 rounded-[2.5rem] p-6 border border-indigo-100 space-y-6">
+              <div className="bg-primary-50/50 rounded-[2.5rem] p-6 border border-primary-100 space-y-6">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-indigo-100/50 rounded-xl text-indigo-600">
+                  <div className="p-2 bg-primary-100/50 rounded-xl text-primary-600">
                     <CheckCircle2 size={20} />
                   </div>
                   <div>
-                    <h3 className="text-sm font-black text-indigo-900 uppercase italic">Validação do Cliente</h3>
-                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Obrigatório para encerramento</p>
+                    <h3 className="text-sm font-black text-primary-900 uppercase italic">Validação do Cliente</h3>
+                    <p className="text-[9px] font-black text-primary-400 uppercase tracking-widest">Obrigatório para encerramento</p>
                   </div>
                 </div>
 
@@ -1061,7 +1061,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                       </div>
                     </div>
 
-                    <div className="bg-white p-1 rounded-[2.5rem] border-2 border-dashed border-indigo-200">
+                    <div className="bg-white p-1 rounded-[2.5rem] border-2 border-dashed border-primary-200">
                       {answers['Assinatura do Cliente'] ? (
                         <div className="relative group">
                           <img
@@ -1112,7 +1112,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                   <CheckCircle size={20} /> Finalizar e Sincronizar
                 </Button>
                 <div className="text-center">
-                  <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em]">Os dados serão propagados para a central</span>
+                  <span className="text-[8px] font-black text-primary-400 uppercase tracking-[0.2em]">Os dados serão propagados para a central</span>
                 </div>
               </div>
             ) : (

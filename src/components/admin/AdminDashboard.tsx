@@ -406,7 +406,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                          className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-md disabled:opacity-30 disabled:hover:bg-transparent transition-all"
                           title="Editar"
                         >
                           <Edit3 size={16} />

@@ -92,12 +92,12 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
   const getStatusStyle = (status: OrderStatus) => {
     switch (status) {
       case OrderStatus.COMPLETED: return 'bg-emerald-500 text-white border-emerald-600';
-      case OrderStatus.IN_PROGRESS: return 'bg-blue-500 text-white border-blue-600';
-      case OrderStatus.ASSIGNED: return 'bg-indigo-500 text-white border-indigo-600';
+      case OrderStatus.IN_PROGRESS: return 'bg-primary-500 text-white border-primary-600';
+      case OrderStatus.ASSIGNED: return 'bg-primary-500 text-white border-primary-600';
       case OrderStatus.PENDING: return 'bg-amber-500 text-white border-amber-600';
       case OrderStatus.CANCELED: return 'bg-rose-500 text-white border-rose-600';
       case OrderStatus.BLOCKED: return 'bg-slate-500 text-white border-slate-600';
-      default: return 'bg-indigo-500 text-white border-indigo-600';
+      default: return 'bg-primary-500 text-white border-primary-600';
     }
   };
 
@@ -114,7 +114,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
           <button onClick={nextMonth} className="p-1.5 hover:bg-white rounded-lg text-slate-600 transition-all active:scale-95"><ChevronRight size={16} /></button>
         </div>
 
-        <button onClick={goToToday} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-100 shrink-0">Hoje</button>
+        <button onClick={goToToday} className="px-4 py-2 bg-primary-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary-700 transition-all active:scale-95 shadow-lg shadow-primary-100 shrink-0">Hoje</button>
 
         <div className="h-6 w-px bg-slate-200 mx-1"></div>
 
@@ -125,7 +125,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             <input
               type="text"
               placeholder="BUSCAR O.S. OU CLIENTE..."
-              className="w-full bg-slate-100 border border-transparent rounded-xl py-2 pl-10 pr-4 text-[9px] font-black uppercase tracking-widest outline-none focus:bg-white focus:border-indigo-500 transition-all italic"
+              className="w-full bg-slate-100 border border-transparent rounded-xl py-2 pl-10 pr-4 text-[9px] font-black uppercase tracking-widest outline-none focus:bg-white focus:border-primary-500 transition-all italic"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -133,7 +133,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
           <div className="flex items-center gap-2">
             <select
-              className="bg-slate-100 border border-slate-200 rounded-xl py-2 px-3 text-[9px] font-black uppercase tracking-widest outline-none focus:bg-white focus:border-indigo-500 transition-all cursor-pointer min-w-[180px]"
+              className="bg-slate-100 border border-slate-200 rounded-xl py-2 px-3 text-[9px] font-black uppercase tracking-widest outline-none focus:bg-white focus:border-primary-500 transition-all cursor-pointer min-w-[180px]"
               value={techFilter}
               onChange={(e) => setTechFilter(e.target.value)}
             >
@@ -142,7 +142,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             </select>
 
             <select
-              className={`border rounded-xl py-2 px-3 text-[9px] font-black uppercase tracking-widest outline-none transition-all cursor-pointer min-w-[150px] ${statusFilter === 'ALL' ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-indigo-50 border-indigo-200 text-indigo-700'}`}
+              className={`border rounded-xl py-2 px-3 text-[9px] font-black uppercase tracking-widest outline-none transition-all cursor-pointer min-w-[150px] ${statusFilter === 'ALL' ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-primary-50 border-primary-200 text-primary-700'}`}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
             >
@@ -176,19 +176,19 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                 key={idx}
                 className={`flex flex-col overflow-hidden relative transition-all group
                   ${isCurrentMonth ? 'bg-white' : 'bg-slate-50 opacity-40'} 
-                  ${isToday ? 'bg-indigo-50/20' : ''}
+                  ${isToday ? 'bg-primary-50/20' : ''}
                 `}
               >
                 {/* Indicador de Dia Compacto */}
                 <div className="px-2 py-1 flex justify-between items-center relative z-10">
                   <span className={`text-lg font-black italic tracking-tighter transition-all shrink-0
-                    ${isToday ? 'text-indigo-600 scale-110 drop-shadow-sm' : 'text-slate-200 group-hover:text-slate-900'}
+                    ${isToday ? 'text-primary-600 scale-110 drop-shadow-sm' : 'text-slate-200 group-hover:text-slate-900'}
                   `}>
                     {format(day, 'd')}
                   </span>
                   {dayOrders.length > 0 && (
                     <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full border shrink-0
-                      ${isToday ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-slate-900 text-white border-slate-900'}
+                      ${isToday ? 'bg-primary-600 text-white border-primary-700' : 'bg-slate-900 text-white border-slate-900'}
                     `}>
                       {dayOrders.length}
                     </span>
@@ -242,7 +242,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                     <span className="opacity-70">STATUS:</span>
                     {selectedOrder.status}
                   </div>
-                  <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">Detalhes da O.S.</span>
+                  <span className="text-[8px] font-black text-primary-600 uppercase tracking-widest">Detalhes da O.S.</span>
                 </div>
                 <h3 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter leading-none">#{selectedOrder.id}</h3>
               </div>
@@ -266,8 +266,8 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Técnico Responsável</label>
-                  <div className="flex items-center gap-3 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                  <div className="flex items-center gap-3 p-3 bg-primary-50/50 rounded-xl border border-primary-100">
+                    <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center">
                       <User size={20} />
                     </div>
                     <span className="text-[11px] font-black text-slate-900 uppercase">
@@ -294,11 +294,11 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                 <div className="col-span-2 space-y-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Equipamento / Ativo</label>
                   <div className="flex items-center gap-4 p-5 bg-slate-900 rounded-[1.5rem] text-white">
-                    <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-indigo-300 shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-primary-300 shrink-0">
                       <Box size={24} />
                     </div>
                     <div>
-                      <p className="text-sm font-black uppercase italic tracking-tight text-indigo-300">
+                      <p className="text-sm font-black uppercase italic tracking-tight text-primary-300">
                         {selectedOrder.equipmentName || 'MANUTENÇÃO GERAL'}
                       </p>
                       <p className="text-[9px] font-bold text-white/40 uppercase">
@@ -322,7 +322,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   const publicUrl = `${window.location.origin}/#/view/${selectedOrder.publicToken || selectedOrder.id}`;
                   window.open(publicUrl, '_blank');
                 }}
-                className="w-full flex items-center justify-center gap-3 py-3.5 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-95 shrink-0"
+                className="w-full flex items-center justify-center gap-3 py-3.5 bg-primary-600 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-primary-700 transition-all shadow-xl shadow-primary-100 active:scale-95 shrink-0"
               >
                 <ExternalLink size={14} /> Abrir Relatório Público
               </button>

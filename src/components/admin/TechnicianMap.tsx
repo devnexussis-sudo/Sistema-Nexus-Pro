@@ -213,7 +213,7 @@ export const TechnicianMap: React.FC = () => {
             <div className="absolute top-4 left-4 right-4 z-[1000] flex items-center gap-2">
                 {/* Radar Info */}
                 <div className="bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg border border-white/20 flex items-center gap-2">
-                    <div className="p-1 bg-indigo-600 rounded-lg shadow-lg shadow-indigo-600/20">
+                    <div className="p-1 bg-primary-600 rounded-lg shadow-lg shadow-primary-600/20">
                         <Navigation size={12} className="text-white" />
                     </div>
                     <span className="text-[8px] font-black text-slate-900 uppercase tracking-wider">Radar</span>
@@ -234,7 +234,7 @@ export const TechnicianMap: React.FC = () => {
                         placeholder="Buscar técnico..."
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full bg-white/90 backdrop-blur-md border border-white/20 rounded-full px-4 py-2 text-[8px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all italic placeholder:text-slate-400 shadow-lg"
+                        className="w-full bg-white/90 backdrop-blur-md border border-white/20 rounded-full px-4 py-2 text-[8px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/30 transition-all italic placeholder:text-slate-400 shadow-lg"
                     />
                 </div>
 
@@ -243,12 +243,12 @@ export const TechnicianMap: React.FC = () => {
                     <button
                         onClick={handleRefresh}
                         disabled={isRefreshing}
-                        className="bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border border-white/20 hover:bg-indigo-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                        className="bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border border-white/20 hover:bg-primary-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
                         title="Atualizar posições"
                     >
                         <RefreshCw
                             size={14}
-                            className={`text-indigo-600 transition-transform ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`}
+                            className={`text-primary-600 transition-transform ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`}
                         />
                     </button>
                 )}
@@ -257,8 +257,8 @@ export const TechnicianMap: React.FC = () => {
                 <button
                     onClick={() => setIsHistoryMode(!isHistoryMode)}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border transition-all font-black text-[8px] uppercase tracking-widest ${isHistoryMode
-                        ? 'bg-indigo-600 text-white border-indigo-700'
-                        : 'bg-white/90 backdrop-blur-md text-slate-600 border-white/20 hover:bg-indigo-50'
+                        ? 'bg-primary-600 text-white border-primary-700'
+                        : 'bg-white/90 backdrop-blur-md text-slate-600 border-white/20 hover:bg-primary-50'
                         }`}
                 >
                     <History size={14} />
@@ -284,13 +284,13 @@ export const TechnicianMap: React.FC = () => {
             {/* 🕒 History Controls Overlay */}
             {isHistoryMode && (
                 <div className="absolute top-20 left-4 right-4 z-[1000] flex flex-wrap gap-3 pointer-events-none">
-                    <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-indigo-100 flex flex-col md:flex-row items-center gap-4 pointer-events-auto">
+                    <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-primary-100 flex flex-col md:flex-row items-center gap-4 pointer-events-auto">
                         <div className="flex flex-col gap-1">
                             <label className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Técnico</label>
                             <select
                                 value={selectedHistoryTech?.id || ''}
                                 onChange={(e) => setSelectedHistoryTech(technicians.find(t => t.id === e.target.value) || null)}
-                                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500"
+                                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-primary-500"
                             >
                                 <option value="">Selecione um técnico</option>
                                 {technicians.map(t => (
@@ -305,16 +305,16 @@ export const TechnicianMap: React.FC = () => {
                                 value={selectedHistoryDate}
                                 onChange={(e) => setSelectedHistoryDate(e.target.value)}
                                 max={new Date().toISOString().split('T')[0]}
-                                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500"
+                                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-primary-500"
                             />
                         </div>
                         {selectedHistoryTech && (
                             <div className="flex flex-col gap-1 items-center px-4 border-l border-slate-100">
                                 {isLoadingHistory ? (
-                                    <RefreshCw size={16} className="text-indigo-600 animate-spin" />
+                                    <RefreshCw size={16} className="text-primary-600 animate-spin" />
                                 ) : (
                                     <>
-                                        <span className="text-[12px] font-black text-indigo-600">{historyPath.length}</span>
+                                        <span className="text-[12px] font-black text-primary-600">{historyPath.length}</span>
                                         <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Pontos</span>
                                     </>
                                 )}
@@ -331,7 +331,7 @@ export const TechnicianMap: React.FC = () => {
                         {filteredTechs.map(t => (
                             <div
                                 key={t.id}
-                                className="flex items-center gap-2 p-2 rounded-xl bg-slate-50/50 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition-all cursor-pointer group"
+                                className="flex items-center gap-2 p-2 rounded-xl bg-slate-50/50 hover:bg-primary-50 border border-transparent hover:border-primary-100 transition-all cursor-pointer group"
                             >
                                 <img src={t.avatar} className="w-8 h-8 rounded-lg object-cover shadow-sm" alt={t.name} />
                                 <div className="flex-1 min-w-0">
@@ -403,7 +403,7 @@ export const TechnicianMap: React.FC = () => {
                             {/* Path Line */}
                             <Polyline
                                 positions={historyPath.map(p => [p.latitude, p.longitude]) as any}
-                                color="#4f46e5"
+                                color="var(--color-primary-600, #2563eb)"
                                 weight={3}
                                 opacity={0.6}
                                 dashArray="5, 10"
@@ -416,7 +416,7 @@ export const TechnicianMap: React.FC = () => {
                                     center={[point.latitude, point.longitude] as any}
                                     radius={4}
                                     pathOptions={{
-                                        fillColor: idx === 0 ? '#10b981' : (idx === historyPath.length - 1 ? '#ef4444' : '#4f46e5'),
+                                        fillColor: idx === 0 ? '#10b981' : (idx === historyPath.length - 1 ? '#ef4444' : 'var(--color-primary-600, #2563eb)'),
                                         color: 'white',
                                         weight: 1,
                                         fillOpacity: 1
@@ -430,7 +430,7 @@ export const TechnicianMap: React.FC = () => {
                                             </p>
                                             <div className="mt-2 flex items-center justify-between gap-4 border-t border-slate-100 pt-2">
                                                 <span className="text-[8px] font-black text-slate-400">STATUS</span>
-                                                <span className={`text-[8px] font-black ${idx === 0 ? 'text-emerald-600' : (idx === historyPath.length - 1 ? 'text-red-500' : 'text-indigo-600')}`}>
+                                                <span className={`text-[8px] font-black ${idx === 0 ? 'text-emerald-600' : (idx === historyPath.length - 1 ? 'text-red-500' : 'text-primary-600')}`}>
                                                     {idx === 0 ? 'PARTIDA' : (idx === historyPath.length - 1 ? 'LOCAL ATUAL' : 'EM TRÂNSITO')}
                                                 </span>
                                             </div>

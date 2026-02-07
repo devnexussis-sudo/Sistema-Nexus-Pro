@@ -45,7 +45,7 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
         if (isFetchingPublicOrder) {
             return (
                 <div className="min-h-screen bg-[#111422] flex items-center justify-center">
-                    <Hexagon size={48} className="animate-spin text-indigo-500" />
+                    <Hexagon size={48} className="animate-spin text-primary-500" />
                 </div>
             );
         }

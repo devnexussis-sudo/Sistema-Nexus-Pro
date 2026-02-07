@@ -85,7 +85,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
           <div className="flex justify-center mb-6">
             <div
               onClick={handleLogoClick}
-              className={`relative p-4 rounded-[1.5rem] bg-gradient-to-br shadow-2xl cursor-pointer active:scale-90 transition-all ${logoClicks >= 3 ? 'ring-2 ring-indigo-500 animate-pulse' : ''} ${roleMode === 'admin' ? 'from-indigo-500 to-blue-600' : 'from-emerald-500 to-teal-600'}`}
+              className={`relative p-4 rounded-[1.5rem] bg-gradient-to-br shadow-2xl cursor-pointer active:scale-90 transition-all ${logoClicks >= 3 ? 'ring-2 ring-primary-500 animate-pulse' : ''} ${roleMode === 'admin' ? 'from-primary-500 to-primary-600' : 'from-emerald-500 to-teal-600'}`}
             >
               <Hexagon size={40} className="text-white" fill="currentColor" fillOpacity={0.2} />
               <div className="absolute inset-0 flex items-center justify-center">
@@ -94,7 +94,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
             </div>
           </div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tighter italic flex justify-center items-center gap-1 select-none">
-            NEXUS<span className={roleMode === 'admin' ? 'text-indigo-500' : 'text-emerald-500'}>.PRO</span>
+            NEXUS<span className={roleMode === 'admin' ? 'text-primary-500' : 'text-emerald-500'}>.PRO</span>
           </h1>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">Plataforma de Gestão Técnica</p>
         </div>
@@ -103,7 +103,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
           <button
             onClick={() => switchMode('admin')}
             className={`flex-1 flex items-center justify-center py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${roleMode === 'admin'
-              ? 'bg-white text-indigo-600 shadow-sm border border-slate-200'
+              ? 'bg-white text-primary-600 shadow-sm border border-slate-200'
               : 'text-slate-400 hover:text-slate-600'
               }`}
           >
@@ -129,7 +129,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
               onChange={(e) => setEmail(e.target.value)}
               icon={<Mail size={18} className="text-slate-400" />}
               required
-              className="bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 rounded-2xl py-4 focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-200 transition-all font-bold"
+              className="bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 rounded-2xl py-4 focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-200 transition-all font-bold"
             />
           </div>
           <div className="space-y-2">
@@ -140,7 +140,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
               onChange={(e) => setPassword(e.target.value)}
               icon={<Lock size={18} className="text-slate-400" />}
               required
-              className="bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 rounded-2xl py-4 focus:bg-white focus:ring-2 focus:ring-indigo-100 focus:border-indigo-200 transition-all font-bold"
+              className="bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 rounded-2xl py-4 focus:bg-white focus:ring-2 focus:ring-primary-100 focus:border-primary-200 transition-all font-bold"
             />
           </div>
 
@@ -161,7 +161,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
           <Button
             type="submit"
             variant={roleMode === 'admin' ? 'primary' : 'tech-primary'}
-            className={`w-full py-5 rounded-2xl font-black text-sm uppercase italic tracking-tight shadow-xl ${roleMode === 'admin' ? 'shadow-indigo-500/20' : 'shadow-emerald-500/20'}`}
+            className={`w-full py-5 rounded-2xl font-black text-sm uppercase italic tracking-tight shadow-xl ${roleMode === 'admin' ? 'shadow-primary-500/20' : 'shadow-emerald-500/20'}`}
             isLoading={loading}
           >
             Autenticar no Sistema

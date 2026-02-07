@@ -185,7 +185,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         placeholder="Pesquisar por Código ou Cliente..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+                        className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
                     />
                 </div>
                 <button
@@ -216,7 +216,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 <tr key={quote.id} className="hover:bg-slate-50/20 border-b border-slate-50 transition-colors group">
                                     <td className="px-10 py-5">
                                         <div className="flex flex-col">
-                                            <span className="text-[12px] font-black uppercase italic text-indigo-600 tracking-tighter">{quote.id}</span>
+                                            <span className="text-[12px] font-black uppercase italic text-primary-600 tracking-tighter">{quote.id}</span>
                                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[150px]">{quote.title}</span>
                                         </div>
                                     </td>
@@ -244,12 +244,12 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         )}
                                     </td>
                                     <td className="px-6 py-5">
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase ${quote.status === 'ABERTO' ? 'bg-indigo-50 text-indigo-600' :
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase ${quote.status === 'ABERTO' ? 'bg-primary-50 text-primary-600' :
                                             quote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600' :
                                                 quote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400' :
                                                     'bg-rose-50 text-rose-500'
                                             }`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${quote.status === 'ABERTO' ? 'bg-indigo-600' :
+                                            <div className={`w-1.5 h-1.5 rounded-full ${quote.status === 'ABERTO' ? 'bg-primary-600' :
                                                 quote.status === 'APROVADO' ? 'bg-emerald-600' :
                                                     quote.status === 'CONVERTIDO' ? 'bg-emerald-400' :
                                                         'bg-rose-600'
@@ -278,7 +278,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     navigator.clipboard.writeText(url);
                                                     alert('URL pública copiada para a área de transferência!');
                                                 }}
-                                                className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm border border-indigo-100"
+                                                className="p-2.5 bg-primary-50 text-primary-600 rounded-xl hover:bg-primary-600 hover:text-white transition-all shadow-sm border border-primary-100"
                                                 title="Copiar URL Pública"
                                             >
                                                 <Link size={14} />
@@ -290,7 +290,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     const url = `${window.location.origin}${window.location.pathname}#/view-quote/${quote.publicToken || quote.id}`;
                                                     window.open(url, '_blank');
                                                 }}
-                                                className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm border border-indigo-100"
+                                                className="p-2.5 bg-primary-50 text-primary-600 rounded-xl hover:bg-primary-600 hover:text-white transition-all shadow-sm border border-primary-100"
                                                 title="Abrir Link Público"
                                             >
                                                 <ExternalLink size={14} />
@@ -315,7 +315,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     setLinkedOrderId(quote.linkedOrderId || '');
                                                     setIsModalOpen(true);
                                                 }}
-                                                className="p-2.5 bg-white text-slate-400 rounded-xl hover:text-indigo-600 shadow-sm border border-slate-100"
+                                                className="p-2.5 bg-white text-slate-400 rounded-xl hover:text-primary-600 shadow-sm border border-slate-100"
                                             >
                                                 <Edit3 size={14} />
                                             </button>
@@ -370,7 +370,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         <select
                                             value={customerName}
                                             onChange={(e) => setCustomerName(e.target.value)}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-indigo-100 transition-all"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
                                         >
                                             <option value="">Selecionar Cliente...</option>
                                             {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -383,7 +383,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             value={title}
                                             onChange={(e) => setTitle(e.target.value)}
                                             placeholder="Título descritivo da proposta..."
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-inner"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-inner"
                                         />
                                     </div>
                                 </div>
@@ -393,23 +393,23 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         <div>
                                             <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Validade da Proposta</label>
                                             <div className="relative">
-                                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" size={16} />
+                                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-400" size={16} />
                                                 <input
                                                     type="date"
                                                     value={validUntil}
                                                     onChange={(e) => setValidUntil(e.target.value)}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-indigo-100 transition-all"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
                                                 />
                                             </div>
                                         </div>
                                         <div>
                                             <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Vincular a uma O.S.</label>
                                             <div className="relative">
-                                                <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" size={16} />
+                                                <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-400" size={16} />
                                                 <select
                                                     value={linkedOrderId}
                                                     onChange={(e) => setLinkedOrderId(e.target.value)}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-indigo-100 transition-all"
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
                                                 >
                                                     <option value="">Sem Vínculo OS</option>
                                                     {customerOrders.map(o => (
@@ -426,7 +426,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             onChange={(e) => setDescription(e.target.value)}
                                             rows={2}
                                             placeholder="Descreva o escopo técnico do orçamento..."
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-inner resize-none"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-inner resize-none"
                                         />
                                     </div>
                                 </div>
@@ -435,10 +435,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                                     <div className="flex items-center gap-2">
-                                        <ListPlus size={16} className="text-indigo-600" />
+                                        <ListPlus size={16} className="text-primary-600" />
                                         <label className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] italic">Composição de Preços (Serviços / Peças)</label>
                                     </div>
-                                    <button onClick={handleAddItem} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all">
+                                    <button onClick={handleAddItem} className="px-4 py-2 bg-primary-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-primary-600/20 hover:scale-105 transition-all">
                                         + Adicionar Item
                                     </button>
                                 </div>
@@ -453,7 +453,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         </div>
                                     )}
                                     {items.map((item, index) => (
-                                        <div key={item.id} className="grid grid-cols-12 gap-4 items-center p-5 bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-200 transition-all">
+                                        <div key={item.id} className="grid grid-cols-12 gap-4 items-center p-5 bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-primary-200 transition-all">
                                             <div className="col-span-6">
                                                 <input
                                                     placeholder="Escolher do Estoque ou digitar..."
@@ -571,11 +571,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 </div>
                                 <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
                                     <p className="text-[8px] font-black text-slate-400 uppercase mb-2">Data de Criação</p>
-                                    <p className="text-sm font-black text-slate-700 uppercase italic flex items-center gap-2"><Clock size={14} className="text-indigo-500" /> {new Date(viewQuote.createdAt).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-slate-700 uppercase italic flex items-center gap-2"><Clock size={14} className="text-primary-500" /> {new Date(viewQuote.createdAt).toLocaleString()}</p>
                                 </div>
                                 <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
                                     <p className="text-[8px] font-black text-slate-400 uppercase mb-2">Validade</p>
-                                    <p className="text-sm font-black text-slate-700 uppercase italic flex items-center gap-2"><Calendar size={14} className="text-indigo-500" /> {viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString() : 'N/D'}</p>
+                                    <p className="text-sm font-black text-slate-700 uppercase italic flex items-center gap-2"><Calendar size={14} className="text-primary-500" /> {viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString() : 'N/D'}</p>
                                 </div>
                             </div>
 
@@ -637,12 +637,12 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                             {/* Linha 4: Auditoria de Aprovação (Se aprovado) */}
                             {viewQuote.status === 'APROVADO' && (
-                                <div className="mt-10 p-10 bg-indigo-50/50 rounded-[3rem] border-2 border-dashed border-indigo-200 space-y-8 animate-fade-in-up">
-                                    <div className="flex items-center gap-4 border-b border-indigo-100 pb-6">
-                                        <div className="p-3 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200"><ShieldCheck size={20} className="text-white" /></div>
+                                <div className="mt-10 p-10 bg-primary-50/50 rounded-[3rem] border-2 border-dashed border-primary-200 space-y-8 animate-fade-in-up">
+                                    <div className="flex items-center gap-4 border-b border-primary-100 pb-6">
+                                        <div className="p-3 bg-primary-600 rounded-2xl shadow-lg shadow-primary-200"><ShieldCheck size={20} className="text-white" /></div>
                                         <div>
-                                            <h4 className="text-[13px] font-black text-indigo-900 uppercase italic">Registro de Auditoria Digital</h4>
-                                            <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">Este documento possui validade comercial e assinatura capturada.</p>
+                                            <h4 className="text-[13px] font-black text-primary-900 uppercase italic">Registro de Auditoria Digital</h4>
+                                            <p className="text-[10px] text-primary-400 font-black uppercase tracking-widest">Este documento possui validade comercial e assinatura capturada.</p>
                                         </div>
                                     </div>
 
@@ -650,34 +650,34 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         <div className="space-y-6">
                                             <div className="grid grid-cols-2 gap-6">
                                                 <div>
-                                                    <p className="text-[8px] font-black text-indigo-400 uppercase mb-1">Aprovado Por</p>
+                                                    <p className="text-[8px] font-black text-primary-400 uppercase mb-1">Aprovado Por</p>
                                                     <p className="text-xs font-black text-slate-700 uppercase italic leading-tight">{viewQuote.approvedByName}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-[8px] font-black text-indigo-400 uppercase mb-1">Documento (CPF)</p>
+                                                    <p className="text-[8px] font-black text-primary-400 uppercase mb-1">Documento (CPF)</p>
                                                     <p className="text-xs font-black text-slate-700 italic">{viewQuote.approvalDocument}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-[8px] font-black text-indigo-400 uppercase mb-1">Data da Assinatura</p>
+                                                    <p className="text-[8px] font-black text-primary-400 uppercase mb-1">Data da Assinatura</p>
                                                     <p className="text-xs font-black text-slate-700 italic">{viewQuote.approvedAt ? new Date(viewQuote.approvedAt).toLocaleString() : 'N/D'}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-[8px] font-black text-indigo-400 uppercase mb-1">Nascimento Resp.</p>
+                                                    <p className="text-[8px] font-black text-primary-400 uppercase mb-1">Nascimento Resp.</p>
                                                     <p className="text-xs font-black text-slate-700 italic">{viewQuote.approvalBirthDate ? new Date(viewQuote.approvalBirthDate).toLocaleDateString() : 'N/D'}</p>
                                                 </div>
                                             </div>
 
                                             {/* Localização GPS */}
                                             {viewQuote.approvalLatitude && (
-                                                <div className="p-6 bg-white rounded-3xl border border-indigo-100 flex items-center gap-4">
-                                                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><Globe size={20} className="animate-pulse" /></div>
+                                                <div className="p-6 bg-white rounded-3xl border border-primary-100 flex items-center gap-4">
+                                                    <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center"><Globe size={20} className="animate-pulse" /></div>
                                                     <div>
-                                                        <p className="text-[8px] font-black text-indigo-400 uppercase">Geolocalização de Aceite</p>
+                                                        <p className="text-[8px] font-black text-primary-400 uppercase">Geolocalização de Aceite</p>
                                                         <p className="text-[10px] font-black text-slate-700 italic tracking-tighter">{viewQuote.approvalLatitude}, {viewQuote.approvalLongitude}</p>
                                                         <a
                                                             href={`https://www.google.com/maps?q=${viewQuote.approvalLatitude},${viewQuote.approvalLongitude}`}
                                                             target="_blank"
-                                                            className="text-[8px] font-black text-indigo-500 uppercase hover:underline mt-1 block"
+                                                            className="text-[8px] font-black text-primary-500 uppercase hover:underline mt-1 block"
                                                         >Ver no Satélite</a>
                                                     </div>
                                                 </div>
@@ -687,10 +687,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         {/* Assinatura */}
                                         <div className="space-y-4">
                                             <div className="flex items-center gap-2">
-                                                <SignatureIcon size={14} className="text-indigo-400" />
-                                                <p className="text-[8px] font-black text-indigo-400 uppercase">Assinatura Digital Capturada</p>
+                                                <SignatureIcon size={14} className="text-primary-400" />
+                                                <p className="text-[8px] font-black text-primary-400 uppercase">Assinatura Digital Capturada</p>
                                             </div>
-                                            <div className="bg-white p-8 rounded-[2.5rem] border border-indigo-100 shadow-sm flex items-center justify-center overflow-hidden">
+                                            <div className="bg-white p-8 rounded-[2.5rem] border border-primary-100 shadow-sm flex items-center justify-center overflow-hidden">
                                                 {viewQuote.approvalSignature ? (
                                                     <img src={viewQuote.approvalSignature} alt="Assinatura" className="h-32 object-contain grayscale" />
                                                 ) : (
@@ -704,14 +704,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     {viewQuote.approvalMetadata && (
                                         <div className="p-6 bg-slate-900 rounded-[2.5rem] opacity-90">
                                             <div className="flex items-center gap-2 mb-4">
-                                                <Box size={14} className="text-indigo-400" />
-                                                <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Caixa Preta: Impressão Digital do Dispositivo</p>
+                                                <Box size={14} className="text-primary-400" />
+                                                <p className="text-[8px] font-black text-primary-400 uppercase tracking-widest">Caixa Preta: Impressão Digital do Dispositivo</p>
                                             </div>
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-[8px] font-bold uppercase text-slate-500">
-                                                <div><p className="text-slate-600">Dispositivo/Plat</p><p className="text-indigo-300 truncate">{viewQuote.approvalMetadata.platform}</p></div>
-                                                <div><p className="text-slate-600">Resolução</p><p className="text-indigo-300">{viewQuote.approvalMetadata.screenWidth}x{viewQuote.approvalMetadata.screenHeight}</p></div>
-                                                <div><p className="text-slate-600">Timezone</p><p className="text-indigo-300">{viewQuote.approvalMetadata.timezone}</p></div>
-                                                <div><p className="text-slate-600">Navegador</p><p className="text-indigo-300 truncate">{viewQuote.approvalMetadata.userAgent.split(' ')[0]}</p></div>
+                                                <div><p className="text-slate-600">Dispositivo/Plat</p><p className="text-primary-300 truncate">{viewQuote.approvalMetadata.platform}</p></div>
+                                                <div><p className="text-slate-600">Resolução</p><p className="text-primary-300">{viewQuote.approvalMetadata.screenWidth}x{viewQuote.approvalMetadata.screenHeight}</p></div>
+                                                <div><p className="text-slate-600">Timezone</p><p className="text-primary-300">{viewQuote.approvalMetadata.timezone}</p></div>
+                                                <div><p className="text-slate-600">Navegador</p><p className="text-primary-300 truncate">{viewQuote.approvalMetadata.userAgent.split(' ')[0]}</p></div>
                                             </div>
                                         </div>
                                     )}

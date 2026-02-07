@@ -119,7 +119,7 @@ export const TechDashboardV2: React.FC = () => {
                     onClick={refreshData}
                     className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-500 active:scale-95 transition-all hover:bg-slate-100"
                 >
-                    <RefreshCw size={16} className={`${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
+                    <RefreshCw size={16} className={`${isSyncing ? 'animate-spin text-primary-600' : ''}`} />
                 </button>
             </header>
 
@@ -195,7 +195,7 @@ export const TechDashboardV2: React.FC = () => {
                                             const today = new Date().toISOString().split('T')[0];
                                             refreshData({ newFilters: { status: 'ALL', startDate: today, endDate: today } });
                                         }}
-                                        className="mt-4 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                                        className="mt-4 text-xs font-semibold text-primary-600 hover:text-primary-700"
                                     >
                                         Limpar Filtros
                                     </button>
@@ -265,7 +265,7 @@ export const TechDashboardV2: React.FC = () => {
                                                         alert("Endereço não disponível.");
                                                     }
                                                 }}
-                                                className="text-xs font-semibold text-indigo-600 flex items-center gap-1.5 hover:underline"
+                                                className="text-xs font-semibold text-primary-600 flex items-center gap-1.5 hover:underline"
                                             >
                                                 <MapPin size={14} />
                                                 Abrir Mapa
@@ -313,7 +313,7 @@ export const TechDashboardV2: React.FC = () => {
                                 <span className="text-[10px] uppercase font-bold text-slate-400 mt-1">Total OS</span>
                             </div>
                             <div className="bg-white p-4 rounded-xl shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] border border-slate-100 flex flex-col items-center text-center">
-                                <span className="text-3xl font-bold text-indigo-600 tracking-tight">
+                                <span className="text-3xl font-bold text-primary-600 tracking-tight">
                                     {orders.filter(o => o.status === OrderStatus.COMPLETED).length}
                                 </span>
                                 <span className="text-[10px] uppercase font-bold text-slate-400 mt-1">Concluídas (Hoje)</span>
@@ -335,13 +335,13 @@ export const TechDashboardV2: React.FC = () => {
 
                             <button
                                 onClick={() => refreshData({ newFilters: { status: OrderStatus.ASSIGNED } })}
-                                className="p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-left active:scale-95 transition-all"
+                                className="p-4 rounded-xl bg-primary-50 border border-primary-100 text-left active:scale-95 transition-all"
                             >
-                                <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mb-2">
+                                <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center mb-2">
                                     <Clock size={16} />
                                 </div>
                                 <h3 className="text-sm font-bold text-slate-800">Pendentes</h3>
-                                <p className="text-[10px] text-indigo-600 font-medium mt-0.5">Aguardando início</p>
+                                <p className="text-[10px] text-primary-600 font-medium mt-0.5">Aguardando início</p>
                             </button>
 
                             <button
