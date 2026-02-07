@@ -2,7 +2,7 @@
 import {
   ServiceOrder, User, OrderStatus, UserRole, FormTemplate, FormFieldType, Customer, Equipment,
   StockItem, UserPermissions, UserGroup, DEFAULT_PERMISSIONS,
-  CashFlowEntry, TechStockItem, StockMovement
+  CashFlowEntry, TechStockItem, StockMovement, OrderItem
 } from '../types';
 import { MOCK_USERS, MOCK_ORDERS } from '../constants';
 import { supabase, adminSupabase } from '../lib/supabase';
@@ -11,6 +11,8 @@ import { CacheManager } from '../lib/cache';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL &&
   import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+console.log('🌐 Nexus Connectivity:', { isCloudEnabled, mode: import.meta.env.MODE });
 
 type UserWithPassword = User & { password: string };
 
@@ -90,12 +92,66 @@ export const DataService = {
         if (tid) return tid;
       }
 
-      // Prioridade 3: URL/State Fallback
-      return SessionStorage.get('current_tenant') || undefined;
+      // Prioridade 3: URL/State Fallback (For deep linking)
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
+      if (urlTid) return urlTid;
+
+      // Prioridade 4: Shared Auth Fallback (Check direct Supabase session metadata)
+      // Note: This is sync, so it might return old value, but useful as last resort.
+
+      return undefined;
     } catch (e) {
-      console.error("[DataService] Tenant Error:", e);
+      console.error("[DataService] Critical Tenant Detection Error:", e);
       return undefined;
     }
+  },
+
+  /**
+   * 🛡️ Nexus Health Check: Diagnóstico em tempo real da conectividade Big-Tech
+   */
+  checkSystemHealth: async () => {
+    const report: any = {
+      isCloudEnabled,
+      tenantId: DataService.getCurrentTenantId(),
+      timestamp: new Date().toISOString(),
+      connectivity: 'checking...',
+      auth: 'checking...'
+    };
+
+    try {
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      if (authError) {
+        report.auth = `Error: ${authError.message}`;
+      } else {
+        report.auth = session ? 'Authenticated' : 'Logged Out';
+        if (session) report.userEmail = session.user.email;
+      }
+
+      const start = performance.now();
+      const { data, error } = await supabase.from('tenants').select('id').limit(1);
+      const end = performance.now();
+
+      report.latency = `${Math.round(end - start)}ms`;
+
+      if (error) {
+        report.connectivity = `Failed: ${error.message}`;
+        report.errorCode = error.code;
+        if (error.code === 'PGRST301' || error.code === '42501') {
+          report.diagnosis = "POLÍTICA RLS NEGADA: O usuário não tem permissão para ver dados deste tenant.";
+        }
+      } else {
+        report.connectivity = 'Healthy';
+        report.dataCount = data?.length || 0;
+      }
+    } catch (err: any) {
+      report.connectivity = `Uncaught Exception: ${err.message}`;
+    }
+
+    console.group('🛡️ Nexus System Health Report');
+    console.table(report);
+    console.groupEnd();
+    return report;
   },
 
   getCurrentUser: async (): Promise<User | null> => {
@@ -593,16 +649,25 @@ export const DataService = {
   refreshUser: async (): Promise<User | null> => {
     if (!isCloudEnabled) return null;
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return null;
+    if (!session?.user) {
+      console.warn('[DataService] ⚠️ Sessão não encontrada no Supabase Auth.');
+      return null;
+    }
 
     const meta = session.user.user_metadata;
     let tenantId = meta?.tenantId || meta?.tenant_id;
+    console.log('[DataService] 🔍 Refreshing User:', { email: session.user.email, metaTenant: tenantId });
 
     // 🔍 Nexus Deep Security: Fallback para tenant_id no banco
     if (!tenantId) {
+      console.log('[DataService] 🕵️ Tenant não encontrado no metadata. Buscando no DB...');
       // Usamos o cliente padrão autenticado (seguro e não trava)
-      const { data: dbUser } = await supabase.from('users').select('tenant_id').eq('id', session.user.id).maybeSingle();
-      if (dbUser?.tenant_id) tenantId = dbUser.tenant_id;
+      const { data: dbUser, error: dbError } = await supabase.from('users').select('tenant_id').eq('id', session.user.id).maybeSingle();
+      if (dbError) console.error('[DataService] ❌ Erro ao buscar tenant_id no DB:', dbError);
+      if (dbUser?.tenant_id) {
+        tenantId = dbUser.tenant_id;
+        console.log('[DataService] ✅ Tenant recuperado do DB:', tenantId);
+      }
     }
 
     // 🛡️ Nexus Safety Check: Verifica se a empresa está ativa
@@ -1221,10 +1286,16 @@ export const DataService = {
 
   getOrders: async (): Promise<ServiceOrder[]> => {
     if (isCloudEnabled) {
-      const tenantId = DataService.getCurrentTenantId();
+      let tenantId = DataService.getCurrentTenantId();
 
       if (!tenantId) {
-        console.warn("⚠️ Tenant ID não encontrado. Retornando lista vazia.");
+        console.warn("⚠️ [DataSync] Tenant ID não encontrado localmente. Tentando recuperação de emergência...");
+        const recovered = await DataService.refreshUser().catch(() => null);
+        tenantId = recovered?.tenantId;
+      }
+
+      if (!tenantId) {
+        console.error("❌ [DataSync] Falha crítica: Tenant ID não localizado após recuperação.");
         return [];
       }
 
@@ -1870,7 +1941,13 @@ export const DataService = {
 
   getCustomers: async (): Promise<Customer[]> => {
     if (isCloudEnabled) {
-      const tenantId = DataService.getCurrentTenantId();
+      let tenantId = DataService.getCurrentTenantId();
+
+      if (!tenantId) {
+        const recovered = await DataService.refreshUser().catch(() => null);
+        tenantId = recovered?.tenantId;
+      }
+
       if (!tenantId) return [];
 
       const { data, error } = await DataService.getServiceClient().from('customers')
@@ -2412,7 +2489,7 @@ export const DataService = {
               active: true,
               tenant_id: tenantId,
               group_id: adminGroupId, // Vincula ao grupo de Administradores
-              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(adminName || 'Admin')}&backgroundColor=4f46e5`,
+              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(adminEmail || 'Admin')}&backgroundColor=4f46e5`,
               // Permissões diretas como fallback (caso o grupo seja deletado)
               permissions: {
                 orders: { create: true, read: true, update: true, delete: true },

@@ -17,6 +17,7 @@ import { PlannedMaintenance } from '../../components/admin/PlannedMaintenance';
 import { QuoteManagement } from '../../components/admin/QuoteManagement';
 import { DataService } from '../../services/dataService';
 import SessionStorage from '../../lib/sessionStorage';
+import { useQuery } from '../../hooks/useQuery';
 import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
@@ -59,6 +60,27 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const [overviewDateRange, setOverviewDateRange] = useState(getInitialDateRange());
     const [activitiesDateRange, setActivitiesDateRange] = useState(getInitialDateRange());
     const [activeSystemNotification, setActiveSystemNotification] = useState<any>(null);
+    const [healthReport, setHealthReport] = useState<any>(null);
+
+    // 🛡️ Big-Tech Resilience Layer: Hooks de busca automática com Retry
+    const { data: oData, isLoading: oLoading, refetch: oRefetch, isError: oError } = useQuery('orders', DataService.getOrders, { enabled: !!auth.isAuthenticated });
+    const { data: cData, isLoading: cLoading, refetch: cRefetch } = useQuery('contracts', DataService.getContracts, { enabled: !!auth.isAuthenticated });
+    const { data: qData, isLoading: qLoading, refetch: qRefetch } = useQuery('quotes', DataService.getQuotes, { enabled: !!auth.isAuthenticated });
+    const { data: tData, isLoading: tLoading, refetch: tRefetch } = useQuery('techs', DataService.getAllTechnicians, { enabled: !!auth.isAuthenticated });
+    const { data: custData, isLoading: custLoading, refetch: custRefetch } = useQuery('customers', DataService.getCustomers, { enabled: !!auth.isAuthenticated });
+    const { data: eData, isLoading: eLoading, refetch: eRefetch } = useQuery('equipments', DataService.getEquipments, { enabled: !!auth.isAuthenticated });
+    const { data: sData, isLoading: sLoading, refetch: sRefetch } = useQuery('stock', DataService.getStockItems, { enabled: !!auth.isAuthenticated });
+
+    // Sincronizar estados locais para compatibilidade com componentes filhos
+    useEffect(() => { if (oData) setOrders(oData); }, [oData]);
+    useEffect(() => { if (cData) setContracts(cData); }, [cData]);
+    useEffect(() => { if (qData) setQuotes(qData); }, [qData]);
+    useEffect(() => { if (tData) setTechs(tData); }, [tData]);
+    useEffect(() => { if (custData) setCustomers(custData); }, [custData]);
+    useEffect(() => { if (eData) setEquipments(eData); }, [eData]);
+    useEffect(() => { if (sData) setStockItems(sData); }, [sData]);
+
+    const isFetchingAny = oLoading || cLoading || qLoading || tLoading || custLoading || eLoading || sLoading;
 
     useEffect(() => {
         if (auth.user?.role !== UserRole.ADMIN) return;
@@ -139,47 +161,9 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     }, []);
 
     const fetchGlobalData = async () => {
-        if (!navigator.onLine) {
-            console.warn('[AdminApp] ⚠️ Sem conexão. Abortando atualização.');
-            setIsFetchingData(false);
-            return;
-        }
-
-        try {
-            setIsFetchingData(true);
-
-            // Timeout de 15s para evitar loading infinito
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Tempo limite de conexão excedido (15s). Verifique sua internet.')), 15000)
-            );
-
-            // Promise de dados reais
-            const dataPromise = Promise.all([
-                DataService.getOrders(),
-                DataService.getContracts(),
-                DataService.getQuotes(),
-                DataService.getAllTechnicians(),
-                DataService.getCustomers(),
-                DataService.getEquipments(),
-                DataService.getStockItems()
-            ]);
-
-            // Corrida: Quem chegar primeiro ganha. Se o timeout ganhar, lança erro.
-            const [o, c_list, q_list, t, c, e, s] = await Promise.race([dataPromise, timeoutPromise]) as any;
-
-            setOrders(o);
-            setContracts(c_list);
-            setQuotes(q_list);
-            setTechs(t);
-            setCustomers(c);
-            setEquipments(e);
-            setStockItems(s);
-        } catch (e) {
-            console.error('[AdminApp] ❌ Erro de conexão/timeout:', e);
-            // Em produção, poderíamos usar um Toast aqui
-        } finally {
-            setIsFetchingData(false);
-        }
+        await Promise.all([
+            oRefetch(), cRefetch(), qRefetch(), tRefetch(), custRefetch(), eRefetch(), sRefetch()
+        ]);
     };
 
     useEffect(() => {
@@ -332,14 +316,24 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                                 </div>
                             )}
                             <button
+                                onClick={async () => setHealthReport(await DataService.checkSystemHealth())}
+                                className={`p-2.5 rounded-2xl border ${oError ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white text-slate-600'} shadow-sm hover:scale-105 transition-all`}
+                                title="Status do Sistema"
+                            >
+                                <ShieldCheck size={18} />
+                            </button>
+                            <button
                                 onClick={handleManualRefresh}
                                 disabled={isRefreshing}
                                 className="p-2.5 rounded-2xl border bg-white shadow-sm hover:bg-slate-50 active:scale-95 transition-all text-slate-600 hover:text-indigo-600"
                                 title="Atualizar Dados"
                             >
-                                <RefreshCw size={18} className={isRefreshing ? 'animate-spin text-indigo-600' : ''} />
+                                <RefreshCw size={18} className={isRefreshing || isFetchingAny ? 'animate-spin text-indigo-600' : ''} />
                             </button>
-                            <button onClick={() => setShowInbox(!showInbox)} className="p-2.5 rounded-2xl border bg-white"><Bell size={18} /></button>
+                            <button onClick={() => setShowInbox(!showInbox)} className="p-2.5 rounded-2xl border bg-white relative">
+                                <Bell size={18} />
+                                {systemNotifications.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>}
+                            </button>
                         </div>
                     </div>
                 </header>
@@ -375,12 +369,54 @@ export const AdminApp: React.FC<AdminAppProps> = ({
             )}
 
             {/* Popups e Notificações do Sistema */}
-            {activeSystemNotification && (
-                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-xl">
-                    <div className="bg-white rounded-[3.5rem] p-12 max-w-lg w-full text-center border relative">
-                        <h2 className="text-3xl font-black uppercase italic mb-6">{activeSystemNotification.title}</h2>
-                        <p className="text-xs font-bold text-slate-600 leading-relaxed uppercase mb-10">{activeSystemNotification.content}</p>
-                        <Button onClick={() => { onMarkNotificationRead(activeSystemNotification.id); setActiveSystemNotification(null); }} className="w-full bg-slate-900 text-white rounded-2xl py-6 font-black uppercase">Confirmar Leitura</Button>
+            {/* Modal de Diagnóstico de Saúde do Sistema */}
+            {healthReport && (
+                <div className="fixed inset-0 z-[2500] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-2xl">
+                    <div className="bg-white rounded-[4rem] p-12 max-w-2xl w-full shadow-2xl border border-white/20 overflow-hidden relative">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+                        <div className="relative z-10">
+                            <div className="flex justify-between items-center mb-10">
+                                <div>
+                                    <h2 className="text-3xl font-black uppercase italic tracking-tighter">Diagnóstico Nexus</h2>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Camada de Resiliência Big-Tech</p>
+                                </div>
+                                <button onClick={() => setHealthReport(null)} className="p-4 bg-slate-100 rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-all"><X size={24} /></button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-6 mb-10">
+                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Conectividade</p>
+                                    <p className={`text-sm font-black uppercase italic ${healthReport.connectivity === 'Healthy' ? 'text-emerald-600' : 'text-rose-600'}`}>{healthReport.connectivity}</p>
+                                </div>
+                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Autenticação</p>
+                                    <p className="text-sm font-black uppercase italic text-slate-700">{healthReport.auth}</p>
+                                </div>
+                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Tenant ID</p>
+                                    <p className="text-sm font-mono text-slate-500 truncate">{healthReport.tenantId || 'NÃO IDENTIFICADO'}</p>
+                                </div>
+                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Latência</p>
+                                    <p className="text-sm font-black text-indigo-600 uppercase italic">{healthReport.latency || 'N/D'}</p>
+                                </div>
+                            </div>
+
+                            {healthReport.diagnosis && (
+                                <div className="p-8 bg-amber-50 border border-amber-200 rounded-[2.5rem] mb-10">
+                                    <div className="flex items-center gap-3 mb-3 text-amber-700">
+                                        <AlertTriangle size={20} />
+                                        <p className="text-[11px] font-black uppercase italic">Análise de Falha Identificada</p>
+                                    </div>
+                                    <p className="text-xs font-bold text-amber-900 leading-relaxed uppercase">{healthReport.diagnosis}</p>
+                                </div>
+                            )}
+
+                            <div className="flex gap-4">
+                                <Button onClick={async () => setHealthReport(await DataService.checkSystemHealth())} className="flex-1 bg-indigo-600 text-white rounded-2xl py-6 font-black uppercase text-xs italic tracking-widest shadow-xl shadow-indigo-600/20">Reciclar Conexão</Button>
+                                <Button onClick={() => window.location.reload()} className="px-10 bg-slate-100 text-slate-600 rounded-2xl py-6 font-black uppercase text-xs">Reload</Button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
