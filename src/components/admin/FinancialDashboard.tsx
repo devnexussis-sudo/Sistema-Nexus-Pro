@@ -378,7 +378,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             </div>
 
             {/* List Table */}
-            <div className="bg-white border border-slate-100 rounded-[2.5rem] flex flex-col overflow-hidden flex-1 min-h-0 shadow-2xl shadow-slate-200/40 relative mx-2 mb-2">
+            <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden flex-1 min-h-0 shadow-2xl shadow-slate-200/40 relative">
                 <div className="absolute top-6 right-10 z-20">
                     <button
                         onClick={handleExportExcel}
