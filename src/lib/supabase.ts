@@ -8,7 +8,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
         storageKey: 'nexus_shared_auth',
         persistSession: true,
-        autoRefreshToken: true
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        // 🛡️ Previne AbortError em redes instáveis ou carregamento rápido
+        lock: {
+            acquireTimeout: 10000 // 10s de timeout para travas de auth
+        }
     }
 });
 

@@ -96,7 +96,13 @@ const App: React.FC = () => {
             setTimeout(() => setToast(null), 3000);
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        // 🛡️ Nexus Silent Recovery: Se for um erro de trava ou aborto, tenta novamente em 2s
+        if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
+          console.warn('[App] 🛡️ Lock Conflict detectado no Heartbeat. Agendando retry silencioso...');
+          setTimeout(() => validateAndRestoreSession(true), 2000);
+          return;
+        }
         console.error('[App] Heartbeat Recovery Error:', err);
       }
     };
@@ -159,12 +165,12 @@ const App: React.FC = () => {
   }, [publicOrderId, publicQuoteId, auth.isAuthenticated]);
 
   useEffect(() => {
-    if (auth.isAuthenticated && auth.user && !isSuperMode) {
+    if (auth.isAuthenticated && auth.user && !isSuperMode && !publicOrderId && !publicQuoteId) {
       DataService.getUnreadSystemNotifications(auth.user.id)
         .then(setSystemNotifications)
         .catch(err => console.error("Falha ao buscar notificações:", err));
     }
-  }, [auth.isAuthenticated, auth.user, isSuperMode]);
+  }, [auth.isAuthenticated, auth.user, isSuperMode, publicOrderId, publicQuoteId]);
 
   if (isInitializing) {
     return (
