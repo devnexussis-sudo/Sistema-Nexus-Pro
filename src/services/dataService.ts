@@ -3248,6 +3248,24 @@ export const DataService = {
   registerCashFlow: async (entry: Partial<CashFlowEntry>): Promise<void> => {
     const tenantId = DataService.getCurrentTenantId();
     if (isCloudEnabled && tenantId) {
+      // Buscar user ID de forma resiliente
+      let createdById: string | undefined;
+      try {
+        const currentUser = await DataService.getCurrentUser();
+        createdById = currentUser?.id;
+      } catch (err) {
+        console.warn("⚠️ Não foi possível obter getCurrentUser, tentando session fallback:", err);
+        // Fallback: pegar do SessionStorage
+        try {
+          const sessionUser = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
+          if (sessionUser) {
+            createdById = typeof sessionUser === 'string' ? JSON.parse(sessionUser).id : sessionUser.id;
+          }
+        } catch (e) {
+          console.warn("⚠️ Fallback de usuário também falhou, usando 'sistema'");
+        }
+      }
+
       const dbEntry = {
         tenant_id: tenantId,
         type: entry.type,
@@ -3258,10 +3276,15 @@ export const DataService = {
         reference_type: entry.referenceType,
         payment_method: entry.paymentMethod,
         entry_date: entry.entryDate || new Date().toISOString(),
-        created_by: (await DataService.getCurrentUser())?.id
+        created_by: createdById || 'sistema' // Fallback para 'sistema' se não conseguir obter user
       };
+
       const { error } = await DataService.getServiceClient().from('cash_flow').insert([dbEntry]);
-      if (error) throw error;
+      if (error) {
+        console.error("❌ Erro ao registrar no fluxo de caixa:", error);
+        throw error;
+      }
+      console.log("✅ Entrada registrada no fluxo de caixa");
     }
   },
 
