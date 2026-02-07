@@ -265,14 +265,22 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error || !session) {
+                // Se não há sessão e não temos usuário local, é um estado normal
+                const localUser = localStorage.getItem(STORAGE_KEYS.SESSION);
+                if (!localUser && !error) return;
+
                 console.warn('[TechContext] 🗝️ Sessão instável. Tentando refresh...');
                 const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
 
                 if (refreshError || !refreshData.session) {
-                    console.error('[TechContext] ❌ Falha crítica no heartbeat:', refreshError);
-                    if (refreshError?.message?.includes('refresh_token_not_found')) {
+                    // Se o erro for apenas "sessão ausente", fazemos logout silencioso
+                    if (refreshError?.message?.includes('session missing') || refreshError?.name === 'AuthSessionMissingError' || refreshError?.message?.includes('refresh_token_not_found')) {
+                        console.log('[TechContext] 💤 Sessão expirada ou ausente. Limpando ambiente.');
                         logout();
+                        return;
                     }
+
+                    console.error('[TechContext] ❌ Falha crítica no heartbeat:', refreshError);
                     return;
                 }
             }

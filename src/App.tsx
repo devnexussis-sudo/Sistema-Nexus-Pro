@@ -77,10 +77,27 @@ const App: React.FC = () => {
 
         // 🛡️ Se a sessão expirou ou está inválida, força o refresh do token
         if (error || !session) {
+          // Se não há sessão e não temos usuário local, é um estado normal de deslogado
+          const localUser = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
+          if (!localUser && !error) {
+            if (isMounted) setAuth({ user: null, isAuthenticated: false });
+            return;
+          }
+
           console.warn('[App] 🗝️ Sessão expirada ou instável. Tentando refresh do Heartbeat...');
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
 
           if (refreshError || !refreshData.session) {
+            // Se o erro for apenas "sessão ausente", limpamos o estado local silenciosamente
+            if (refreshError?.message?.includes('session missing') || refreshError?.name === 'AuthSessionMissingError') {
+              console.log('[App] 💤 Nenhuma sessão ativa encontrada. Limpando estado local.');
+              if (isMounted) {
+                setAuth({ user: null, isAuthenticated: false });
+                SessionStorage.clear();
+              }
+              return;
+            }
+
             console.error('[App] ❌ Falha crítica na re-hidratação de sessão:', refreshError);
             return;
           }

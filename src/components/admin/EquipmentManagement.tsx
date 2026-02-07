@@ -8,7 +8,8 @@ import {
   Layers, Settings2, MapPin, Filter, Calendar
 } from 'lucide-react';
 
-import { Customer, Equipment, EquipmentFamily } from '../../types';
+import { Customer, Equipment, EquipmentFamily, OrderStatus } from '../../types';
+import { StatusBadge } from '../ui/StatusBadge';
 import { DataService } from '../../services/dataService';
 
 
