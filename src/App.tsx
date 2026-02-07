@@ -70,6 +70,13 @@ const App: React.FC = () => {
     }, 8000);
 
     const initApp = async () => {
+      // Se for link público, não precisamos inicializar sessão completa agora
+      // O PublicApp cuidará de si mesmo
+      if (publicOrderId || publicQuoteId) {
+        setIsInitializing(false);
+        return;
+      }
+
       try {
         const { supabase } = await import('./lib/supabase');
 
@@ -112,7 +119,7 @@ const App: React.FC = () => {
       clearTimeout(timeoutId);
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, []);
+  }, [publicOrderId, publicQuoteId]);
 
   useEffect(() => {
     if (auth.isAuthenticated && auth.user && !isSuperMode) {
