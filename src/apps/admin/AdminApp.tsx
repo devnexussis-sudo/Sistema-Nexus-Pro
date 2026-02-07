@@ -245,7 +245,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     return (
         <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-sans">
             {/* Header Global */}
-            <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm px-4 shrink-0 border-b border-slate-200">
+            <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm shrink-0 border-b border-slate-200">
                 <div className="flex items-center">
                     {/* Logo Area - Alinhada com a largura da Sidebar */}
                     {/* Logo Area - Alinhada com a largura da Sidebar */}
@@ -254,7 +254,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     </div>
 
                     {/* View Title */}
-                    <div className="flex items-center gap-6 border-l border-slate-100 pl-6 h-8 ml-2">
+                    <div className="flex items-center gap-6 border-l border-slate-100 pl-6 h-8 ml-4">
                         <h2 className="text-sm font-semibold text-slate-900 capitalize tracking-tight">
                             {menuItems.find(m => m.id === currentView)?.label || 'Dashboard'}
                         </h2>
@@ -267,7 +267,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     </div>
                 </div>
 
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-6 pr-4">
                     <div className="flex flex-col items-end border-r border-slate-100 pr-6">
                         <span className="text-sm font-semibold text-slate-900 tracking-tight">{auth.user?.name}</span>
                         <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">Administrador</span>
