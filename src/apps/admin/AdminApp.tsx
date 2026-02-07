@@ -248,12 +248,13 @@ export const AdminApp: React.FC<AdminAppProps> = ({
             <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm px-4 shrink-0 border-b border-slate-200">
                 <div className="flex items-center">
                     {/* Logo Area - Alinhada com a largura da Sidebar */}
-                    <div className={`${isSidebarCollapsed ? 'w-12 justify-center' : 'w-56 justify-center'} transition-all duration-300 ease-in-out flex items-center overflow-hidden`}>
+                    {/* Logo Area - Alinhada com a largura da Sidebar */}
+                    <div className={`${isSidebarCollapsed ? 'w-16 justify-center' : 'w-52 justify-center'} transition-all duration-300 ease-in-out flex items-center overflow-hidden`}>
                         <NexusBranding variant="dark" size="lg" className="h-12" />
                     </div>
 
                     {/* View Title */}
-                    <div className="flex items-center gap-6 border-l border-slate-100 pl-8 h-8 ml-4">
+                    <div className="flex items-center gap-6 border-l border-slate-100 pl-6 h-8 ml-2">
                         <h2 className="text-sm font-semibold text-slate-900 capitalize tracking-tight">
                             {menuItems.find(m => m.id === currentView)?.label || 'Dashboard'}
                         </h2>
@@ -303,7 +304,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Sidebar */}
-                <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-[#1c2d4f] h-full flex flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5`}>
+                <aside className={`${isSidebarCollapsed ? 'w-16' : 'w-52'} bg-[#1c2d4f] h-full flex flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5`}>
                     <button
                         onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                         className="absolute -right-3 top-6 w-6 h-6 bg-[#1c2d4f] text-white/50 border border-white/10 rounded-full flex items-center justify-center hover:text-white transition-all z-[60]"
