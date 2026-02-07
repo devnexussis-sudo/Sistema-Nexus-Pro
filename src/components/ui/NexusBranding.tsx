@@ -18,7 +18,7 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
     const sizes = {
         sm: { icon: 'h-4', text: 'text-[10px]' },
         md: { icon: 'h-6', text: 'text-sm' },
-        lg: { icon: 'h-12', text: 'text-2xl' }
+        lg: { icon: 'h-24', text: 'text-2xl' }
     };
 
     const current = sizes[size];
@@ -29,8 +29,12 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
                 <img
                     src="/nexus-logo.png"
                     alt="Nexus Line"
-                    style={{ height: current.icon.replace('h-', '') === '12' ? '48px' : current.icon.replace('h-', '') === '6' ? '24px' : '16px' }}
-                    className={`${current.icon} w-auto max-w-full object-contain`}
+                    style={{
+                        height: current.icon.replace('h-', '') === '24' ? '96px' :
+                            current.icon.replace('h-', '') === '6' ? '24px' : '16px',
+                        marginTop: current.icon.replace('h-', '') === '24' ? '-4px' : '0'
+                    }}
+                    className={`${current.icon} w-auto object-contain max-w-none scale-110`}
                     onLoad={() => setImageLoaded(true)}
                     onError={(e) => {
                         setImageLoaded(false);
