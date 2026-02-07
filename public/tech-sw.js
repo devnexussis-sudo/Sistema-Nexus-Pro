@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexus-tech-v1';
+const CACHE_NAME = 'nexus-tech-v2-fix-focus';
 const ASSETS_TO_CACHE = [
     '/tech.html',
     '/tech-manifest.json',
