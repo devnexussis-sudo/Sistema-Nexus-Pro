@@ -53,6 +53,19 @@ export function useQuery<T>(
         } catch (err: any) {
             console.error(`[useQuery] Falha ao carregar ${queryKey} (Tentativa ${attempt + 1}/${retry + 1}):`, err);
 
+            // 🗝️ Enterprise Recovery: Se o erro for de autenticação, tenta re-hidratar a sessão antes do retry
+            const isAuthError = err?.status === 401 || err?.code === 'PGRST301' || err?.message?.includes('JWT');
+            if (isAuthError && attempt < retry) {
+                console.warn('[useQuery] 🛡️ Erro de Autenticação detectado. Iniciando Re-hidratação de Sessão...');
+                const { DataService } = await import('../services/dataService');
+                const recovered = await DataService.refreshUser().catch(() => null);
+                if (recovered) {
+                    console.log('[useQuery] ✅ Sessão recuperada. Tentando nova busca imediata...');
+                    executeFetch(attempt + 1);
+                    return;
+                }
+            }
+
             if (attempt < retry) {
                 // Exponential backoff
                 const delay = Math.pow(2, attempt) * 1000;

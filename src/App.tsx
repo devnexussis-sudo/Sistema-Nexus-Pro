@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [publicOrderId, setPublicOrderId] = useState<string | null>(null);
   const [publicQuoteId, setPublicQuoteId] = useState<string | null>(null);
 
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [systemNotifications, setSystemNotifications] = useState<any[]>([]);
 
   const handleHashChange = () => {
@@ -69,6 +70,45 @@ const App: React.FC = () => {
       }
     }, 8000);
 
+    const validateAndRestoreSession = async (silent = true) => {
+      try {
+        const { supabase } = await import('./lib/supabase');
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        // 🛡️ Se a sessão expirou ou está inválida, força o refresh do token
+        if (error || !session) {
+          console.warn('[App] 🗝️ Sessão expirada ou instável. Tentando refresh do Heartbeat...');
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+          if (refreshError || !refreshData.session) {
+            console.error('[App] ❌ Falha crítica na re-hidratação de sessão:', refreshError);
+            return;
+          }
+        }
+
+        // 🔄 Sincroniza dados do usuário para garantir que o tenantId esteja correto
+        const refreshedUser = await DataService.refreshUser().catch(() => null);
+        if (refreshedUser && isMounted) {
+          setAuth({ user: refreshedUser, isAuthenticated: true });
+
+          if (!silent) {
+            setToast({ message: 'Conexão restaurada', type: 'success' });
+            setTimeout(() => setToast(null), 3000);
+          }
+        }
+      } catch (err) {
+        console.error('[App] Heartbeat Recovery Error:', err);
+      }
+    };
+
+    const handleFocus = () => {
+      if (auth.isAuthenticated) {
+        console.log('[App] 🔋 Janela focada - Verificando integridade da sessão...');
+        validateAndRestoreSession(false);
+        DataService.forceGlobalRefresh(); // 🌪️ Invalida caches locais
+      }
+    };
+
     const initApp = async () => {
       // Se for link público, não precisamos inicializar sessão completa agora
       // O PublicApp cuidará de si mesmo
@@ -81,14 +121,7 @@ const App: React.FC = () => {
         const { supabase } = await import('./lib/supabase');
 
         // 1. Check session immediately
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (session?.user && !isSuperMode) {
-          const refreshedUser = await DataService.refreshUser().catch(() => null);
-          if (refreshedUser && isMounted) {
-            setAuth({ user: refreshedUser, isAuthenticated: true });
-          }
-        }
+        await validateAndRestoreSession(true);
 
         if (isMounted) setIsInitializing(false);
 
@@ -96,12 +129,12 @@ const App: React.FC = () => {
         supabase.auth.onAuthStateChange(async (event, session) => {
           if (!isMounted) return;
 
-          if (session?.user && !isSuperMode) {
+          if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !isSuperMode) {
             const refreshedUser = await DataService.refreshUser().catch(() => null);
             if (refreshedUser) {
               setAuth({ user: refreshedUser, isAuthenticated: true });
             }
-          } else if (!session?.user && event === 'SIGNED_OUT') {
+          } else if (event === 'SIGNED_OUT') {
             setAuth({ user: null, isAuthenticated: false });
             SessionStorage.clear();
           }
@@ -112,14 +145,18 @@ const App: React.FC = () => {
         if (isMounted) setIsInitializing(false);
       }
     };
+
+    window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('focus', handleFocus);
     initApp();
 
     return () => {
       isMounted = false;
       clearTimeout(timeoutId);
       window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('focus', handleFocus);
     };
-  }, [publicOrderId, publicQuoteId]);
+  }, [publicOrderId, publicQuoteId, auth.isAuthenticated]);
 
   useEffect(() => {
     if (auth.isAuthenticated && auth.user && !isSuperMode) {
@@ -174,24 +211,37 @@ const App: React.FC = () => {
   }
 
   return (
-    <AdminApp
-      auth={auth}
-      onLogin={(user) => { SessionStorage.set('user', user); setAuth({ user, isAuthenticated: true }); }}
-      onLogout={async () => {
-        const { supabase } = await import('./lib/supabase');
-        await supabase.auth.signOut();
-        SessionStorage.clear();
-        setAuth({ user: null, isAuthenticated: false });
-        window.location.reload();
-      }}
-      isImpersonating={isImpersonating}
-      onToggleMaster={() => { window.location.href = window.location.origin + '/master'; }}
-      systemNotifications={systemNotifications}
-      onMarkNotificationRead={(id) => {
-        DataService.markSystemNotificationAsRead(auth.user!.id, id);
-        setSystemNotifications(prev => prev.filter(n => n.id !== id));
-      }}
-    />
+    <>
+      <AdminApp
+        auth={auth}
+        onLogin={(user) => { SessionStorage.set('user', user); setAuth({ user, isAuthenticated: true }); }}
+        onLogout={async () => {
+          const { supabase } = await import('./lib/supabase');
+          await supabase.auth.signOut();
+          SessionStorage.clear();
+          setAuth({ user: null, isAuthenticated: false });
+          window.location.reload();
+        }}
+        isImpersonating={isImpersonating}
+        onToggleMaster={() => { window.location.href = window.location.origin + '/master'; }}
+        systemNotifications={systemNotifications}
+        onMarkNotificationRead={(id) => {
+          DataService.markSystemNotificationAsRead(auth.user!.id, id);
+          setSystemNotifications(prev => prev.filter(n => n.id !== id));
+        }}
+      />
+
+      {/* Global Toast Layer */}
+      {toast && (
+        <div className="fixed bottom-8 right-8 z-[9999] animate-in slide-in-from-right fade-in duration-300">
+          <div className={`px-6 py-4 rounded-2xl shadow-2xl border flex items-center gap-3 backdrop-blur-xl ${toast.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+            }`}>
+            <div className={`w-2 h-2 rounded-full animate-pulse ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+            <span className="text-xs font-black uppercase tracking-widest">{toast.message}</span>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

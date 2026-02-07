@@ -77,7 +77,7 @@ export const DataService = {
   getCurrentTenantId: (): string | undefined => {
     try {
       // Prioridade 1: Tech App Session (LocalStorage)
-      const techSession = localStorage.getItem('nexus_tech_session') || localStorage.getItem('nexus_tech_persistent');
+      const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session') || localStorage.getItem('nexus_tech_persistent');
       if (techSession) {
         const user = JSON.parse(techSession);
         const tid = user.tenantId || user.tenant_id;
@@ -148,7 +148,18 @@ export const DataService = {
     console.group('🛡️ Nexus System Health Report');
     console.table(report);
     console.groupEnd();
+
+    // 🛡️ Auto-reparo
+    if (report.connectivity !== 'Healthy' || report.auth === 'Error') {
+      console.warn('[DataService] 🛠️ Falha detectada. Tentando auto-reparo...');
+      await DataService.refreshUser().catch(() => null);
+    }
+
     return report;
+  },
+
+  forceGlobalRefresh: () => {
+    CacheManager.clear();
   },
 
   getCurrentUser: async (): Promise<User | null> => {
