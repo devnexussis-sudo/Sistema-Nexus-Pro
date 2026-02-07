@@ -209,12 +209,18 @@ export const AdminApp: React.FC<AdminAppProps> = ({
 
     const hasPermission = (module: keyof UserPermissions, action: 'read' | 'create' | 'update' | 'delete' | null = 'read'): boolean => {
         if (isImpersonating) return true;
-        if (!auth.user || !auth.user.permissions) return false;
-        if (typeof (auth.user.permissions as any)[module] === 'boolean') {
-            return (auth.user.permissions as any)[module];
+        if (!auth.user) return false;
+
+        // Administradores têm acesso total por padrão
+        if (auth.user.role === UserRole.ADMIN) return true;
+        if (!auth.user.permissions) return false;
+
+        const perms = auth.user.permissions as any;
+        if (typeof perms[module] === 'boolean') {
+            return perms[module];
         }
-        if (action && (auth.user.permissions as any)[module]?.[action] !== undefined) {
-            return (auth.user.permissions as any)[module][action];
+        if (action && perms[module]?.[action] !== undefined) {
+            return perms[module][action];
         }
         return false;
     };
@@ -222,6 +228,9 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const isModuleEnabled = (moduleId: string): boolean => {
         if (isImpersonating) return true;
         const user = auth.user as any;
+
+        // Administradores vêem tudo habilitado por padrão
+        if (user?.role === UserRole.ADMIN) return true;
         if (!user || !user.enabledModules) return true;
         return user.enabledModules[moduleId] !== false;
     };
