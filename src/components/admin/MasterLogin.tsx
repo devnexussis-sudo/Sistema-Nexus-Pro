@@ -2,8 +2,9 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { ShieldCheck, Lock, Mail, Hexagon, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight } from 'lucide-react';
 import SessionStorage from '../../lib/sessionStorage';
+import { NexusBranding } from '../ui/NexusBranding';
 
 interface MasterLoginProps {
   onLogin: () => void;
@@ -38,70 +39,73 @@ export const MasterLogin: React.FC<MasterLoginProps> = ({ onLogin, onCancel }) =
   };
 
   return (
-    <div className="min-h-screen bg-[#0d0d12] flex items-center justify-center p-6 selection:bg-purple-500/30">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
       <div className="w-full max-w-md space-y-8 animate-fade-in">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className="p-4 bg-purple-600 rounded-[2rem] shadow-2xl shadow-purple-500/40 animate-pulse">
-              <ShieldCheck size={48} className="text-white" />
+            <div className="p-5 bg-[#1c2d4f] rounded-[2rem] shadow-2xl shadow-[#1c2d4f]/20">
+              <NexusBranding variant="light" size="lg" showText={false} />
             </div>
           </div>
           <div className="space-y-1">
-            <h1 className="text-3xl font-black text-white italic tracking-tighter uppercase">Nexus <span className="text-purple-500">Master</span></h1>
-            <p className="text-[10px] font-black text-purple-400/60 uppercase tracking-[0.4em]">Núcleo de Provisionamento Global</p>
+            <h1 className="text-3xl font-bold text-white tracking-tight uppercase">Nexus <span className="text-slate-400">Master</span></h1>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.4em]">Núcleo de Provisionamento Global</p>
           </div>
         </div>
 
-        <div className="bg-[#16161e] p-10 rounded-[3rem] border border-white/5 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/5 blur-[50px] -translate-y-1/2 translate-x-1/2"></div>
-
+        <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[2.5rem] border border-white/10 shadow-2xl relative overflow-hidden group">
           <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
-            <Input
-              label="E-mail Master"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="master@nexus.global"
-              icon={<Mail size={18} />}
-              className="bg-white/5 border-white/10 text-white rounded-2xl py-4 focus:border-purple-500/50"
-              required
-            />
-            <Input
-              label="Chave de Segurança"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              icon={<Lock size={18} />}
-              className="bg-white/5 border-white/10 text-white rounded-2xl py-4 focus:border-purple-500/50"
-              required
-            />
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest px-2">E-mail Master</label>
+              <Input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="master@nexus.global"
+                icon={<Mail size={18} className="text-white/20" />}
+                className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest px-2">Chave de Segurança</label>
+              <Input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                icon={<Lock size={18} className="text-white/20" />}
+                className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                required
+              />
+            </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-[10px] font-black text-red-500 uppercase text-center animate-shake">
+              <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl text-[10px] font-bold text-red-400 uppercase text-center">
                 {error}
               </div>
             )}
 
             <Button
               type="submit"
-              isLoading={loading}
-              className="w-full bg-purple-600 hover:bg-purple-500 rounded-2xl py-6 font-black italic uppercase shadow-xl shadow-purple-500/20 transition-all active:scale-95"
+              disabled={loading}
+              className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl py-6 font-bold uppercase shadow-xl shadow-[#1c2d4f]/20 border-none transition-all active:scale-95"
             >
-              Autenticar Master <ArrowRight size={18} className="ml-2" />
+              {loading ? 'Autenticando...' : 'Autenticar Master'} <ArrowRight size={18} className="ml-2" />
             </Button>
           </form>
         </div>
 
         <div className="text-center space-y-4">
-          <p className="text-[9px] font-bold text-gray-600 uppercase tracking-[0.2em] italic">
-            Nexus Enterprise Architecture &copy; 2025
+          <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.2em]">
+            Nexus Line Enterprise &copy; 2026
           </p>
           {onCancel && (
             <button
               type="button"
               onClick={(e) => onCancel(e)}
-              className="text-[10px] font-black text-purple-500/50 hover:text-purple-500 uppercase tracking-widest transition-colors cursor-pointer block w-full text-center py-2"
+              className="text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-widest transition-colors cursor-pointer block w-full text-center py-2"
             >
               Voltar ao Início
             </button>

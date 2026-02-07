@@ -1,34 +1,44 @@
 import React from 'react';
-import { Hexagon } from 'lucide-react';
 
 interface NexusBrandingProps {
     className?: string;
     size?: 'sm' | 'md' | 'lg';
     showText?: boolean;
+    variant?: 'light' | 'dark'; // 'light' para fundos escuros (logo branca), 'dark' para fundos claros (logo azul)
 }
 
 export const NexusBranding: React.FC<NexusBrandingProps> = ({
     className = '',
     size = 'md',
-    showText = true
+    showText = true,
+    variant = 'dark'
 }) => {
     const sizes = {
-        sm: { icon: 14, text: 'text-[8px]' },
-        md: { icon: 20, text: 'text-[10px]' },
-        lg: { icon: 28, text: 'text-xl' }
+        sm: { icon: 'h-4', text: 'text-[10px]' },
+        md: { icon: 'h-6', text: 'text-sm' },
+        lg: { icon: 'h-10', text: 'text-2xl' }
     };
 
     const current = sizes[size];
 
     return (
-        <div className={`flex items-center gap-2 ${className}`}>
-            <div className={`${size === 'lg' ? 'p-2 bg-indigo-600 rounded-xl' : 'p-1 bg-slate-900 rounded-lg'} shadow-sm`}>
-                <Hexagon size={current.icon} className="text-white fill-white/10" />
+        <div className={`flex items-center gap-2.5 ${className}`}>
+            <div className="flex items-center justify-center shrink-0">
+                {/* Aqui usaremos a logo em imagem no futuro, por enquanto mantemos o símbolo refinado */}
+                <svg
+                    viewBox="0 0 24 24"
+                    className={`${current.icon} ${variant === 'light' ? 'text-white' : 'text-[#1c2d4f]'} fill-current`}
+                    xmlns="http://www.w3.org/2000/svg"
+                >
+                    <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-4.5-9h9c.28 0 .5.22.5.5s-.22.5-.5.5h-9c-.28 0-.5-.22-.5-.5s.22-.5.5-.5z" />
+                </svg>
             </div>
             {showText && (
-                <h1 className={`${current.text} font-black text-slate-900 italic uppercase tracking-tighter leading-none`}>
-                    Nexus<span className="text-indigo-600">.Pro</span>
-                </h1>
+                <div className="flex flex-col leading-none">
+                    <h1 className={`${current.text} font-bold tracking-tight ${variant === 'light' ? 'text-white' : 'text-slate-900'} uppercase`}>
+                        Nexus<span className={variant === 'light' ? 'text-white/70' : 'text-slate-400'}>Line</span>
+                    </h1>
+                </div>
             )}
         </div>
     );
