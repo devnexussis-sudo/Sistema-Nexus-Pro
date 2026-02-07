@@ -316,113 +316,125 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   );
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 sm:p-8 overflow-hidden">
-      <div className="bg-white rounded-lg w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
+      <div className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
 
-        {/* HEADER COMPACTO */}
-        <div className="px-8 py-6 border-b border-primary-600 flex justify-between items-center bg-primary-500">
+        {/* HEADER */}
+        <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white">
           <div className="flex items-center gap-4">
-            <div className="w-11 h-11 bg-white/10 rounded-md flex items-center justify-center text-white border border-white/20">
-              {initialData ? <Edit3 size={20} /> : <Plus size={20} />}
+            <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
+              {initialData ? <Edit3 size={18} /> : <Plus size={18} />}
             </div>
             <div>
-              <h2 className="text-lg font-black text-white uppercase tracking-tighter italic leading-none">
-                {initialData ? `Protocolo #${initialData.id}` : 'Novo Chamado'}
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                {initialData ? `Editar Protocolo #${initialData.id}` : 'Novo Atendimento'}
               </h2>
-              <p className="text-[9px] font-black text-white/70 uppercase tracking-widest mt-1 italic">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                 Nexus Operacional • Registro Técnico
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-5">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-2">
               {[1, 2, 3, 4].map((s) => (
                 <div key={s} className="flex items-center">
-                  <div className={`w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-black transition-all border ${step === s ? 'bg-white border-white text-primary-500 shadow-md' : (step > s ? 'bg-success-500 border-success-500 text-white' : 'bg-white/10 border-white/20 text-white/50')
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold transition-all border ${step === s
+                      ? 'bg-[#1c2d4f] border-[#1c2d4f] text-white shadow-md'
+                      : (step > s ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-50 border-slate-200 text-slate-400')
                     }`}>
-                    {step > s ? <CheckCircle2 size={14} /> : s}
+                    {step > s ? <CheckCircle2 size={16} /> : s}
                   </div>
-                  {s < 4 && <div className={`w-6 h-0.5 mx-0.5 rounded-full ${step > s ? 'bg-success-500' : 'bg-white/10'}`} />}
+                  {s < 4 && <div className={`w-6 h-0.5 mx-1 rounded-full ${step > s ? 'bg-emerald-500' : 'bg-slate-100'}`} />}
                 </div>
               ))}
             </div>
-            <button onClick={onClose} className="p-2 text-white/50 hover:text-white transition-all">
+            <button onClick={onClose} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50">
               <X size={20} />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8 bg-white custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
           {step === 1 && (
-            <div className="animate-fade-in space-y-6">
+            <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
               {!initialData && (
-                <div className="flex bg-slate-100 p-1 rounded-lg w-fit mx-auto mb-6 border border-slate-200">
+                <div className="flex bg-white p-1 rounded-xl w-fit mx-auto border border-slate-200 shadow-sm">
                   <button
                     onClick={() => setSearchMode('client')}
-                    className={`px-6 py-2 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${searchMode === 'client' ? 'bg-white text-primary-500 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-8 py-2.5 rounded-lg text-xs font-bold transition-all ${searchMode === 'client'
+                        ? 'bg-[#1c2d4f] text-white shadow-md'
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                      }`}
                   >
                     Por Cliente
                   </button>
                   <button
                     onClick={() => setSearchMode('serial')}
-                    className={`px-6 py-2 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${searchMode === 'serial' ? 'bg-white text-primary-500 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-8 py-2.5 rounded-lg text-xs font-bold transition-all ${searchMode === 'serial'
+                        ? 'bg-[#1c2d4f] text-white shadow-md'
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                      }`}
                   >
                     Por Serial
                   </button>
                 </div>
               )}
 
-              <div className="space-y-3">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] px-1 flex items-center gap-2">
+              <div className="space-y-4">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
                   {searchMode === 'client' ? <Building2 size={12} /> : <Hash size={12} />}
-                  Localizar Unidade Técnica
+                  Localizar Unidade Técnico
                 </label>
 
                 <div className="relative">
-                  <Input
-                    placeholder={searchMode === 'client' ? "Nome do cliente..." : "Número de série..."}
-                    value={searchMode === 'client' ? clientSearch : serialSearch}
-                    className="rounded-lg py-4 font-bold text-sm border-slate-200 focus:ring-primary-100"
-                    onChange={e => {
-                      if (searchMode === 'client') { setClientSearch(e.target.value); setIsClientListOpen(true); }
-                      else { setSerialSearch(e.target.value); setIsSerialListOpen(true); }
-                    }}
-                    onFocus={() => searchMode === 'client' ? setIsClientListOpen(true) : setIsSerialListOpen(true)}
-                    icon={searchMode === 'client' ? <Building2 size={16} /> : <Hash size={16} />}
-                  />
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                      placeholder={searchMode === 'client' ? "Nome do cliente..." : "Número de série..."}
+                      value={searchMode === 'client' ? clientSearch : serialSearch}
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-4 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all shadow-sm"
+                      onChange={e => {
+                        if (searchMode === 'client') { setClientSearch(e.target.value); setIsClientListOpen(true); }
+                        else { setSerialSearch(e.target.value); setIsSerialListOpen(true); }
+                      }}
+                      onFocus={() => searchMode === 'client' ? setIsClientListOpen(true) : setIsSerialListOpen(true)}
+                    />
+                  </div>
 
                   {(isClientListOpen && searchMode === 'client' && clientSearch) && (
-                    <div className="absolute z-[170] top-full mt-1 w-full bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+                    <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
                       {filteredClients.length > 0 ? filteredClients.map(c => (
-                        <button key={c.id} onClick={() => handleSelectClient(c)} className="w-full text-left px-5 py-3 hover:bg-slate-50 flex justify-between items-center border-b border-slate-50 last:border-0 transition-colors">
+                        <button key={c.id} onClick={() => handleSelectClient(c)} className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors group">
                           <div>
-                            <p className="text-[11px] font-black uppercase text-slate-700">{c.name}</p>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase truncate max-w-sm">{c.address}</p>
+                            <p className="text-xs font-bold text-slate-800 group-hover:text-[#1c2d4f] transition-colors">{c.name}</p>
+                            <p className="text-[10px] text-slate-400 font-medium truncate max-w-sm mt-0.5">{c.address}</p>
                           </div>
-                          <ChevronRight size={14} className="text-slate-300" />
+                          <ChevronRight size={16} className="text-slate-300 group-hover:text-[#1c2d4f] group-hover:translate-x-1 transition-all" />
                         </button>
                       )) : (
-                        <div className="p-4 text-center text-slate-400 text-[10px] font-bold uppercase">Nenhum cliente</div>
+                        <div className="p-6 text-center text-slate-400 text-xs font-medium">Nenhum cliente localizado</div>
                       )}
                     </div>
                   )}
 
                   {(isSerialListOpen && searchMode === 'serial' && serialSearch) && (
-                    <div className="absolute z-[170] top-full mt-1 w-full bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+                    <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
                       {filteredSerials.length > 0 ? filteredSerials.map(e => (
-                        <button key={e.id} onClick={() => handleSelectBySerial(e)} className="w-full text-left px-5 py-3 hover:bg-slate-50 flex justify-between items-center border-b border-slate-50 last:border-0 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <Laptop size={14} className="text-slate-400" />
+                        <button key={e.id} onClick={() => handleSelectBySerial(e)} className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors group">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-[#1c2d4f10] transition-colors">
+                              <Laptop size={16} className="text-slate-400 group-hover:text-[#1c2d4f]" />
+                            </div>
                             <div>
-                              <p className="text-[10px] font-black uppercase">SN: {e.serialNumber}</p>
-                              <p className="text-[9px] text-indigo-600 font-bold uppercase">{e.model}</p>
+                              <p className="text-xs font-bold text-slate-800 group-hover:text-[#1c2d4f]">SN: {e.serialNumber}</p>
+                              <p className="text-[10px] text-slate-400 font-medium mt-0.5">{e.model}</p>
                             </div>
                           </div>
-                          <ChevronRight size={14} className="text-slate-300" />
+                          <ChevronRight size={16} className="text-slate-300 group-hover:text-[#1c2d4f] group-hover:translate-x-1 transition-all" />
                         </button>
                       )) : (
-                        <div className="p-4 text-center text-slate-400 text-[10px] font-bold uppercase">Serial não localizado</div>
+                        <div className="p-6 text-center text-slate-400 text-xs font-medium">Serial não localizado</div>
                       )}
                     </div>
                   )}
@@ -430,31 +442,39 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               </div>
 
               {(selectedClientId || initialData) && (
-                <div className="space-y-3 animate-fade-in-up">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] px-1 flex items-center gap-2">
+                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
                     <Box size={12} /> Ativos Vinculados
                   </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {equipments.filter(e => e.customerId === selectedClientId).map(eq => (
                       <div
                         key={eq.id}
                         onClick={() => handleEquipmentToggle(eq.id)}
-                        className={`flex items-center gap-4 p-4 rounded-lg border transition-all cursor-pointer ${selectedEquipIds.includes(eq.id) ? 'border-primary-500 bg-primary-50 shadow-none' : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                        className={`flex items-center gap-4 p-5 rounded-xl border transition-all cursor-pointer group ${selectedEquipIds.includes(eq.id)
+                            ? 'border-[#1c2d4f] bg-[#1c2d4f05] ring-1 ring-[#1c2d4f]'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
                           }`}
                       >
-                        <div className={`w-9 h-9 rounded-md flex items-center justify-center ${selectedEquipIds.includes(eq.id) ? 'bg-primary-500 text-white' : 'bg-white border border-slate-200 text-slate-300'}`}>
-                          <Box size={16} />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${selectedEquipIds.includes(eq.id) ? 'bg-[#1c2d4f] text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-slate-100'
+                          }`}>
+                          <Box size={18} />
                         </div>
                         <div className="flex-1">
-                          <p className="text-[10px] font-black uppercase text-slate-700 truncate">{eq.model}</p>
-                          <p className="text-[9px] text-slate-400 italic font-bold">#{eq.serialNumber}</p>
+                          <p className="text-xs font-bold text-slate-800">{eq.model}</p>
+                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">#{eq.serialNumber}</p>
                         </div>
-                        {selectedEquipIds.includes(eq.id) && <CheckCircle2 size={16} className="text-primary-500" />}
+                        {selectedEquipIds.includes(eq.id) && (
+                          <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-sm">
+                            <CheckCircle2 size={12} />
+                          </div>
+                        )}
                       </div>
                     ))}
                     {equipments.filter(e => e.customerId === selectedClientId).length === 0 && (
-                      <div className="col-span-full py-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                        <p className="text-[9px] font-black text-slate-300 uppercase italic">Nenhum ativo registrado</p>
+                      <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-slate-200">
+                        <Box size={32} className="mx-auto text-slate-200 mb-3" />
+                        <p className="text-xs font-semibold text-slate-400">Nenhum ativo registrado para esta unidade</p>
                       </div>
                     )}
                   </div>
@@ -464,109 +484,118 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           )}
 
           {step === 2 && (
-            <div className="animate-fade-in space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 space-y-4">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block italic">Programação Agenda</label>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <span className="text-[8px] font-black text-slate-500 uppercase ml-1">Data</span>
+            <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {/* CONFIGURAÇÃO DA AGENDA */}
+                <div className="md:col-span-2 space-y-8">
+                  <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                    <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">Programação e Prioridade</h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Data Agendada</label>
                         <Input
                           type="date"
                           required
                           min={getLocalDate()}
-                          className="rounded-xl border-slate-200 bg-white text-xs font-bold py-2"
+                          className="rounded-xl border-slate-200 font-medium text-sm py-3"
                           value={formData.scheduledDate}
                           onChange={e => setFormData({ ...formData, scheduledDate: e.target.value })}
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <span className="text-[8px] font-black text-slate-500 uppercase ml-1">Horário</span>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Horário Previsto</label>
                         <Input
                           type="time"
-                          className="rounded-xl border-slate-200 bg-white text-xs font-bold py-2"
+                          className="rounded-xl border-slate-200 font-medium text-sm py-3"
                           value={formData.scheduledTime}
                           onChange={e => setFormData({ ...formData, scheduledTime: e.target.value })}
                         />
                       </div>
                     </div>
-                  </div>
 
-                  <div className="space-y-4 px-1">
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="space-y-1.5">
-                        <span className="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-widest">Tipo de Atendimento</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Modalidade</label>
                         <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[10px] font-black uppercase text-slate-700 focus:ring-2 focus:ring-primary-100 transition-all outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
                           value={formData.operationType}
                           onChange={e => setFormData({ ...formData, operationType: e.target.value })}
                         >
                           {OS_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
                         </select>
                       </div>
-                      <div className="space-y-1.5">
-                        <span className="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-widest">Prioridade Crítica</span>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nível de Prioridade</label>
                         <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-[10px] font-black uppercase text-slate-700 focus:ring-2 focus:ring-primary-100 transition-all outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
                           value={formData.priority}
                           onChange={e => setFormData({ ...formData, priority: e.target.value as OrderPriority })}
                         >
-                          {Object.values(OrderPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                          {Object.values(OrderPriority).map(p => (
+                            <option key={p} value={p}>{p === OrderPriority.LOW ? 'Baixa' : p === OrderPriority.MEDIUM ? 'Média' : 'Alta / Crítica'}</option>
+                          ))}
                         </select>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center px-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                      Alocação de Técnico
-                    </label>
-                  </div>
+                {/* ALOCAÇÃO DE TÉCNICO */}
+                <div className="space-y-6">
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full">
+                    <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3 mb-6">Responsável Técnico</h3>
 
-                  <div className="relative">
-                    <Input
-                      placeholder="Filtrar por nome..."
-                      value={techSearch}
-                      onChange={e => setTechSearch(e.target.value)}
-                      className="rounded-xl py-2 px-4 text-xs font-bold border-slate-200"
-                      icon={<Search size={14} className="text-slate-300" />}
-                    />
-                  </div>
+                    <div className="relative mb-4">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                      <input
+                        placeholder="Pesquisar técnico..."
+                        value={techSearch}
+                        onChange={e => setTechSearch(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] transition-all"
+                      />
+                    </div>
 
-                  <div className="grid grid-cols-1 gap-2 max-h-[180px] overflow-y-auto pr-2 custom-scrollbar">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectTechnician('')}
-                      className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${formData.assignedTo === '' ? 'border-amber-400 bg-amber-50 shadow-sm' : 'border-slate-100 bg-slate-50/50 hover:border-slate-200'
-                        }`}
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-white border border-slate-100 flex items-center justify-center text-slate-300">
-                        <UserMinus size={14} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase text-slate-700">Manter em Aberto</p>
-                        <p className="text-[8px] text-slate-400 uppercase font-bold italic">Triagem posterior</p>
-                      </div>
-                    </button>
-
-                    {filteredTechs.map(t => (
+                    <div className="flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar max-h-[300px]">
                       <button
-                        key={t.id}
                         type="button"
-                        onClick={() => handleSelectTechnician(t.id)}
-                        className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${formData.assignedTo === t.id ? 'border-primary-500 bg-primary-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                        onClick={() => handleSelectTechnician('')}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${formData.assignedTo === ''
+                            ? 'border-amber-200 bg-amber-50 shadow-sm'
+                            : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
                           }`}
                       >
-                        <img src={t.avatar} className="w-8 h-8 rounded-md object-cover border border-white" alt={t.name} />
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${formData.assignedTo === '' ? 'bg-amber-400 border-amber-500 text-white' : 'bg-white border-slate-200 text-slate-400 group-hover:text-amber-500'
+                          }`}>
+                          <UserMinus size={16} />
+                        </div>
                         <div>
-                          <p className="text-[10px] font-black uppercase text-slate-700">{t.name}</p>
-                          <p className="text-[8px] text-slate-400 font-bold italic">{t.email}</p>
+                          <p className="text-[11px] font-bold text-slate-800">Manter Pendente</p>
+                          <p className="text-[9px] text-slate-500 font-medium">Alocação em triagem</p>
                         </div>
                       </button>
-                    ))}
+
+                      {filteredTechs.map(t => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => handleSelectTechnician(t.id)}
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${formData.assignedTo === t.id
+                              ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
+                              : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
+                            }`}
+                        >
+                          <div className="relative">
+                            <img src={t.avatar} className="w-9 h-9 rounded-lg object-cover border border-slate-200" alt={t.name} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-bold text-slate-800 truncate">{t.name}</p>
+                            <p className="text-[9px] text-slate-500 font-medium truncate">{t.email}</p>
+                          </div>
+                          {formData.assignedTo === t.id && <CheckCircle2 size={14} className="text-[#1c2d4f]" />}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -574,83 +603,84 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           )}
 
           {step === 3 && (
-            <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
-              {/* COMPOSIÇÃO DE VALORES */}
-              <div className="flex justify-between items-center mb-6">
+            <div className="animate-fade-in space-y-8 max-w-5xl mx-auto">
+              {/* HEADER DA ETAPA */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">Composição de Valores</h3>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">Vincule peças do estoque ou adicione serviços manuais</p>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">Composição de Valores</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-1">Vincule peças do estoque ou adicione serviços manuais</p>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, showValueToClient: !formData.showValueToClient })}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${formData.showValueToClient ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}
-                  >
-                    {formData.showValueToClient ? <><Eye size={14} /> Visível para Cliente</> : <><EyeOff size={14} /> Oculto para Cliente</>}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, showValueToClient: !formData.showValueToClient })}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all border ${formData.showValueToClient
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                    }`}
+                >
+                  {formData.showValueToClient ? <><Eye size={16} /> Visível para Cliente</> : <><EyeOff size={16} /> Oculto para Cliente</>}
+                </button>
               </div>
 
-              {/* Tabela de Itens */}
-              <div className="bg-slate-50/50 rounded-[2rem] border border-slate-100 overflow-hidden">
+              {/* TABELA DE ITENS */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-white text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100">
-                      <th className="px-6 py-4">Item / Descrição</th>
-                      <th className="px-6 py-4 w-24">Qtd</th>
-                      <th className="px-6 py-4 w-32">Unitário</th>
-                      <th className="px-6 py-4 w-32">Total</th>
-                      <th className="px-6 py-4 text-center w-20">Ação</th>
+                    <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                      <th className="px-8 py-5">Item / Descrição</th>
+                      <th className="px-8 py-5 w-32">Qtd</th>
+                      <th className="px-8 py-5 w-40">Unitário (R$)</th>
+                      <th className="px-8 py-5 w-40">Subtotal</th>
+                      <th className="px-8 py-5 text-center w-24">Ações</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100">
                     {items.map(item => (
-                      <tr key={item.id} className="border-b border-slate-50 last:border-0 hover:bg-white transition-colors">
-                        <td className="px-6 py-4">
+                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="px-8 py-4">
                           <input
                             type="text"
                             value={item.description}
                             onChange={e => updateItem(item.id, { description: e.target.value })}
-                            className="bg-transparent border-none text-[10px] font-black uppercase text-slate-700 outline-none w-full"
+                            className="bg-transparent border-none text-xs font-bold text-slate-700 outline-none w-full focus:ring-0"
                           />
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-8 py-4">
                           <input
                             type="number"
                             step="0.1"
                             value={item.quantity}
                             onChange={e => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
-                            className="bg-transparent border-none text-[10px] font-black uppercase text-slate-700 outline-none w-full"
+                            className="bg-slate-50 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none w-20 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all"
                           />
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1 text-[10px] font-black text-slate-700">
-                            <span>R$</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={item.unitPrice}
-                              onChange={e => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                              className="bg-transparent border-none outline-none w-full"
-                            />
-                          </div>
+                        <td className="px-8 py-4">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={item.unitPrice}
+                            onChange={e => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
+                            className="bg-slate-50 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none w-32 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all"
+                          />
                         </td>
-                        <td className="px-6 py-4">
-                          <span className="text-[10px] font-black text-indigo-600">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <td className="px-8 py-4">
+                          <span className="text-sm font-bold text-slate-900">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </td>
-                        <td className="px-6 py-4 text-center">
-                          <button onClick={() => removeItem(item.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                            <Trash2 size={14} />
+                        <td className="px-8 py-4 text-center">
+                          <button onClick={() => removeItem(item.id)} className="p-2.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
+                            <Trash2 size={16} />
                           </button>
                         </td>
                       </tr>
                     ))}
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-10 text-center text-[10px] font-black text-slate-300 uppercase italic">
-                          Nenhum item adicionado
+                        <td colSpan={5} className="px-8 py-16 text-center">
+                          <div className="flex flex-col items-center">
+                            <ShoppingCart size={32} className="text-slate-200 mb-3" />
+                            <p className="text-xs font-semibold text-slate-400">Nenhum item adicionado ao orçamento</p>
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -658,113 +688,123 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 </table>
               </div>
 
-              {/* Controles de Adição */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Busca no Estoque */}
-                <div className="space-y-3 relative">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Buscar no Estoque</label>
-                  <div className="relative">
-                    <Input
-                      placeholder="Nome da peça ou SKU..."
-                      value={stockSearch}
-                      onChange={e => { setStockSearch(e.target.value); setIsStockListOpen(true); }}
-                      onFocus={() => setIsStockListOpen(true)}
-                      icon={<Package size={14} />}
-                      className="rounded-xl"
-                    />
-                    {isStockListOpen && stockSearch && (
-                      <div className="absolute z-[180] bottom-full mb-1 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar">
-                        {filteredStock.length > 0 ? filteredStock.map(s => (
-                          <button
-                            key={s.id}
-                            onClick={() => {
-                              addItem({ description: s.description, unitPrice: s.sellPrice, fromStock: true, stockItemId: s.id });
-                              setStockSearch('');
-                              setIsStockListOpen(false);
-                            }}
-                            className="w-full text-left px-5 py-3 hover:bg-slate-50 flex justify-between items-center border-b border-slate-50 last:border-0"
-                          >
-                            <div className="flex items-center gap-3">
-                              <Box size={14} className="text-slate-400" />
-                              <div>
-                                <p className="text-[10px] font-black uppercase">{s.description}</p>
-                                <p className="text-[9px] text-emerald-600 font-bold uppercase">R$ {s.sellPrice.toLocaleString('pt-BR')}</p>
-                              </div>
-                            </div>
-                            <span className="text-[8px] font-black text-slate-300 uppercase bg-slate-100 px-2 py-1 rounded-md">Qtd: {s.quantity}</span>
-                          </button>
-                        )) : (
-                          <div className="p-4 text-center text-[10px] font-black text-slate-300 uppercase">Não encontrado</div>
+              {/* CONTROLES DE ADIÇÃO E TOTAL */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* BUSCA NO ESTOQUE */}
+                    <div className="space-y-3 relative">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Buscar no Estoque</label>
+                      <div className="relative">
+                        <div className="relative">
+                          <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input
+                            placeholder="Nome da peça ou SKU..."
+                            value={stockSearch}
+                            onChange={e => { setStockSearch(e.target.value); setIsStockListOpen(true); }}
+                            onFocus={() => setIsStockListOpen(true)}
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all shadow-sm"
+                          />
+                        </div>
+
+                        {(isStockListOpen && stockSearch) && (
+                          <div className="absolute z-[180] bottom-full mb-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto custom-scrollbar animate-in slide-in-from-bottom-2">
+                            {filteredStock.length > 0 ? filteredStock.map(s => (
+                              <button
+                                key={s.id}
+                                onClick={() => {
+                                  addItem({ description: s.description, unitPrice: s.sellPrice, fromStock: true, stockItemId: s.id });
+                                  setStockSearch('');
+                                  setIsStockListOpen(false);
+                                }}
+                                className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-50 last:border-0 group"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-[#1c2d4f10] transition-colors">
+                                    <Box size={14} className="text-slate-400 group-hover:text-[#1c2d4f]" />
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] font-bold text-slate-800">{s.description}</p>
+                                    <p className="text-[10px] text-[#1c2d4f] font-bold">R$ {s.sellPrice.toLocaleString('pt-BR')}</p>
+                                  </div>
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">Qtd: {s.quantity}</span>
+                              </button>
+                            )) : (
+                              <div className="p-6 text-center text-xs font-medium text-slate-400">Item não localizado no estoque</div>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
+                    </div>
+
+                    {/* ADIÇÃO MANUAL */}
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Adição Manual</label>
+                      <button
+                        type="button"
+                        onClick={() => addItem({ description: 'DESCREVA O SERVIÇO OU PEÇA...', unitPrice: 0 })}
+                        className="w-full h-[46px] border-2 border-dashed border-slate-200 text-slate-400 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 hover:border-[#1c2d4f] hover:text-[#1c2d4f] hover:bg-[#1c2d4f05] transition-all"
+                      >
+                        <Plus size={16} /> Novo Item Personalizado
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Adição Manual */}
-                <div className="space-y-3">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Adição Manual</label>
-                  <button
-                    type="button"
-                    onClick={() => addItem({ description: 'SERVIÇO OU PEÇA MANUAL', unitPrice: 0 })}
-                    className="w-full h-10 border-2 border-dashed border-slate-200 text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] flex items-center justify-center gap-2 hover:border-indigo-600 hover:text-indigo-600 transition-all bg-white"
-                  >
-                    <Plus size={14} /> Novo Item Manual
-                  </button>
-                </div>
-              </div>
-
-              {/* Totalizador */}
-              <div className="bg-primary-500 p-8 rounded-lg flex justify-between items-center text-white shadow-none">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/10 rounded-md flex items-center justify-center backdrop-blur-md">
-                    <DollarSign size={24} />
-                  </div>
+                {/* RESUMO DE VALORES */}
+                <div className="bg-[#1c2d4f] rounded-2xl p-8 text-white shadow-xl shadow-[#1c2d4f20] flex flex-col justify-between">
                   <div>
-                    <h4 className="text-sm font-black uppercase italic tracking-tighter">Valor Total Previsto</h4>
-                    <p className="text-[10px] uppercase font-black opacity-60">Soma de peças e mão de obra</p>
+                    <div className="flex items-center gap-3 opacity-60 mb-2">
+                      <DollarSign size={18} />
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest">Valor Total Previsto</h4>
+                    </div>
+                    <p className="text-4xl font-bold tracking-tight">
+                      R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </p>
                   </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-4xl font-black italic tracking-tighter font-mono">
-                    R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
+                  <div className="mt-6 pt-6 border-t border-white/10">
+                    <p className="text-[10px] font-medium text-white/50 leading-relaxed uppercase">
+                      Estimativa sujeita à disponibilidade técnica e variação de insumos.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {step === 4 && (
-            <div className="animate-fade-in space-y-6 max-w-2xl mx-auto">
-              <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-[2rem] flex items-center gap-6">
-                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-emerald-500 shadow-md">
-                  <CheckCircle2 size={24} />
+            <div className="animate-fade-in space-y-8 max-w-2xl mx-auto">
+              {/* REVISÃO TÉCNICA */}
+              <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-2xl flex items-center gap-6">
+                <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-emerald-500 shadow-sm border border-emerald-100">
+                  <CheckCircle2 size={28} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-emerald-900 uppercase italic">Revisão Técnica</h3>
-                  <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Protocolo pronto para emissão</p>
+                  <h3 className="text-base font-bold text-emerald-900 tracking-tight">Revisão e Finalização</h3>
+                  <p className="text-xs text-emerald-600 font-medium mt-1">Preencha os detalhes finais para emissão do protocolo técnico</p>
                 </div>
               </div>
 
-              <form id="os-form" onSubmit={handleSubmit} className="space-y-5">
+              <form id="os-form" onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 italic">Título da Atividade</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 ml-1">Título do Atendimento</label>
                   <Input
-                    placeholder="Ex: Manutenção Corretiva Compressor B..."
+                    placeholder="Ex: Manutenção Preventiva do Sistema Central..."
                     required
-                    className="rounded-xl py-3 px-4 font-bold text-sm border-slate-200"
+                    className="rounded-xl py-4 px-4 font-semibold text-sm border-slate-200 shadow-sm focus:ring-[#1c2d4f10]"
                     value={formData.title}
                     onChange={e => setFormData({ ...formData, title: e.target.value })}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 italic">Observações / Detalhes</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 ml-1">Descrição Técnico-Operacional</label>
                   <TextArea
-                    placeholder="Anotações técnicas adicionais..."
-                    rows={5}
+                    placeholder="Relate detalhadamente a necessidade do cliente e o escopo do trabalho..."
+                    rows={6}
                     required
-                    className="rounded-2xl p-6 text-xs font-medium italic border-slate-100 bg-slate-50/50"
+                    className="rounded-2xl p-6 text-sm font-medium border-slate-200 bg-white shadow-sm focus:ring-[#1c2d4f10]"
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
                   />
@@ -774,30 +814,30 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           )}
         </div>
 
-        {/* FOOTER COMPACTO */}
-        <div className="px-8 py-5 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
+        {/* FOOTER */}
+        <div className="px-8 py-5 border-t border-slate-200 bg-white flex justify-between items-center">
           <button
             type="button"
             key="back-btn"
             onClick={step > 1 ? () => setStep((step - 1) as any) : onClose}
-            className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest"
           >
-            {step === 1 ? 'Descartar' : 'Etapa Anterior'}
+            {step === 1 ? 'Cancelar Registro' : 'Voltar Etapa'}
           </button>
 
-          <div className="flex gap-3">
+          <div className="flex gap-4">
             {step < 4 ? (
               <Button
                 type="button"
                 key={`next-btn-${step}`}
-                className="rounded-lg px-8 py-2.5 font-black text-[10px] uppercase italic tracking-wider shadow-none"
+                className="bg-[#1c2d4f] hover:bg-[#2a3e66] text-white rounded-xl px-10 py-3 font-bold text-xs uppercase tracking-widest shadow-lg shadow-[#1c2d4f20] transition-all flex items-center gap-2"
                 onClick={() => {
                   if (step === 1) goToStep2();
                   else if (step === 2) setStep(3);
                   else if (step === 3) setStep(4);
                 }}
               >
-                Próximo <ChevronRight size={14} className="ml-1" />
+                Continuar <ChevronRight size={16} />
               </Button>
             ) : (
               <Button
@@ -805,9 +845,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 key="submit-btn"
                 form="os-form"
                 isLoading={loading}
-                className="rounded-xl px-12 py-3 font-black text-xs uppercase italic tracking-wider shadow-lg shadow-indigo-600/10"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-12 py-3 font-bold text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
               >
-                <Save size={16} className="mr-2" /> {initialData ? 'Atualizar OS' : 'Emitir Protocolo'}
+                <Save size={18} /> {initialData ? 'Salvar Alterações' : 'Emitir Protocolo'}
               </Button>
             )}
           </div>

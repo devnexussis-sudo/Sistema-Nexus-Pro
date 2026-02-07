@@ -15,21 +15,21 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-black uppercase tracking-tight transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed rounded-lg active:scale-95 text-[10px]';
+  const baseStyles = 'inline-flex items-center justify-center font-semibold transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed rounded-md active:scale-[0.98] shadow-sm';
 
   const variants = {
-    primary: 'bg-primary-500 hover:bg-primary-600 text-white border-b-2 border-primary-700 shadow-sm active:border-b-0',
-    'tech-primary': 'bg-success-600 hover:bg-success-500 text-white border-b-2 border-success-800 shadow-sm active:border-b-0',
-    success: 'bg-success-500 hover:bg-success-600 text-white border-b-2 border-success-700 shadow-sm active:border-b-0',
-    secondary: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm',
-    danger: 'bg-rose-600 hover:bg-rose-500 text-white border-b-2 border-rose-800 shadow-sm active:border-b-0',
-    ghost: 'bg-transparent hover:bg-slate-100 text-slate-500 hover:text-slate-900',
+    primary: 'bg-[#1c2d4f] hover:bg-[#253a66] text-white border border-[#1c2d4f]',
+    'tech-primary': 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700',
+    success: 'bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-600',
+    secondary: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200',
+    danger: 'bg-rose-500 hover:bg-rose-600 text-white border border-rose-600',
+    ghost: 'bg-transparent hover:bg-slate-100 text-slate-600 shadow-none',
   };
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
+    sm: 'px-3 py-1.5 text-xs',
+    md: 'px-4 py-2 text-sm',
+    lg: 'px-6 py-2.5 text-base',
   };
 
   return (
