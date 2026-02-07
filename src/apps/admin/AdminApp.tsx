@@ -241,23 +241,24 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     ].filter(item => item.visible);
 
     return (
-        <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
-            <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-56'} bg-primary-500 h-screen flex flex-col border-r border-white/5 shadow-none z-50 transition-all duration-300 ease-in-out relative overflow-hidden`}>
+        <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+            {/* Sidebar */}
+            <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-[#1c2d4f] h-screen flex flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative overflow-hidden`}>
                 <button
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                    className="absolute -right-3 top-20 w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center shadow-md hover:bg-primary-700 transition-all z-[60] border border-white/10"
+                    className="absolute -right-3 top-10 w-6 h-6 bg-[#1c2d4f] text-white/50 border border-white/10 rounded-full flex items-center justify-center hover:text-white transition-all z-[60]"
                 >
                     {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
                 </button>
 
-                <div className={`flex-1 overflow-y-auto overflow-x-hidden p-5 custom-scrollbar ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
-                    <div className={`flex items-center gap-3 mb-8 transition-all ${isSidebarCollapsed ? 'justify-center' : ''}`}>
-                        <div className="p-2 bg-white/10 rounded-lg shrink-0">
-                            <Hexagon size={20} className="text-white" />
+                <div className={`flex-1 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
+                    <div className={`flex items-center gap-3 mb-10 mt-2 transition-all ${isSidebarCollapsed ? 'justify-center' : 'px-2'}`}>
+                        <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center shrink-0">
+                            <Hexagon size={18} className="text-white" />
                         </div>
                         {!isSidebarCollapsed && (
-                            <h1 className="text-white font-black text-base italic uppercase">
-                                Nexus<span className="text-primary-300">.Pro</span>
+                            <h1 className="text-white font-bold text-lg tracking-tight">
+                                Nexus<span className="text-white/50">Pro</span>
                             </h1>
                         )}
                     </div>
@@ -268,15 +269,15 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                                 key={item.id}
                                 onClick={() => item.enabled && setCurrentView(item.id as any)}
                                 disabled={!item.enabled}
-                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-5'} py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-200 relative overflow-hidden ${!item.enabled
-                                    ? 'opacity-30 grayscale cursor-not-allowed'
+                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${!item.enabled
+                                    ? 'opacity-20 grayscale cursor-not-allowed'
                                     : currentView === item.id
-                                        ? 'bg-white/10 text-white italic translate-x-1'
-                                        : 'text-primary-200 hover:text-white hover:bg-white/5'
+                                        ? 'bg-white/10 text-white'
+                                        : 'text-white/70 hover:text-white hover:bg-white/5'
                                     }`}
                             >
                                 <div className="flex items-center gap-3">
-                                    <item.icon size={18} />
+                                    <item.icon size={18} className={`${currentView === item.id ? 'text-white' : 'text-white/60'}`} />
                                     {!isSidebarCollapsed && <span>{item.label}</span>}
                                 </div>
                             </button>
@@ -284,63 +285,68 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     </nav>
                 </div>
 
-                <div className={`shrink-0 p-5 space-y-3 border-t border-white/5 bg-primary-600/20 ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
+                <div className={`shrink-0 p-4 border-t border-white/5 flex flex-col gap-2 ${isSidebarCollapsed ? 'items-center' : ''}`}>
                     {isImpersonating && (
                         <button
                             onClick={() => { SessionStorage.remove('is_impersonating'); onLogout(); }}
-                            className="w-full py-4 bg-purple-600 text-white rounded-lg text-[10px] font-black uppercase transition-all duration-200"
+                            className="w-full py-2.5 bg-indigo-600/20 text-indigo-100 rounded-md text-xs font-semibold hover:bg-indigo-600/30 transition-all border border-indigo-500/20"
                         >
-                            <ShieldCheck size={18} /> {!isSidebarCollapsed && "Finalizar Auditoria"}
+                            <ShieldCheck size={16} className="inline mr-2" /> {!isSidebarCollapsed && "Finalizar Auditoria"}
                         </button>
                     )}
-                    <button onClick={onLogout} className="w-full py-4 bg-red-600/10 text-red-500 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-3 transition-all duration-200">
-                        <LogOut size={16} /> {!isSidebarCollapsed && "Sair"}
+                    <button
+                        onClick={onLogout}
+                        className="w-full py-2.5 text-white/50 hover:text-white hover:bg-white/5 rounded-md text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+                    >
+                        <LogOut size={16} /> {!isSidebarCollapsed && "Sair da Conta"}
                     </button>
                 </div>
             </aside>
 
-            <main className="flex-1 overflow-hidden flex flex-col relative bg-slate-50/50">
-                <header className="h-16 bg-white border-b border-slate-200 px-8 flex justify-between items-center z-[100]">
+            {/* Main Content */}
+            <main className="flex-1 overflow-hidden flex flex-col relative">
+                <header className="h-16 bg-white border-b border-slate-200 px-8 flex justify-between items-center z-[40]">
                     <div className="flex items-center gap-4">
-                        <div className="flex flex-col">
-                            <p className="text-[9px] font-black text-slate-400 uppercase italic">Nexus Pro / Enterprise High-Performance</p>
-                        </div>
+                        <h2 className="text-sm font-semibold text-slate-900 capitalize">
+                            {menuItems.find(m => m.id === currentView)?.label || 'Dashboard'}
+                        </h2>
                         {(isRefreshing || isFetchingAny) && (
-                            <div className="flex items-center gap-2 px-3 py-1 bg-primary-50 text-primary-600 rounded-full border border-primary-100">
-                                <RefreshCw size={10} className="animate-spin" />
-                                <span className="text-[8px] font-black uppercase tracking-widest">Sincronizando...</span>
+                            <div className="flex items-center gap-2 px-2 py-1 bg-slate-50 text-slate-500 rounded border border-slate-200">
+                                <RefreshCw size={12} className="animate-spin" />
+                                <span className="text-[10px] font-medium uppercase tracking-wider">Sincronizando</span>
                             </div>
                         )}
                     </div>
                     <div className="flex items-center gap-6">
                         <div className="flex flex-col items-end border-r border-slate-200 pr-6">
-                            <span className="text-[10px] font-black text-primary-500 uppercase italic">{auth.user?.name}</span>
+                            <span className="text-sm font-semibold text-slate-700">{auth.user?.name}</span>
+                            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">Administrador</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                             {!isOnline && (
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-full animate-pulse">
-                                    <WifiOff size={14} className="text-red-500" />
-                                    <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Offline</span>
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-50 border border-rose-100 rounded-full text-rose-600">
+                                    <WifiOff size={14} />
+                                    <span className="text-[10px] font-bold uppercase tracking-wider">Offline</span>
                                 </div>
                             )}
                             <button
                                 onClick={async () => setHealthReport(await DataService.checkSystemHealth())}
-                                className={`p-2 rounded-lg border ${oError ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white text-slate-400 border-slate-200'} hover:border-primary-500 transition-all duration-200`}
-                                title="Status do Sistema"
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md transition-all"
+                                title="Saúde do Sistema"
                             >
-                                <ShieldCheck size={18} />
+                                <ShieldCheck size={20} />
                             </button>
                             <button
                                 onClick={handleManualRefresh}
                                 disabled={isRefreshing}
-                                className="p-2 rounded-lg border bg-white border-slate-200 hover:border-primary-500 transition-all duration-200 text-slate-400 hover:text-primary-500"
+                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md transition-all"
                                 title="Atualizar Dados"
                             >
-                                <RefreshCw size={18} className={isRefreshing || isFetchingAny ? 'animate-spin text-primary-500' : ''} />
+                                <RefreshCw size={20} className={isRefreshing || isFetchingAny ? 'animate-spin text-indigo-500' : ''} />
                             </button>
-                            <button onClick={() => setShowInbox(!showInbox)} className="p-2 rounded-lg border border-slate-200 bg-white text-slate-400 hover:border-primary-500 transition-all duration-200 relative">
-                                <Bell size={18} />
-                                {systemNotifications.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>}
+                            <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md transition-all relative">
+                                <Bell size={20} />
+                                {systemNotifications.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>}
                             </button>
                         </div>
                     </div>
@@ -364,65 +370,51 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 </div>
             </main>
 
-            {/* Popups de Ação Preditiva */}
-            {showUrgentPopup && (
-                <div className="fixed inset-0 z-[1500] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
-                    <div className="bg-white rounded-[3rem] shadow-2xl p-10 max-w-sm text-center border border-white/20">
-                        <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl mx-auto flex items-center justify-center mb-6"><Bell size={32} /></div>
-                        <h2 className="text-lg font-black text-slate-900 uppercase italic mb-4">Ação Preditiva</h2>
-                        <p className="text-[11px] font-bold text-slate-500 uppercase leading-relaxed mb-8">{showUrgentPopup.message}</p>
-                        <button onClick={() => { setCurrentView('contracts'); setShowUrgentPopup(null); }} className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-xl hover:bg-indigo-700 transition-all">Ver Contrato agora</button>
-                    </div>
-                </div>
-            )}
-
-            {/* Popups e Notificações do Sistema */}
-            {/* Modal de Diagnóstico de Saúde do Sistema */}
+            {/* Health Report Modal - SaaS Style */}
             {healthReport && (
-                <div className="fixed inset-0 z-[2500] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-2xl">
-                    <div className="bg-white rounded-[4rem] p-12 max-w-2xl w-full shadow-2xl border border-white/20 overflow-hidden relative">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-                        <div className="relative z-10">
-                            <div className="flex justify-between items-center mb-10">
-                                <div>
-                                    <h2 className="text-3xl font-black uppercase italic tracking-tighter">Diagnóstico Nexus</h2>
-                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Camada de Resiliência Big-Tech</p>
-                                </div>
-                                <button onClick={() => setHealthReport(null)} className="p-4 bg-slate-100 rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-all"><X size={24} /></button>
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-xl max-w-xl w-full border border-slate-200 overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900">Status do Ecossistema</h3>
+                                <p className="text-xs text-slate-500">Diagnóstico de infraestrutura e performance.</p>
                             </div>
+                            <button onClick={() => setHealthReport(null)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-all"><X size={20} /></button>
+                        </div>
 
-                            <div className="grid grid-cols-2 gap-6 mb-10">
-                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Conectividade</p>
-                                    <p className={`text-sm font-black uppercase italic ${healthReport.connectivity === 'Healthy' ? 'text-emerald-600' : 'text-rose-600'}`}>{healthReport.connectivity}</p>
+                        <div className="p-8">
+                            <div className="grid grid-cols-2 gap-4 mb-8">
+                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Conectividade</p>
+                                    <p className={`text-sm font-semibold ${healthReport.connectivity === 'Healthy' ? 'text-emerald-600' : 'text-rose-600'}`}>{healthReport.connectivity}</p>
                                 </div>
-                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Autenticação</p>
-                                    <p className="text-sm font-black uppercase italic text-slate-700">{healthReport.auth}</p>
+                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Autenticação</p>
+                                    <p className="text-sm font-semibold text-slate-700">{healthReport.auth}</p>
                                 </div>
-                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Tenant ID</p>
-                                    <p className="text-sm font-mono text-slate-500 truncate">{healthReport.tenantId || 'NÃO IDENTIFICADO'}</p>
+                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Latência</p>
+                                    <p className="text-sm font-semibold text-indigo-600">{healthReport.latency || 'N/D'}</p>
                                 </div>
-                                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Latência</p>
-                                    <p className="text-sm font-black text-indigo-600 uppercase italic">{healthReport.latency || 'N/D'}</p>
+                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tenant Active</p>
+                                    <p className="text-xs font-mono text-slate-500 truncate">{healthReport.tenantId}</p>
                                 </div>
                             </div>
 
                             {healthReport.diagnosis && (
-                                <div className="p-8 bg-amber-50 border border-amber-200 rounded-[2.5rem] mb-10">
-                                    <div className="flex items-center gap-3 mb-3 text-amber-700">
-                                        <AlertTriangle size={20} />
-                                        <p className="text-[11px] font-black uppercase italic">Análise de Falha Identificada</p>
+                                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg mb-8">
+                                    <div className="flex items-center gap-2 text-amber-800 mb-2">
+                                        <AlertTriangle size={16} />
+                                        <p className="text-xs font-bold uppercase">Observação de falha</p>
                                     </div>
-                                    <p className="text-xs font-bold text-amber-900 leading-relaxed uppercase">{healthReport.diagnosis}</p>
+                                    <p className="text-xs font-medium text-amber-900 leading-relaxed">{healthReport.diagnosis}</p>
                                 </div>
                             )}
 
-                            <div className="flex gap-4">
-                                <Button onClick={async () => setHealthReport(await DataService.checkSystemHealth())} className="flex-1 bg-indigo-600 text-white rounded-2xl py-6 font-black uppercase text-xs italic tracking-widest shadow-xl shadow-indigo-600/20">Reciclar Conexão</Button>
-                                <Button onClick={() => window.location.reload()} className="px-10 bg-slate-100 text-slate-600 rounded-2xl py-6 font-black uppercase text-xs">Reload</Button>
+                            <div className="flex gap-3">
+                                <Button onClick={async () => setHealthReport(await DataService.checkSystemHealth())} className="flex-1 h-11">Recarregar Status</Button>
+                                <Button variant="secondary" onClick={() => window.location.reload()} className="px-8 h-11">Reload App</Button>
                             </div>
                         </div>
                     </div>
