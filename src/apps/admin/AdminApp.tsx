@@ -338,7 +338,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                         {isImpersonating && (
                             <button
                                 onClick={() => { SessionStorage.remove('is_impersonating'); onLogout(); }}
-                                className="w-full py-2.5 bg-indigo-600/20 text-indigo-100 rounded-md text-xs font-semibold hover:bg-indigo-600/30 transition-all border border-indigo-500/20"
+                                className="w-full py-2.5 bg-primary-600/20 text-primary-100 rounded-md text-xs font-semibold hover:bg-primary-600/30 transition-all border border-primary-500/20"
                             >
                                 <ShieldCheck size={16} className="inline mr-2" /> {!isSidebarCollapsed && "Finalizar Auditoria"}
                             </button>
@@ -397,7 +397,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                                 </div>
                                 <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Latência</p>
-                                    <p className="text-sm font-semibold text-indigo-600">{healthReport.latency || 'N/D'}</p>
+                                    <p className="text-sm font-semibold text-primary-600">{healthReport.latency || 'N/D'}</p>
                                 </div>
                                 <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tenant Active</p>

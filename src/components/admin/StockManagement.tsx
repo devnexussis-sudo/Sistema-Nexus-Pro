@@ -353,7 +353,7 @@ export const StockManagement: React.FC = () => {
             <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
                 {/* Tabs */}
                 <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm flex-shrink-0">
-                    <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
                         <List size={14} /> Itens
                     </button>
                     <button onClick={() => setActiveTab('categories')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'categories' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -376,7 +376,7 @@ export const StockManagement: React.FC = () => {
                             placeholder="Pesquisar estoque..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
                         />
                     </div>
                 ) : <div className="flex-1"></div>}
@@ -442,7 +442,7 @@ export const StockManagement: React.FC = () => {
                                     {loading ? (
                                         <tr>
                                             <td colSpan={8} className="py-20 text-center">
-                                                <RefreshCw size={40} className="mx-auto text-indigo-600 animate-spin mb-4" />
+                                                <RefreshCw size={40} className="mx-auto text-primary-600 animate-spin mb-4" />
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sincronizando Estoque...</p>
                                             </td>
                                         </tr>
@@ -460,7 +460,7 @@ export const StockManagement: React.FC = () => {
                                             <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-50">
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-indigo-600 uppercase">{item?.code || '---'}</span>
+                                                        <span className="text-[10px] font-black text-primary-600 uppercase">{item?.code || '---'}</span>
                                                         {item?.externalCode && (
                                                             <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1">
                                                                 <Barcode size={10} /> {item.externalCode}
@@ -493,7 +493,7 @@ export const StockManagement: React.FC = () => {
                                                 </td>
                                                 <td className="px-6 py-4 text-right pr-6">
                                                     <div className="flex items-center justify-end gap-2">
-                                                        <button onClick={() => handleOpenModal(item)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                                                        <button onClick={() => handleOpenModal(item)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all">
                                                             <Edit3 size={14} />
                                                         </button>
                                                         <button onClick={() => handleDelete(item.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
@@ -537,7 +537,7 @@ export const StockManagement: React.FC = () => {
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg">
+                                                    <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 text-slate-300 hover:text-primary-500 hover:bg-primary-50 rounded-lg">
                                                         <Edit3 size={14} />
                                                     </button>
                                                     <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg">
@@ -644,7 +644,7 @@ export const StockManagement: React.FC = () => {
                                                 <tr key={m.id} className="text-[11px]">
                                                     <td className="px-6 py-4 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString()}</td>
                                                     <td className="px-6 py-4 text-center">
-                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                                             {m.type === 'TRANSFER' ? 'Transferência' : 'Consumo'}
                                                         </span>
                                                     </td>
@@ -672,7 +672,7 @@ export const StockManagement: React.FC = () => {
                     <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-white/50">
                         <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <h2 className="text-lg font-black text-slate-800 uppercase  flex items-center gap-2">
-                                <Package className="text-indigo-600" size={20} /> Entrada Rápida
+                                <Package className="text-primary-600" size={20} /> Entrada Rápida
                             </h2>
                             <button onClick={() => setIsRestockModalOpen(false)} className="text-slate-400 hover:text-rose-500 transition-colors">
                                 <X size={20} />
@@ -689,31 +689,31 @@ export const StockManagement: React.FC = () => {
                                         value={restockSearch}
                                         onChange={e => handleRestockSearch(e.target.value)}
                                         placeholder="Digite o código exato..."
-                                        className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/30 text-slate-700 font-bold outline-none focus:ring-2 focus:ring-indigo-100 transition-all"
+                                        className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/30 text-slate-700 font-bold outline-none focus:ring-2 focus:ring-primary-100 transition-all"
                                     />
                                 </div>
                             </div>
 
                             {selectedRestockItem ? (
-                                <div className="bg-indigo-50/50 rounded-2xl p-6 border border-indigo-100 space-y-4 animate-fade-in">
+                                <div className="bg-primary-50/50 rounded-2xl p-6 border border-primary-100 space-y-4 animate-fade-in">
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <h3 className="font-black text-slate-700 uppercase text-sm">{selectedRestockItem.description}</h3>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Cód: {selectedRestockItem.code} • Atual: {selectedRestockItem.quantity} {selectedRestockItem.unit}</p>
                                         </div>
-                                        <div className="px-3 py-1 bg-white rounded-lg border border-indigo-100 text-[10px] font-black text-indigo-600 shadow-sm">
+                                        <div className="px-3 py-1 bg-white rounded-lg border border-primary-100 text-[10px] font-black text-primary-600 shadow-sm">
                                             ITEM ENCONTRADO
                                         </div>
                                     </div>
 
-                                    <form onSubmit={handleRestockSubmit} className="pt-4 border-t border-indigo-100/50 flex items-end gap-3">
+                                    <form onSubmit={handleRestockSubmit} className="pt-4 border-t border-primary-100/50 flex items-end gap-3">
                                         <div className="flex-1 space-y-1.5">
-                                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Qtd. Entrada (+)</label>
+                                            <label className="text-[9px] font-black text-primary-400 uppercase tracking-widest">Qtd. Entrada (+)</label>
                                             <input
                                                 type="number"
                                                 value={restockQuantity}
                                                 onChange={e => setRestockQuantity(e.target.value)}
-                                                className="w-full px-4 py-2 rounded-xl border border-indigo-200 text-indigo-900 font-black outline-none focus:ring-2 focus:ring-indigo-200"
+                                                className="w-full px-4 py-2 rounded-xl border border-primary-200 text-primary-900 font-black outline-none focus:ring-2 focus:ring-primary-200"
                                                 placeholder="0"
                                                 min="1"
                                                 required
@@ -721,7 +721,7 @@ export const StockManagement: React.FC = () => {
                                         </div>
                                         <button
                                             type="submit"
-                                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+                                            className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-primary-600/20 transition-all active:scale-95"
                                         >
                                             Confirmar Entrada
                                         </button>
@@ -743,12 +743,12 @@ export const StockManagement: React.FC = () => {
                     <div className="bg-white rounded-[2.5rem] w-full max-w-[95vw] lg:max-w-6xl shadow-2xl overflow-hidden animate-scale-up border border-white/50 flex flex-col max-h-[90vh]">
                         <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <div className="flex items-center gap-5">
-                                <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-600/20">
+                                <div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary-600/20">
                                     <Package size={24} />
                                 </div>
                                 <div>
                                     <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter  leading-none">{editingItem ? 'Editar Item' : 'Novo Item'}</h2>
-                                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-1 ">Cadastro de Estoque</p>
+                                    <p className="text-[10px] font-black text-primary-500 uppercase tracking-widest mt-1 ">Cadastro de Estoque</p>
                                 </div>
                             </div>
                             <button
@@ -778,7 +778,7 @@ export const StockManagement: React.FC = () => {
                                                     <button
                                                         type="button"
                                                         onClick={generateCode}
-                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-600 p-1.5 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-400 hover:text-primary-600 p-1.5 hover:bg-primary-50 rounded-lg transition-colors"
                                                         title="Gerar Código Automático"
                                                     >
                                                         <Wand2 size={14} />
@@ -814,7 +814,7 @@ export const StockManagement: React.FC = () => {
                                                 <select
                                                     value={formData.category}
                                                     onChange={e => setFormData({ ...formData, category: e.target.value })}
-                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 transition-all uppercase"
+                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all uppercase"
                                                 >
                                                     <option value="">Sem Categoria</option>
                                                     {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -826,7 +826,7 @@ export const StockManagement: React.FC = () => {
                                                 <select
                                                     value={formData.unit}
                                                     onChange={e => setFormData({ ...formData, unit: e.target.value as any })}
-                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 transition-all uppercase"
+                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all uppercase"
                                                 >
                                                     <option value="UN">Unidade (UN)</option>
                                                     <option value="CX">Caixa (CX)</option>
@@ -895,7 +895,7 @@ export const StockManagement: React.FC = () => {
                                                             value={formData.costPrice}
                                                             onChange={e => setFormData({ ...formData, costPrice: e.target.value })}
                                                             onFocus={(e) => e.target.select()}
-                                                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-indigo-300"
+                                                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-primary-300"
                                                         />
                                                     </div>
                                                 </div>
@@ -909,7 +909,7 @@ export const StockManagement: React.FC = () => {
                                                             value={formData.freightCost}
                                                             onChange={e => setFormData({ ...formData, freightCost: e.target.value })}
                                                             onFocus={(e) => e.target.select()}
-                                                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-indigo-300"
+                                                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-primary-300"
                                                         />
                                                     </div>
                                                 </div>
@@ -923,7 +923,7 @@ export const StockManagement: React.FC = () => {
                                                             value={formData.taxPercent}
                                                             onChange={e => setFormData({ ...formData, taxPercent: e.target.value })}
                                                             onFocus={(e) => e.target.select()}
-                                                            className="w-full pl-4 pr-8 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-indigo-300"
+                                                            className="w-full pl-4 pr-8 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-primary-300"
                                                             placeholder="0.00"
                                                         />
                                                     </div>
@@ -974,7 +974,7 @@ export const StockManagement: React.FC = () => {
                                                                 }
                                                             }}
                                                             onFocus={(e) => e.target.select()}
-                                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:border-indigo-300 bg-white"
+                                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:border-primary-300 bg-white"
                                                         />
                                                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
                                                     </div>
@@ -1003,7 +1003,7 @@ export const StockManagement: React.FC = () => {
                                 </button>
                                 <button
                                     onClick={handleSubmit}
-                                    className="px-10 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-indigo-600/20 bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 transition-all tracking-wider flex items-center gap-2"
+                                    className="px-10 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-primary-600/20 bg-primary-600 text-white hover:bg-primary-700 hover:-translate-y-0.5 transition-all tracking-wider flex items-center gap-2"
                                 >
                                     <Save size={16} /> Salvar Cadastro
                                 </button>

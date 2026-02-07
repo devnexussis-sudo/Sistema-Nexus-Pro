@@ -132,7 +132,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const pieColors: Record<string, string> = {
     [OrderStatus.COMPLETED]: '#10b981', // emerald-500
     [OrderStatus.IN_PROGRESS]: '#f59e0b', // amber-500
-    [OrderStatus.ASSIGNED]: '#6366f1', // indigo-500
+    [OrderStatus.ASSIGNED]: 'var(--color-primary-500, #3b82f6)', // primary-500
     [OrderStatus.PENDING]: '#94a3b8', // slate-400
     [OrderStatus.BLOCKED]: '#f43f5e', // rose-500
     [OrderStatus.CANCELED]: '#4b5563', // gray-600
@@ -455,7 +455,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                 {pmocAnalysis.visits.slice(0, 3).map((v, i) => (
                   <div key={i} className="flex justify-between items-center p-3 bg-white/5 rounded-lg border border-white/5 text-[10px] hover:bg-white/10 transition-colors cursor-default group/item">
                     <span className="font-bold uppercase truncate max-w-[150px] text-white/80 group-hover/item:text-white">{v.customerName}</span>
-                    <span className={`font-bold px-2 py-0.5 rounded-md text-[9px] ${v.daysUntil <= 3 ? 'bg-rose-500/20 text-rose-300' : 'bg-blue-500/20 text-blue-300'}`}>D-{v.daysUntil}</span>
+                    <span className={`font-bold px-2 py-0.5 rounded-md text-[9px] ${v.daysUntil <= 3 ? 'bg-rose-500/20 text-rose-300' : 'bg-primary-500/20 text-primary-300'}`}>D-{v.daysUntil}</span>
                   </div>
                 ))}
               </div>

@@ -187,19 +187,19 @@ export const FormManagement: React.FC = () => {
         <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm flex-shrink-0">
           <button
             onClick={() => setActiveTab('types')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'types' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'types' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Tag size={14} /> Tipos
           </button>
           <button
             onClick={() => setActiveTab('templates')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'templates' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'templates' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <FileText size={14} /> Modelos
           </button>
           <button
             onClick={() => setActiveTab('rules')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'rules' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'rules' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Layers size={14} /> Regras
           </button>
@@ -213,7 +213,7 @@ export const FormManagement: React.FC = () => {
             placeholder="Pesquisar..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
           />
         </div>
 
@@ -241,7 +241,7 @@ export const FormManagement: React.FC = () => {
               if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true }); setIsModalOpen(true); }
               if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '' }); setIsRuleModalOpen(true); }
             }}
-            className="rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/20 text-white whitespace-nowrap bg-indigo-600 hover:bg-indigo-700"
+            className="rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-primary-600/20 text-white whitespace-nowrap bg-primary-600 hover:bg-primary-700"
           >
             <Plus size={16} className="mr-2" />
             {activeTab === 'types' ? 'Novo Tipo' : activeTab === 'templates' ? 'Novo Modelo' : 'Nova Regra'}
@@ -252,7 +252,7 @@ export const FormManagement: React.FC = () => {
       <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="overflow-auto flex-1 p-6 custom-scrollbar">
           {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-4 text-indigo-600">
+            <div className="py-20 flex flex-col items-center justify-center gap-4 text-primary-600">
               <Loader2 size={48} className="animate-spin" />
               <p className="text-xs font-black uppercase tracking-widest italic">Sincronizando com a Cloud Nexus...</p>
             </div>
@@ -264,11 +264,11 @@ export const FormManagement: React.FC = () => {
                   {filteredTypes.map(type => (
                     <div key={type.id} className="bg-gray-50/50 p-6 rounded-[2.5rem] border border-gray-100 flex items-center justify-between group hover:bg-white transition-all">
                       <div className="flex items-center gap-4">
-                        <div className="p-3 bg-white rounded-2xl text-indigo-600 shadow-sm"><Tag size={20} /></div>
+                        <div className="p-3 bg-white rounded-2xl text-primary-600 shadow-sm"><Tag size={20} /></div>
                         <span className="font-bold text-gray-900 uppercase text-xs tracking-tight">{type.name}</span>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button onClick={() => { setEditingType(type); setIsTypeModalOpen(true); }} className="p-2 text-gray-400 hover:text-indigo-600"><Edit2 size={16} /></button>
+                        <button onClick={() => { setEditingType(type); setIsTypeModalOpen(true); }} className="p-2 text-gray-400 hover:text-primary-600"><Edit2 size={16} /></button>
                         <button onClick={(e) => handleDeleteType(type.id, e)} className="p-2 text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
                       </div>
                     </div>
@@ -280,12 +280,12 @@ export const FormManagement: React.FC = () => {
               {activeTab === 'templates' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {filteredForms.map(form => (
-                    <div key={form.id} className="bg-gray-50/30 p-8 rounded-[3rem] border border-gray-100 hover:border-indigo-200 hover:bg-white transition-all group relative overflow-hidden">
+                    <div key={form.id} className="bg-gray-50/30 p-8 rounded-[3rem] border border-gray-100 hover:border-primary-200 hover:bg-white transition-all group relative overflow-hidden">
                       <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                        <button onClick={() => { setEditingForm(form); setIsModalOpen(true); }} className="p-3 bg-white text-indigo-600 rounded-2xl shadow-md"><Edit2 size={16} /></button>
+                        <button onClick={() => { setEditingForm(form); setIsModalOpen(true); }} className="p-3 bg-white text-primary-600 rounded-2xl shadow-md"><Edit2 size={16} /></button>
                         <button onClick={(e) => handleDeleteForm(form.id, e)} className="p-3 bg-white text-red-500 rounded-2xl shadow-md"><Trash2 size={16} /></button>
                       </div>
-                      <div className="p-5 bg-white rounded-[2rem] shadow-sm border border-gray-100 w-fit mb-6 text-indigo-600"><FileText size={32} /></div>
+                      <div className="p-5 bg-white rounded-[2rem] shadow-sm border border-gray-100 w-fit mb-6 text-primary-600"><FileText size={32} /></div>
                       <h3 className="text-xl font-black text-gray-900 mb-2 tracking-tight">{form.title}</h3>
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{form.fields.length} Questões Configuradas</p>
                     </div>
@@ -303,7 +303,7 @@ export const FormManagement: React.FC = () => {
                     {filteredRules.map(rule => (
                       <div key={rule.id} className="bg-white border border-gray-100 p-8 rounded-[3rem] shadow-sm flex flex-col md:flex-row items-center gap-8 group hover:shadow-xl transition-all">
                         <div className="flex-1 flex flex-col md:flex-row items-center gap-8 w-full">
-                          <div className="bg-indigo-50 p-6 rounded-[2rem] text-indigo-600 flex flex-col items-center justify-center min-w-[180px]">
+                          <div className="bg-primary-50 p-6 rounded-[2rem] text-primary-600 flex flex-col items-center justify-center min-w-[180px]">
                             <Tag size={20} className="mb-2 opacity-50" />
                             <span className="text-[10px] font-black text-center uppercase leading-tight">
                               {serviceTypes.find(t => t.id === rule.serviceTypeId || t.id === (rule as any).service_type_id)?.name || 'Desconhecido'}
@@ -316,7 +316,7 @@ export const FormManagement: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex-1 flex items-center gap-6 bg-gray-50 px-8 py-6 rounded-[2.5rem] border border-dashed border-gray-200 w-full">
-                          <Workflow className="text-indigo-400" size={28} />
+                          <Workflow className="text-primary-400" size={28} />
                           <div className="flex-1">
                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Abre o Checklist:</p>
                             <p className="font-black text-gray-900 text-lg tracking-tight">
@@ -358,7 +358,7 @@ export const FormManagement: React.FC = () => {
                 label="Nome do Atendimento (Ex: Garantia)"
                 value={editingType.name}
                 onChange={e => setEditingType({ ...editingType, name: e.target.value })}
-                className="rounded-2xl py-5 font-black text-lg border-indigo-100 bg-indigo-50/10"
+                className="rounded-2xl py-5 font-black text-lg border-primary-100 bg-primary-50/10"
               />
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest px-2 italic">
                 Dica: Use o mesmo nome que deseja exibir na abertura da Ordem de Serviço.
@@ -366,7 +366,7 @@ export const FormManagement: React.FC = () => {
             </div>
             <div className="p-10 bg-gray-50 border-t border-gray-100 flex justify-end gap-6 rounded-b-[4rem]">
               <Button variant="secondary" className="rounded-2xl px-8" onClick={() => setIsTypeModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSaveType} className="rounded-2xl px-12 shadow-xl shadow-indigo-600/20 font-black italic">
+              <Button onClick={handleSaveType} className="rounded-2xl px-12 shadow-xl shadow-primary-600/20 font-black italic">
                 <Save size={20} className="mr-3" /> Salvar Tipo
               </Button>
             </div>
@@ -380,7 +380,7 @@ export const FormManagement: React.FC = () => {
           <div className="bg-white rounded-[4rem] w-full max-w-5xl shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[94vh] animate-fade-in-up">
             <div className="p-12 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
               <div className="flex items-center gap-6">
-                <div className="p-6 bg-indigo-50 text-indigo-600 rounded-[2rem]"><Settings2 size={40} /></div>
+                <div className="p-6 bg-primary-50 text-primary-600 rounded-[2rem]"><Settings2 size={40} /></div>
                 <div>
                   <h2 className="text-3xl font-black text-gray-900 tracking-tighter italic uppercase">Checklist Técnico</h2>
                   <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Estruture os campos de coleta de dados</p>
@@ -393,21 +393,21 @@ export const FormManagement: React.FC = () => {
                 label="Nome do Modelo"
                 value={editingForm.title}
                 onChange={e => setEditingForm({ ...editingForm, title: e.target.value })}
-                className="rounded-2xl py-5 font-black text-xl border-indigo-100 bg-indigo-50/5"
+                className="rounded-2xl py-5 font-black text-xl border-primary-100 bg-primary-50/5"
               />
               <div className="space-y-6">
                 <div className="flex items-center justify-between px-2">
-                  <h3 className="text-xs font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2"><List size={16} /> Campos do Formulário</h3>
-                  <Button onClick={addField} variant="secondary" className="rounded-2xl border-indigo-200 text-indigo-600 px-8 py-3 font-black"><Plus size={20} className="mr-2" /> Adicionar Pergunta</Button>
+                  <h3 className="text-xs font-black text-primary-600 uppercase tracking-[0.2em] flex items-center gap-2"><List size={16} /> Campos do Formulário</h3>
+                  <Button onClick={addField} variant="secondary" className="rounded-2xl border-primary-200 text-primary-600 px-8 py-3 font-black"><Plus size={20} className="mr-2" /> Adicionar Pergunta</Button>
                 </div>
                 <div className="grid grid-cols-1 gap-6">
                   {(editingForm.fields || []).map((field, index) => (
-                    <div key={field.id} className="relative bg-white border-2 border-slate-100 rounded-[3rem] p-8 shadow-sm hover:border-indigo-200 hover:shadow-2xl transition-all group">
+                    <div key={field.id} className="relative bg-white border-2 border-slate-100 rounded-[3rem] p-8 shadow-sm hover:border-primary-200 hover:shadow-2xl transition-all group">
                       {/* CARD HEADER: LOGIC & DELETE */}
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 pb-6 border-b border-slate-50">
                         <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-2xl border border-indigo-100">
-                            <span className="text-[10px] font-black text-indigo-600 uppercase">Pergunta #{index + 1}</span>
+                          <div className="flex items-center gap-2 bg-primary-50 px-4 py-2 rounded-2xl border border-primary-100">
+                            <span className="text-[10px] font-black text-primary-600 uppercase">Pergunta #{index + 1}</span>
                           </div>
 
                           {/* REQUIRED TOGGLE */}
@@ -467,7 +467,7 @@ export const FormManagement: React.FC = () => {
                         <div className="md:col-span-4">
                           <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2 block">Tipo de Resposta</label>
                           <select
-                            className="w-full bg-slate-50 border-transparent rounded-2xl px-6 py-4 text-xs font-black text-slate-700 focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                            className="w-full bg-slate-50 border-transparent rounded-2xl px-6 py-4 text-xs font-black text-slate-700 focus:ring-4 focus:ring-primary-100 transition-all outline-none"
                             value={field.type}
                             onChange={e => setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, type: e.target.value as FormFieldType } : f) })}
                           >
@@ -481,10 +481,10 @@ export const FormManagement: React.FC = () => {
 
                         {/* Configuração de Alternativas */}
                         {field.type === FormFieldType.SELECT && (
-                          <div className="col-span-12 bg-indigo-50/30 p-8 rounded-[2.5rem] border-2 border-indigo-100/50 space-y-4">
+                          <div className="col-span-12 bg-primary-50/30 p-8 rounded-[2.5rem] border-2 border-primary-100/50 space-y-4">
                             <div className="flex items-center gap-3">
-                              <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-md"><List size={14} /></div>
-                              <span className="text-[10px] font-black uppercase text-indigo-600">Configurar Alternativas</span>
+                              <div className="p-2 bg-primary-600 text-white rounded-xl shadow-md"><List size={14} /></div>
+                              <span className="text-[10px] font-black uppercase text-primary-600">Configurar Alternativas</span>
                             </div>
                             <Input
                               placeholder="Sim, Não, Regular, Pequeno Vazamento..."
@@ -496,11 +496,11 @@ export const FormManagement: React.FC = () => {
                                   fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, options: newOptions } : f)
                                 });
                               }}
-                              className="bg-white border-indigo-200 font-bold"
+                              className="bg-white border-primary-200 font-bold"
                             />
                             <div className="flex gap-2 flex-wrap">
                               {field.options?.filter(o => o.trim()).map((opt, idx) => (
-                                <span key={idx} className="bg-white text-indigo-600 border border-indigo-200 px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-sm">
+                                <span key={idx} className="bg-white text-primary-600 border border-primary-200 px-4 py-2 rounded-xl text-[9px] font-black uppercase shadow-sm">
                                   {opt}
                                 </span>
                               ))}
@@ -601,7 +601,7 @@ export const FormManagement: React.FC = () => {
             </div>
             <div className="p-12 border-t border-gray-100 bg-gray-50 flex justify-end gap-6 sticky bottom-0 z-10 rounded-b-[4rem]">
               <Button variant="secondary" className="rounded-[1.5rem] px-12" onClick={() => setIsModalOpen(false)}>Descartar</Button>
-              <Button onClick={handleSaveForm} className="rounded-[1.5rem] px-20 shadow-2xl shadow-indigo-600/30 font-black italic">
+              <Button onClick={handleSaveForm} className="rounded-[1.5rem] px-20 shadow-2xl shadow-primary-600/30 font-black italic">
                 <Save size={24} className="mr-3" /> Gravar Modelo
               </Button>
             </div>
@@ -622,9 +622,9 @@ export const FormManagement: React.FC = () => {
             </div>
             <div className="p-10 space-y-10">
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-2 block">1. Se o Tipo de Serviço for:</label>
+                <label className="text-[10px] font-black text-primary-600 uppercase tracking-widest px-2 block">1. Se o Tipo de Serviço for:</label>
                 <select
-                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-indigo-100"
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-primary-100"
                   value={editingRule.serviceTypeId}
                   onChange={e => setEditingRule({ ...editingRule, serviceTypeId: e.target.value })}
                 >
@@ -633,9 +633,9 @@ export const FormManagement: React.FC = () => {
                 </select>
               </div>
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-2 block">2. E a Família do Equipamento for:</label>
+                <label className="text-[10px] font-black text-primary-600 uppercase tracking-widest px-2 block">2. E a Família do Equipamento for:</label>
                 <select
-                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-indigo-100"
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-primary-100"
                   value={editingRule.equipmentFamily}
                   onChange={e => setEditingRule({ ...editingRule, equipmentFamily: e.target.value })}
                 >
@@ -657,7 +657,7 @@ export const FormManagement: React.FC = () => {
             </div>
             <div className="p-10 bg-gray-50 border-t border-gray-100 flex justify-end gap-6 rounded-b-[4rem]">
               <Button variant="secondary" className="rounded-2xl px-8" onClick={() => setIsRuleModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSaveRule} className="rounded-2xl px-12 shadow-xl shadow-indigo-600/20 font-black italic">
+              <Button onClick={handleSaveRule} className="rounded-2xl px-12 shadow-xl shadow-primary-600/20 font-black italic">
                 <Workflow size={20} className="mr-3" /> Aplicar Vínculo
               </Button>
             </div>

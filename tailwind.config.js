@@ -21,6 +21,8 @@ export default {
                     500: '#1c2d4f', // Nexus Pro Primary
                     600: '#162441',
                     700: '#121d33',
+                    800: '#0e1729',
+                    900: '#0a111f',
                 },
                 success: {
                     500: '#10b981',

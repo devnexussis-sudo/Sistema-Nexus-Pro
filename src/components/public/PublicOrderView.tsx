@@ -59,7 +59,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   };
 
   return (
-    <div className={`${isPrint ? 'bg-white p-0' : 'bg-[#F5F7FA] pb-20'} font-sans selection:bg-indigo-100 selection:text-indigo-900`}>
+    <div className={`${isPrint ? 'bg-white p-0' : 'bg-[#F5F7FA] pb-20'} font-sans selection:bg-primary-100 selection:text-primary-900`}>
 
       {/* NAVEGAÇÃO WEB - Somente Tela */}
       {!isPrint && (
@@ -79,25 +79,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   <div className="flex flex-wrap items-center gap-x-4">
                     {companyPhone && (
                       <span className="flex items-center gap-1.5 text-[8px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                        <Phone size={10} className="text-indigo-500" /> {companyPhone}
+                        <Phone size={10} className="text-primary-500" /> {companyPhone}
                       </span>
                     )}
                     {companyEmail && (
                       <span className="flex items-center gap-1.5 text-[8px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                        <Mail size={10} className="text-indigo-500" /> {companyEmail}
+                        <Mail size={10} className="text-primary-500" /> {companyEmail}
                       </span>
                     )}
                   </div>
                   {companyAddress && (
                     <span className="flex items-center gap-1.5 text-[8px] font-bold text-slate-400 uppercase tracking-widest max-w-[600px] truncate">
-                      <MapPin size={10} className="text-indigo-500" /> {companyAddress}
+                      <MapPin size={10} className="text-primary-500" /> {companyAddress}
                     </span>
                   )}
                 </div>
                 <NexusBranding size="sm" className="opacity-40 ml-2 mt-1 md:hidden" />
               </div>
             </div>
-            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-indigo-600 text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg active:scale-95">
+            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-primary-600 text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-primary-700 transition-all shadow-lg active:scale-95">
               <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Imprimir</span>
             </button>
           </div>
@@ -434,13 +434,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 space-y-4">
-                <div className="flex items-center gap-2 text-indigo-600 pb-2 border-b border-slate-50">
+                <div className="flex items-center gap-2 text-primary-600 pb-2 border-b border-slate-50">
                   <UserIcon size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Informações do Cliente</span>
                 </div>
                 <p className="text-sm font-black text-slate-900 uppercase">{order.customerName}</p>
               </div>
               <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 space-y-4">
-                <div className="flex items-center gap-2 text-indigo-600 pb-2 border-b border-slate-50">
+                <div className="flex items-center gap-2 text-primary-600 pb-2 border-b border-slate-50">
                   <MapPin size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Localização da Atividade</span>
                 </div>
                 <p className="text-[11px] font-bold text-slate-900 uppercase">{order.customerAddress}</p>
@@ -482,7 +482,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
             <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="p-6 sm:p-8 space-y-6">
-                <div className="flex items-center gap-2 text-indigo-600 pb-2 border-b border-slate-50">
+                <div className="flex items-center gap-2 text-primary-600 pb-2 border-b border-slate-50">
                   <Box size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Ativo / Equipamento Vinculado</span>
                 </div>
                 <div className="flex items-center gap-4 sm:gap-5">
@@ -500,7 +500,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
             {/* RELATÓRIO TÉCNICO E EXECUÇÃO (WEB) */}
             <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 space-y-6">
-              <div className="flex items-center gap-2 text-indigo-600 pb-2 border-b border-slate-50">
+              <div className="flex items-center gap-2 text-primary-600 pb-2 border-b border-slate-50">
                 <FileText size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Relatório Técnico de Execução</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -517,8 +517,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   <p className="text-xs font-black text-slate-900">{order.endDate ? new Date(order.endDate).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '--:--'}</p>
                 </div>
               </div>
-              <div className="p-6 bg-indigo-50/30 rounded-2xl border border-indigo-100/50">
-                <p className="text-[9px] font-black text-indigo-600 uppercase mb-3 tracking-widest flex items-center gap-2">
+              <div className="p-6 bg-primary-50/30 rounded-2xl border border-primary-100/50">
+                <p className="text-[9px] font-black text-primary-600 uppercase mb-3 tracking-widest flex items-center gap-2">
                   <CheckCircle2 size={12} /> Descrição Técnica das Atividades
                 </p>
                 <p className="text-sm font-bold text-slate-700 leading-relaxed uppercase italic">
@@ -529,7 +529,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               {/* Valores e Peças (Modo Web) */}
               {order.showValueToClient && order.items && order.items.length > 0 && (
                 <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
+                  <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest flex items-center gap-2">
                     <DollarSign size={16} /> Composição de Valores e Materiais
                   </p>
 
@@ -561,7 +561,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     </table>
                   </div>
 
-                  <div className="bg-indigo-600 p-6 rounded-2xl flex justify-between items-center text-white shadow-lg shadow-indigo-600/20">
+                  <div className="bg-primary-600 p-6 rounded-2xl flex justify-between items-center text-white shadow-lg shadow-primary-600/20">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-white/10 rounded-xl"><DollarSign size={20} /></div>
                       <div>
@@ -632,8 +632,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
                         return (
                           <div key={key} className="space-y-3">
-                            <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-wide flex items-center gap-2">
-                              <div className="w-1 h-1 bg-indigo-400 rounded-full" />
+                            <h4 className="text-[10px] font-black text-primary-600 uppercase tracking-wide flex items-center gap-2">
+                              <div className="w-1 h-1 bg-primary-400 rounded-full" />
                               {key}
                             </h4>
                             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">

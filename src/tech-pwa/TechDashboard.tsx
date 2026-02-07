@@ -197,9 +197,9 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
           </div>
           <div
             onClick={() => handleKPISelect(OrderStatus.IN_PROGRESS)}
-            className={`cursor-pointer border transition-all rounded-2xl p-3 flex flex-col items-center ${statusFilter === OrderStatus.IN_PROGRESS ? 'bg-blue-500 border-blue-400 shadow-lg shadow-blue-500/30' : 'bg-white/5 border-white/10'}`}
+            className={`cursor-pointer border transition-all rounded-2xl p-3 flex flex-col items-center ${statusFilter === OrderStatus.IN_PROGRESS ? 'bg-primary-500 border-primary-400 shadow-lg shadow-primary-500/30' : 'bg-white/5 border-white/10'}`}
           >
-            <div className={`p-2 rounded-lg mb-1 ${statusFilter === OrderStatus.IN_PROGRESS ? 'bg-white/20 text-white' : 'bg-blue-500/20 text-blue-400'}`}><RefreshCw size={14} /></div>
+            <div className={`p-2 rounded-lg mb-1 ${statusFilter === OrderStatus.IN_PROGRESS ? 'bg-white/20 text-white' : 'bg-primary-500/20 text-primary-400'}`}><RefreshCw size={14} /></div>
             <p className={`text-[7px] uppercase ${statusFilter === OrderStatus.IN_PROGRESS ? 'text-white/80' : 'text-white/40'}`}>Em Execução</p>
             <p className="text-sm font-black text-white">{inProgress}</p>
           </div>
@@ -323,13 +323,13 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
               className={`bg-white border-2 rounded-[1.5rem] p-4 relative overflow-hidden shadow-sm active:scale-95 transition-all cursor-pointer ${isCritical ? 'border-red-500/10 bg-red-50/5' : 'border-gray-200/60'}`}
             >
               <div className={`absolute left-0 top-0 bottom-0 w-1 ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-500' :
-                (isCritical ? 'bg-red-600 animate-pulse' : 'bg-indigo-600')
+                (isCritical ? 'bg-red-600 animate-pulse' : 'bg-primary-600')
                 }`}></div>
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg uppercase">OS #{order.id}</span>
+                    <span className="text-[9px] font-black text-primary-600 bg-primary-50 px-2 py-1 rounded-lg uppercase">OS #{order.id}</span>
                     {isCritical && (
                       <span className="flex items-center gap-1 text-[8px] font-black text-red-600 bg-red-100 px-2 py-1 rounded-lg uppercase animate-pulse">
                         <AlertTriangle size={10} /> Urgente
@@ -370,14 +370,14 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
                       window.open(googleMapsUrl, '_blank');
                     }
                   }}
-                  className="w-full flex items-center justify-between text-indigo-600 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 active:scale-95 transition-all hover:bg-indigo-100/50"
+                  className="w-full flex items-center justify-between text-primary-600 bg-primary-50/50 p-3 rounded-xl border border-primary-100 active:scale-95 transition-all hover:bg-primary-100/50"
                   title="Abrir no GPS"
                 >
                   <div className="flex items-center gap-2 overflow-hidden">
                     <MapPin size={14} className="shrink-0" />
-                    <span className="text-[10px] font-black text-indigo-800 truncate uppercase italic">{order.customerAddress}</span>
+                    <span className="text-[10px] font-black text-primary-800 truncate uppercase italic">{order.customerAddress}</span>
                   </div>
-                  <Navigation2 size={12} className="shrink-0 text-indigo-400" />
+                  <Navigation2 size={12} className="shrink-0 text-primary-400" />
                 </button>
 
                 {/* BOTÕES DE AÇÃO RÁPIDA (CONCLUÍDAS/IMPEDIDAS) */}
@@ -432,12 +432,12 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
                 onPageChange(currentPage - 1);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${currentPage === 1 || isFetching ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-indigo-600 border-indigo-100 shadow-sm active:scale-95'}`}
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${currentPage === 1 || isFetching ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-primary-600 border-primary-100 shadow-sm active:scale-95'}`}
             >
               Anterior
             </button>
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Pág. <span className="text-indigo-600">{currentPage}</span> de {totalPages}
+              Pág. <span className="text-primary-600">{currentPage}</span> de {totalPages}
             </span>
             <button
               disabled={currentPage === totalPages || isFetching}
@@ -445,7 +445,7 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
                 onPageChange(currentPage + 1);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${currentPage === totalPages || isFetching ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-indigo-600 border-indigo-100 shadow-sm active:scale-95'}`}
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${currentPage === totalPages || isFetching ? 'bg-gray-50 text-gray-300 border-gray-100' : 'bg-white text-primary-600 border-primary-100 shadow-sm active:scale-95'}`}
             >
               Próxima
             </button>

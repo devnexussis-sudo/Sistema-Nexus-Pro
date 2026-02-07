@@ -175,7 +175,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
             placeholder={activeTab === 'list' ? "Localizar por modelo ou serial..." : "Localizar categoria..."}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+            className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
           />
         </div>
 
@@ -220,15 +220,15 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </thead>
               <tbody>
                 {filteredItems.map((e: any) => (
-                  <tr key={e.id} className="bg-white hover:bg-indigo-50/30 transition-all group shadow-sm cursor-pointer">
+                  <tr key={e.id} className="bg-white hover:bg-primary-50/30 transition-all group shadow-sm cursor-pointer">
                     <td className="px-8 py-6 rounded-l-[2rem] border border-slate-100 border-r-0 font-black text-xs">
                       <div className="flex items-center gap-5">
-                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-indigo-400 shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-primary-400 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all">
                           <Box size={22} />
                         </div>
                         <div>
                           <p className="text-slate-900 uppercase italic tracking-tight">{e.model}</p>
-                          <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mt-1 italic">{e.familyName}</p>
+                          <p className="text-[9px] font-black text-primary-400 uppercase tracking-widest mt-1 italic">{e.familyName}</p>
                         </div>
                       </div>
                     </td>
@@ -249,7 +249,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           {e.active ? <PowerOff size={18} /> : <Power size={18} />}
                         </button>
 
-                        <button onClick={() => { setEqFormData(e); setEditingId(e.id); setIsModalOpen(true); }} className="p-3 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-indigo-100 transition-all"><Edit2 size={18} /></button>
+                        <button onClick={() => { setEqFormData(e); setEditingId(e.id); setIsModalOpen(true); }} className="p-3 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all"><Edit2 size={18} /></button>
                       </div>
                     </td>
                   </tr>
@@ -268,10 +268,10 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </thead>
               <tbody>
                 {filteredItems.map((f: any) => (
-                  <tr key={f.id} className="bg-white hover:bg-indigo-50/30 transition-all group shadow-sm cursor-pointer">
+                  <tr key={f.id} className="bg-white hover:bg-primary-50/30 transition-all group shadow-sm cursor-pointer">
                     <td className="px-8 py-6 rounded-l-[2rem] border border-slate-100 border-r-0 font-black text-xs">
                       <div className="flex items-center gap-5">
-                        <div className="p-4 rounded-2xl bg-indigo-50 text-indigo-600 shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                        <div className="p-4 rounded-2xl bg-primary-50 text-primary-600 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all">
                           <Layers size={22} />
                         </div>
                         <p className="text-slate-900 uppercase italic tracking-tight">{f.name}</p>
@@ -288,7 +288,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         <button onClick={() => setFamilies(families.map(item => item.id === f.id ? { ...item, active: !item.active } : item))} className={`p-3 rounded-xl shadow-sm border border-transparent transition-all ${f.active ? 'bg-slate-50 text-amber-500 hover:bg-amber-50' : 'bg-slate-50 text-emerald-500 hover:bg-emerald-50'}`}>
                           {f.active ? <PowerOff size={18} /> : <Power size={18} />}
                         </button>
-                        <button onClick={() => { setFamilyFormData(f); setEditingId(f.id); setIsModalOpen(true); }} className="p-3 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-indigo-100 transition-all"><Edit2 size={18} /></button>
+                        <button onClick={() => { setFamilyFormData(f); setEditingId(f.id); setIsModalOpen(true); }} className="p-3 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all"><Edit2 size={18} /></button>
                       </div>
                     </td>
                   </tr>
@@ -326,7 +326,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                     <div className="w-full">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2 block italic">Família Técnica</label>
                       <select
-                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-black uppercase text-slate-900 focus:ring-4 focus:ring-indigo-100 transition-all"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-black uppercase text-slate-900 focus:ring-4 focus:ring-primary-100 transition-all"
                         required
                         value={eqFormData.familyId || ''}
                         onChange={e => setEqFormData({ ...eqFormData, familyId: e.target.value })}
@@ -338,7 +338,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                     <div className="w-full">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2 block italic">Cliente Proprietário</label>
                       <select
-                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-black uppercase text-slate-900 focus:ring-4 focus:ring-indigo-100 transition-all"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-black uppercase text-slate-900 focus:ring-4 focus:ring-primary-100 transition-all"
                         required
                         value={eqFormData.customerId || ''}
                         onChange={e => setEqFormData({ ...eqFormData, customerId: e.target.value })}

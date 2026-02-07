@@ -383,12 +383,12 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         <header className="flex justify-between items-end border-b border-white/5 pb-10">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-indigo-600 rounded-lg shadow-lg shadow-indigo-500/20">
+              <div className="p-2 bg-primary-600 rounded-lg shadow-lg shadow-primary-500/20">
                 <ShieldCheck size={24} />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-400">Master Control</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary-400">Master Control</span>
             </div>
-            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Nexus <span className="text-indigo-500">Global</span></h1>
+            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Nexus <span className="text-primary-500">Global</span></h1>
             <p className="text-gray-500 text-sm mt-2 font-medium">Provisionamento inteligente e auditoria de ecossistemas técnicos.</p>
           </div>
           <div className="flex gap-4">
@@ -396,22 +396,22 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
               <LogOut size={18} className="mr-2" /> Sair
             </NexusButton>
             <NexusButton onClick={() => setIsMessageModalOpen(true)} variant="secondary" className="rounded-2xl px-6 py-6 font-black uppercase tracking-widest text-[10px] bg-white/5 border-white/10 hover:bg-white/10 transition-all">
-              <MessageSquare size={18} className="mr-2 text-indigo-400" /> Enviar Comunicado
+              <MessageSquare size={18} className="mr-2 text-primary-400" /> Enviar Comunicado
             </NexusButton>
-            <NexusButton onClick={() => setIsModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-500 rounded-2xl px-8 py-6 font-black italic shadow-2xl shadow-indigo-500/20 active:scale-95 transition-all">
+            <NexusButton onClick={() => setIsModalOpen(true)} className="bg-primary-600 hover:bg-primary-500 rounded-2xl px-8 py-6 font-black italic shadow-2xl shadow-primary-500/20 active:scale-95 transition-all">
               <Plus size={20} className="mr-2" /> Provisionar Empresa
             </NexusButton>
           </div>
         </header>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl hover:border-indigo-500/20 transition-colors group">
-            <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl mb-4 w-fit group-hover:scale-110 transition-transform"><Globe size={22} /></div>
+          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl hover:border-primary-500/20 transition-colors group">
+            <div className="p-3 bg-primary-500/10 text-primary-400 rounded-2xl mb-4 w-fit group-hover:scale-110 transition-transform"><Globe size={22} /></div>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Empresas</p>
             <p className="text-3xl font-black mt-3 leading-none italic">{tenants.length}</p>
           </div>
-          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl hover:border-blue-500/20 transition-colors group">
-            <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl mb-4 w-fit group-hover:scale-110 transition-transform"><Users size={22} /></div>
+          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl hover:border-primary-500/20 transition-colors group">
+            <div className="p-3 bg-primary-500/10 text-primary-400 rounded-2xl mb-4 w-fit group-hover:scale-110 transition-transform"><Users size={22} /></div>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Técnicos Ativos</p>
             <p className="text-3xl font-black mt-3 leading-none italic">{tenants.reduce((acc, t) => acc + (Number(t.active_techs || (t as any).activeTechs) || 0), 0)}</p>
           </div>
@@ -420,8 +420,8 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">OS Geradas</p>
             <p className="text-3xl font-black mt-3 leading-none italic">{tenants.reduce((acc, t) => acc + (Number(t.os_count || (t as any).osCount) || 0), 0)}</p>
           </div>
-          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl hover:border-indigo-500/20 transition-colors group">
-            <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl mb-4 w-fit group-hover:scale-110 transition-transform"><Database size={22} /></div>
+          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl hover:border-primary-500/20 transition-colors group">
+            <div className="p-3 bg-primary-500/10 text-primary-400 rounded-2xl mb-4 w-fit group-hover:scale-110 transition-transform"><Database size={22} /></div>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Ativos Geridos</p>
             <p className="text-3xl font-black mt-3 leading-none italic">{tenants.reduce((acc, t) => acc + (Number(t.equipment_count || (t as any).equipmentCount) || 0), 0)}</p>
           </div>
@@ -437,7 +437,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">Instâncias Corporativas Isoladas</h2>
             <div className="relative">
               <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" />
-              <input type="text" placeholder="Buscar empresa ou ID..." className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500/50" />
+              <input type="text" placeholder="Buscar empresa ou ID..." className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:border-primary-500/50" />
             </div>
           </div>
 
@@ -453,13 +453,13 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
                   {/* Info Principal */}
                   <div className="flex items-center gap-8 flex-1 w-full">
-                    <div className="w-20 h-20 bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-[2rem] flex items-center justify-center font-black text-3xl italic shadow-2xl shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+                    <div className="w-20 h-20 bg-gradient-to-br from-primary-600 to-primary-700 rounded-[2rem] flex items-center justify-center font-black text-3xl italic shadow-2xl shadow-primary-500/20 group-hover:scale-105 transition-transform">
                       {displayTitle.charAt(0)}
                     </div>
                     <div>
                       <h3 className="text-2xl font-black italic tracking-tighter uppercase leading-none">{displayTitle}</h3>
                       <div className="flex flex-wrap items-center gap-4 mt-3">
-                        <span className="text-[9px] font-black text-indigo-400 uppercase bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20 shadow-sm">ID: {displayId}</span>
+                        <span className="text-[9px] font-black text-primary-400 uppercase bg-primary-500/10 px-3 py-1 rounded-full border border-primary-500/20 shadow-sm">ID: {displayId}</span>
                         <span className="text-[9px] font-black text-gray-500 uppercase flex items-center gap-1.5"><Mail size={12} /> {displayEmail}</span>
                         {tenant.status === 'suspended' ? (
                           <span className="text-[9px] font-black text-red-400 uppercase flex items-center gap-1.5"><ShieldAlert size={12} className="text-red-500" /> Suspensa</span>
@@ -550,7 +550,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                     </button>
                     <button
                       onClick={() => switchToTenant(tenant)}
-                      className="flex-[2] xl:flex-none flex items-center justify-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase italic tracking-widest shadow-xl shadow-indigo-600/20 hover:bg-indigo-500 transition-all active:scale-95"
+                      className="flex-[2] xl:flex-none flex items-center justify-center gap-3 px-8 py-4 bg-primary-600 text-white rounded-2xl font-black text-[10px] uppercase italic tracking-widest shadow-xl shadow-primary-600/20 hover:bg-primary-500 transition-all active:scale-95"
                     >
                       <LayoutDashboard size={18} /> Acessar Painel
                     </button>
@@ -568,14 +568,14 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             <div className="bg-[#16161e] rounded-[4rem] w-full max-w-5xl shadow-2xl border border-white/10 animate-fade-in-up my-auto">
               <div className="p-12 border-b border-white/5 flex justify-between items-center">
                 <div className="flex items-center gap-6">
-                  <div className="p-5 bg-indigo-600 rounded-[1.5rem] text-white shadow-xl shadow-indigo-500/20">
+                  <div className="p-5 bg-primary-600 rounded-[1.5rem] text-white shadow-xl shadow-primary-500/20">
                     <Building2 size={32} />
                   </div>
                   <div>
                     <h2 className="text-3xl font-black italic uppercase tracking-tighter">
                       {editingTenant ? 'Configurar Instância' : 'Nova Instância Nexus'}
                     </h2>
-                    <p className="text-xs text-indigo-400/60 font-black uppercase tracking-widest mt-1">Provisionamento de camada de dados isolada</p>
+                    <p className="text-xs text-primary-400/60 font-black uppercase tracking-widest mt-1">Provisionamento de camada de dados isolada</p>
                   </div>
                 </div>
                 <button onClick={closeModal} className="p-4 bg-white/5 rounded-2xl text-gray-400 hover:text-white transition-all"><X size={32} /></button>
@@ -637,7 +637,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                       value={formData.initialPassword || ''}
                       onChange={e => setFormData({ ...formData, initialPassword: e.target.value })}
                       className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                      icon={<Lock size={16} className="text-indigo-400" />}
+                      icon={<Lock size={16} className="text-primary-400" />}
                     />
                   )}
                   <NexusInput
@@ -659,7 +659,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                       label="CEP"
                       placeholder="00000-000"
                       value={formData.cep || ''}
-                      icon={isSearchingCep ? <Loader2 size={16} className="animate-spin text-indigo-500" /> : <MapPin size={16} />}
+                      icon={isSearchingCep ? <Loader2 size={16} className="animate-spin text-primary-500" /> : <MapPin size={16} />}
                       onChange={e => {
                         const val = formatCEP(e.target.value);
                         setFormData({ ...formData, cep: val });
@@ -725,10 +725,10 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                 </div>
 
                 {/* 🧩 Seção de Módulos Habilitados */}
-                <div className="bg-indigo-500/5 p-8 rounded-[2.5rem] border border-indigo-500/10 space-y-6">
+                <div className="bg-primary-500/5 p-8 rounded-[2.5rem] border border-primary-500/10 space-y-6">
                   <div>
                     <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                      <LayoutDashboard size={16} className="text-indigo-500" /> Módulos Habilitados (Plano de Acesso)
+                      <LayoutDashboard size={16} className="text-primary-500" /> Módulos Habilitados (Plano de Acesso)
                     </h3>
                     <p className="text-[10px] text-gray-500 font-bold mt-1">Selecione quais áreas do sistema estarão disponíveis para esta empresa.</p>
                   </div>
@@ -751,7 +751,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                       <label
                         key={module.id}
                         className={`flex items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${(formData.enabled_modules?.[module.id] ?? (formData as any).enabledModules?.[module.id] ?? true)
-                          ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-100 shadow-lg shadow-indigo-600/5'
+                          ? 'bg-primary-600/20 border-primary-500/50 text-primary-100 shadow-lg shadow-primary-600/5'
                           : 'bg-white/5 border-white/5 text-gray-500 hover:border-white/10 opacity-60'
                           }`}
                       >
@@ -767,7 +767,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                             setFormData({ ...formData, enabled_modules: newModules });
                           }}
                         />
-                        <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${(formData.enabled_modules?.[module.id] ?? (formData as any).enabledModules?.[module.id] ?? true) ? 'bg-indigo-500 border-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'border-white/20'
+                        <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${(formData.enabled_modules?.[module.id] ?? (formData as any).enabledModules?.[module.id] ?? true) ? 'bg-primary-500 border-primary-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'border-white/20'
                           }`}>
                           {(formData.enabled_modules?.[module.id] ?? (formData as any).enabledModules?.[module.id] ?? true) && <CheckCircle2 size={12} className="text-white" />}
                         </div>
@@ -780,7 +780,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                 <div className="bg-slate-800/50 p-8 rounded-[2.5rem] border border-white/5 space-y-6">
                   <div>
                     <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                      <Settings size={16} className="text-indigo-500" /> Configuração de Numeração (OS)
+                      <Settings size={16} className="text-primary-500" /> Configuração de Numeração (OS)
                     </h3>
                     <p className="text-[10px] text-gray-500 font-bold mt-1">Defina como os protocolos serão gerados para este cliente.</p>
                   </div>
@@ -803,12 +803,12 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                   </div>
                 </div>
 
-                <div className="bg-indigo-500/5 p-8 rounded-[2.5rem] border border-indigo-500/10 flex gap-6 items-center">
-                  <div className="p-4 bg-indigo-500/10 rounded-2xl text-indigo-400">
+                <div className="bg-primary-500/5 p-8 rounded-[2.5rem] border border-primary-500/10 flex gap-6 items-center">
+                  <div className="p-4 bg-primary-500/10 rounded-2xl text-primary-400">
                     <Database size={28} />
                   </div>
                   <div className="flex-1">
-                    <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">Nota de Provisionamento</p>
+                    <p className="text-[10px] font-black text-primary-300 uppercase tracking-widest mb-1">Nota de Provisionamento</p>
                     <p className="text-[11px] font-bold text-gray-500 leading-relaxed italic">
                       Esta ação provisiona uma camada de dados isolada no banco Nexus. Todas as ordens de serviço, clientes e técnicos desta empresa serão criptografados e acessíveis apenas por este tenant.
                     </p>
@@ -818,7 +818,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
               <div className="p-12 border-t border-white/5 bg-black/20 flex justify-end gap-6 rounded-b-[4rem]">
                 <NexusButton variant="secondary" onClick={closeModal} className="rounded-2xl border-white/10 text-gray-500 px-10">Descartar</NexusButton>
-                <NexusButton onClick={handleSaveTenant} className="bg-indigo-600 hover:bg-indigo-500 rounded-2xl px-16 py-6 font-black italic shadow-2xl shadow-indigo-600/20 active:scale-95 transition-all">
+                <NexusButton onClick={handleSaveTenant} className="bg-primary-600 hover:bg-primary-500 rounded-2xl px-16 py-6 font-black italic shadow-2xl shadow-primary-600/20 active:scale-95 transition-all">
                   <Save size={20} className="mr-3" /> {editingTenant ? 'Atualizar Instância' : 'Provisionar Agora'}
                 </NexusButton>
               </div>
@@ -830,11 +830,11 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         {isMessageModalOpen && (
           <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in">
             <div className="bg-[#111118] w-full max-w-2xl rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden relative">
-              <div className="p-10 border-b border-white/5 bg-gradient-to-r from-indigo-900/20 to-transparent">
+              <div className="p-10 border-b border-white/5 bg-gradient-to-r from-primary-900/20 to-transparent">
                 <div className="flex justify-between items-center text-center">
                   <div className="text-left">
                     <h2 className="text-2xl font-black italic uppercase tracking-tighter">Enviar Comunicado Global</h2>
-                    <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-1">Sincronização de avisos em tempo real para os painéis</p>
+                    <p className="text-[10px] font-bold text-primary-400 uppercase tracking-widest mt-1">Sincronização de avisos em tempo real para os painéis</p>
                   </div>
                   <button
                     onClick={() => setIsMessageModalOpen(false)}
@@ -858,11 +858,11 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest px-2">Tipo de Envio</label>
+                    <label className="text-[10px] font-black text-primary-400 uppercase tracking-widest px-2">Tipo de Envio</label>
                     <select
                       value={messageData.type}
                       onChange={e => setMessageData({ ...messageData, type: e.target.value as any })}
-                      className="w-full bg-white/5 border border-white/10 text-white rounded-2xl py-3 px-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500/50"
+                      className="w-full bg-white/5 border border-white/10 text-white rounded-2xl py-3 px-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-primary-500/50"
                     >
                       <option value="broadcast">📢 Broadcast (Todos os Painéis)</option>
                       <option value="targeted">🎯 Targeted (Apenas Selecionados)</option>
@@ -870,11 +870,11 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest px-2">Criticidade</label>
+                    <label className="text-[10px] font-black text-primary-400 uppercase tracking-widest px-2">Criticidade</label>
                     <select
                       value={messageData.priority}
                       onChange={e => setMessageData({ ...messageData, priority: e.target.value as any })}
-                      className="w-full bg-white/5 border border-white/10 text-white rounded-2xl py-3 px-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-indigo-500/50"
+                      className="w-full bg-white/5 border border-white/10 text-white rounded-2xl py-3 px-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-primary-500/50"
                     >
                       <option value="info">💬 Informativo</option>
                       <option value="warning">⚠️ Aviso / Alerta</option>
@@ -883,25 +883,25 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                   </div>
 
                   <div className="md:col-span-2 space-y-2">
-                    <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest px-2">Conteúdo da Mensagem</label>
+                    <label className="text-[10px] font-black text-primary-400 uppercase tracking-widest px-2">Conteúdo da Mensagem</label>
                     <textarea
                       rows={4}
                       placeholder="Escreva aqui a mensagem que aparecerá no centro da tela dos usuários..."
                       value={messageData.content}
                       onChange={e => setMessageData({ ...messageData, content: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 text-white rounded-2xl py-4 px-4 text-xs font-medium outline-none focus:border-indigo-500/50 transition-all placeholder:text-gray-600 appearance-none resize-none"
+                      className="w-full bg-white/5 border border-white/10 text-white rounded-2xl py-4 px-4 text-xs font-medium outline-none focus:border-primary-500/50 transition-all placeholder:text-gray-600 appearance-none resize-none"
                     />
                   </div>
 
                   {messageData.type === 'targeted' && (
                     <div className="md:col-span-2 space-y-4">
-                      <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest px-2">Selecionar Clientes Alvo</label>
+                      <label className="text-[10px] font-black text-primary-400 uppercase tracking-widest px-2">Selecionar Clientes Alvo</label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                         {tenants.map(tenant => (
                           <label
                             key={tenant.id}
                             className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${messageData.selectedTenants.includes(tenant.id)
-                              ? 'bg-indigo-600/20 border-indigo-500/50 text-white'
+                              ? 'bg-primary-600/20 border-primary-500/50 text-white'
                               : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                               }`}
                           >
@@ -916,7 +916,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                                 setMessageData({ ...messageData, selectedTenants: ids });
                               }}
                             />
-                            <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${messageData.selectedTenants.includes(tenant.id) ? 'bg-indigo-500 border-indigo-500' : 'border-white/20'
+                            <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${messageData.selectedTenants.includes(tenant.id) ? 'bg-primary-500 border-primary-500' : 'border-white/20'
                               }`}>
                               {messageData.selectedTenants.includes(tenant.id) && <CheckCircle2 size={10} />}
                             </div>
@@ -973,7 +973,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                     }
                   }}
                   isLoading={isSaving}
-                  className="flex-[2] bg-indigo-600 hover:bg-indigo-500 rounded-2xl py-4 font-black italic uppercase shadow-xl shadow-indigo-500/20"
+                  className="flex-[2] bg-primary-600 hover:bg-primary-500 rounded-2xl py-4 font-black italic uppercase shadow-xl shadow-primary-500/20"
                 >
                   Disparar Comunicado <Send size={16} className="ml-2" />
                 </NexusButton>

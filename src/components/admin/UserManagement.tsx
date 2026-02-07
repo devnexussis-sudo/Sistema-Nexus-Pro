@@ -207,12 +207,12 @@ export const UserManagement: React.FC = () => {
       <div className="p-8 space-y-8 animate-fade-in flex flex-col h-full bg-slate-50/30 overflow-hidden">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <button onClick={() => { setActiveSubView('list'); setSelectedUser(null); setSelectedGroup(null); }} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 transition-all shadow-sm">
+            <button onClick={() => { setActiveSubView('list'); setSelectedUser(null); setSelectedGroup(null); }} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-primary-600 transition-all shadow-sm">
               <ArrowLeft size={24} />
             </button>
             <div>
               <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{title}</h1>
-              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-2 italic shadow-sm">{subtitle}</p>
+              <p className="text-[10px] font-black text-primary-500 uppercase tracking-widest mt-2 italic shadow-sm">{subtitle}</p>
             </div>
           </div>
         </div>
@@ -222,7 +222,7 @@ export const UserManagement: React.FC = () => {
             {modules.map((mod) => (
               <div key={mod.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
                 <div className="p-8 border-b border-slate-50 bg-slate-50/30 flex items-center gap-4">
-                  <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg"><mod.icon size={20} /></div>
+                  <div className="p-3 bg-primary-600 rounded-2xl text-white shadow-lg"><mod.icon size={20} /></div>
                   <h3 className="font-black text-slate-900 uppercase italic tracking-tight text-sm">{mod.label}</h3>
                 </div>
                 <div className="p-8 grid grid-cols-2 gap-4">
@@ -246,12 +246,12 @@ export const UserManagement: React.FC = () => {
                           onUpdate(newPerms);
                         }}
                         className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${isChecked
-                          ? 'bg-indigo-50 border-indigo-100 text-indigo-700'
+                          ? 'bg-primary-50 border-primary-100 text-primary-700'
                           : 'bg-white border-slate-100 text-slate-400 opacity-60'
                           }`}
                       >
                         <span className="text-[10px] font-black uppercase italic tracking-widest">{action.label}</span>
-                        <div className={`w-8 h-4 rounded-full relative transition-all ${isChecked ? 'bg-indigo-600' : 'bg-slate-200'}`}>
+                        <div className={`w-8 h-4 rounded-full relative transition-all ${isChecked ? 'bg-primary-600' : 'bg-slate-200'}`}>
                           <div className={`absolute top-1 w-2 h-2 rounded-full bg-white transition-all ${isChecked ? 'left-5' : 'left-1'}`} />
                         </div>
                       </button>
@@ -313,7 +313,7 @@ export const UserManagement: React.FC = () => {
                       onUpdate(newPerms);
                     }}
                     className={`flex items-center gap-4 p-6 rounded-3xl border transition-all ${(perms as any)[item.key]
-                      ? 'bg-indigo-50 border-indigo-200 text-indigo-700 ring-2 ring-indigo-100'
+                      ? 'bg-primary-50 border-primary-200 text-primary-700 ring-2 ring-primary-100'
                       : 'bg-slate-50 border-slate-100 text-slate-400'
                       }`}
                   >
@@ -385,7 +385,7 @@ export const UserManagement: React.FC = () => {
             placeholder={activeTab === 'users' ? "Pesquisar usuário..." : "Buscar grupo..."}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
           />
         </div>
 
@@ -442,14 +442,14 @@ export const UserManagement: React.FC = () => {
               </thead>
               <tbody>
                 {filteredUsers.length > 0 ? filteredUsers.map(user => (
-                  <tr key={user.id} className={`bg-white hover:bg-indigo-50/20 transition-all group shadow-sm ${!user.active ? 'opacity-60' : ''}`}>
+                  <tr key={user.id} className={`bg-white hover:bg-primary-50/20 transition-all group shadow-sm ${!user.active ? 'opacity-60' : ''}`}>
                     <td className="px-8 py-6 rounded-l-[2rem] border border-slate-100 border-r-0">
                       <div className="flex items-center gap-5">
                         <div className="relative group/avatar">
                           <img src={user.avatar} className="w-14 h-14 rounded-3xl border-2 border-white shadow-xl bg-slate-50 grayscale group-hover:grayscale-0 transition-all group-hover/avatar:scale-105" alt="" />
                           <button
                             onClick={(e) => { e.stopPropagation(); handleRandomizeAvatar(user); }}
-                            className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 text-white rounded-lg shadow-lg opacity-0 group-hover/avatar:opacity-100 transition-all hover:bg-indigo-700 scale-75 group-hover/avatar:scale-100"
+                            className="absolute -bottom-1 -right-1 p-1.5 bg-primary-600 text-white rounded-lg shadow-lg opacity-0 group-hover/avatar:opacity-100 transition-all hover:bg-primary-700 scale-75 group-hover/avatar:scale-100"
                           >
                             <RefreshCw size={12} />
                           </button>
@@ -461,19 +461,19 @@ export const UserManagement: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-8 py-6 border-y border-slate-100">
-                      <span className="flex items-center gap-2 text-[10px] font-black text-indigo-500 uppercase italic">
+                      <span className="flex items-center gap-2 text-[10px] font-black text-primary-500 uppercase italic">
                         <ShieldCheck size={14} />
                         {groups.find(g => g.id === user.groupId)?.name || 'Sem Grupo (Padrão)'}
                       </span>
                     </td>
                     <td className="px-8 py-6 border-y border-slate-100 text-center">
-                      <span className={`px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${user.active ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                      <span className={`px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${user.active ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                         {user.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
                     <td className="px-8 py-6 rounded-r-[2rem] border border-slate-100 border-l-0 text-right pr-8">
                       <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all">
-                        <button onClick={() => { setEditingUser(user); setFormData(user); setIsModalOpen(true); }} className="p-3.5 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-2xl shadow-sm border border-transparent hover:border-indigo-100 transition-all" title="Editar Usuário">
+                        <button onClick={() => { setEditingUser(user); setFormData(user); setIsModalOpen(true); }} className="p-3.5 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-2xl shadow-sm border border-transparent hover:border-primary-100 transition-all" title="Editar Usuário">
                           <Edit3 size={20} />
                         </button>
                       </div>
@@ -492,13 +492,13 @@ export const UserManagement: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {groups.map(group => (
-                <div key={group.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-8 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all group border-b-4 border-b-slate-50 hover:border-b-indigo-500">
+                <div key={group.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-8 hover:shadow-2xl hover:shadow-primary-500/10 transition-all group border-b-4 border-b-slate-50 hover:border-b-primary-500">
                   <div className="flex items-center justify-between mb-6">
-                    <div className={`p-4 rounded-2xl ${group.isSystem ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                    <div className={`p-4 rounded-2xl ${group.isSystem ? 'bg-amber-100 text-amber-600' : 'bg-primary-100 text-primary-600'}`}>
                       <FolderTree size={24} />
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-3 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-all" title="Configurar Regras de Acesso">
+                      <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-3 bg-slate-50 text-slate-400 hover:text-primary-600 rounded-xl transition-all" title="Configurar Regras de Acesso">
                         <Settings size={18} />
                       </button>
                       {!group.isSystem && (
@@ -564,7 +564,7 @@ export const UserManagement: React.FC = () => {
                     )}
                   </label>
                   <select
-                    className={`w-full border rounded-2xl px-6 py-4 text-xs font-bold outline-none appearance-none focus:ring-4 focus:ring-indigo-100 transition-all ${editingUser && groups.find(g => g.id === editingUser.groupId)?.isSystem && !isMasterMode
+                    className={`w-full border rounded-2xl px-6 py-4 text-xs font-bold outline-none appearance-none focus:ring-4 focus:ring-primary-100 transition-all ${editingUser && groups.find(g => g.id === editingUser.groupId)?.isSystem && !isMasterMode
                       ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
                       : 'bg-slate-50 border-slate-200 text-slate-700 cursor-pointer'}`}
                     value={formData.groupId || ''}
@@ -592,7 +592,7 @@ export const UserManagement: React.FC = () => {
               </div>
               <div className="pt-4 flex justify-end gap-4">
                 <Button variant="secondary" className="rounded-2xl px-10" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-                <Button type="submit" className="rounded-2xl px-16 shadow-xl shadow-indigo-600/30">
+                <Button type="submit" className="rounded-2xl px-16 shadow-xl shadow-primary-600/30">
                   <Save size={20} className="mr-3" /> {editingUser ? 'Atualizar' : 'Salvar'}
                 </Button>
               </div>
@@ -620,7 +620,7 @@ export const UserManagement: React.FC = () => {
               <div className="flex flex-col">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-3 block italic">Descrição e Objetivo</label>
                 <textarea
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all min-h-[100px]"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all min-h-[100px]"
                   placeholder="Descreva quais responsabilidades este grupo possui..."
                   value={groupFormData.description || ''}
                   onChange={e => setGroupFormData({ ...groupFormData, description: e.target.value })}
@@ -628,7 +628,7 @@ export const UserManagement: React.FC = () => {
               </div>
               <div className="pt-6 flex justify-end gap-4">
                 <Button variant="secondary" className="rounded-2xl px-12" onClick={() => setIsGroupModalOpen(false)}>Descartar</Button>
-                <Button type="submit" className="rounded-2xl px-20 shadow-xl shadow-indigo-600/30">
+                <Button type="submit" className="rounded-2xl px-20 shadow-xl shadow-primary-600/30">
                   <Check size={20} className="mr-3" /> {editingGroup ? 'Salvar' : 'Criar Grupo'}
                 </Button>
               </div>

@@ -100,7 +100,7 @@ export const TechLogin: React.FC<TechLoginProps> = ({ onLogin }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-emerald-950 overflow-y-auto overflow-x-hidden selection:bg-emerald-500 selection:text-white">
+        <div className="fixed inset-0 bg-gradient-to-br from-primary-950 via-slate-900 to-emerald-950 overflow-y-auto overflow-x-hidden selection:bg-emerald-500 selection:text-white">
             <div className="min-h-full w-full flex flex-col items-center justify-start py-12 px-6">
                 <div className="w-full max-w-md space-y-8 pb-20">
                     {/* Logo e Título */}

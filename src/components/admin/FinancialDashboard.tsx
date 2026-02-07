@@ -303,25 +303,25 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             {/* Header / Filtros */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 flex-shrink-0">
                 <div className="md:col-span-2 relative group">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={16} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary-600 transition-colors" size={16} />
                     <input
                         type="text"
                         placeholder="Pesquisar por cliente, título ou protocolo..."
-                        className="w-full bg-white border border-slate-200 rounded-md pl-10 pr-4 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm"
+                        className="w-full bg-white border border-slate-200 rounded-md pl-10 pr-4 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all shadow-sm"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                     />
                 </div>
 
                 <div className="flex bg-white border border-slate-200 rounded-md p-1 shadow-sm px-3 items-center">
-                    <Calendar size={14} className="text-indigo-500 mr-2" />
+                    <Calendar size={14} className="text-primary-500 mr-2" />
                     <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full" />
                     <span className="text-slate-300 mx-1">-</span>
                     <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full" />
                 </div>
 
                 <div className="flex bg-white border border-slate-200 rounded-md p-1 shadow-sm px-3 items-center">
-                    <UserCheck size={14} className="text-indigo-500 mr-2" />
+                    <UserCheck size={14} className="text-primary-500 mr-2" />
                     <select
                         className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full h-full py-1.5"
                         value={techFilter}
@@ -357,7 +357,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 </div>
 
                 <div className="bg-white border border-slate-200 p-4 rounded-md shadow-sm flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-md bg-primary-50 text-primary-600 flex items-center justify-center">
                         <TrendingUp size={16} />
                     </div>
                     <div>
@@ -395,7 +395,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 <th className="px-6 py-4 w-12 text-center">
                                     <input
                                         type="checkbox"
-                                        className="w-5 h-5 rounded-lg border-slate-200 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        className="w-5 h-5 rounded-lg border-slate-200 text-primary-600 focus:ring-primary-500 cursor-pointer"
                                         checked={filteredItems.length > 0 && selectedIds.length === filteredItems.length}
                                         onChange={() => {
                                             if (selectedIds.length === filteredItems.length) setSelectedIds([]);
@@ -414,7 +414,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             {filteredItems.map(item => (
                                 <tr
                                     key={item.id}
-                                    className={`group hover:bg-slate-50 transition-all cursor-pointer ${selectedIds.includes(item.id) ? 'bg-indigo-50/50' : ''}`}
+                                    className={`group hover:bg-slate-50 transition-all cursor-pointer ${selectedIds.includes(item.id) ? 'bg-primary-50/50' : ''}`}
                                     onClick={() => {
                                         setSelectedItem(item);
                                         setIsSidebarOpen(true);
@@ -423,14 +423,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                                         <input
                                             type="checkbox"
-                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                            className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                                             checked={selectedIds.includes(item.id)}
                                             onChange={() => toggleSelect(item.id)}
                                         />
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
-                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded w-fit mb-1 ${item.type === 'QUOTE' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
+                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded w-fit mb-1 ${item.type === 'QUOTE' ? 'bg-primary-50 text-primary-600' : 'bg-slate-100 text-slate-600'}`}>
                                                 {item.type === 'QUOTE' ? 'ORC' : 'OS'}#{item.id.slice(0, 8)}
                                             </span>
                                             <p className="text-xs font-bold text-slate-800 tracking-tight">{item.customerName}</p>
@@ -463,7 +463,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
                     <div className="bg-slate-900/90 backdrop-blur-xl border border-white/20 px-10 py-5 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center gap-10">
                         <div className="flex flex-col">
-                            <p className="text-[9px] font-medium text-indigo-400 uppercase tracking-widest leading-none mb-1">Selecionados</p>
+                            <p className="text-[9px] font-medium text-primary-400 uppercase tracking-widest leading-none mb-1">Selecionados</p>
                             <p className="text-lg font-bold text-white uppercase tracking-tight">{selectedIds.length} Itens</p>
                         </div>
                         <div className="h-10 w-[1px] bg-white/10" />
@@ -494,7 +494,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         {/* Header */}
                         <div className="p-10 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <div className="flex items-center gap-6">
-                                <div className={`w-16 h-16 rounded-[2rem] flex items-center justify-center shadow-lg ${selectedItem.type === 'QUOTE' ? 'bg-blue-600 text-white shadow-blue-500/20' : 'bg-indigo-600 text-white shadow-indigo-500/20'}`}>
+                                <div className={`w-16 h-16 rounded-[2rem] flex items-center justify-center shadow-lg ${selectedItem.type === 'QUOTE' ? 'bg-primary-600 text-white shadow-primary-500/20' : 'bg-primary-600 text-white shadow-primary-500/20'}`}>
                                     {selectedItem.type === 'QUOTE' ? <FileText size={32} /> : <Wrench size={32} />}
                                 </div>
                                 <div>
@@ -518,7 +518,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 <div className="lg:col-span-7 space-y-10">
                                     <section>
                                         <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                            <Users size={14} className="text-indigo-500" /> Identificação do Cliente
+                                            <Users size={14} className="text-primary-500" /> Identificação do Cliente
                                         </h4>
                                         <div className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100/50">
                                             <p className="text-2xl font-black text-slate-900 uppercase italic mb-1">{selectedItem.customerName}</p>
@@ -530,19 +530,19 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                                     <section>
                                         <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                            <Info size={14} className="text-indigo-500" /> Descrição do Atendimento
+                                            <Info size={14} className="text-primary-500" /> Descrição do Atendimento
                                         </h4>
                                         <div className="space-y-4">
                                             <div className="p-8 bg-white border border-slate-100 rounded-[2.5rem] shadow-sm">
                                                 <p className="text-sm font-black text-slate-800 uppercase italic mb-3">{selectedItem.title}</p>
                                                 <p className="text-xs text-slate-500 font-medium leading-relaxed">{selectedItem.description}</p>
                                             </div>
-                                            <div className="flex items-center gap-4 p-6 bg-indigo-50/30 border border-indigo-100/50 rounded-3xl">
-                                                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md">
+                                            <div className="flex items-center gap-4 p-6 bg-primary-50/30 border border-primary-100/50 rounded-3xl">
+                                                <div className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center text-white shadow-md">
                                                     <UserCheck size={18} />
                                                 </div>
                                                 <div>
-                                                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Técnico Responsável</p>
+                                                    <p className="text-[9px] font-black text-primary-400 uppercase tracking-widest">Técnico Responsável</p>
                                                     <p className="text-sm font-black text-slate-800 uppercase italic">{selectedItem.technician}</p>
                                                 </div>
                                             </div>
@@ -552,16 +552,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     {selectedItem.type === 'ORDER' && (
                                         <section>
                                             <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                                <Layer size={14} className="text-blue-500" /> Orçamentos Vinculados
+                                                <Layer size={14} className="text-primary-500" /> Orçamentos Vinculados
                                             </h4>
 
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 {selectedItem.original.linkedQuotes?.map((qId: string) => {
                                                     const q = quotes.find(quote => quote.id === qId);
                                                     return q ? (
-                                                        <div key={qId} className="p-6 bg-white border border-slate-100 rounded-3xl flex flex-col shadow-sm group hover:border-blue-200 transition-all">
+                                                        <div key={qId} className="p-6 bg-white border border-slate-100 rounded-3xl flex flex-col shadow-sm group hover:border-primary-200 transition-all">
                                                             <div className="flex justify-between items-start mb-3">
-                                                                <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg uppercase">#ORC-{qId.slice(0, 6)}</span>
+                                                                <span className="text-[9px] font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-lg uppercase">#ORC-{qId.slice(0, 6)}</span>
                                                                 <span className="text-sm font-black text-slate-900 italic">{formatCurrency(q.totalValue)}</span>
                                                             </div>
                                                             <p className="text-[11px] font-bold text-slate-700 uppercase italic truncate">{q.title}</p>
@@ -584,12 +584,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                                     key={q.id}
                                                                     onClick={() => handleLinkQuote(q.id)}
                                                                     disabled={isProcessing}
-                                                                    className="px-4 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-3 hover:border-indigo-400 hover:bg-indigo-50 transition-all"
+                                                                    className="px-4 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-3 hover:border-primary-400 hover:bg-primary-50 transition-all"
                                                                 >
                                                                     <div className="text-left">
                                                                         <p className="text-[10px] font-bold text-slate-700 uppercase">#{q.id.slice(0, 6)} - {formatCurrency(q.totalValue)}</p>
                                                                     </div>
-                                                                    <Plus size={14} className="text-indigo-500" />
+                                                                    <Plus size={14} className="text-primary-500" />
                                                                 </button>
                                                             ))}
                                                         </div>
@@ -611,7 +611,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                 <span className="text-sm font-mono">{formatCurrency(selectedItem.value)}</span>
                                             </div>
                                             {selectedItem.original.linkedQuotes?.length > 0 && (
-                                                <div className="flex justify-between items-center text-blue-400">
+                                                <div className="flex justify-between items-center text-primary-400">
                                                     <span className="text-[10px] font-black uppercase">Orçamentos Vinculados</span>
                                                     <span className="text-sm font-mono">+{formatCurrency(selectedItem.original.linkedQuotes.reduce((acc: number, qId: string) => {
                                                         const q = quotes.find(quote => quote.id === qId);
@@ -633,17 +633,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                                     <section>
                                         <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                            <ArrowUpRight size={14} className="text-indigo-500" /> Acesso Rápido
+                                            <ArrowUpRight size={14} className="text-primary-500" /> Acesso Rápido
                                         </h4>
                                         <div className="grid grid-cols-1 gap-4">
                                             <button
                                                 onClick={() => window.open(`${window.location.origin}${window.location.pathname}#/view-${selectedItem.type === 'QUOTE' ? 'quote' : 'order'}/${selectedItem.original.publicToken || selectedItem.id}`, '_blank')}
-                                                className="w-full py-5 bg-white border border-slate-100 rounded-[2rem] flex items-center justify-between px-8 text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-all shadow-sm"
+                                                className="w-full py-5 bg-white border border-slate-100 rounded-[2rem] flex items-center justify-between px-8 text-slate-600 hover:border-primary-600 hover:text-primary-600 transition-all shadow-sm"
                                             >
                                                 <span className="text-[10px] font-black uppercase tracking-widest italic">Visualizar Link Externo</span>
                                                 <ArrowUpRight size={18} />
                                             </button>
-                                            <button className="w-full py-5 bg-white border border-slate-100 rounded-[2rem] flex items-center justify-between px-8 text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-all shadow-sm">
+                                            <button className="w-full py-5 bg-white border border-slate-100 rounded-[2rem] flex items-center justify-between px-8 text-slate-600 hover:border-primary-600 hover:text-primary-600 transition-all shadow-sm">
                                                 <span className="text-[10px] font-black uppercase tracking-widest italic">Gerar Espelho em PDF</span>
                                                 <Printer size={18} />
                                             </button>
@@ -741,7 +741,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         <div className="flex-1 p-8 bg-white flex flex-col h-full">
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                    <Wallet size={16} className="text-indigo-500" /> Forma de Pagamento
+                                    <Wallet size={16} className="text-primary-500" /> Forma de Pagamento
                                 </h3>
                                 <button onClick={() => setIsInvoiceModalOpen(false)} className="text-slate-300 hover:text-rose-500 transition-colors p-2 hover:bg-rose-50 rounded-full">
                                     <X size={18} />
@@ -761,8 +761,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         key={method.id}
                                         onClick={() => setPaymentMethod(method.id)}
                                         className={`flex flex-col items-center justify-center p-4 border rounded-xl transition-all h-24 duration-200 ${paymentMethod === method.id
-                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600 shadow-md transform scale-[1.02]'
-                                            : 'border-slate-100 hover:border-indigo-200 text-slate-500 hover:bg-slate-50 hover:text-indigo-600'}`}
+                                            ? 'border-primary-600 bg-primary-50 text-primary-700 ring-1 ring-primary-600 shadow-md transform scale-[1.02]'
+                                            : 'border-slate-100 hover:border-primary-200 text-slate-500 hover:bg-slate-50 hover:text-primary-600'}`}
                                     >
                                         <div className="mb-2 opacity-80">{method.icon}</div>
                                         <span className="text-[10px] font-bold uppercase text-center leading-tight">{method.label}</span>
@@ -773,7 +773,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             <div className="mb-6 flex-1 flex flex-col">
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">Observações / Comprovante</label>
                                 <textarea
-                                    className="w-full flex-1 min-h-[80px] bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all resize-none placeholder:text-slate-400"
+                                    className="w-full flex-1 min-h-[80px] bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/10 focus:border-primary-500 transition-all resize-none placeholder:text-slate-400"
                                     placeholder="Opcional: Digite o número do comprovante ou notas sobre a transação..."
                                     value={billingNotes}
                                     onChange={e => setBillingNotes(e.target.value)}
@@ -783,7 +783,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             <button
                                 onClick={confirmInvoice}
                                 disabled={isProcessing}
-                                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold uppercase tracking-wide shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                                className="w-full py-3.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-bold uppercase tracking-wide shadow-lg shadow-primary-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                             >
                                 {isProcessing ? (
                                     <>
