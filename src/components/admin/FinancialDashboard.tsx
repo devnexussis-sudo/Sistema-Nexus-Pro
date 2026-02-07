@@ -335,67 +335,67 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             </div>
 
             {/* Stats Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 flex-shrink-0">
-                <div className="bg-white border border-slate-200 p-4 rounded-md shadow-sm flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <DollarSign size={16} />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-2 px-2">
+                <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm">
+                        <DollarSign size={24} />
                     </div>
                     <div>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Total Recebido</p>
-                        <h3 className="text-base font-medium text-slate-900 leading-none mt-0.5">{formatCurrency(stats.totalFaturado)}</h3>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Recebido</p>
+                        <h3 className="text-xl font-black text-emerald-600 leading-none">{formatCurrency(stats.totalFaturado)}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 p-4 rounded-md shadow-sm flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center">
-                        <Clock size={16} />
+                <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-sm">
+                        <Clock size={24} />
                     </div>
                     <div>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Pendente</p>
-                        <h3 className="text-base font-medium text-slate-900 leading-none mt-0.5">{formatCurrency(stats.totalPendente)}</h3>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Pendente</p>
+                        <h3 className="text-xl font-black text-slate-800 leading-none">{formatCurrency(stats.totalPendente)}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 p-4 rounded-md shadow-sm flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-md bg-primary-50 text-primary-600 flex items-center justify-center">
-                        <TrendingUp size={16} />
+                <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
+                    <div className="w-12 h-12 rounded-2xl bg-primary-50 text-primary-600 flex items-center justify-center shadow-sm">
+                        <TrendingUp size={24} />
                     </div>
                     <div>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Ticket Médio</p>
-                        <h3 className="text-base font-medium text-slate-900 leading-none mt-0.5">{formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0)}</h3>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Ticket Médio</p>
+                        <h3 className="text-xl font-black text-slate-800 leading-none">{formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0)}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 p-4 rounded-md shadow-sm flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-md bg-slate-50 text-slate-600 flex items-center justify-center">
-                        <UserCheck size={16} />
+                <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm">
+                        <UserCheck size={24} />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Maior Faturamento</p>
-                        <h3 className="text-xs font-medium text-slate-900 truncate uppercase mt-0.5">{stats.topTech[0]}</h3>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Top Faturamento</p>
+                        <h3 className="text-sm font-black text-slate-800 truncate uppercase mt-0.5">{stats.topTech[0]}</h3>
                     </div>
                 </div>
             </div>
 
             {/* List Table */}
-            <div className="bg-white border border-slate-200 rounded-md flex flex-col overflow-hidden flex-1 min-h-0 shadow-sm relative">
-                <div className="absolute top-4 right-8 z-20">
+            <div className="bg-white border border-slate-100 rounded-[2.5rem] flex flex-col overflow-hidden flex-1 min-h-0 shadow-2xl shadow-slate-200/40 relative mx-2 mb-2">
+                <div className="absolute top-6 right-10 z-20">
                     <button
                         onClick={handleExportExcel}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100"
+                        className="flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100/50"
                     >
                         <FileSpreadsheet size={16} /> Extrair Excel
                     </button>
                 </div>
 
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
-                            <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
-                                <th className="px-6 py-4 w-12 text-center">
+                    <table className="w-full text-left border-separate border-spacing-y-0 px-8">
+                        <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
+                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                                <th className="px-6 py-6 w-20 text-center">
                                     <input
                                         type="checkbox"
-                                        className="w-5 h-5 rounded-lg border-slate-200 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                                        className="w-5 h-5 rounded-lg border-slate-200 text-primary-600 focus:ring-primary-100 cursor-pointer transition-all active:scale-90"
                                         checked={filteredItems.length > 0 && selectedIds.length === filteredItems.length}
                                         onChange={() => {
                                             if (selectedIds.length === filteredItems.length) setSelectedIds([]);
@@ -403,18 +403,18 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         }}
                                     />
                                 </th>
-                                <th className="px-6 py-4">Documento / Cliente</th>
-                                <th className="px-6 py-4">Descrição</th>
-                                <th className="px-6 py-4">Técnico</th>
-                                <th className="px-6 py-4">Valor</th>
-                                <th className="px-6 py-4 text-center">Status</th>
+                                <th className="px-6 py-6 border-b border-slate-100">Documento / Cliente</th>
+                                <th className="px-6 py-6 border-b border-slate-100">Descrição</th>
+                                <th className="px-6 py-6 border-b border-slate-100">Técnico</th>
+                                <th className="px-6 py-6 border-b border-slate-100">Valor</th>
+                                <th className="px-6 py-6 text-center border-b border-slate-100">Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody>
                             {filteredItems.map(item => (
                                 <tr
                                     key={item.id}
-                                    className={`group hover:bg-slate-50 transition-all cursor-pointer ${selectedIds.includes(item.id) ? 'bg-primary-50/50' : ''}`}
+                                    className={`group hover:bg-primary-50/40 transition-all cursor-pointer border-b last:border-0 border-slate-50 ${selectedIds.includes(item.id) ? 'bg-primary-50/50' : 'bg-white'}`}
                                     onClick={() => {
                                         setSelectedItem(item);
                                         setIsSidebarOpen(true);
@@ -507,7 +507,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     <h2 className="text-2xl font-bold text-slate-900 tracking-tight leading-none">#{selectedItem.id.slice(0, 12)}</h2>
                                 </div>
                             </div>
-                            <button onClick={() => setIsSidebarOpen(false)} className="p-4 bg-white text-slate-400 hover:text-rose-500 rounded-2xl shadow-sm border border-slate-100 transition-all hover:rotate-90">
+                            <button onClick={() => setIsSidebarOpen(false)} className="p-4 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-2xl shadow-sm border border-slate-100 transition-all hover:rotate-90">
                                 <X size={24} />
                             </button>
                         </div>
@@ -584,7 +584,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                                     key={q.id}
                                                                     onClick={() => handleLinkQuote(q.id)}
                                                                     disabled={isProcessing}
-                                                                    className="px-4 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-3 hover:border-primary-400 hover:bg-primary-50 transition-all"
+                                                                    className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3 hover:border-primary-400 hover:bg-primary-50 transition-all"
                                                                 >
                                                                     <div className="text-left">
                                                                         <p className="text-[10px] font-bold text-slate-700 uppercase">#{q.id.slice(0, 6)} - {formatCurrency(q.totalValue)}</p>
@@ -638,12 +638,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         <div className="grid grid-cols-1 gap-4">
                                             <button
                                                 onClick={() => window.open(`${window.location.origin}${window.location.pathname}#/view-${selectedItem.type === 'QUOTE' ? 'quote' : 'order'}/${selectedItem.original.publicToken || selectedItem.id}`, '_blank')}
-                                                className="w-full py-5 bg-white border border-slate-100 rounded-[2rem] flex items-center justify-between px-8 text-slate-600 hover:border-primary-600 hover:text-primary-600 transition-all shadow-sm"
+                                                className="w-full py-5 bg-primary-50 border border-primary-100 rounded-[2rem] flex items-center justify-between px-8 text-primary-700 hover:bg-primary-600 hover:text-white transition-all shadow-sm"
                                             >
                                                 <span className="text-[10px] font-black uppercase tracking-widest italic">Visualizar Link Externo</span>
                                                 <ArrowUpRight size={18} />
                                             </button>
-                                            <button className="w-full py-5 bg-white border border-slate-100 rounded-[2rem] flex items-center justify-between px-8 text-slate-600 hover:border-primary-600 hover:text-primary-600 transition-all shadow-sm">
+                                            <button className="w-full py-5 bg-slate-50 border border-slate-200 rounded-[2rem] flex items-center justify-between px-8 text-slate-600 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
                                                 <span className="text-[10px] font-black uppercase tracking-widest italic">Gerar Espelho em PDF</span>
                                                 <Printer size={18} />
                                             </button>

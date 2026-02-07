@@ -281,9 +281,9 @@ export const FormManagement: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {filteredForms.map(form => (
                     <div key={form.id} className="bg-slate-50/30 p-8 rounded-[3rem] border border-slate-100 hover:border-primary-200 hover:bg-white transition-all group relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-6 transition-opacity flex gap-2">
-                        <button onClick={() => { setEditingForm(form); setIsModalOpen(true); }} className="p-3 bg-white text-primary-600 rounded-2xl shadow-md border border-primary-100 hover:bg-primary-50 transition-all" title="Editar"><Edit2 size={18} /></button>
-                        <button onClick={(e) => handleDeleteForm(form.id, e)} className="p-3 bg-white text-rose-500 rounded-2xl shadow-md border border-rose-100 hover:bg-rose-50 transition-all" title="Excluir"><Trash2 size={18} /></button>
+                      <div className="absolute top-0 right-0 p-6 flex gap-2">
+                        <button onClick={() => { setEditingForm(form); setIsModalOpen(true); }} className="p-3 bg-primary-50 text-primary-600 rounded-2xl shadow-sm border border-primary-100 hover:bg-primary-100 transition-all" title="Editar"><Edit2 size={18} /></button>
+                        <button onClick={(e) => handleDeleteForm(form.id, e)} className="p-3 bg-rose-50 text-rose-500 rounded-2xl shadow-sm border border-rose-100 hover:bg-rose-100 transition-all" title="Excluir"><Trash2 size={18} /></button>
                       </div>
                       <div className="p-5 bg-white rounded-[2rem] shadow-sm border border-gray-100 w-fit mb-6 text-primary-600"><FileText size={32} /></div>
                       <h3 className="text-xl font-black text-gray-900 mb-2 tracking-tight">{form.title}</h3>
@@ -323,7 +323,7 @@ export const FormManagement: React.FC = () => {
                               {forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Modelo Excluído'}
                             </p>
                           </div>
-                          <button onClick={(e) => handleDeleteRule(rule.id, e)} className="p-4 text-red-300 hover:text-red-500 hover:bg-white rounded-2xl transition-all">
+                          <button onClick={(e) => handleDeleteRule(rule.id, e)} className="p-4 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all">
                             <Trash2 size={24} />
                           </button>
                         </div>

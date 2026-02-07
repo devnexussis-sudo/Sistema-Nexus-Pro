@@ -146,20 +146,20 @@ export const TechnicianManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/50 flex-1 min-h-0">
+      <div className="bg-white border border-slate-100 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0 mx-2 mb-2">
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
-          <table className="w-full border-separate border-spacing-y-3">
-            <thead>
+          <table className="w-full border-separate border-spacing-y-3 px-8">
+            <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
               <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                <th className="px-8 py-2">Identidade Visual</th>
-                <th className="px-8 py-2">Credencial (E-mail)</th>
-                <th className="px-8 py-2 text-center">Status App</th>
-                <th className="px-8 py-2 text-right pr-12">Ações</th>
+                <th className="px-8 py-5">Identidade Visual</th>
+                <th className="px-8 py-5">Credencial (E-mail)</th>
+                <th className="px-8 py-5 text-center">Status App</th>
+                <th className="px-8 py-5 text-right pr-12">Ações</th>
               </tr>
             </thead>
             <tbody>
               {filteredTechs.map(t => (
-                <tr key={t.id} className="bg-white hover:bg-emerald-50/30 transition-all group shadow-sm">
+                <tr key={t.id} className="bg-white hover:bg-emerald-50/40 transition-all group shadow-sm hover:shadow-md">
                   <td className="px-8 py-6 rounded-l-[2rem] border border-slate-100 border-r-0">
                     <div className="flex items-center gap-5">
                       <div className="relative group/avatar">
@@ -180,12 +180,10 @@ export const TechnicianManagement: React.FC = () => {
                   </td>
                   <td className="px-8 py-6 border-y border-slate-100 italic text-xs font-bold text-slate-500">{t.email}</td>
                   <td className="px-8 py-6 border-y border-slate-100 text-center">
-                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${t.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
-                      {t.active ? 'Liberado' : 'Suspenso'}
-                    </span>
+                    <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                   </td>
                   <td className="px-8 py-6 rounded-r-[2rem] border border-slate-100 border-l-0 text-right pr-8">
-                    <button onClick={() => { setFormData(t); setEditingId(t.id); setIsModalOpen(true); }} className="p-3 bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl shadow-sm border border-primary-100 transition-all"><Edit2 size={18} /></button>
+                    <button onClick={() => { setFormData(t); setEditingId(t.id); setIsModalOpen(true); }} className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Técnico"><Edit2 size={18} /></button>
                   </td>
                 </tr>
               ))}

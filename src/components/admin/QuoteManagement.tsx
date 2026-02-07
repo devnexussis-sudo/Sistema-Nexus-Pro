@@ -196,25 +196,25 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 </button>
             </div>
 
-            <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
+            <div className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0 mx-2 mb-2">
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                    <table className="w-full">
-                        <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 text-[9px] font-black text-slate-400 uppercase tracking-widest text-left">
-                            <tr>
-                                <th className="px-10 py-6">Orçamento ID</th>
+                    <table className="w-full border-separate border-spacing-y-0 px-8">
+                        <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
+                            <tr className="border-b border-slate-100">
+                                <th className="px-8 py-6">Orçamento ID</th>
                                 <th className="px-6 py-6">Criado em</th>
                                 <th className="px-6 py-6">Cliente</th>
                                 <th className="px-6 py-6">Validade</th>
                                 <th className="px-6 py-6">Valor Total</th>
                                 <th className="px-6 py-6">Vínculo O.S.</th>
                                 <th className="px-6 py-6">Status</th>
-                                <th className="px-6 py-6 text-right pr-10">Ações</th>
+                                <th className="px-6 py-6 text-right pr-12">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredQuotes.map(quote => (
-                                <tr key={quote.id} className="hover:bg-slate-50/20 border-b border-slate-50 transition-colors group">
-                                    <td className="px-10 py-5">
+                                <tr key={quote.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
+                                    <td className="px-8 py-5">
                                         <div className="flex flex-col">
                                             <span className="text-[12px] font-black uppercase italic text-primary-600 tracking-tighter">{quote.id}</span>
                                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[150px]">{quote.title}</span>
@@ -258,17 +258,17 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         </div>
                                     </td>
                                     <td className="px-6 py-5 text-right pr-6">
-                                        <div className="flex justify-end gap-1.5 mt-1">
+                                        <div className="flex justify-end gap-1.5 transition-all">
                                             {/* Visualizar Tudo */}
                                             <button
                                                 onClick={() => {
                                                     setViewQuote(quote);
                                                     setIsViewModalOpen(true);
                                                 }}
-                                                className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-all border border-slate-200/50"
+                                                className="p-3 bg-slate-50/50 text-slate-400 hover:text-slate-900 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-slate-100 active:scale-95"
                                                 title="Visualizar Completo"
                                             >
-                                                <Eye size={14} />
+                                                <Eye size={16} />
                                             </button>
 
                                             {/* Copiar URL */}
@@ -278,10 +278,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     navigator.clipboard.writeText(url);
                                                     alert('URL pública copiada para a área de transferência!');
                                                 }}
-                                                className="p-2 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-all border border-primary-200/50"
+                                                className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-primary-100 active:scale-95"
                                                 title="Copiar URL Pública"
                                             >
-                                                <Link size={14} />
+                                                <Link size={16} />
                                             </button>
 
                                             {/* Abrir em Nova Aba */}
@@ -290,20 +290,22 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     const url = `${window.location.origin}${window.location.pathname}#/view-quote/${quote.publicToken || quote.id}`;
                                                     window.open(url, '_blank');
                                                 }}
-                                                className="p-2 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-all border border-primary-200/50"
+                                                className="p-3 bg-emerald-50/50 text-emerald-500 hover:text-emerald-700 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-emerald-100 active:scale-95"
                                                 title="Abrir Link Público"
                                             >
-                                                <ExternalLink size={14} />
+                                                <ExternalLink size={16} />
                                             </button>
+
                                             {quote.status !== 'CONVERTIDO' && (
                                                 <button
                                                     onClick={() => handleConvertToOrder(quote)}
-                                                    className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-all border border-emerald-200/50"
+                                                    className="p-3 bg-amber-50/50 text-amber-500 hover:text-amber-700 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-amber-100 active:scale-95"
                                                     title="Converter em O.S."
                                                 >
-                                                    <ArrowUpRight size={14} />
+                                                    <ArrowUpRight size={16} />
                                                 </button>
                                             )}
+
                                             <button
                                                 onClick={() => {
                                                     setSelectedQuote(quote);
@@ -315,17 +317,18 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     setLinkedOrderId(quote.linkedOrderId || '');
                                                     setIsModalOpen(true);
                                                 }}
-                                                className="p-2 bg-white text-primary-600 rounded-lg hover:bg-primary-50 transition-all border border-primary-100 shadow-sm"
+                                                className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-primary-100 active:scale-95"
                                                 title="Editar"
                                             >
-                                                <Edit3 size={14} />
+                                                <Edit3 size={16} />
                                             </button>
+
                                             <button
                                                 onClick={() => onDeleteQuote(quote.id)}
-                                                className="p-2 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-100 transition-all border border-rose-100"
+                                                className="p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-rose-100 active:scale-95"
                                                 title="Excluir"
                                             >
-                                                <Trash2 size={14} />
+                                                <Trash2 size={16} />
                                             </button>
                                         </div>
                                     </td>

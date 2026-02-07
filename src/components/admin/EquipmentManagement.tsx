@@ -203,24 +203,24 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/50 flex-1 min-h-0">
+      <div className="bg-white border border-slate-100 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0 mx-2 mb-2">
 
         {/* TABELA PADRONIZADA */}
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'list' ? (
-            <table className="w-full border-separate border-spacing-y-3">
-              <thead>
+            <table className="w-full border-separate border-spacing-y-3 px-8">
+              <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                  <th className="px-8 py-2">Equipamento / Modelo</th>
-                  <th className="px-8 py-2 text-center">Nº de Série</th>
-                  <th className="px-8 py-2">Proprietário</th>
-                  <th className="px-8 py-2 text-center">Status</th>
-                  <th className="px-8 py-2 text-right pr-12">Ações</th>
+                  <th className="px-8 py-5">Equipamento / Modelo</th>
+                  <th className="px-8 py-5 text-center">Nº de Série</th>
+                  <th className="px-8 py-5">Proprietário</th>
+                  <th className="px-8 py-5 text-center">Status</th>
+                  <th className="px-8 py-5 text-right pr-12">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.map((e: any) => (
-                  <tr key={e.id} className="bg-white hover:bg-primary-50/30 transition-all group shadow-sm cursor-pointer">
+                  <tr key={e.id} className="bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
                     <td className="px-8 py-6 rounded-l-[2rem] border border-slate-100 border-r-0 font-black text-xs">
                       <div className="flex items-center gap-5">
                         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-primary-400 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all">
@@ -238,18 +238,14 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                     </td>
 
                     <td className="px-8 py-6 border-y border-slate-100 text-center">
-                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${e.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
-                        {e.active ? 'Operativo' : 'Inativo'}
-                      </span>
+                      <StatusBadge status={e.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                     </td>
                     <td className="px-8 py-6 rounded-r-[2rem] border border-slate-100 border-l-0 text-right pr-8">
                       <div className="flex items-center justify-end gap-2">
-
-                        <button onClick={(evt) => { evt.stopPropagation(); toggleEquipmentStatus(e); }} className={`p-3 rounded-xl shadow-sm border border-transparent transition-all ${e.active ? 'bg-slate-50 text-amber-500 hover:bg-amber-50' : 'bg-slate-50 text-emerald-500 hover:bg-emerald-50'}`}>
+                        <button onClick={(evt) => { evt.stopPropagation(); toggleEquipmentStatus(e); }} className={`p-3 rounded-xl shadow-sm border border-transparent transition-all active:scale-95 ${e.active ? 'bg-slate-50 text-amber-500 hover:bg-white hover:border-amber-100 hover:text-amber-600' : 'bg-slate-50 text-emerald-500 hover:bg-white hover:border-emerald-100 hover:text-emerald-600'}`}>
                           {e.active ? <PowerOff size={18} /> : <Power size={18} />}
                         </button>
-
-                        <button onClick={() => { setEqFormData(e); setEditingId(e.id); setIsModalOpen(true); }} className="p-3 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all"><Edit2 size={18} /></button>
+                        <button onClick={(evt) => { evt.stopPropagation(); setEqFormData(e); setEditingId(e.id); setIsModalOpen(true); }} className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar"><Edit2 size={18} /></button>
                       </div>
                     </td>
                   </tr>
@@ -257,13 +253,13 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </tbody>
             </table>
           ) : (
-            <table className="w-full border-separate border-spacing-y-3">
-              <thead>
+            <table className="w-full border-separate border-spacing-y-3 px-8">
+              <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                  <th className="px-8 py-2">Nome da Família</th>
-                  <th className="px-8 py-2">Descrição Técnica de Escopo</th>
-                  <th className="px-8 py-2 text-center">Status</th>
-                  <th className="px-8 py-2 text-right pr-12">Ações</th>
+                  <th className="px-8 py-5">Nome da Família</th>
+                  <th className="px-8 py-5">Descrição Técnica de Escopo</th>
+                  <th className="px-8 py-5 text-center">Status</th>
+                  <th className="px-8 py-5 text-right pr-12">Ações</th>
                 </tr>
               </thead>
               <tbody>

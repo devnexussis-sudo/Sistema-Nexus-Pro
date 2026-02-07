@@ -258,9 +258,12 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     const companyDoc = tenant?.cnpj || tenant?.document || '';
 
     return (
-        <div className="min-h-screen bg-slate-50 py-6 sm:py-10 px-4 flex flex-col items-center selection:bg-primary-100 font-sans">
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center selection:bg-primary-100 font-sans">
+            {/* BARRA SUPERIOR BRANDING - Somente Tela */}
+            <div className="h-1 sm:h-1.5 w-full bg-gradient-to-r from-[#1c2d4f] via-[#2a457a] to-[#1c2d4f] sticky top-0 z-[60] print:hidden" />
+
             {/* Header Proposta */}
-            <div className="w-full max-w-4xl mb-6 sm:mb-8 flex justify-between items-center px-2 sm:px-4">
+            <div className="w-full max-w-4xl mb-6 sm:mb-8 flex justify-between items-center px-4 sm:px-6 py-4 bg-white/50 backdrop-blur-md border-b border-slate-100/50 sticky top-1 sm:top-1.5 z-50 print:hidden sm:rounded-b-3xl">
                 <div className="flex items-center gap-3">
                     {companyLogo ? (
                         <img src={companyLogo} alt="Logo" className="h-10 sm:h-14 w-auto object-contain" />

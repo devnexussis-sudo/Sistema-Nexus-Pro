@@ -60,10 +60,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   return (
     <div className={`${isPrint ? 'bg-white p-0' : 'bg-[#F5F7FA] pb-20'} font-sans selection:bg-primary-100 selection:text-primary-900`}>
+      {/* BARRA SUPERIOR BRANDING - Somente Tela */}
+      {!isPrint && (
+        <div className="h-1 sm:h-1.5 w-full bg-gradient-to-r from-[#1c2d4f] via-[#2a457a] to-[#1c2d4f] sticky top-0 z-[60] print:hidden" />
+      )}
 
       {/* NAVEGAÇÃO WEB - Somente Tela */}
       {!isPrint && (
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm print:hidden">
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-1 sm:top-1.5 z-50 shadow-sm print:hidden">
           <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-3 sm:py-4 flex flex-row justify-between items-center">
             <div className="flex items-center gap-3">
               {companyLogo ? (

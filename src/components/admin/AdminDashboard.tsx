@@ -7,7 +7,7 @@ import {
   Plus, Printer, X, FileText, CheckCircle2, ShieldCheck,
   Edit3, ExternalLink, Search, Filter, Calendar, Share2,
   Users, UserCheck, Clock, FileSpreadsheet, Download, Camera, ClipboardList, Ban, MapPin, Box,
-  DollarSign, Eye, EyeOff, LayoutDashboard, User, AlertTriangle
+  DollarSign, Eye, EyeOff, LayoutDashboard, User, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { CreateOrderModal } from './CreateOrderModal';
 import { PublicOrderView } from '../public/PublicOrderView';
@@ -39,6 +39,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit' | 'costs'>('overview');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
+
+  const requestSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key !== key) return <ArrowUpDown size={12} className="ml-2 text-slate-300 opacity-0 group-hover:opacity-100 transition-all" />;
+    return sortConfig.direction === 'asc'
+      ? <ChevronUp size={14} className="ml-2 text-primary-600 animate-in fade-in zoom-in-50 duration-300" />
+      : <ChevronDown size={14} className="ml-2 text-primary-600 animate-in fade-in zoom-in-50 duration-300" />;
+  };
 
   const handleExportExcel = () => {
     // Se tiver seleção, usa a seleção. Se não, usa o que está filtrado na tela.
@@ -178,7 +194,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const filteredOrders = useMemo(() => {
-    return orders.filter(order => {
+    const filtered = orders.filter(order => {
       const term = searchTerm.toLowerCase();
       const matchesSearch = (order.title || '').toLowerCase().includes(term) ||
         (order.customerName || '').toLowerCase().includes(term) ||
@@ -208,7 +224,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       return matchesSearch && matchesStatus && matchesTech && matchesCustomer && matchesTime;
     });
-  }, [orders, techs, searchTerm, statusFilter, startDate, endDate, techFilter, customerFilter, dateTypeFilter]);
+
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aValue: any = (a as any)[sortConfig.key!];
+        let bValue: any = (b as any)[sortConfig.key!];
+
+        // Tratamento especial para nomes de técnicos
+        if (sortConfig.key === 'assignedTo') {
+          aValue = techs.find(t => t.id === a.assignedTo)?.name || '';
+          bValue = techs.find(t => t.id === b.assignedTo)?.name || '';
+        }
+
+        // Tratamento para nomes de clientes (evitar IDs se possível)
+        if (sortConfig.key === 'customerName') {
+          const custA = customers.find(c => c.name === a.customerName || c.document === a.customerName)?.name || a.customerName;
+          const custB = customers.find(c => c.name === b.customerName || c.document === b.customerName)?.name || b.customerName;
+          aValue = custA;
+          bValue = custB;
+        }
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [orders, techs, customers, searchTerm, statusFilter, startDate, endDate, techFilter, customerFilter, dateTypeFilter, sortConfig]);
 
   const toggleSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -332,12 +375,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       {/* Main Table Container */}
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden flex-1">
+      <div className="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm flex flex-col overflow-hidden flex-1 mx-2 mb-2">
         <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
-              <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-left">
-                <th className="px-5 py-4 w-12 text-center">
+            <thead className="sticky top-0 bg-slate-50/80 backdrop-blur-md border-b border-slate-100 z-10">
+              <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-left">
+                <th className="px-8 py-5 w-12 text-center text-slate-300">
                   <input
                     type="checkbox"
                     className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 cursor-pointer"
@@ -345,13 +388,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onChange={toggleSelectAll}
                   />
                 </th>
-                <th className="px-4 py-4">Protocolo</th>
-                <th className="px-4 py-4">Agendamento</th>
-                <th className="px-4 py-4">Abertura</th>
-                <th className="px-4 py-4">Cliente</th>
-                <th className="px-4 py-4 text-center">Técnico</th>
-                <th className="px-4 py-4">Status</th>
-                <th className="px-4 py-4 text-right pr-10">Ações</th>
+                <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('id')}>
+                  <div className="flex items-center">Protocolo {getSortIcon('id')}</div>
+                </th>
+                <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('scheduledDate')}>
+                  <div className="flex items-center">Agendamento {getSortIcon('scheduledDate')}</div>
+                </th>
+                <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('createdAt')}>
+                  <div className="flex items-center">Abertura {getSortIcon('createdAt')}</div>
+                </th>
+                <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('customerName')}>
+                  <div className="flex items-center">Cliente {getSortIcon('customerName')}</div>
+                </th>
+                <th className="px-6 py-5 text-center cursor-pointer group" onClick={() => requestSort('assignedTo')}>
+                  <div className="flex items-center justify-center">Técnico {getSortIcon('assignedTo')}</div>
+                </th>
+                <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('status')}>
+                  <div className="flex items-center">Status {getSortIcon('status')}</div>
+                </th>
+                <th className="px-6 py-5 text-right pr-12">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -361,10 +416,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 return (
                   <tr
                     key={order.id}
-                    className={`transition-colors border-b border-slate-50 group cursor-pointer ${isSelected ? 'bg-slate-50' : 'bg-white hover:bg-slate-50/50'}`}
+                    className={`transition-all border-b border-slate-50 group cursor-pointer ${isSelected ? 'bg-primary-50/30' : 'bg-white hover:bg-slate-50/50'}`}
                     onClick={() => setSelectedOrder(order)}
                   >
-                    <td className="px-5 py-3.5 text-center" onClick={(e) => toggleSelection(order.id, e)}>
+                    <td className="px-8 py-5 text-center" onClick={(e) => toggleSelection(order.id, e)}>
                       <input
                         type="checkbox"
                         className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 cursor-pointer"
@@ -372,33 +427,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         readOnly
                       />
                     </td>
-                    <td className="px-4 py-3.5 font-bold text-slate-900 text-xs tracking-tight">#{order.id}</td>
-                    <td className="px-4 py-3.5 text-xs font-semibold text-slate-700">
+                    <td className="px-6 py-5 font-bold text-slate-900 text-xs tracking-tight uppercase italic">{order.id}</td>
+                    <td className="px-6 py-5 text-xs font-bold text-slate-700">
                       {formatDateDisplay(order.scheduledDate)}
                     </td>
-                    <td className="px-4 py-3.5 text-xs text-slate-500 font-medium">
+                    <td className="px-6 py-5 text-xs text-slate-400 font-bold uppercase tracking-tighter">
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-4 py-3.5 font-semibold text-xs text-slate-800 truncate max-w-[220px]">
+                    <td className="px-6 py-5 font-black text-xs text-slate-800 uppercase italic truncate max-w-[220px]">
                       {customers.find(c => c.name === order.customerName || c.document === order.customerName)?.name || order.customerName}
                     </td>
 
-                    <td className="px-4 py-3.5">
+                    <td className="px-6 py-5">
                       <div className="flex justify-center">
                         {assignedTech ? (
-                          <div className="flex items-center gap-2 px-2 py-1 rounded bg-slate-50 border border-slate-100">
-                            <img src={assignedTech.avatar} className="w-5 h-5 rounded-full object-cover grayscale-[0.5]" />
-                            <span className="text-[10px] font-bold text-slate-600 truncate max-w-[80px]">{assignedTech?.name?.split(' ')[0]}</span>
+                          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white border border-slate-100 shadow-sm group-hover:bg-primary-50/50 transition-all">
+                            <img src={assignedTech.avatar} className="w-5 h-5 rounded-lg object-cover shadow-sm" />
+                            <span className="text-[10px] font-black text-slate-700 uppercase italic truncate max-w-[80px]">{assignedTech?.name?.split(' ')[0]}</span>
                           </div>
-                        ) : <span className="text-[10px] text-slate-300 font-bold uppercase tracking-tight">-</span>}
+                        ) : <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">-</span>}
                       </div>
                     </td>
-                    <td className="px-4 py-3.5"><StatusBadge status={order.status} /></td>
-                    <td className="px-4 py-3.5 text-right pr-6">
-                      <div className="flex items-center justify-end gap-1.5 transition-all">
+                    <td className="px-6 py-5"><StatusBadge status={order.status} /></td>
+                    <td className="px-6 py-5 text-right pr-6">
+                      <div className="flex items-center justify-end gap-2 transition-all opacity-80 group-hover:opacity-100 scale-95 group-hover:scale-100 origin-right">
                         <button
                           onClick={(e) => handleOpenPublicView(order, e)}
-                          className="p-2 text-slate-500 bg-slate-100 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition-all border border-slate-200/50"
+                          className="p-3 text-slate-400 bg-slate-50 hover:text-slate-900 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-slate-100 transition-all active:scale-90"
                           title="Compartilhar"
                         >
                           <Share2 size={16} />
@@ -406,7 +461,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all border border-primary-200/50"
+                          className="p-3 text-primary-400 bg-primary-50/50 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all disabled:opacity-30 active:scale-90"
                           title="Editar"
                         >
                           <Edit3 size={16} />
@@ -414,7 +469,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           onClick={(e) => handleCancelOrder(order, e)}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all border border-rose-200/50"
+                          className="p-3 text-rose-400 bg-rose-50/50 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-rose-100 transition-all disabled:opacity-30 active:scale-90"
                           title="Cancelar"
                         >
                           <Ban size={16} />
