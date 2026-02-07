@@ -4,12 +4,12 @@ import { OrderPriority, OrderStatus } from '../../types';
 
 export const StatusBadge: React.FC<{ status: OrderStatus }> = ({ status }) => {
   const styles = {
-    [OrderStatus.PENDING]: 'bg-slate-100 text-slate-500 border-slate-200',
-    [OrderStatus.ASSIGNED]: 'bg-slate-100 text-primary-500 border-primary-200',
-    [OrderStatus.IN_PROGRESS]: 'bg-primary-50 text-primary-600 border-primary-200',
-    [OrderStatus.COMPLETED]: 'bg-success-50 text-success-700 border-success-200',
-    [OrderStatus.CANCELED]: 'bg-rose-50 text-rose-600 border-rose-200',
-    [OrderStatus.BLOCKED]: 'bg-amber-50 text-amber-700 border-amber-200',
+    [OrderStatus.PENDING]: 'bg-slate-100 text-slate-500',
+    [OrderStatus.ASSIGNED]: 'bg-primary-50 text-primary-600',
+    [OrderStatus.IN_PROGRESS]: 'bg-indigo-50 text-indigo-600',
+    [OrderStatus.COMPLETED]: 'bg-emerald-50 text-emerald-600',
+    [OrderStatus.CANCELED]: 'bg-rose-50 text-rose-500',
+    [OrderStatus.BLOCKED]: 'bg-amber-50 text-amber-600',
   };
 
   const labels = {
@@ -24,15 +24,15 @@ export const StatusBadge: React.FC<{ status: OrderStatus }> = ({ status }) => {
   const dotColors = {
     [OrderStatus.PENDING]: 'bg-slate-400',
     [OrderStatus.ASSIGNED]: 'bg-primary-400',
-    [OrderStatus.IN_PROGRESS]: 'bg-primary-600',
-    [OrderStatus.COMPLETED]: 'bg-success-500',
+    [OrderStatus.IN_PROGRESS]: 'bg-indigo-500',
+    [OrderStatus.COMPLETED]: 'bg-emerald-500',
     [OrderStatus.CANCELED]: 'bg-rose-500',
     [OrderStatus.BLOCKED]: 'bg-amber-500',
   };
 
   return (
-    <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border inline-flex items-center gap-1.5 ${styles[status]}`}>
-      <span className={`w-1 h-1 rounded-full ${dotColors[status]}`} />
+    <span className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-2 shadow-sm/5 ${styles[status]}`}>
+      <span className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${dotColors[status]}`} />
       {labels[status]}
     </span>
   );
@@ -40,10 +40,10 @@ export const StatusBadge: React.FC<{ status: OrderStatus }> = ({ status }) => {
 
 export const PriorityBadge: React.FC<{ priority: OrderPriority }> = ({ priority }) => {
   const styles = {
-    [OrderPriority.LOW]: 'text-slate-500 bg-slate-50 border-slate-100',
-    [OrderPriority.MEDIUM]: 'text-primary-600 bg-primary-50 border-primary-100',
-    [OrderPriority.HIGH]: 'text-amber-600 bg-amber-50 border-amber-100',
-    [OrderPriority.CRITICAL]: 'text-rose-700 bg-rose-50 border-rose-100 font-black',
+    [OrderPriority.LOW]: 'text-slate-400 bg-slate-50',
+    [OrderPriority.MEDIUM]: 'text-primary-500 bg-primary-50',
+    [OrderPriority.HIGH]: 'text-amber-500 bg-amber-50',
+    [OrderPriority.CRITICAL]: 'text-rose-500 bg-rose-50 font-black',
   };
 
   const labels = {
@@ -54,7 +54,7 @@ export const PriorityBadge: React.FC<{ priority: OrderPriority }> = ({ priority 
   };
 
   return (
-    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${styles[priority]}`}>
+    <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-[0.2em] ${styles[priority]}`}>
       {labels[priority]}
     </span>
   )

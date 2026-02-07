@@ -419,23 +419,23 @@ export const StockManagement: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+            <div className="bg-white border border-slate-100 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0 mx-2 mb-2">
 
                 {activeTab === 'items' ? (
                     <>
                         {/* Items Table */}
                         <div className="flex-1 overflow-auto custom-scrollbar">
-                            <table className="w-full border-collapse">
-                                <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10">
-                                    <tr className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] text-left">
-                                        <th className="px-6 py-5 border-b border-slate-100">Item</th>
-                                        <th className="px-6 py-5 border-b border-slate-100">Descrição</th>
-                                        <th className="px-6 py-5 border-b border-slate-100">Localização</th>
-                                        <th className="px-6 py-5 border-b border-slate-100">Qtd.</th>
-                                        <th className="px-6 py-5 border-b border-slate-100">Custo Total</th>
-                                        <th className="px-6 py-5 border-b border-slate-100">Venda</th>
-                                        <th className="px-6 py-5 border-b border-slate-100">Margem</th>
-                                        <th className="px-6 py-5 border-b border-slate-100 text-right pr-10">Ações</th>
+                            <table className="w-full border-separate border-spacing-y-0">
+                                <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 border-b border-slate-100 shadow-sm">
+                                    <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
+                                        <th className="px-8 py-5">Item</th>
+                                        <th className="px-8 py-5">Descrição</th>
+                                        <th className="px-8 py-5">Localização</th>
+                                        <th className="px-8 py-5">Qtd.</th>
+                                        <th className="px-8 py-5">Custo Total</th>
+                                        <th className="px-8 py-5">Venda</th>
+                                        <th className="px-8 py-5">Margem</th>
+                                        <th className="px-8 py-5 text-right pr-12">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -457,8 +457,8 @@ export const StockManagement: React.FC = () => {
                                         const totalCost = calculateTotalCost(item);
                                         const margin = calculateMargin(item);
                                         return (
-                                            <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-50">
-                                                <td className="px-6 py-4">
+                                            <tr key={item.id} className="bg-white hover:bg-primary-50/40 transition-all border-b border-slate-50 last:border-0 group">
+                                                <td className="px-8 py-4">
                                                     <div className="flex flex-col">
                                                         <span className="text-[10px] font-black text-primary-600 uppercase">{item?.code || '---'}</span>
                                                         {item?.externalCode && (
@@ -491,13 +491,13 @@ export const StockManagement: React.FC = () => {
                                                         {margin.toFixed(1)}%
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-right pr-6">
+                                                <td className="px-8 py-4 text-right pr-6">
                                                     <div className="flex items-center justify-end gap-2">
-                                                        <button onClick={() => handleOpenModal(item)} className="p-2 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all">
-                                                            <Edit3 size={14} />
+                                                        <button onClick={() => handleOpenModal(item)} className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar">
+                                                            <Edit3 size={16} />
                                                         </button>
-                                                        <button onClick={() => handleDelete(item.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
-                                                            <Trash2 size={14} />
+                                                        <button onClick={() => handleDelete(item.id)} className="p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90" title="Excluir">
+                                                            <Trash2 size={16} />
                                                         </button>
                                                     </div>
                                                 </td>
@@ -537,11 +537,11 @@ export const StockManagement: React.FC = () => {
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2 transition-opacity">
-                                                    <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-lg border border-primary-100/50" title="Editar">
-                                                        <Edit3 size={14} />
+                                                    <button onClick={() => handleOpenCategoryModal(cat)} className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar">
+                                                        <Edit3 size={16} />
                                                     </button>
-                                                    <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-lg border border-rose-100/50" title="Excluir">
-                                                        <Trash2 size={14} />
+                                                    <button onClick={() => handleDeleteCategory(cat.id)} className="p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-95" title="Excluir">
+                                                        <Trash2 size={16} />
                                                     </button>
                                                 </div>
                                             </div>

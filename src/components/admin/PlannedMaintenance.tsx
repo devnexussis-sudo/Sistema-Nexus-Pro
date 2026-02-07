@@ -221,7 +221,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                 }} className="px-6 py-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm transition-all border border-[#1c2d4f]">Novo Contrato</button>
             </div>
 
-            <div className="bg-white border border-slate-100 rounded-[3rem] overflow-hidden shadow-2xl flex-1 flex flex-col">
+            <div className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0 mx-2 mb-2">
                 {/* Toolbar de Filtros Unificada */}
                 <div className="p-6 border-b border-slate-50 bg-slate-50/30 space-y-4">
                     <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
@@ -270,15 +270,27 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                 </div>
 
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                    <table className="w-full">
-                        <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 text-[9px] font-black text-slate-400 uppercase tracking-widest text-left">
-                            <tr><th className="px-10 py-6">Código / PMOC</th><th className="px-6 py-6">Cliente</th><th className="px-6 py-6 font-black uppercase">Mensalidade</th><th className="px-6 py-6">Dia</th><th className="px-6 py-6">Status</th><th className="px-6 py-6 text-right pr-10">Ações</th></tr>
+                    <table className="w-full border-separate border-spacing-y-0 px-8">
+                        <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
+                            <tr className="border-b border-slate-100">
+                                <th className="px-8 py-6">Código / PMOC</th>
+                                <th className="px-6 py-6">Cliente</th>
+                                <th className="px-6 py-6 font-black uppercase">Mensalidade</th>
+                                <th className="px-6 py-6">Dia</th>
+                                <th className="px-6 py-6">Status</th>
+                                <th className="px-6 py-6 text-right pr-12">Ações</th>
+                            </tr>
                         </thead>
                         <tbody>
                             {filteredContracts.length > 0 ? (
                                 filteredContracts.map(contract => (
-                                    <tr key={contract.id} className="hover:bg-slate-50/20 border-b border-slate-50 transition-colors">
-                                        <td className="px-10 py-5"><div className="flex flex-col"><span className="text-[12px] font-black uppercase italic text-primary-600 tracking-tighter">{contract.pmocCode}</span><span className="text-[9px] font-bold text-slate-400 uppercase">{contract.title.replace('CONTRATO Master: ', '')}</span></div></td>
+                                    <tr key={contract.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
+                                        <td className="px-8 py-5">
+                                            <div className="flex flex-col">
+                                                <span className="text-[12px] font-black uppercase italic text-primary-600 tracking-tighter">{contract.pmocCode}</span>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase">{contract.title.replace('CONTRATO Master: ', '')}</span>
+                                            </div>
+                                        </td>
                                         <td className="px-6 py-5 text-[10px] font-black uppercase italic">{contract.customerName}</td>
                                         <td className="px-6 py-5 text-[11px] font-black text-emerald-600">R$ {contract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                         <td className="px-6 py-5"><span className="px-2 py-1 bg-primary-50 text-primary-600 rounded-lg text-[10px] font-black uppercase italic">{contract.maintenanceDay || '1'}º</span></td>
@@ -288,7 +300,15 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                                 {contract.status === OrderStatus.CANCELED ? 'Inativo' : 'Ativo'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-5 text-right pr-6"><div className="flex justify-end gap-2"><button onClick={() => { setSelectedContract(contract); setViewTab('details'); setIsViewModalOpen(true); }} className="p-2.5 bg-white text-slate-400 rounded-xl hover:text-primary-600 shadow-sm border border-slate-100 transition-all"><Eye size={14} /></button><button onClick={() => handleOpenEdit(contract)} className="p-2.5 bg-white text-slate-400 rounded-xl hover:text-primary-600 shadow-sm border border-slate-100 transition-all"><Edit3 size={14} /></button><button onClick={() => initToggleStatus(contract)} className={`p-2.5 bg-white rounded-xl shadow-sm border border-slate-100 transition-all ${contract.status === OrderStatus.CANCELED ? 'text-emerald-500 hover:bg-emerald-50' : 'text-red-400 hover:bg-red-50'}`}><ShieldAlert size={14} /></button></div></td>
+                                        <td className="px-6 py-5 text-right pr-6">
+                                            <div className="flex justify-end gap-2 transition-all">
+                                                <button onClick={() => { setSelectedContract(contract); setViewTab('details'); setIsViewModalOpen(true); }} className="p-3 bg-slate-50/50 text-slate-400 rounded-xl hover:text-slate-900 hover:bg-white shadow-sm border border-transparent hover:border-slate-100 transition-all active:scale-95" title="Detalhes"><Eye size={16} /></button>
+                                                <button onClick={() => handleOpenEdit(contract)} className="p-3 bg-primary-50/50 text-primary-400 rounded-xl hover:text-primary-600 hover:bg-white shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar"><Edit3 size={16} /></button>
+                                                <button onClick={() => initToggleStatus(contract)} className={`p-3 rounded-xl shadow-sm border border-transparent transition-all active:scale-95 ${contract.status === OrderStatus.CANCELED ? 'bg-emerald-50/50 text-emerald-500 hover:text-emerald-700 hover:bg-white hover:border-emerald-100' : 'bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white hover:border-rose-100'}`} title={contract.status === OrderStatus.CANCELED ? 'Reativar' : 'Suspender'}>
+                                                    <ShieldAlert size={16} />
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))
                             ) : (

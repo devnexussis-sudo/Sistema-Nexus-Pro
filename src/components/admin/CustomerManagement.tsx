@@ -283,18 +283,18 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/50 flex-1 min-h-0">
+      <div className="bg-white border border-slate-100 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0 mx-2 mb-2">
         {/* TABELA PADRONIZADA */}
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
-          <table className="w-full border-separate border-spacing-y-3">
-            <thead>
+          <table className="w-full border-separate border-spacing-y-3 px-8">
+            <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
               <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                <th className="px-8 py-2 w-10"></th>
-                <th className="px-8 py-2">Cliente / Documento</th>
-                <th className="px-8 py-2">Contato Principal</th>
-                <th className="px-8 py-2">Localização</th>
-                <th className="px-8 py-2 text-center">Status</th>
-                <th className="px-8 py-2 text-right pr-12">Ações</th>
+                <th className="px-8 py-5 w-10"></th>
+                <th className="px-8 py-5">Cliente / Documento</th>
+                <th className="px-8 py-5">Contato Principal</th>
+                <th className="px-8 py-5">Localização</th>
+                <th className="px-8 py-5 text-center">Status</th>
+                <th className="px-8 py-5 text-right pr-12">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -304,7 +304,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                   <React.Fragment key={c.id}>
                     <tr
                       onClick={() => toggleSelectCustomer(c.id)}
-                      className={`bg-white hover:bg-primary-50/30 transition-all group shadow-sm cursor-pointer ${!c.active ? 'opacity-50' : ''}`}
+                      className={`bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer ${!c.active ? 'opacity-50' : ''}`}
                     >
                       <td className="px-8 py-6 rounded-l-[2rem] border border-slate-100 border-r-0 text-slate-300">
                         {isSelected ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -340,13 +340,13 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       <td className="px-8 py-6 rounded-r-[2rem] border border-slate-100 border-l-0 text-right pr-8">
 
                         <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                          <button onClick={(e) => toggleStatus(c.id, e)} title={c.active ? "Suspender" : "Liberar"} className="p-3 bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-white rounded-xl shadow-sm transition-all">
+                          <button onClick={(e) => toggleStatus(c.id, e)} title={c.active ? "Suspender" : "Liberar"} className="p-3 bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-amber-100 transition-all active:scale-90">
                             {c.active ? <PowerOff size={18} /> : <Power size={18} />}
                           </button>
-                          <button onClick={(e) => handleEdit(c, e)} title="Editar" className="p-3 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-primary-100">
+                          <button onClick={(e) => handleEdit(c, e)} title="Editar" className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90">
                             <Edit2 size={18} />
                           </button>
-                          <button onClick={(e) => handleDelete(c.id, e)} title="Excluir" className="p-3 bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-white rounded-xl shadow-sm transition-all">
+                          <button onClick={(e) => handleDelete(c.id, e)} title="Excluir" className="p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90">
                             <Trash2 size={18} />
                           </button>
                         </div>
