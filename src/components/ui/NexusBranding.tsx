@@ -30,10 +30,10 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
                     src="/nexus-logo.png"
                     alt="Nexus Line"
                     style={{
-                        height: current.icon.replace('h-', '') === '24' ? '106px' :
-                            current.icon.replace('h-', '') === '6' ? '26px' : '18px'
+                        height: current.icon.replace('h-', '') === '24' ? '100px' :
+                            current.icon.replace('h-', '') === '6' ? '24px' : '16px'
                     }}
-                    className={`${current.icon} w-auto object-contain max-w-none scale-125`}
+                    className={`${current.icon} w-auto object-contain max-w-none scale-110`}
                     onLoad={() => setImageLoaded(true)}
                     onError={(e) => {
                         setImageLoaded(false);
