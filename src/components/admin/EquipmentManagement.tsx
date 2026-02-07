@@ -5,8 +5,6 @@ import { Input, TextArea } from '../ui/Input';
 import {
   Plus, Box, Laptop, Search, Trash2, Edit2, X, Save,
   Power, PowerOff, Info, User, Tag, Hash, LayoutGrid,
-  Plus, Box, Laptop, Search, Trash2, Edit2, X, Save,
-  Power, PowerOff, Info, User, Tag, Hash, LayoutGrid,
   Layers, Settings2, MapPin, Filter, Calendar, ChevronLeft
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
