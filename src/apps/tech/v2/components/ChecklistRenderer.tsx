@@ -41,19 +41,19 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
                 }
 
                 return (
-                    <div key={field.id} className="glass p-5 rounded-2xl space-y-3 animate-in">
-                        <label className="block text-xs font-black uppercase text-slate-400 tracking-wider">
-                            {field.label} {field.required && <span className="text-red-500">*</span>}
+                    <div key={field.id} className="bg-slate-50 border border-slate-100 p-5 rounded-lg space-y-3 animate-in">
+                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none ml-1">
+                            {field.label} {field.required && <span className="text-rose-500">*</span>}
                         </label>
 
                         {/* TEXTO / DESCRITIVO */}
                         {(field.type === FormFieldType.TEXT || field.type === FormFieldType.LONG_TEXT) && (
                             <textarea
                                 rows={field.type === FormFieldType.LONG_TEXT ? 2 : 3}
-                                className="w-full bg-black/20 border border-white/5 rounded-xl p-3 text-sm text-white focus:border-emerald-500/50 outline-none transition-all"
+                                className="w-full bg-white border border-slate-200 rounded-lg p-3 text-sm text-slate-900 font-bold focus:ring-4 focus:ring-primary-100 focus:border-primary-500 outline-none transition-all placeholder:text-slate-300"
                                 value={answers[field.id] || ''}
                                 onChange={e => onAnswerChange(field.id, e.target.value)}
-                                placeholder="Digite aqui..."
+                                placeholder="Descreva aqui..."
                             />
                         )}
 
@@ -64,9 +64,9 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
                                     <button
                                         key={opt}
                                         onClick={() => onAnswerChange(field.id, opt)}
-                                        className={`py-3 px-2 rounded-xl text-[10px] font-bold uppercase tracking-wide border transition-all ${answers[field.id] === opt
-                                            ? 'bg-emerald-500 border-emerald-500 text-white'
-                                            : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'
+                                        className={`py-3 px-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${answers[field.id] === opt
+                                            ? 'bg-primary-500 border-primary-500 text-white shadow-none'
+                                            : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
                                             }`}
                                     >
                                         {opt}
@@ -79,26 +79,28 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
                         {field.type === FormFieldType.PHOTO && (
                             <div>
                                 {answers[field.id] ? (
-                                    <div className="relative aspect-video rounded-xl overflow-hidden border border-emerald-500/30 group">
+                                    <div className="relative aspect-video rounded-lg overflow-hidden border border-primary-500/30 group">
                                         <img src={answers[field.id]} alt="Evidência" className="w-full h-full object-cover" />
                                         <button
                                             onClick={() => onAnswerChange(field.id, null)}
-                                            className="absolute top-2 right-2 bg-red-500/80 p-2 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="absolute top-2 right-2 bg-rose-500/90 p-2 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
-                                            Remover
+                                            <X size={16} />
                                         </button>
-                                        <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] text-emerald-400 font-bold uppercase flex items-center gap-1">
-                                            <Check size={10} /> Foto Salva
+                                        <div className="absolute bottom-2 left-2 bg-primary-500/90 px-3 py-1.5 rounded-lg text-[9px] text-white font-black uppercase tracking-widest flex items-center gap-2">
+                                            <Check size={12} /> Foto Salva
                                         </div>
                                     </div>
                                 ) : (
-                                    <label className="flex flex-col items-center justify-center aspect-video rounded-xl border-2 border-dashed border-white/20 bg-white/5 active:bg-white/10 transition-all cursor-pointer">
+                                    <label className="flex flex-col items-center justify-center aspect-video rounded-lg border-2 border-dashed border-slate-200 bg-white active:bg-slate-100 transition-all cursor-pointer">
                                         {uploading[field.id] ? (
-                                            <div className="animate-spin w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full" />
+                                            <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full" />
                                         ) : (
                                             <>
-                                                <Camera size={24} className="text-slate-500 mb-2" />
-                                                <span className="text-[10px] font-black uppercase text-slate-500">Tirar Foto</span>
+                                                <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 mb-2 border border-slate-100">
+                                                    <Camera size={24} />
+                                                </div>
+                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Tirar ou Anexar Foto</span>
                                             </>
                                         )}
                                         <input

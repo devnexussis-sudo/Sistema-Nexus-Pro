@@ -257,19 +257,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               placeholder="Pesquisar protocolo, cliente ou descrição..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm h-full"
+              className="w-full bg-white border border-slate-200 rounded-lg pl-12 pr-4 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all h-full"
             />
           </div>
 
           {/* Date Control Group */}
-          <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
+          <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-lg">
 
             {/* Date Type Selector */}
-            <div className="flex items-center bg-slate-50 rounded-lg px-2 py-1 h-full">
+            <div className="flex items-center bg-slate-50 rounded-md px-2 py-1 h-full">
               <select
                 value={dateTypeFilter}
                 onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created')}
-                className="bg-transparent text-[9px] font-black uppercase text-indigo-700 outline-none cursor-pointer"
+                className="bg-transparent text-[9px] font-black uppercase text-primary-500 outline-none cursor-pointer"
               >
                 <option value="scheduled">Dt. Agendamento</option>
                 <option value="created">Dt. Abertura</option>
@@ -280,9 +280,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             {/* Date Inputs */}
             <div className="flex items-center gap-2">
-              <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-black uppercase text-slate-600 outline-none hover:text-indigo-600 transition-colors cursor-pointer" />
+              <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-black uppercase text-slate-600 outline-none hover:text-primary-500 transition-colors cursor-pointer" />
               <span className="text-[9px] font-black text-slate-300">até</span>
-              <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-black uppercase text-slate-600 outline-none hover:text-indigo-600 transition-colors cursor-pointer" />
+              <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-black uppercase text-slate-600 outline-none hover:text-primary-500 transition-colors cursor-pointer" />
             </div>
 
             <div className="h-4 w-[1px] bg-slate-200 mx-1"></div>
@@ -293,7 +293,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   key={f}
                   onClick={() => handleFastFilter(f as any)}
-                  className="px-3 py-1.5 text-[8px] font-black uppercase rounded-lg transition-all text-slate-400 hover:text-indigo-600 hover:bg-slate-50 active:scale-95"
+                  className="px-3 py-1.5 text-[8px] font-black uppercase rounded-md transition-all text-slate-400 hover:text-primary-500 hover:bg-slate-50 active:scale-95"
                 >{f === 'today' ? 'Hoje' : f === 'week' ? 'Semana' : 'Mês'}</button>
               ))}
             </div>
@@ -328,7 +328,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onDateChange('', '');
               setSelectedOrderIds([]);
             }}
-            className="px-4 h-10 flex items-center justify-center text-[9px] font-black uppercase text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors border border-dashed border-indigo-200"
+            className="px-4 h-10 flex items-center justify-center text-[9px] font-black uppercase text-primary-500 hover:bg-primary-50 rounded-lg transition-colors border border-dashed border-primary-200"
           >
             Limpar
           </button>
@@ -336,18 +336,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {/* Action Buttons Integrated into Toolbar */}
           <div className="flex items-center gap-2 ml-auto">
             {selectedOrderIds.length > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-xl animate-fade-in shadow-sm mr-2 h-10">
-                <span className="text-[9px] font-black text-indigo-700 uppercase italic hidden xl:inline">{selectedOrderIds.length} Sel.</span>
-                <button onClick={handleBatchPrint} className="text-indigo-600 hover:text-indigo-800 p-1" title="Imprimir"><Printer size={14} /></button>
-                <div className="h-3 w-[1px] bg-indigo-200" />
-                <button onClick={handleExportExcel} className="text-emerald-600 hover:text-emerald-800 p-1" title="Excel"><FileSpreadsheet size={14} /></button>
-                <button onClick={() => setSelectedOrderIds([])} className="text-indigo-400 hover:text-red-500 p-1"><X size={14} /></button>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-primary-50 border border-primary-200 rounded-lg animate-fade-in mr-2 h-10">
+                <span className="text-[9px] font-black text-primary-500 uppercase italic hidden xl:inline">{selectedOrderIds.length} Sel.</span>
+                <button onClick={handleBatchPrint} className="text-primary-600 hover:text-primary-800 p-1" title="Imprimir"><Printer size={14} /></button>
+                <div className="h-3 w-[1px] bg-primary-200" />
+                <button onClick={handleExportExcel} className="text-success-600 hover:text-success-800 p-1" title="Excel"><FileSpreadsheet size={14} /></button>
+                <button onClick={() => setSelectedOrderIds([])} className="text-primary-400 hover:text-red-500 p-1"><X size={14} /></button>
               </div>
             )}
 
             <button
               onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
-              className="flex items-center gap-2 px-5 h-10 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase italic shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95"
+              className="flex items-center gap-2 px-5 h-10 bg-primary-500 text-white rounded-lg text-[10px] font-black uppercase italic hover:bg-primary-600 transition-all active:scale-95"
             >
               <Plus size={14} /> Novo Chamado
             </button>
@@ -355,29 +355,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+      <div className="bg-white border border-slate-200 rounded-lg flex flex-col overflow-hidden shadow-none flex-1 min-h-0">
 
         {/* Compact Table Space */}
-        <div className="flex-1 overflow-auto custom-scrollbar -mt-2">
+        <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10">
-              <tr className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-left">
-                <th className="px-6 py-5 border-b border-slate-100 text-center w-12">
+            <thead className="sticky top-0 bg-primary-500 z-10">
+              <tr className="text-[9px] font-black text-white/70 uppercase tracking-[0.2em] text-left">
+                <th className="px-6 py-4 border-b border-primary-600 text-center w-12">
                   <input
                     type="checkbox"
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    className="w-4 h-4 rounded border-white/30 bg-white/10 text-primary-500 focus:ring-primary-500 cursor-pointer"
                     checked={filteredOrders.length > 0 && selectedOrderIds.length === filteredOrders.length}
                     onChange={toggleSelectAll}
                   />
                 </th>
-                <th className="px-4 py-5 border-b border-slate-100">Protocolo</th>
-                <th className="px-4 py-5 border-b border-slate-100">Agenda</th>
-                <th className="px-4 py-5 border-b border-slate-100">Abertura</th>
-                <th className="px-4 py-5 border-b border-slate-100">Cliente</th>
-                <th className="px-4 py-5 border-b border-slate-100">Técnico</th>
-                <th className="px-4 py-5 border-b border-slate-100">Status</th>
-                <th className="px-4 py-5 border-b border-slate-100">Execução</th>
-                <th className="px-4 py-5 border-b border-slate-100 text-right pr-10">Ações</th>
+                <th className="px-4 py-4 border-b border-primary-600">Protocolo</th>
+                <th className="px-4 py-4 border-b border-primary-600">Agenda</th>
+                <th className="px-4 py-4 border-b border-primary-600">Abertura</th>
+                <th className="px-4 py-4 border-b border-primary-600">Cliente</th>
+                <th className="px-4 py-4 border-b border-primary-600">Técnico</th>
+                <th className="px-4 py-4 border-b border-primary-600">Status</th>
+                <th className="px-4 py-4 border-b border-primary-600">Execução</th>
+                <th className="px-4 py-4 border-b border-primary-600 text-right pr-10">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -387,19 +387,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 return (
                   <tr
                     key={order.id}
-                    className={`transition-all group cursor-pointer border-b border-slate-50 ${isSelected ? 'bg-indigo-50/50' : 'bg-white hover:bg-slate-50/50'}`}
+                    className={`transition-all group cursor-pointer border-b border-slate-100 ${isSelected ? 'bg-primary-50/30' : 'bg-white hover:bg-slate-50'}`}
                     onClick={() => setSelectedOrder(order)}
                   >
                     <td className="px-6 py-5 text-center" onClick={(e) => toggleSelection(order.id, e)}>
                       <input
                         type="checkbox"
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        className="w-4 h-4 rounded border-slate-300 text-primary-500 focus:ring-primary-500 cursor-pointer"
                         checked={isSelected}
                         readOnly
                       />
                     </td>
                     <td className="px-4 py-5 font-black text-[11px] whitespace-nowrap">#{order.id}</td>
-                    <td className="px-4 py-5 text-[10px] font-black text-indigo-600 uppercase italic">
+                    <td className="px-4 py-5 text-[10px] font-black text-primary-500 uppercase italic">
                       {formatDateDisplay(order.scheduledDate)}
                     </td>
                     <td className="px-4 py-5 text-[10px] font-bold text-slate-500 uppercase italic">
@@ -412,7 +412,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="px-4 py-5">
                       {assignedTech ? (
                         <div className="flex items-center gap-2">
-                          <img src={assignedTech.avatar} className="w-6 h-6 rounded-lg object-cover border border-slate-100" />
+                          <img src={assignedTech.avatar} className="w-6 h-6 rounded-md object-cover border border-slate-100" />
                           <span className="text-[10px] font-black uppercase text-slate-500 italic">{assignedTech?.name?.split(' ')[0] || '---'}</span>
                         </div>
                       ) : <span className="text-[8px] text-slate-300 italic font-black">---</span>}
@@ -426,10 +426,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                     </td>
                     <td className="px-4 py-5 text-right pr-6">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2 text-slate-400">
                         <button
                           onClick={(e) => handleOpenPublicView(order, e)}
-                          className="p-2.5 bg-white text-slate-400 hover:text-indigo-600 rounded-xl shadow-sm border border-slate-100 hover:border-indigo-100 transition-all"
+                          className="p-2 bg-white text-slate-400 hover:text-primary-500 rounded-md border border-slate-200 hover:border-primary-500 transition-all duration-200"
                           title="Relatório Público"
                         >
                           <Share2 size={14} />
@@ -437,7 +437,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className={`p-2.5 bg-white rounded-xl shadow-sm border transition-all ${order.status === OrderStatus.CANCELED ? 'opacity-30 cursor-not-allowed border-slate-100 text-slate-300' : 'text-slate-400 hover:text-indigo-600 border-slate-100 hover:border-indigo-100'}`}
+                          className={`p-2 bg-white rounded-md border transition-all duration-200 ${order.status === OrderStatus.CANCELED ? 'opacity-30 cursor-not-allowed border-slate-100 text-slate-300' : 'text-slate-400 hover:text-primary-500 border-slate-200 hover:border-primary-500'}`}
                           title="Editar OS"
                         >
                           <Edit3 size={14} />
@@ -445,7 +445,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           onClick={(e) => handleCancelOrder(order, e)}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className={`p-2.5 bg-white rounded-xl shadow-sm border transition-all ${order.status === OrderStatus.CANCELED ? 'opacity-30 cursor-not-allowed border-slate-100 text-slate-300' : 'text-slate-400 hover:text-rose-600 border-slate-100 hover:border-rose-100'}`}
+                          className={`p-2 bg-white rounded-md border transition-all duration-200 ${order.status === OrderStatus.CANCELED ? 'opacity-30 cursor-not-allowed border-slate-100 text-slate-300' : 'text-slate-400 hover:text-rose-600 border-slate-200 hover:border-rose-100'}`}
                           title="Cancelar OS"
                         >
                           <Ban size={14} />
@@ -456,9 +456,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 );
               }) : (
                 <tr>
-                  <td colSpan={7} className="py-32 text-center">
-                    <Clock size={40} className="mx-auto text-slate-100 mb-4" />
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Nenhuma atividade localizada</p>
+                  <td colSpan={9} className="py-32 text-center bg-white">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                      <Search size={24} className="text-slate-300" />
+                    </div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Nenhuma atividade localizada na base Nexus</p>
+                    <p className="text-[9px] text-slate-300 uppercase font-bold mt-1">Ajuste os filtros ou verifique o protocolo</p>
                   </td>
                 </tr>
               )}
@@ -484,17 +487,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="bg-white rounded-xl w-full max-w-6xl max-h-[95vh] shadow-2xl flex flex-col overflow-hidden">
 
             {/* HEADER - Enterprise Style */}
-            <div className="px-6 py-4 border-b border-slate-200 bg-white flex justify-between items-center shrink-0">
+            <div className="px-6 py-4 border-b border-primary-600 bg-primary-500 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md">
+                <div className="w-10 h-10 bg-white/10 rounded-md flex items-center justify-center text-white border border-white/20">
                   <FileText size={20} />
                 </div>
                 <div>
                   <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-bold text-slate-900 leading-none">Ordem de Serviço #{selectedOrder.id}</h2>
+                    <h2 className="text-lg font-bold text-white leading-none italic uppercase italic tracking-tight">Ordem de Serviço #{selectedOrder.id}</h2>
                     <StatusBadge status={selectedOrder.status} />
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1 uppercase tracking-wider font-semibold">
+                  <p className="text-[11px] text-white/70 mt-1 uppercase tracking-wider font-semibold italic">
                     {selectedOrder.customerName} • {selectedOrder.customerAddress}
                   </p>
                 </div>
@@ -503,19 +506,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handlePrintOrder(selectedOrder.id)}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold uppercase hover:bg-slate-800 transition-all shadow-sm active:scale-95"
+                  className="flex items-center gap-2 px-4 py-2 bg-white text-primary-500 rounded-md text-xs font-black uppercase hover:bg-slate-50 transition-all active:scale-95"
                 >
                   <Printer size={14} /> Imprimir PDF
                 </button>
-                <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
-                <button onClick={() => setSelectedOrder(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
+                <div className="h-6 w-[1px] bg-white/20 mx-1"></div>
+                <button onClick={() => setSelectedOrder(null)} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-md transition-all">
                   <X size={20} />
                 </button>
               </div>
             </div>
 
             {/* TABS - Underlined Style */}
-            <div className="px-6 border-b border-slate-200 bg-slate-50/50 flex gap-6 shrink-0 overflow-x-auto">
+            <div className="px-6 border-b border-slate-200 bg-slate-50 flex gap-6 shrink-0 overflow-x-auto">
               {[
                 { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
                 { id: 'execution', label: 'Execução & Checklist', icon: ClipboardList },
@@ -526,9 +529,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 py-3 text-[11px] font-bold uppercase tracking-widest border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                  className={`flex items-center gap-2 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id ? 'border-primary-500 text-primary-600 italic' : 'border-transparent text-slate-400 hover:text-slate-600 hover:border-slate-300'}`}
                 >
-                  <tab.icon size={14} /> {tab.label}
+                  <tab.icon size={13} /> {tab.label}
                 </button>
               ))}
             </div>

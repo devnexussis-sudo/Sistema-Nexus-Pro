@@ -137,7 +137,7 @@ export const TechDashboardV2: React.FC = () => {
                                 </div>
                                 <input
                                     type="date"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 transition-colors"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-primary-500 transition-colors"
                                     value={filters.startDate}
                                     onChange={(e) => refreshData({ newFilters: { startDate: e.target.value } })}
                                 />
@@ -149,7 +149,7 @@ export const TechDashboardV2: React.FC = () => {
                                 </div>
                                 <input
                                     type="date"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 transition-colors"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-primary-500 transition-colors"
                                     value={filters.endDate}
                                     onChange={(e) => refreshData({ newFilters: { endDate: e.target.value } })}
                                 />
@@ -170,9 +170,9 @@ export const TechDashboardV2: React.FC = () => {
                                     <button
                                         key={st.id}
                                         onClick={() => refreshData({ newFilters: { status: st.id as any } })}
-                                        className={`whitespace-nowrap px-3.5 py-1.5 rounded-full text-[11px] font-semibold transition-all flex-shrink-0 border ${isActive
-                                                ? 'bg-slate-900 border-slate-900 text-white shadow-md shadow-slate-900/10'
-                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                        className={`whitespace-nowrap px-3.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all flex-shrink-0 border ${isActive
+                                            ? 'bg-primary-500 border-primary-500 text-white shadow-none'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                                             }`}
                                     >
                                         {st.label}
@@ -205,7 +205,7 @@ export const TechDashboardV2: React.FC = () => {
                                     <div
                                         key={order.id}
                                         onClick={() => setSelectedOrder(order)}
-                                        className="bg-white rounded-xl shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden active:scale-[0.99] transition-transform"
+                                        className="bg-white rounded-lg shadow-none border border-slate-200 overflow-hidden active:scale-[0.99] transition-transform"
                                     >
                                         <div className="p-4">
                                             <div className="flex justify-between items-start mb-3">
@@ -221,9 +221,9 @@ export const TechDashboardV2: React.FC = () => {
                                                     </h3>
                                                 </div>
                                                 <div className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wide ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-50 text-emerald-600' :
-                                                        order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-50 text-amber-600' :
-                                                            order.status === OrderStatus.BLOCKED ? 'bg-red-50 text-red-600' :
-                                                                'bg-slate-100 text-slate-600'
+                                                    order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-50 text-amber-600' :
+                                                        order.status === OrderStatus.BLOCKED ? 'bg-red-50 text-red-600' :
+                                                            'bg-slate-100 text-slate-600'
                                                     }`}>
                                                     {order.status === OrderStatus.IN_PROGRESS ? 'Executando' :
                                                         order.status === OrderStatus.COMPLETED ? 'Concluída' :
@@ -419,7 +419,7 @@ export const TechDashboardV2: React.FC = () => {
                 <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-2 pb-6 flex justify-around items-center z-40 max-w-lg mx-auto">
                     <button
                         onClick={() => setActiveTab('home')}
-                        className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${activeTab === 'home' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${activeTab === 'home' ? 'text-primary-500 bg-primary-50' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                         <ListTodo size={22} strokeWidth={activeTab === 'home' ? 2.5 : 2} />
                         <span className="text-[10px] font-bold">Início</span>
@@ -427,7 +427,7 @@ export const TechDashboardV2: React.FC = () => {
 
                     <button
                         onClick={() => setActiveTab('dashboard')}
-                        className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${activeTab === 'dashboard' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${activeTab === 'dashboard' ? 'text-primary-500 bg-primary-50' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                         <LayoutDashboard size={22} strokeWidth={activeTab === 'dashboard' ? 2.5 : 2} />
                         <span className="text-[10px] font-bold">Painel</span>
@@ -435,7 +435,7 @@ export const TechDashboardV2: React.FC = () => {
 
                     <button
                         onClick={() => setActiveTab('settings')}
-                        className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${activeTab === 'settings' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'}`}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${activeTab === 'settings' ? 'text-primary-500 bg-primary-50' : 'text-slate-400 hover:text-slate-600'}`}
                     >
                         <Settings size={22} strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
                         <span className="text-[10px] font-bold">Config</span>

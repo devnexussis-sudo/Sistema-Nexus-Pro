@@ -175,30 +175,30 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       <div className="flex flex-col space-y-4">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Nexus Analytics</h1>
+            <h1 className="text-2xl font-black text-primary-500 uppercase italic tracking-tighter leading-none">Nexus Analytics</h1>
             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Operational BI Framework</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Fast Filters */}
-            <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
-              <div className="flex items-center bg-slate-50 rounded-lg px-2 py-1 h-full">
+            <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-lg">
+              <div className="flex items-center bg-slate-50 rounded-md px-2 py-1 h-full">
                 <select
                   value={dateTypeFilter}
                   onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created')}
-                  className="bg-transparent text-[9px] font-black uppercase text-indigo-700 outline-none cursor-pointer"
+                  className="bg-transparent text-[9px] font-black uppercase text-primary-500 outline-none cursor-pointer"
                 >
                   <option value="scheduled">Dt. Agenda</option>
                   <option value="created">Dt. Abertura</option>
                 </select>
               </div>
               <div className="h-4 w-[1px] bg-slate-200 mx-1"></div>
-              <div className="flex bg-slate-50 p-1 rounded-lg">
+              <div className="flex bg-slate-50 p-1 rounded-md">
                 {['today', 'week', 'month'].map((f) => (
                   <button
                     key={f}
                     onClick={() => handleFastFilter(f as any)}
-                    className="px-3 py-1.5 text-[8px] font-black uppercase rounded-md transition-all text-slate-500 hover:text-indigo-600 hover:bg-white active:scale-95"
+                    className="px-3 py-1.5 text-[8px] font-black uppercase rounded-md transition-all text-slate-500 hover:text-primary-500 hover:bg-white active:scale-95"
                   >{f === 'today' ? 'Hoje' : f === 'week' ? 'Semana' : 'Mês'}</button>
                 ))}
               </div>
@@ -221,11 +221,11 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               placeholder="Filtrar por nome ou protocolo..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm"
+              className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-4 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all"
             />
           </div>
 
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10 min-w-[150px]">
+          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 px-3 h-10 min-w-[150px]">
             <UserCheck size={14} className="text-slate-400 mr-2" />
             <select className="bg-transparent text-[9px] font-black uppercase text-slate-600 outline-none w-full cursor-pointer" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
               <option value="ALL">Todo Time</option>
@@ -233,7 +233,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10 min-w-[150px]">
+          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 px-3 h-10 min-w-[150px]">
             <Users size={14} className="text-slate-400 mr-2" />
             <select className="bg-transparent text-[9px] font-black uppercase text-slate-600 outline-none w-full cursor-pointer" value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}>
               <option value="ALL">Todos Clientes</option>
@@ -246,7 +246,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               setSearchTerm(''); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
               onDateChange('', '');
             }}
-            className="px-4 h-10 text-[9px] font-black uppercase text-rose-500 hover:bg-rose-50 rounded-xl transition-all border border-dashed border-rose-200"
+            className="px-4 h-10 text-[9px] font-black uppercase text-rose-500 hover:bg-rose-50 rounded-lg transition-all border border-dashed border-rose-200"
           >
             Limpar
           </button>
@@ -256,13 +256,13 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       {/* 📊 GRID PRINCIPAL DE KPIS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI: EFICIÊNCIA SLA 24H */}
-        <div className="bg-indigo-600 rounded-[2rem] p-6 text-white shadow-xl shadow-indigo-600/20 relative overflow-hidden flex flex-col justify-between">
+        <div className="bg-primary-500 rounded-lg p-6 shadow-none flex flex-col justify-between text-white relative overflow-hidden group">
           <div className="absolute -right-4 -top-4 opacity-10 rotate-12"><Gauge size={120} /></div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Eficiência SLA (24h)</p>
             <h2 className="text-4xl font-black italic tracking-tighter mt-1">{closureKPIs.slaEfficiency}%</h2>
           </div>
-          <div className="mt-4 bg-white/10 rounded-xl p-2.5 backdrop-blur-sm border border-white/10">
+          <div className="mt-4 bg-white/10 rounded-md p-2.5 backdrop-blur-sm border border-white/10">
             <div className="flex justify-between items-center text-[8px] font-black uppercase">
               <span>Meta: 85%</span>
               <span className={closureKPIs.slaEfficiency >= 85 ? 'text-emerald-400' : 'text-rose-400'}>
@@ -276,20 +276,20 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         </div>
 
         {/* KPI: FECHAMENTO EM 24H */}
-        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
+        <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-none flex flex-col justify-between group hover:border-primary-500 transition-all">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resolvido 24h</p>
               <h3 className="text-3xl font-black text-slate-900 italic tracking-tighter mt-1">{closureKPIs.within24}</h3>
             </div>
-            <div className="p-3 bg-emerald-50 text-emerald-500 rounded-2xl group-hover:scale-110 transition-transform"><Zap size={20} /></div>
+            <div className="p-3 bg-emerald-50 text-emerald-500 rounded-lg group-hover:scale-110 transition-transform"><Zap size={20} /></div>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-4">
-            <div className="bg-slate-50 rounded-lg p-2">
+            <div className="bg-slate-50 rounded-md p-2">
               <span className="text-[7px] font-black text-slate-400 uppercase">Em 36h</span>
               <p className="text-[10px] font-black text-slate-700">{closureKPIs.within36}</p>
             </div>
-            <div className="bg-slate-50 rounded-lg p-2">
+            <div className="bg-slate-50 rounded-md p-2">
               <span className="text-[7px] font-black text-slate-400 uppercase">Em 48h</span>
               <p className="text-[10px] font-black text-slate-700">{closureKPIs.within48}</p>
             </div>
@@ -297,15 +297,15 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         </div>
 
         {/* KPI: ABERTOS / EM ANDAMENTO */}
-        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col justify-between group hover:border-indigo-100 transition-all">
+        <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-none flex flex-col justify-between group hover:border-primary-500 transition-all">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ativos / Em Execução</p>
-              <h3 className="text-3xl font-black text-indigo-600 italic tracking-tighter mt-1">
+              <h3 className="text-3xl font-black text-primary-500 italic tracking-tighter mt-1">
                 {filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.IN_PROGRESS].includes(o.status)).length}
               </h3>
             </div>
-            <div className="p-3 bg-indigo-50 text-indigo-500 rounded-2xl group-hover:scale-110 transition-transform"><Activity size={20} /></div>
+            <div className="p-3 bg-primary-50 text-primary-500 rounded-lg group-hover:scale-110 transition-transform"><Activity size={20} /></div>
           </div>
           <p className="text-[8px] font-bold text-slate-400 uppercase mt-4">Fila de Atendimento Digital</p>
         </div>
@@ -337,14 +337,14 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
         {/* GRÁFICO DE BARRAS - DEMANDA POR STATUS */}
-        <div className="xl:col-span-2 bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 space-y-8">
+        <div className="xl:col-span-2 bg-white rounded-lg shadow-none border border-slate-200 p-8 space-y-8">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-base font-black text-slate-900 uppercase italic tracking-tighter">Volume Operacional por Status</h3>
+              <h3 className="text-base font-black text-primary-500 uppercase italic tracking-tighter">Volume Operacional por Status</h3>
               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Detalhamento da base filtrada</p>
             </div>
             <div className="text-right">
-              <p className="text-[8px] font-black text-indigo-600 uppercase italic">Base Total</p>
+              <p className="text-[8px] font-black text-primary-500 uppercase italic">Base Total</p>
               <p className="text-2xl font-black text-slate-900 italic">{total}</p>
             </div>
           </div>
@@ -378,7 +378,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           {/* Legenda Dinâmica e Detalhada */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-4">
             {statusData.map(s => (
-              <div key={s.status} className="flex flex-col p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-indigo-100 transition-colors">
+              <div key={s.status} className="flex flex-col p-3 rounded-lg bg-slate-50 border border-slate-100 hover:border-primary-500 transition-colors">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: pieColors[s.status] }} />
                   <span className="text-[7px] font-black text-slate-400 uppercase italic truncate">{s.status}</span>
@@ -392,10 +392,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         {/* SIDEBAR DASHBOARD - PIE E PMOC (Menor evidência) */}
         <div className="space-y-6">
           {/* Distribuição Circular */}
-          <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 flex flex-col items-center">
-            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-8 italic">Distribuição de Status</h4>
-            <div className="w-44 h-44 rounded-full relative border-[8px] border-slate-50 shadow-xl group" style={{ background: getPieGradient() }}>
-              <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center shadow-inner group-hover:scale-95 transition-transform duration-500">
+          <div className="bg-white rounded-lg shadow-none border border-slate-200 p-8 flex flex-col items-center">
+            <h4 className="text-[10px] font-black text-primary-500 uppercase tracking-[0.2em] mb-8 italic">Distribuição de Status</h4>
+            <div className="w-44 h-44 rounded-full relative border-[8px] border-slate-50 shadow-none group" style={{ background: getPieGradient() }}>
+              <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center shadow-none group-hover:scale-95 transition-transform duration-500">
                 <p className="text-2xl font-black text-slate-900 leading-none">{(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%</p>
                 <p className="text-[7px] font-black text-emerald-500 uppercase mt-1 tracking-widest italic">Resolvido</p>
               </div>
@@ -412,32 +412,32 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           </div>
 
           {/* PMOC (Menor evidência como solicitado) */}
-          <div className="bg-[#1e1e2d] rounded-[2rem] shadow-xl p-6 text-white relative overflow-hidden group">
+          <div className="bg-primary-500 rounded-lg shadow-none p-6 text-white relative overflow-hidden group">
             <div className="absolute -right-4 -bottom-4 opacity-5 rotate-12 group-hover:scale-110 transition-transform duration-700 text-sky-400"><Briefcase size={100} /></div>
 
             <div className="relative z-10">
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-sky-500/20 text-sky-400 rounded-lg"><Activity size={14} /></div>
+                  <div className="p-2 bg-white/10 text-white rounded-md"><Activity size={14} /></div>
                   <h3 className="text-[10px] font-black uppercase tracking-widest italic">Gestão PMOC</h3>
                 </div>
-                <span className="px-3 py-1 bg-white/5 rounded-lg text-[10px] font-black italic">{activeContracts.length} Ativos</span>
+                <span className="px-3 py-1 bg-white/5 rounded-md text-[10px] font-black italic">{activeContracts.length} Ativos</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                <div className="p-3 bg-white/5 rounded-md border border-white/5">
                   <p className="text-[7px] font-black text-rose-400 uppercase mb-1">Impacto 3 d.</p>
                   <p className="text-base font-black italic">{pmocAnalysis.counts.urgent}</p>
                 </div>
-                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                <div className="p-3 bg-white/5 rounded-md border border-white/5">
                   <p className="text-[7px] font-black text-amber-400 uppercase mb-1">Impacto 7 d.</p>
                   <p className="text-base font-black italic">{pmocAnalysis.counts.critical}</p>
                 </div>
               </div>
 
-              <div className="space-y-2 overflow-hidden max-h-[120px]">
+              <div className="space-y-1 overflow-hidden max-h-[120px]">
                 {pmocAnalysis.visits.slice(0, 3).map((v, i) => (
-                  <div key={i} className="flex justify-between items-center p-2.5 bg-white/5 rounded-lg border border-white/5 text-[8px] hover:bg-white/10 transition-colors">
+                  <div key={i} className="flex justify-between items-center p-2.5 bg-white/5 rounded-md border border-white/5 text-[8px] hover:bg-white/10 transition-colors">
                     <span className="font-black uppercase italic truncate max-w-[140px]">{v.customerName}</span>
                     <span className="font-black px-2 py-0.5 bg-sky-500 rounded-md text-[7px]">D-{v.daysUntil}</span>
                   </div>
@@ -446,7 +446,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
               <button
                 onClick={() => onSwitchView('contracts')}
-                className="w-full mt-4 py-2 text-[8px] font-black uppercase text-sky-400 hover:bg-white/5 rounded-lg border border-dashed border-sky-400/30 transition-all flex items-center justify-center gap-2"
+                className="w-full mt-4 py-2 text-[8px] font-black uppercase text-white/70 hover:bg-white/5 rounded-md border border-dashed border-white/20 transition-all flex items-center justify-center gap-2"
               >
                 Acessar Módulo <ArrowRight size={10} />
               </button>

@@ -46,9 +46,9 @@ export const ConnectivityBanner: React.FC<ConnectivityBannerProps> = ({
     if (isSyncing) {
         return (
             <div className="fixed top-4 right-4 z-[9999]">
-                <div className="bg-white/95 backdrop-blur-sm border border-slate-200 shadow-lg rounded-full px-3 py-1.5 flex items-center gap-2 animate-fade-in">
-                    <RefreshCw size={12} className="text-indigo-600 animate-spin" />
-                    <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wide">
+                <div className="bg-white border border-slate-200 shadow-none rounded-md px-3 py-1.5 flex items-center gap-2 animate-fade-in">
+                    <RefreshCw size={12} className="text-primary-500 animate-spin" />
+                    <span className="text-[10px] font-black text-primary-500 uppercase tracking-wide">
                         Sincronizando
                     </span>
                 </div>
@@ -66,9 +66,9 @@ export const ConnectivityBanner: React.FC<ConnectivityBannerProps> = ({
         if (diffMinutes < 2) {
             return (
                 <div className="fixed top-4 right-4 z-[9999] animate-fade-in">
-                    <div className="bg-emerald-50/95 backdrop-blur-sm border border-emerald-200 shadow-lg rounded-full px-3 py-1.5 flex items-center gap-2">
-                        <CheckCircle2 size={12} className="text-emerald-600" />
-                        <span className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide">
+                    <div className="bg-success-50 border border-success-200 shadow-none rounded-md px-3 py-1.5 flex items-center gap-2">
+                        <CheckCircle2 size={12} className="text-success-600" />
+                        <span className="text-[10px] font-black text-success-600 uppercase tracking-wide">
                             Sincronizado
                         </span>
                     </div>

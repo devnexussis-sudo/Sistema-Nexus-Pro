@@ -242,22 +242,22 @@ export const AdminApp: React.FC<AdminAppProps> = ({
 
     return (
         <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
-            <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-56'} bg-[#0f172a] h-screen flex flex-col border-r border-white/5 shadow-2xl z-50 transition-all duration-300 ease-in-out relative overflow-hidden`}>
+            <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-56'} bg-primary-500 h-screen flex flex-col border-r border-white/5 shadow-none z-50 transition-all duration-300 ease-in-out relative overflow-hidden`}>
                 <button
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                    className="absolute -right-3 top-20 w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-all z-[60] border border-white/10"
+                    className="absolute -right-3 top-20 w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center shadow-md hover:bg-primary-700 transition-all z-[60] border border-white/10"
                 >
                     {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
                 </button>
 
                 <div className={`flex-1 overflow-y-auto overflow-x-hidden p-5 custom-scrollbar ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
                     <div className={`flex items-center gap-3 mb-8 transition-all ${isSidebarCollapsed ? 'justify-center' : ''}`}>
-                        <div className="p-2 bg-indigo-600 rounded-xl shrink-0">
+                        <div className="p-2 bg-white/10 rounded-lg shrink-0">
                             <Hexagon size={20} className="text-white" />
                         </div>
                         {!isSidebarCollapsed && (
                             <h1 className="text-white font-black text-base italic uppercase">
-                                Nexus<span className="text-indigo-500">.Pro</span>
+                                Nexus<span className="text-primary-300">.Pro</span>
                             </h1>
                         )}
                     </div>
@@ -268,11 +268,11 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                                 key={item.id}
                                 onClick={() => item.enabled && setCurrentView(item.id as any)}
                                 disabled={!item.enabled}
-                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-5'} py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden ${!item.enabled
+                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-between px-5'} py-3 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-200 relative overflow-hidden ${!item.enabled
                                     ? 'opacity-30 grayscale cursor-not-allowed'
                                     : currentView === item.id
-                                        ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 italic translate-x-1'
-                                        : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                                        ? 'bg-white/10 text-white italic translate-x-1'
+                                        : 'text-primary-200 hover:text-white hover:bg-white/5'
                                     }`}
                             >
                                 <div className="flex items-center gap-3">
@@ -284,29 +284,37 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     </nav>
                 </div>
 
-                <div className={`shrink-0 p-5 space-y-3 border-t border-white/5 bg-[#0f172a] ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
+                <div className={`shrink-0 p-5 space-y-3 border-t border-white/5 bg-primary-600/20 ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
                     {isImpersonating && (
                         <button
                             onClick={() => { SessionStorage.remove('is_impersonating'); onLogout(); }}
-                            className="w-full py-4 bg-purple-600 text-white rounded-2xl text-[10px] font-black uppercase"
+                            className="w-full py-4 bg-purple-600 text-white rounded-lg text-[10px] font-black uppercase transition-all duration-200"
                         >
                             <ShieldCheck size={18} /> {!isSidebarCollapsed && "Finalizar Auditoria"}
                         </button>
                     )}
-                    <button onClick={onLogout} className="w-full py-4 bg-red-600/10 text-red-500 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-3">
+                    <button onClick={onLogout} className="w-full py-4 bg-red-600/10 text-red-500 rounded-lg text-[10px] font-black uppercase flex items-center justify-center gap-3 transition-all duration-200">
                         <LogOut size={16} /> {!isSidebarCollapsed && "Sair"}
                     </button>
                 </div>
             </aside>
 
             <main className="flex-1 overflow-hidden flex flex-col relative bg-slate-50/50">
-                <header className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-100 px-8 flex justify-between items-center z-[100] shadow-sm">
-                    <div className="flex flex-col">
-                        <p className="text-[9px] font-black text-slate-400 uppercase italic">Nexus Pro / Enterprise Control Layer</p>
+                <header className="h-16 bg-white border-b border-slate-200 px-8 flex justify-between items-center z-[100]">
+                    <div className="flex items-center gap-4">
+                        <div className="flex flex-col">
+                            <p className="text-[9px] font-black text-slate-400 uppercase italic">Nexus Pro / Enterprise High-Performance</p>
+                        </div>
+                        {(isRefreshing || isFetchingAny) && (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-primary-50 text-primary-600 rounded-full border border-primary-100">
+                                <RefreshCw size={10} className="animate-spin" />
+                                <span className="text-[8px] font-black uppercase tracking-widest">Sincronizando...</span>
+                            </div>
+                        )}
                     </div>
                     <div className="flex items-center gap-6">
                         <div className="flex flex-col items-end border-r border-slate-200 pr-6">
-                            <span className="text-[10px] font-black text-slate-900 uppercase italic">{auth.user?.name}</span>
+                            <span className="text-[10px] font-black text-primary-500 uppercase italic">{auth.user?.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             {!isOnline && (
@@ -317,7 +325,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                             )}
                             <button
                                 onClick={async () => setHealthReport(await DataService.checkSystemHealth())}
-                                className={`p-2.5 rounded-2xl border ${oError ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white text-slate-600'} shadow-sm hover:scale-105 transition-all`}
+                                className={`p-2 rounded-lg border ${oError ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white text-slate-400 border-slate-200'} hover:border-primary-500 transition-all duration-200`}
                                 title="Status do Sistema"
                             >
                                 <ShieldCheck size={18} />
@@ -325,12 +333,12 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                             <button
                                 onClick={handleManualRefresh}
                                 disabled={isRefreshing}
-                                className="p-2.5 rounded-2xl border bg-white shadow-sm hover:bg-slate-50 active:scale-95 transition-all text-slate-600 hover:text-indigo-600"
+                                className="p-2 rounded-lg border bg-white border-slate-200 hover:border-primary-500 transition-all duration-200 text-slate-400 hover:text-primary-500"
                                 title="Atualizar Dados"
                             >
-                                <RefreshCw size={18} className={isRefreshing || isFetchingAny ? 'animate-spin text-indigo-600' : ''} />
+                                <RefreshCw size={18} className={isRefreshing || isFetchingAny ? 'animate-spin text-primary-500' : ''} />
                             </button>
-                            <button onClick={() => setShowInbox(!showInbox)} className="p-2.5 rounded-2xl border bg-white relative">
+                            <button onClick={() => setShowInbox(!showInbox)} className="p-2 rounded-lg border border-slate-200 bg-white text-slate-400 hover:border-primary-500 transition-all duration-200 relative">
                                 <Bell size={18} />
                                 {systemNotifications.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>}
                             </button>

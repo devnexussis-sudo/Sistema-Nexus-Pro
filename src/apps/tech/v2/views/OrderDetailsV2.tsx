@@ -184,9 +184,9 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case OrderStatus.COMPLETED: return 'bg-emerald-50 text-emerald-600 border-emerald-100';
+            case OrderStatus.COMPLETED: return 'bg-success-50 text-success-600 border-success-100';
             case OrderStatus.IN_PROGRESS: return 'bg-amber-50 text-amber-600 border-amber-100';
-            case OrderStatus.BLOCKED: return 'bg-red-50 text-red-600 border-red-100';
+            case OrderStatus.BLOCKED: return 'bg-rose-50 text-rose-600 border-rose-100';
             default: return 'bg-slate-100 text-slate-600 border-slate-200';
         }
     };
@@ -220,20 +220,20 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                 <div className="flex px-2 pt-2 pb-0 bg-slate-50 sticky top-0 z-10 gap-2 overflow-x-auto scrollbar-hide">
                     <button
                         onClick={() => setActiveSection('info')}
-                        className={`flex-1 py-2.5 rounded-t-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'info' ? 'bg-white text-indigo-600 shadow-sm border-t border-x border-slate-200 relative z-10 translate-y-px pb-3' : 'bg-slate-100 text-slate-400 border border-transparent'}`}
+                        className={`flex-1 py-2.5 rounded-t-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'info' ? 'bg-white text-primary-500 shadow-none border-t border-x border-slate-200 relative z-10 translate-y-px pb-3' : 'bg-slate-100 text-slate-400 border border-transparent'}`}
                     >
                         Detalhes
                     </button>
                     <button
                         onClick={() => order.status !== OrderStatus.PENDING && setActiveSection('checklist')}
                         disabled={order.status === OrderStatus.PENDING}
-                        className={`flex-1 py-2.5 rounded-t-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'checklist' ? 'bg-white text-indigo-600 shadow-sm border-t border-x border-slate-200 relative z-10 translate-y-px pb-3' : 'bg-slate-100 text-slate-400 border border-transparent'} ${order.status === OrderStatus.PENDING ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`flex-1 py-2.5 rounded-t-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'checklist' ? 'bg-white text-primary-500 shadow-none border-t border-x border-slate-200 relative z-10 translate-y-px pb-3' : 'bg-slate-100 text-slate-400 border border-transparent'} ${order.status === OrderStatus.PENDING ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         Checklist
                     </button>
                     <button
                         onClick={() => setActiveSection('finish')}
-                        className={`flex-1 py-2.5 rounded-t-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'finish' ? 'bg-white text-indigo-600 shadow-sm border-t border-x border-slate-200 relative z-10 translate-y-px pb-3' : 'bg-slate-100 text-slate-400 border border-transparent'}`}
+                        className={`flex-1 py-2.5 rounded-t-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'finish' ? 'bg-white text-primary-500 shadow-none border-t border-x border-slate-200 relative z-10 translate-y-px pb-3' : 'bg-slate-100 text-slate-400 border border-transparent'}`}
                     >
                         Finalizar
                     </button>
@@ -250,13 +250,13 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 <div>
                                     <h1 className="text-xl font-bold text-slate-900 leading-tight mb-2">{order.customerName}</h1>
                                     <div className="flex items-start gap-2 text-slate-500">
-                                        <MapPin size={16} className="text-indigo-500 shrink-0 mt-0.5" />
+                                        <MapPin size={16} className="text-primary-500 shrink-0 mt-0.5" />
                                         <p className="text-sm font-medium leading-snug">{order.customerAddress || 'Endereço não informado'}</p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => order.customerAddress && window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.customerAddress)}`, '_blank')}
-                                    className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 active:scale-95 transition-transform"
+                                    className="w-12 h-12 rounded-lg bg-primary-50 border border-primary-100 flex items-center justify-center text-primary-600 active:scale-95 transition-transform"
                                 >
                                     <Navigation size={22} />
                                 </button>
@@ -269,7 +269,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 <div className="space-y-1">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Agendamento</span>
                                     <div className="flex items-center gap-2 text-slate-800">
-                                        <Calendar size={16} className="text-indigo-500" />
+                                        <Calendar size={16} className="text-primary-500" />
                                         <span className="text-sm font-bold">
                                             {new Date(order.scheduledDate || order.createdAt).toLocaleDateString()}
                                         </span>
@@ -288,11 +288,11 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 </div>
                             </div>
 
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-4">
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-4">
                                 <div className="space-y-1">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Equipamento</span>
                                     <div className="flex items-start gap-2 text-slate-800">
-                                        <Info size={16} className="text-indigo-500 shrink-0 mt-0.5" />
+                                        <Info size={16} className="text-primary-500 shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-sm font-bold leading-tight">{order.equipmentName || 'Não identificado'}</p>
                                             <p className="text-xs text-slate-400 font-medium mt-0.5">S/N: {order.equipmentSerial || '---'}</p>
@@ -315,9 +315,9 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
                             {template ? (
                                 <>
-                                    <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100 flex items-start gap-3">
-                                        <Info size={20} className="text-indigo-600 mt-0.5 shrink-0" />
-                                        <p className="text-xs text-indigo-800 font-medium leading-relaxed">
+                                    <div className="bg-primary-50 rounded-lg p-4 border border-primary-100 flex items-start gap-3">
+                                        <Info size={20} className="text-primary-600 mt-0.5 shrink-0" />
+                                        <p className="text-xs text-primary-800 font-medium leading-relaxed">
                                             Preencha todos os itens obrigatórios para finalizar o serviço. As alterações são salvas automaticamente no dispositivo.
                                         </p>
                                     </div>
@@ -334,7 +334,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 </>
                             ) : (
                                 <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                                    <div className="w-10 h-10 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
+                                    <div className="w-10 h-10 border-2 border-slate-200 border-t-primary-500 rounded-full animate-spin mb-4"></div>
                                     <p className="text-xs font-bold uppercase tracking-widest">Carregando Checklist...</p>
                                 </div>
                             )}
@@ -345,13 +345,13 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                     {activeSection === 'finish' && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
                             {order.status === OrderStatus.COMPLETED ? (
-                                <div className="bg-emerald-50 p-8 rounded-[2rem] border border-emerald-100 text-center space-y-4">
-                                    <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto text-emerald-500 shadow-sm border border-emerald-100">
+                                <div className="bg-success-50 p-8 rounded-lg border border-success-100 text-center space-y-4">
+                                    <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto text-success-500 shadow-none border border-success-100">
                                         <CheckCircle2 size={40} />
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-bold text-emerald-900 mb-1">Serviço Concluído!</h3>
-                                        <p className="text-sm text-emerald-700 font-medium opacity-80">Esta ordem de serviço já foi finalizada.</p>
+                                        <h3 className="text-xl font-bold text-success-900 mb-1 italic uppercase tracking-tighter">Serviço Concluído!</h3>
+                                        <p className="text-sm text-success-700 font-medium opacity-80">Esta ordem de serviço já foi finalizada.</p>
                                     </div>
                                     <div className="bg-white p-4 rounded-xl border border-emerald-100 text-left">
                                         <p className="text-[10px] font-black uppercase text-emerald-400 tracking-widest mb-1">Assinado por</p>
@@ -361,36 +361,36 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 </div>
                             ) : (
                                 <>
-                                    <div className="bg-slate-50 p-6 rounded-[1.5rem] border border-slate-100 space-y-4">
+                                    <div className="bg-slate-50 p-6 rounded-lg border border-slate-100 space-y-4">
                                         <div className="flex items-center gap-3 mb-2">
-                                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                            <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center text-primary-600">
                                                 <User size={16} />
                                             </div>
-                                            <h3 className="text-sm font-bold text-slate-900 leading-tight">Quem está recebendo o serviço?</h3>
+                                            <h3 className="text-sm font-black text-slate-900 uppercase italic">Quem está recebendo o serviço?</h3>
                                         </div>
                                         <input
                                             type="text"
                                             placeholder="Nome do Responsável / Cliente"
                                             value={signerName}
                                             onChange={e => setSignerName(e.target.value)}
-                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-bold text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-300"
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-bold text-slate-900 outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-100 transition-all placeholder:text-slate-300"
                                         />
                                     </div>
 
-                                    <div className="bg-slate-50 p-6 rounded-[1.5rem] border border-slate-100 space-y-4">
+                                    <div className="bg-slate-50 p-6 rounded-lg border border-slate-100 space-y-4">
                                         <div className="flex items-center gap-3 mb-2">
-                                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                            <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center text-primary-600">
                                                 <FileText size={16} />
                                             </div>
-                                            <h3 className="text-sm font-bold text-slate-900 leading-tight">Assinatura Digital</h3>
+                                            <h3 className="text-sm font-black text-slate-900 uppercase italic">Assinatura Digital</h3>
                                         </div>
-                                        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                                        <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-none">
                                             <SignatureCanvas
                                                 onEnd={setSignature}
                                                 onClear={() => setSignature(null)}
                                             />
                                         </div>
-                                        <p className="text-[10px] text-slate-400 text-center font-medium">
+                                        <p className="text-[10px] text-slate-400 text-center font-bold uppercase italic">
                                             Ao assinar, o cliente concorda com a execução do serviço descrito.
                                         </p>
                                     </div>
@@ -408,7 +408,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setShowBlockModal(true)}
-                                className="h-14 w-16 rounded-xl bg-red-50 border border-red-100 text-red-500 flex flex-col items-center justify-center gap-1 active:scale-95 transition-all"
+                                className="h-14 w-16 rounded-lg bg-rose-50 border border-rose-100 text-rose-500 flex flex-col items-center justify-center gap-1 active:scale-95 transition-all"
                                 title="Reportar Impedimento"
                             >
                                 <Ban size={20} />
@@ -426,7 +426,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                         setIsLoading(false);
                                     }
                                 }}
-                                className="flex-1 h-14 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-indigo-500"
+                                className="flex-1 h-14 bg-primary-500 text-white rounded-lg font-black uppercase text-xs tracking-widest shadow-none flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-primary-600"
                             >
                                 {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Play size={20} fill="currentColor" />}
                                 Iniciar Serviço
@@ -436,14 +436,14 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         activeSection === 'info' ? (
                             <button
                                 onClick={() => setActiveSection('checklist')}
-                                className="w-full h-14 bg-indigo-600 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
+                                className="w-full h-14 bg-primary-500 text-white rounded-lg font-black uppercase text-xs tracking-widest shadow-none flex items-center justify-center gap-2 active:scale-95 transition-all"
                             >
                                 Ir para Checklist <ChevronDown className="rotate-[-90deg]" size={18} />
                             </button>
                         ) : activeSection === 'checklist' ? (
                             <button
                                 onClick={() => setActiveSection('finish')}
-                                className="w-full h-14 bg-slate-900 text-white rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg shadow-slate-900/10 flex items-center justify-center gap-2 active:scale-95 transition-all"
+                                className="w-full h-14 bg-slate-900 text-white rounded-lg font-black uppercase text-xs tracking-widest shadow-none flex items-center justify-center gap-2 active:scale-95 transition-all"
                             >
                                 Ir para Finalização <ChevronDown className="rotate-[-90deg]" size={18} />
                             </button>
@@ -451,7 +451,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                             <button
                                 onClick={handleFinish}
                                 disabled={isLoading || !signature || !signerName}
-                                className={`w-full h-14 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-all ${signature && signerName ? 'bg-emerald-500 text-white shadow-emerald-500/30 hover:bg-emerald-400' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                className={`w-full h-14 rounded-lg font-black uppercase text-xs tracking-widest shadow-none flex items-center justify-center gap-3 active:scale-95 transition-all ${signature && signerName ? 'bg-success-500 text-white hover:bg-success-400' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                                     }`}
                             >
                                 {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <CheckCircle2 size={20} />}
@@ -461,7 +461,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                     ) : (
                         <button
                             onClick={onClose}
-                            className="w-full h-14 bg-slate-100 text-slate-600 rounded-xl font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all hover:bg-slate-200"
+                            className="w-full h-14 bg-slate-100 text-slate-600 rounded-lg font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all hover:bg-slate-200"
                         >
                             Fechar Detalhes
                         </button>
@@ -471,7 +471,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                     {activeSection === 'checklist' && order.status === OrderStatus.IN_PROGRESS && (
                         <button
                             onClick={handleSaveChecklist}
-                            className="w-full text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-3 hover:text-indigo-500 transition-colors"
+                            className="w-full text-center text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3 hover:text-primary-500 transition-colors"
                         >
                             {isLoading ? 'Salvando...' : 'Salvar Rascunho do Checklist'}
                         </button>
@@ -482,18 +482,18 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
             {/* BLOCK MODAL */}
             {showBlockModal && (
                 <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-[1.5rem] p-6 w-full max-w-sm shadow-2xl space-y-5 animate-in zoom-in-95">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl space-y-5 animate-in zoom-in-95">
                         <div className="text-center">
-                            <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto text-red-500 mb-4 border border-red-100">
+                            <div className="w-14 h-14 bg-rose-50 rounded-full flex items-center justify-center mx-auto text-rose-500 mb-4 border border-rose-100">
                                 <Ban size={28} />
                             </div>
-                            <h3 className="text-lg font-black text-slate-900 uppercase">Impedir Atendimento</h3>
-                            <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-[200px] mx-auto mt-1">
+                            <h3 className="text-lg font-black text-slate-900 uppercase italic">Impedir Atendimento</h3>
+                            <p className="text-xs text-slate-500 font-bold uppercase tracking-tight max-w-[200px] mx-auto mt-1">
                                 O serviço não poderá ser realizado hoje.
                             </p>
                         </div>
 
-                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
                             <textarea
                                 className="w-full h-24 bg-transparent p-2 text-sm font-bold text-slate-700 outline-none resize-none placeholder:text-slate-300"
                                 placeholder="Descreva o motivo (ex: Chuva, Cliente ausente...)"
@@ -506,14 +506,14 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         <div className="grid grid-cols-2 gap-3">
                             <button
                                 onClick={() => { setShowBlockModal(false); setBlockReason(''); }}
-                                className="py-3.5 rounded-xl border border-slate-200 text-slate-500 font-black text-[10px] uppercase tracking-wider hover:bg-slate-50 transition-colors"
+                                className="py-3.5 rounded-lg border border-slate-200 text-slate-500 font-black text-[10px] uppercase tracking-wider hover:bg-slate-50 transition-colors"
                             >
                                 Voltar
                             </button>
                             <button
                                 onClick={handleBlockOrder}
                                 disabled={!blockReason.trim() || isLoading}
-                                className="py-3.5 rounded-xl bg-red-500 text-white font-black text-[10px] uppercase tracking-wider shadow-lg shadow-red-500/20 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100"
+                                className="py-3.5 rounded-lg bg-rose-500 text-white font-black text-[10px] uppercase tracking-wider shadow-none active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100"
                             >
                                 Confirmar Impedimento
                             </button>
