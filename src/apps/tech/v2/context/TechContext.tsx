@@ -171,6 +171,13 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             console.log(`[TechContext] 📡 Sincronizando página ${targetPage}...`);
 
+            // 🛡️ CRITICAL: Last-mile verification for Tenant ID
+            // Garante que o ID do cliente esteja na memória antes do request
+            if (auth.user?.tenantId && !SessionStorage.get(STORAGE_KEYS.TENANT)) {
+                console.warn('[TechContext] ⚠️ Tenant ID restaurado em refreshData');
+                SessionStorage.set(STORAGE_KEYS.TENANT, auth.user.tenantId);
+            }
+
             const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
                 targetPage,
                 10,
@@ -223,32 +230,53 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const revalidateSession = useCallback(async () => {
         if (!auth.user?.id) return;
 
-        console.log('[TechContext] 🔄 Revalidando sessão...');
+        console.log('[TechContext] 🔄 Revalidando sessão (Resume/Focus)...');
+
+        // 🛡️ CRITICAL: Restore Tenant ID if lost from memory
+        if (auth.user?.tenantId) {
+            const currentTenant = SessionStorage.get(STORAGE_KEYS.TENANT);
+            if (!currentTenant) {
+                console.warn('[TechContext] ⚠️ Tenant ID perdido em memória. Restaurando...');
+                SessionStorage.set(STORAGE_KEYS.TENANT, auth.user.tenantId);
+            }
+        }
 
         try {
+            // Check connection first
+            if (!navigator.onLine) {
+                console.log('[TechContext] 📡 Offline. Mantendo dados em cache.');
+                return;
+            }
+
             const { supabase } = await import('../../../../lib/supabase');
             const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error || !session) {
-                console.warn('[TechContext] ⚠️ Sessão inválida detectada');
-                setConnectivity(prev => ({ ...prev, isSessionValid: false }));
-                logout();
-                return;
+                console.warn('[TechContext] ⚠️ Sessão inválida no Supabase');
+                // Tentar refresh token ou logout se for crítico
+                // Mas não limpa dados imediatamente para UX melhor se for erro de rede momentâneo
+                if (error?.message?.includes('refresh_token_not_found')) {
+                    logout();
+                    return;
+                }
             }
 
-            // Sessão válida - refresh silencioso dos dados
-            console.log('[TechContext] ✅ Sessão válida, atualizando dados...');
+            // Sessão válida (ou recuperável) - refresh dados
+            console.log('[TechContext] ✅ Sessão OK, buscando dados novos...');
+
+            // Força busca de dados
             await refreshData({ silent: true });
+
         } catch (e) {
             console.error('[TechContext] ❌ Erro ao revalidar sessão:', e);
         }
-    }, [auth.user?.id, refreshData]);
+    }, [auth.user?.id, auth.user?.tenantId, refreshData]);
 
-    // 🔥 LIFECYCLE MANAGEMENT (visibilitychange)
+    // 🔥 LIFECYCLE MANAGEMENT (visibilitychange + Focus)
     useEffect(() => {
-        const handleVisibilityChange = () => {
+        const handleResume = () => {
             if (document.visibilityState === 'visible' && auth.isAuthenticated) {
-                console.log('[TechContext] 👁️ App retornou ao foco - revalidando sessão...');
+                console.log('[TechContext] 👁️ App Visible/Focused');
                 revalidateSession();
             }
         };
@@ -266,14 +294,26 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setConnectivity(prev => ({ ...prev, isOnline: false }));
         };
 
-        document.addEventListener('visibilitychange', handleVisibilityChange);
+        // Listeners múltiplos para garantir captura (iOS/Android behaviors)
+        document.addEventListener('visibilitychange', handleResume);
+        window.addEventListener('focus', handleResume); // Adicionado para desktop/alguns mobiles
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
+        // Timer de segurança: Revalida a cada 5 min se estiver focado
+        const intervalId = setInterval(() => {
+            if (document.visibilityState === 'visible' && auth.isAuthenticated && navigator.onLine) {
+                console.log('[TechContext] ⏰ Interval sync...');
+                revalidateSession();
+            }
+        }, 5 * 60 * 1000);
+
         return () => {
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            document.removeEventListener('visibilitychange', handleResume);
+            window.removeEventListener('focus', handleResume);
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
+            clearInterval(intervalId);
         };
     }, [auth.isAuthenticated, revalidateSession]);
 
