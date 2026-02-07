@@ -242,16 +242,23 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 }
 
                 // REGISTRAR NO FLUXO DE CAIXA
-                await DataService.registerCashFlow({
-                    type: 'INCOME',
-                    category: item.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
-                    amount: item.value,
-                    description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${item.id.slice(0, 8)} - Cliente: ${item.customerName}`,
-                    referenceId: item.id,
-                    referenceType: item.type,
-                    paymentMethod: paymentMethod,
-                    entryDate: new Date().toISOString()
-                });
+                console.log(`📊 Registrando entrada no fluxo de caixa para ${item.type} #${item.id}...`);
+                try {
+                    await DataService.registerCashFlow({
+                        type: 'INCOME',
+                        category: item.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
+                        amount: item.value,
+                        description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${item.id.slice(0, 8)} - Cliente: ${item.customerName}`,
+                        referenceId: item.id,
+                        referenceType: item.type,
+                        paymentMethod: paymentMethod,
+                        entryDate: new Date().toISOString()
+                    });
+                    console.log(`✅ Fluxo de caixa registrado para ${item.type} #${item.id}`);
+                } catch (cashFlowError) {
+                    console.error(`⚠️ Erro ao registrar fluxo de caixa (continuando):`, cashFlowError);
+                    // Não bloqueia o faturamento se o cash flow falhar
+                }
             }
 
             console.log('✅ Faturamento concluído com sucesso!');
