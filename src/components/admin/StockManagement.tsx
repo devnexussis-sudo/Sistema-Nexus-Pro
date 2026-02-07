@@ -532,7 +532,7 @@ export const StockManagement: React.FC = () => {
                             onPageChange={setCurrentPage}
                         />
                     </>
-                ) : activeTab === 'categories' ? (
+                ) : (
                     <div className="p-10 flex-1 overflow-auto custom-scrollbar">
                         {activeTab === 'categories' && (
                             <>
@@ -573,121 +573,121 @@ export const StockManagement: React.FC = () => {
                                     </div>
                                 )}
                             </>
-                        )}) : (<>
+                        )}
 
-                            {activeTab === 'techs' && (
-                                <div className="space-y-6">
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="text-xl font-black text-slate-800 uppercase  flex items-center gap-3">
-                                            <Box className="text-amber-500" /> Estoque por Técnico
-                                        </h3>
-                                        <button
-                                            onClick={() => setIsTransferModalOpen(true)}
-                                            className="px-6 py-2.5 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20"
-                                        >
-                                            Nova Transferência
-                                        </button>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                                        <div className="lg:col-span-1 space-y-2">
-                                            {techs.map(t => (
-                                                <button
-                                                    key={t.id}
-                                                    onClick={async () => {
-                                                        setSelectedTech(t);
-                                                        const stock = await DataService.getTechStock(t.id);
-                                                        setTechStock(stock);
-                                                    }}
-                                                    className={`w-full p-4 rounded-2xl border text-left transition-all ${selectedTech?.id === t.id ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-white border-slate-100 hover:border-amber-200'}`}
-                                                >
-                                                    <p className="text-xs font-black text-slate-800 uppercase ">{t.name}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">{t.role === 'ADMIN' ? 'Administrador' : 'Técnico de Campo'}</p>
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <div className="lg:col-span-3">
-                                            {selectedTech ? (
-                                                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden min-h-[400px]">
-                                                    <table className="w-full text-left">
-                                                        <thead className="bg-slate-50 border-b border-slate-200">
-                                                            <tr className="text-[10px] font-black text-slate-500 uppercase">
-                                                                <th className="px-6 py-4">Item</th>
-                                                                <th className="px-6 py-4">Quantidade</th>
-                                                                <th className="px-6 py-4 text-right">Valor Unit.</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {techStock.length === 0 ? (
-                                                                <tr><td colSpan={3} className="p-10 text-center text-[10px] font-bold text-slate-400 uppercase ">Nenhum item em mãos</td></tr>
-                                                            ) : techStock.map(ts => (
-                                                                <tr key={ts.id}>
-                                                                    <td className="px-6 py-4">
-                                                                        <p className="text-[11px] font-black text-slate-800 uppercase ">{ts.item?.description}</p>
-                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Cód: {ts.item?.code}</p>
-                                                                    </td>
-                                                                    <td className="px-6 py-4">
-                                                                        <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11px] font-black">{ts.quantity}</span>
-                                                                    </td>
-                                                                    <td className="px-6 py-4 text-right">
-                                                                        <span className="text-[11px] font-black text-slate-700">R$ {ts.item?.sellPrice?.toFixed(2)}</span>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            ) : (
-                                                <div className="h-full flex items-center justify-center p-20 text-center">
-                                                    <p className="text-xs font-black text-slate-300 uppercase  tracking-widest">Selecione um técnico para ver o estoque</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {activeTab === 'movements' && (
-                                <div className="space-y-6">
+                        {activeTab === 'techs' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center">
                                     <h3 className="text-xl font-black text-slate-800 uppercase  flex items-center gap-3">
-                                        <Scale className="text-slate-800" /> Auditoria de Movimentações
+                                        <Box className="text-amber-500" /> Estoque por Técnico
                                     </h3>
-                                    <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden">
-                                        <table className="w-full text-left">
-                                            <thead className="bg-slate-50 border-b border-slate-200">
-                                                <tr className="text-[10px] font-black text-slate-500 uppercase">
-                                                    <th className="px-6 py-4 text-center">Data</th>
-                                                    <th className="px-6 py-4 text-center">Tipo</th>
-                                                    <th className="px-6 py-4">Item</th>
-                                                    <th className="px-6 py-4 text-center">Qtd.</th>
-                                                    <th className="px-6 py-4 text-center">Fluxo</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {movements.map(m => (
-                                                    <tr key={m.id} className="text-[11px]">
-                                                        <td className="px-6 py-4 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString()}</td>
-                                                        <td className="px-6 py-4 text-center">
-                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                                                {m.type === 'TRANSFER' ? 'Transferência' : 'Consumo'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <p className="font-black text-slate-800 uppercase ">{m.stock_items?.description}</p>
-                                                        </td>
-                                                        <td className="px-6 py-4 text-center font-bold text-slate-900">{m.quantity}</td>
-                                                        <td className="px-6 py-4 text-center text-[10px] font-bold text-slate-400 ">
-                                                            {m.source} → {m.destination}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                    <button
+                                        onClick={() => setIsTransferModalOpen(true)}
+                                        className="px-6 py-2.5 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20"
+                                    >
+                                        Nova Transferência
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                                    <div className="lg:col-span-1 space-y-2">
+                                        {techs.map(t => (
+                                            <button
+                                                key={t.id}
+                                                onClick={async () => {
+                                                    setSelectedTech(t);
+                                                    const stock = await DataService.getTechStock(t.id);
+                                                    setTechStock(stock);
+                                                }}
+                                                className={`w-full p-4 rounded-2xl border text-left transition-all ${selectedTech?.id === t.id ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-white border-slate-100 hover:border-amber-200'}`}
+                                            >
+                                                <p className="text-xs font-black text-slate-800 uppercase ">{t.name}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase">{t.role === 'ADMIN' ? 'Administrador' : 'Técnico de Campo'}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="lg:col-span-3">
+                                        {selectedTech ? (
+                                            <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden min-h-[400px]">
+                                                <table className="w-full text-left">
+                                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                                        <tr className="text-[10px] font-black text-slate-500 uppercase">
+                                                            <th className="px-6 py-4">Item</th>
+                                                            <th className="px-6 py-4">Quantidade</th>
+                                                            <th className="px-6 py-4 text-right">Valor Unit.</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {techStock.length === 0 ? (
+                                                            <tr><td colSpan={3} className="p-10 text-center text-[10px] font-bold text-slate-400 uppercase ">Nenhum item em mãos</td></tr>
+                                                        ) : techStock.map(ts => (
+                                                            <tr key={ts.id}>
+                                                                <td className="px-6 py-4">
+                                                                    <p className="text-[11px] font-black text-slate-800 uppercase ">{ts.item?.description}</p>
+                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Cód: {ts.item?.code}</p>
+                                                                </td>
+                                                                <td className="px-6 py-4">
+                                                                    <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11px] font-black">{ts.quantity}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <span className="text-[11px] font-black text-slate-700">R$ {ts.item?.sellPrice?.toFixed(2)}</span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center p-20 text-center">
+                                                <p className="text-xs font-black text-slate-300 uppercase  tracking-widest">Selecione um técnico para ver o estoque</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                    </>)}
+                            </div>
+                        )}
+
+                        {activeTab === 'movements' && (
+                            <div className="space-y-6">
+                                <h3 className="text-xl font-black text-slate-800 uppercase  flex items-center gap-3">
+                                    <Scale className="text-slate-800" /> Auditoria de Movimentações
+                                </h3>
+                                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-slate-50 border-b border-slate-200">
+                                            <tr className="text-[10px] font-black text-slate-500 uppercase">
+                                                <th className="px-6 py-4 text-center">Data</th>
+                                                <th className="px-6 py-4 text-center">Tipo</th>
+                                                <th className="px-6 py-4">Item</th>
+                                                <th className="px-6 py-4 text-center">Qtd.</th>
+                                                <th className="px-6 py-4 text-center">Fluxo</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {movements.map(m => (
+                                                <tr key={m.id} className="text-[11px]">
+                                                    <td className="px-6 py-4 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                            {m.type === 'TRANSFER' ? 'Transferência' : 'Consumo'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <p className="font-black text-slate-800 uppercase ">{m.stock_items?.description}</p>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center font-bold text-slate-900">{m.quantity}</td>
+                                                    <td className="px-6 py-4 text-center text-[10px] font-bold text-slate-400 ">
+                                                        {m.source} → {m.destination}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* RESTOCK MODAL */}
