@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Package, Search, Plus, Edit3, Trash2, X, Save, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Scale, Box, Barcode, Filter, Wand2, Layers, Tag, LayoutGrid, List, RefreshCw } from 'lucide-react';
+import { Package, Search, Plus, Edit3, Trash2, X, Save, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Scale, Box, Barcode, Filter, Wand2, Layers, Tag, LayoutGrid, List, RefreshCw, ChevronLeft } from 'lucide-react';
+import { Pagination } from '../ui/Pagination';
 import { StockItem, Category } from '../../types';
 import { DataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
@@ -21,6 +22,8 @@ export const StockManagement: React.FC = () => {
     const [categoryFilter, setCategoryFilter] = useState('ALL');
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 12;
 
     // --- Categories State ---
     const [categories, setCategories] = useState<Category[]>([]);
@@ -331,6 +334,17 @@ export const StockManagement: React.FC = () => {
         });
     }, [items, searchTerm, categoryFilter, statusFilter]);
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, categoryFilter, statusFilter, activeTab]);
+
+    const paginatedItems = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredItems.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredItems, currentPage]);
+
+    const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+
     const calculateTotalCost = (item: any) => {
         const cost = Number(item.costPrice) || 0;
         const freight = Number(item.freightCost) || 0;
@@ -446,69 +460,79 @@ export const StockManagement: React.FC = () => {
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sincronizando Estoque...</p>
                                             </td>
                                         </tr>
-                                    ) : items.length === 0 ? (
+                                    ) : paginatedItems.length === 0 ? (
                                         <tr>
                                             <td colSpan={8} className="py-20 text-center">
-                                                <Package size={40} className="mx-auto text-slate-200 mb-4" />
-                                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest ">Nenhum item cadastrado</p>
+                                                <div className="w-16 h-16 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                                                    <Package size={24} className="text-slate-300" />
+                                                </div>
+                                                <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">Nenhum item localizado</p>
                                             </td>
                                         </tr>
-                                    ) : filteredItems.map(item => {
-                                        const totalCost = calculateTotalCost(item);
-                                        const margin = calculateMargin(item);
-                                        return (
-                                            <tr key={item.id} className="bg-white hover:bg-primary-50/40 transition-all border-b border-slate-50 last:border-0 group">
-                                                <td className="px-4 py-4">
-                                                    <div className="flex flex-col truncate max-w-[100px]">
-                                                        <span className="text-[10px] font-black text-primary-600 uppercase truncate">{item?.code || '---'}</span>
-                                                        {item?.externalCode && (
-                                                            <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1 truncate">
-                                                                <Barcode size={10} className="shrink-0" /> {item.externalCode}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-4">
-                                                    <p className="text-[11px] font-bold text-slate-700 uppercase truncate max-w-[180px]">{item?.description || 'Item sem descrição'}</p>
-                                                    <div className="flex gap-1.5 overflow-hidden">
-                                                        <span className="text-[9px] text-slate-400 font-bold uppercase truncate">{item?.category || '-'}</span>
-                                                        <span className="text-[9px] text-slate-300 font-bold uppercase shrink-0">•</span>
-                                                        <span className="text-[9px] text-slate-400 font-bold uppercase shrink-0">{item?.unit || 'UN'}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-4 text-[10px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{item?.location || '-'}</td>
-                                                <td className="px-4 py-4 text-center">
-                                                    <div className="flex items-center justify-center gap-1.5">
-                                                        <span className={`text-[11px] font-black ${(item?.quantity || 0) <= (item?.minQuantity || 0) ? 'text-rose-500' : 'text-slate-700'}`}>{item?.quantity || 0}</span>
-                                                        {(item?.quantity || 0) <= (item?.minQuantity || 0) && <AlertTriangle size={12} className="text-rose-500 shrink-0" />}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-4 text-[10px] font-bold text-slate-500 text-right whitespace-nowrap">R$ {totalCost.toFixed(2)}</td>
-                                                <td className="px-4 py-4 text-[10px] font-bold text-slate-700 text-right whitespace-nowrap">R$ {(item?.sellPrice || 0).toFixed(2)}</td>
-                                                <td className="px-4 py-4">
-                                                    <div className={`flex items-center justify-center gap-1 text-[10px] font-black ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
-                                                        {margin >= 0 ? <TrendingUp size={12} className="shrink-0" /> : <TrendingDown size={12} className="shrink-0" />}
-                                                        {margin.toFixed(1)}%
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-4 text-right pr-4">
-                                                    <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-all">
-                                                        <button onClick={() => handleOpenModal(item)} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar">
-                                                            <Edit3 size={16} />
-                                                        </button>
-                                                        <button onClick={() => handleDelete(item.id)} className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-95" title="Excluir">
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                    ) :
+                                        paginatedItems.map(item => {
+                                            const totalCost = calculateTotalCost(item);
+                                            const margin = calculateMargin(item);
+                                            return (
+                                                <tr key={item.id} className="bg-white hover:bg-primary-50/40 transition-all border-b border-slate-50 last:border-0 group">
+                                                    <td className="px-4 py-4">
+                                                        <div className="flex flex-col truncate max-w-[100px]">
+                                                            <span className="text-[10px] font-black text-primary-600 uppercase truncate">{item?.code || '---'}</span>
+                                                            {item?.externalCode && (
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1 truncate">
+                                                                    <Barcode size={10} className="shrink-0" /> {item.externalCode}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4">
+                                                        <p className="text-[11px] font-bold text-slate-700 uppercase truncate max-w-[180px]">{item?.description || 'Item sem descrição'}</p>
+                                                        <div className="flex gap-1.5 overflow-hidden">
+                                                            <span className="text-[9px] text-slate-400 font-bold uppercase truncate">{item?.category || '-'}</span>
+                                                            <span className="text-[9px] text-slate-300 font-bold uppercase shrink-0">•</span>
+                                                            <span className="text-[9px] text-slate-400 font-bold uppercase shrink-0">{item?.unit || 'UN'}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-[10px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{item?.location || '-'}</td>
+                                                    <td className="px-4 py-4 text-center">
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            <span className={`text-[11px] font-black ${(item?.quantity || 0) <= (item?.minQuantity || 0) ? 'text-rose-500' : 'text-slate-700'}`}>{item?.quantity || 0}</span>
+                                                            {(item?.quantity || 0) <= (item?.minQuantity || 0) && <AlertTriangle size={12} className="text-rose-500 shrink-0" />}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-[10px] font-bold text-slate-500 text-right whitespace-nowrap">R$ {totalCost.toFixed(2)}</td>
+                                                    <td className="px-4 py-4 text-[10px] font-bold text-slate-700 text-right whitespace-nowrap">R$ {(item?.sellPrice || 0).toFixed(2)}</td>
+                                                    <td className="px-4 py-4">
+                                                        <div className={`flex items-center justify-center gap-1 text-[10px] font-black ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
+                                                            {margin >= 0 ? <TrendingUp size={12} className="shrink-0" /> : <TrendingDown size={12} className="shrink-0" />}
+                                                            {margin.toFixed(1)}%
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-right pr-4">
+                                                        <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-all">
+                                                            <button onClick={() => handleOpenModal(item)} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar">
+                                                                <Edit3 size={16} />
+                                                            </button>
+                                                            <button onClick={() => handleDelete(item.id)} className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-95" title="Excluir">
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                 </tbody>
                             </table>
                         </div>
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            totalItems={filteredItems.length}
+                            itemsPerPage={ITEMS_PER_PAGE}
+                            onPageChange={setCurrentPage}
+                        />
                     </>
-                ) : (
+                ) : activeTab === 'categories' ? (
                     <div className="p-10 flex-1 overflow-auto custom-scrollbar">
                         {activeTab === 'categories' && (
                             <>
@@ -549,121 +573,121 @@ export const StockManagement: React.FC = () => {
                                     </div>
                                 )}
                             </>
-                        )}
+                        )}) : (<>
 
-                        {activeTab === 'techs' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center">
-                                    <h3 className="text-xl font-black text-slate-800 uppercase  flex items-center gap-3">
-                                        <Box className="text-amber-500" /> Estoque por Técnico
-                                    </h3>
-                                    <button
-                                        onClick={() => setIsTransferModalOpen(true)}
-                                        className="px-6 py-2.5 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20"
-                                    >
-                                        Nova Transferência
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                                    <div className="lg:col-span-1 space-y-2">
-                                        {techs.map(t => (
-                                            <button
-                                                key={t.id}
-                                                onClick={async () => {
-                                                    setSelectedTech(t);
-                                                    const stock = await DataService.getTechStock(t.id);
-                                                    setTechStock(stock);
-                                                }}
-                                                className={`w-full p-4 rounded-2xl border text-left transition-all ${selectedTech?.id === t.id ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-white border-slate-100 hover:border-amber-200'}`}
-                                            >
-                                                <p className="text-xs font-black text-slate-800 uppercase ">{t.name}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase">{t.role === 'ADMIN' ? 'Administrador' : 'Técnico de Campo'}</p>
-                                            </button>
-                                        ))}
+                            {activeTab === 'techs' && (
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-xl font-black text-slate-800 uppercase  flex items-center gap-3">
+                                            <Box className="text-amber-500" /> Estoque por Técnico
+                                        </h3>
+                                        <button
+                                            onClick={() => setIsTransferModalOpen(true)}
+                                            className="px-6 py-2.5 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20"
+                                        >
+                                            Nova Transferência
+                                        </button>
                                     </div>
-                                    <div className="lg:col-span-3">
-                                        {selectedTech ? (
-                                            <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden min-h-[400px]">
-                                                <table className="w-full text-left">
-                                                    <thead className="bg-slate-50 border-b border-slate-200">
-                                                        <tr className="text-[10px] font-black text-slate-500 uppercase">
-                                                            <th className="px-6 py-4">Item</th>
-                                                            <th className="px-6 py-4">Quantidade</th>
-                                                            <th className="px-6 py-4 text-right">Valor Unit.</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-100">
-                                                        {techStock.length === 0 ? (
-                                                            <tr><td colSpan={3} className="p-10 text-center text-[10px] font-bold text-slate-400 uppercase ">Nenhum item em mãos</td></tr>
-                                                        ) : techStock.map(ts => (
-                                                            <tr key={ts.id}>
-                                                                <td className="px-6 py-4">
-                                                                    <p className="text-[11px] font-black text-slate-800 uppercase ">{ts.item?.description}</p>
-                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Cód: {ts.item?.code}</p>
-                                                                </td>
-                                                                <td className="px-6 py-4">
-                                                                    <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11px] font-black">{ts.quantity}</span>
-                                                                </td>
-                                                                <td className="px-6 py-4 text-right">
-                                                                    <span className="text-[11px] font-black text-slate-700">R$ {ts.item?.sellPrice?.toFixed(2)}</span>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        ) : (
-                                            <div className="h-full flex items-center justify-center p-20 text-center">
-                                                <p className="text-xs font-black text-slate-300 uppercase  tracking-widest">Selecione um técnico para ver o estoque</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
-                        {activeTab === 'movements' && (
-                            <div className="space-y-6">
-                                <h3 className="text-xl font-black text-slate-800 uppercase  flex items-center gap-3">
-                                    <Scale className="text-slate-800" /> Auditoria de Movimentações
-                                </h3>
-                                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-slate-50 border-b border-slate-200">
-                                            <tr className="text-[10px] font-black text-slate-500 uppercase">
-                                                <th className="px-6 py-4 text-center">Data</th>
-                                                <th className="px-6 py-4 text-center">Tipo</th>
-                                                <th className="px-6 py-4">Item</th>
-                                                <th className="px-6 py-4 text-center">Qtd.</th>
-                                                <th className="px-6 py-4 text-center">Fluxo</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {movements.map(m => (
-                                                <tr key={m.id} className="text-[11px]">
-                                                    <td className="px-6 py-4 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString()}</td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                                            {m.type === 'TRANSFER' ? 'Transferência' : 'Consumo'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <p className="font-black text-slate-800 uppercase ">{m.stock_items?.description}</p>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center font-bold text-slate-900">{m.quantity}</td>
-                                                    <td className="px-6 py-4 text-center text-[10px] font-bold text-slate-400 ">
-                                                        {m.source} → {m.destination}
-                                                    </td>
-                                                </tr>
+                                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                                        <div className="lg:col-span-1 space-y-2">
+                                            {techs.map(t => (
+                                                <button
+                                                    key={t.id}
+                                                    onClick={async () => {
+                                                        setSelectedTech(t);
+                                                        const stock = await DataService.getTechStock(t.id);
+                                                        setTechStock(stock);
+                                                    }}
+                                                    className={`w-full p-4 rounded-2xl border text-left transition-all ${selectedTech?.id === t.id ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-white border-slate-100 hover:border-amber-200'}`}
+                                                >
+                                                    <p className="text-xs font-black text-slate-800 uppercase ">{t.name}</p>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">{t.role === 'ADMIN' ? 'Administrador' : 'Técnico de Campo'}</p>
+                                                </button>
                                             ))}
-                                        </tbody>
-                                    </table>
+                                        </div>
+                                        <div className="lg:col-span-3">
+                                            {selectedTech ? (
+                                                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden min-h-[400px]">
+                                                    <table className="w-full text-left">
+                                                        <thead className="bg-slate-50 border-b border-slate-200">
+                                                            <tr className="text-[10px] font-black text-slate-500 uppercase">
+                                                                <th className="px-6 py-4">Item</th>
+                                                                <th className="px-6 py-4">Quantidade</th>
+                                                                <th className="px-6 py-4 text-right">Valor Unit.</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {techStock.length === 0 ? (
+                                                                <tr><td colSpan={3} className="p-10 text-center text-[10px] font-bold text-slate-400 uppercase ">Nenhum item em mãos</td></tr>
+                                                            ) : techStock.map(ts => (
+                                                                <tr key={ts.id}>
+                                                                    <td className="px-6 py-4">
+                                                                        <p className="text-[11px] font-black text-slate-800 uppercase ">{ts.item?.description}</p>
+                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase">Cód: {ts.item?.code}</p>
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11px] font-black">{ts.quantity}</span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-right">
+                                                                        <span className="text-[11px] font-black text-slate-700">R$ {ts.item?.sellPrice?.toFixed(2)}</span>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            ) : (
+                                                <div className="h-full flex items-center justify-center p-20 text-center">
+                                                    <p className="text-xs font-black text-slate-300 uppercase  tracking-widest">Selecione um técnico para ver o estoque</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-                )}
+                            )}
+
+                            {activeTab === 'movements' && (
+                                <div className="space-y-6">
+                                    <h3 className="text-xl font-black text-slate-800 uppercase  flex items-center gap-3">
+                                        <Scale className="text-slate-800" /> Auditoria de Movimentações
+                                    </h3>
+                                    <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-50 border-b border-slate-200">
+                                                <tr className="text-[10px] font-black text-slate-500 uppercase">
+                                                    <th className="px-6 py-4 text-center">Data</th>
+                                                    <th className="px-6 py-4 text-center">Tipo</th>
+                                                    <th className="px-6 py-4">Item</th>
+                                                    <th className="px-6 py-4 text-center">Qtd.</th>
+                                                    <th className="px-6 py-4 text-center">Fluxo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {movements.map(m => (
+                                                    <tr key={m.id} className="text-[11px]">
+                                                        <td className="px-6 py-4 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString()}</td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                                {m.type === 'TRANSFER' ? 'Transferência' : 'Consumo'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <p className="font-black text-slate-800 uppercase ">{m.stock_items?.description}</p>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center font-bold text-slate-900">{m.quantity}</td>
+                                                        <td className="px-6 py-4 text-center text-[10px] font-bold text-slate-400 ">
+                                                            {m.source} → {m.destination}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </>)}
             </div>
 
             {/* RESTOCK MODAL */}

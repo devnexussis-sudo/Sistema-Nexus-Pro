@@ -7,8 +7,9 @@ import {
   Plus, Printer, X, FileText, CheckCircle2, ShieldCheck,
   Edit3, ExternalLink, Search, Filter, Calendar, Share2,
   Users, UserCheck, Clock, FileSpreadsheet, Download, Camera, ClipboardList, Ban, MapPin, Box,
-  DollarSign, Eye, EyeOff, LayoutDashboard, User, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown
+  DollarSign, Eye, EyeOff, LayoutDashboard, User, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight
 } from 'lucide-react';
+import { Pagination } from '../ui/Pagination';
 import { CreateOrderModal } from './CreateOrderModal';
 import { PublicOrderView } from '../public/PublicOrderView';
 import { createPortal } from 'react-dom';
@@ -40,6 +41,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit' | 'costs'>('overview');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -174,6 +177,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setAvailableCustomerList(uniqueCustomers);
   }, [orders]);
 
+  // Reset page on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, techFilter, customerFilter, startDate, endDate, dateTypeFilter]);
+
 
   const handleOpenPublicView = (order: ServiceOrder, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -254,6 +262,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     return filtered;
   }, [orders, techs, customers, searchTerm, statusFilter, startDate, endDate, techFilter, customerFilter, dateTypeFilter, sortConfig]);
+
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredOrders.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredOrders, currentPage]);
+
+  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
 
   const toggleSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -453,7 +468,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredOrders.length > 0 ? filteredOrders.map(order => {
+              {paginatedOrders.length > 0 ? paginatedOrders.map(order => {
                 const isSelected = selectedOrderIds.includes(order.id);
                 const assignedTech = techs.find(t => t.id === order.assignedTo);
                 return (
@@ -535,6 +550,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredOrders.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {isCreateModalOpen && (

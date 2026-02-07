@@ -4,8 +4,9 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
   Plus, Edit2, X, Save, Lock, AtSign,
-  Smartphone, Search, Filter, RefreshCw
+  Smartphone, Search, Filter, RefreshCw, ChevronLeft
 } from 'lucide-react';
+import { Pagination } from '../ui/Pagination';
 import { DataService } from '../../services/dataService';
 import { User as UserType, UserRole, OrderStatus } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -22,6 +23,9 @@ export const TechnicianManagement: React.FC = () => {
   const [formData, setFormData] = useState<any>({
     name: '', email: '', password: 'password', avatar: '', active: true, phone: ''
   });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
   const loadTechs = async () => {
     setLoading(true);
@@ -42,6 +46,13 @@ export const TechnicianManagement: React.FC = () => {
     const matchesStatus = statusFilter === 'ALL' || (statusFilter === 'ACTIVE' ? t.active : !t.active);
     return matchesSearch && matchesStatus;
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const paginatedTechs = filteredTechs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredTechs.length / ITEMS_PER_PAGE);
 
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, '');
@@ -159,7 +170,7 @@ export const TechnicianManagement: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredTechs.map(t => (
+              {paginatedTechs.map(t => (
                 <tr key={t.id} className="bg-white hover:bg-emerald-50/40 transition-all group shadow-sm hover:shadow-md">
                   <td className="px-4 py-4 rounded-l-[1.5rem] border border-slate-100 border-r-0">
                     <div className="flex items-center gap-4">
@@ -191,106 +202,115 @@ export const TechnicianManagement: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredTechs.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
-          <div className="bg-white rounded-[3.5rem] w-full max-w-xl shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-fade-in-up">
-            <div className="flex justify-between items-center px-10 py-8 border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-600/20">
-                  {editingId ? <Edit2 size={24} /> : <Plus size={24} />}
+      {
+        isModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
+            <div className="bg-white rounded-[3.5rem] w-full max-w-xl shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-fade-in-up">
+              <div className="flex justify-between items-center px-10 py-8 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-600/20">
+                    {editingId ? <Edit2 size={24} /> : <Plus size={24} />}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingId ? 'Editar Técnico' : 'Novo Técnico'}</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Acesso exclusivo via App Móvel</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingId ? 'Editar Técnico' : 'Novo Técnico'}</h2>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Acesso exclusivo via App Móvel</p>
-                </div>
+                <button
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', password: 'password', active: true, phone: '' }); }}
+                  className="p-3 bg-white text-slate-300 hover:text-slate-900 rounded-xl shadow-sm border border-slate-100 transition-all"
+                >
+                  <X size={24} />
+                </button>
               </div>
-              <button
-                onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', password: 'password', active: true, phone: '' }); }}
-                className="p-3 bg-white text-slate-300 hover:text-slate-900 rounded-xl shadow-sm border border-slate-100 transition-all"
-              >
-                <X size={24} />
-              </button>
-            </div>
 
-            <form onSubmit={handleSubmit} className="p-10 space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Nome Completo</label>
-                  <Input
-                    required
-                    placeholder="Ex: Roberto Refrigeração"
-                    value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    className="rounded-2xl py-4 italic font-bold border-slate-200 focus:ring-emerald-50"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">E-mail (Login do App)</label>
-                  <Input
-                    required
-                    type="email"
-                    placeholder="tecnico@nexus.pro"
-                    value={formData.email}
-                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    className="rounded-2xl py-4 italic font-bold border-slate-200 focus:ring-emerald-50"
-                    icon={<AtSign size={18} />}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Telefone / WhatsApp (Com Máscara)</label>
-                  <Input
-                    placeholder="(00) 00000-0000"
-                    value={formData.phone}
-                    onChange={handlePhoneChange}
-                    className="rounded-2xl py-4 italic font-bold border-slate-200 focus:ring-emerald-50"
-                    icon={<Smartphone size={18} />}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <form onSubmit={handleSubmit} className="p-10 space-y-6">
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Senha de Acesso</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Nome Completo</label>
                     <Input
                       required
-                      type="password"
-                      placeholder="******"
-                      value={formData.password}
-                      onChange={e => setFormData({ ...formData, password: e.target.value })}
-                      className="rounded-2xl py-4 font-bold border-slate-200 focus:ring-emerald-50"
-                      icon={<Lock size={18} />}
+                      placeholder="Ex: Roberto Refrigeração"
+                      value={formData.name}
+                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      className="rounded-2xl py-4 italic font-bold border-slate-200 focus:ring-emerald-50"
                     />
                   </div>
+
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Status de Acesso</label>
-                    <select
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-black uppercase text-slate-700 outline-none focus:ring-4 focus:ring-emerald-50 transition-all"
-                      value={formData.active ? 'ACTIVE' : 'INACTIVE'}
-                      onChange={e => setFormData({ ...formData, active: e.target.value === 'ACTIVE' })}
-                    >
-                      <option value="ACTIVE">Liberado (App Ativo)</option>
-                      <option value="INACTIVE">Suspenso (Bloqueado)</option>
-                    </select>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">E-mail (Login do App)</label>
+                    <Input
+                      required
+                      type="email"
+                      placeholder="tecnico@nexus.pro"
+                      value={formData.email}
+                      onChange={e => setFormData({ ...formData, email: e.target.value })}
+                      className="rounded-2xl py-4 italic font-bold border-slate-200 focus:ring-emerald-50"
+                      icon={<AtSign size={18} />}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Telefone / WhatsApp (Com Máscara)</label>
+                    <Input
+                      placeholder="(00) 00000-0000"
+                      value={formData.phone}
+                      onChange={handlePhoneChange}
+                      className="rounded-2xl py-4 italic font-bold border-slate-200 focus:ring-emerald-50"
+                      icon={<Smartphone size={18} />}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Senha de Acesso</label>
+                      <Input
+                        required
+                        type="password"
+                        placeholder="******"
+                        value={formData.password}
+                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                        className="rounded-2xl py-4 font-bold border-slate-200 focus:ring-emerald-50"
+                        icon={<Lock size={18} />}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Status de Acesso</label>
+                      <select
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-xs font-black uppercase text-slate-700 outline-none focus:ring-4 focus:ring-emerald-50 transition-all"
+                        value={formData.active ? 'ACTIVE' : 'INACTIVE'}
+                        onChange={e => setFormData({ ...formData, active: e.target.value === 'ACTIVE' })}
+                      >
+                        <option value="ACTIVE">Liberado (App Ativo)</option>
+                        <option value="INACTIVE">Suspenso (Bloqueado)</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="pt-6">
-                <Button
-                  type="submit"
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-5 font-bold uppercase tracking-widest shadow-sm shadow-emerald-500/10 transition-all border-none"
-                >
-                  <Save size={20} className="mr-3" /> {editingId ? 'Salvar Alterações' : 'Confirmar Cadastro'}
-                </Button>
-              </div>
-            </form>
+                <div className="pt-6">
+                  <Button
+                    type="submit"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-5 font-bold uppercase tracking-widest shadow-sm shadow-emerald-500/10 transition-all border-none"
+                  >
+                    <Save size={20} className="mr-3" /> {editingId ? 'Salvar Alterações' : 'Confirmar Cadastro'}
+                  </Button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 

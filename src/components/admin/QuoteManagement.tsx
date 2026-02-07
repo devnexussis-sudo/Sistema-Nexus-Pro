@@ -6,8 +6,9 @@ import {
     ChevronRight, CreditCard, User, MapPin, Briefcase,
     ArrowUpRight, Loader2, ListPlus, Calculator, Inbox, Calendar, Link2, Share2,
     Eye, Link, ExternalLink, Globe, ClipboardCheck, ShieldCheck, Box, Signature as SignatureIcon,
-    AlertCircle
+    AlertCircle, ChevronLeft
 } from 'lucide-react';
+import { Pagination } from '../ui/Pagination';
 import { Customer, OrderStatus, OrderPriority, ServiceOrder, StockItem, Quote, QuoteItem } from '../../types';
 
 interface QuoteManagementProps {
@@ -31,6 +32,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
     const [viewQuote, setViewQuote] = useState<Quote | null>(null);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 12;
 
     // Form States
     const [customerName, setCustomerName] = useState('');
@@ -169,10 +173,23 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         }
     };
 
-    const filteredQuotes = quotes.filter(q =>
-        q.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        q.id.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredQuotes = useMemo(() => {
+        return quotes.filter(q =>
+            q.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            q.id.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [quotes, searchTerm]);
+
+    useMemo(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    const paginatedQuotes = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredQuotes.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredQuotes, currentPage]);
+
+    const totalPages = Math.ceil(filteredQuotes.length / ITEMS_PER_PAGE);
 
     return (
         <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
@@ -212,7 +229,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredQuotes.map(quote => (
+                            {paginatedQuotes.map(quote => (
                                 <tr key={quote.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
                                     <td className="px-4 py-4">
                                         <div className="flex flex-col truncate max-w-[120px]">
@@ -333,6 +350,13 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </tbody>
                     </table>
                 </div>
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredQuotes.length}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                    onPageChange={setCurrentPage}
+                />
             </div>
 
             {/* Modal Editor de Orçamento */}

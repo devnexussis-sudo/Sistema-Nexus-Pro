@@ -11,6 +11,7 @@ import {
     DollarSign, FileSignature, Layers
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
+import { Pagination } from '../ui/Pagination';
 
 interface AuditLog {
     timestamp: string;
@@ -63,6 +64,9 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     const [enableAlerts, setEnableAlerts] = useState(true);
     const [alertDaysBefore, setAlertDaysBefore] = useState(5);
     const [alertFrequency, setAlertFrequency] = useState(2);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 12;
 
     // Mascara de Moeda
     const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -206,6 +210,17 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
         });
     }, [orders, searchTerm, statusFilter, startDateFilter, endDateFilter]);
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, statusFilter, startDateFilter, endDateFilter]);
+
+    const paginatedContracts = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredContracts.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredContracts, currentPage]);
+
+    const totalPages = Math.ceil(filteredContracts.length / ITEMS_PER_PAGE);
+
     return (
         <div className="p-4 space-y-4 animate-fade-in flex flex-col h-full bg-slate-50/20">
             <div className="flex justify-between items-center">
@@ -282,8 +297,8 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredContracts.length > 0 ? (
-                                filteredContracts.map(contract => (
+                            {paginatedContracts.length > 0 ? (
+                                paginatedContracts.map(contract => (
                                     <tr key={contract.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
                                         <td className="px-4 py-4">
                                             <div className="flex flex-col truncate max-w-[120px]">
@@ -317,6 +332,13 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                         </tbody>
                     </table>
                 </div>
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredContracts.length}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                    onPageChange={setCurrentPage}
+                />
             </div>
 
             {isModalOpen && (

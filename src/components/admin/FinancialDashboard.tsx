@@ -4,8 +4,9 @@ import {
     Search, Filter, Download, Plus, ChevronRight, X, DollarSign, Calendar, Users,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
-    TrendingUp, Clock, FileSpreadsheet
+    TrendingUp, Clock, FileSpreadsheet, ChevronLeft
 } from 'lucide-react';
+import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
 import { DataService } from '../../services/dataService';
 import * as XLSX from 'xlsx';
@@ -30,7 +31,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
     const [billingNotes, setBillingNotes] = useState('');
+
     const [isProcessing, setIsProcessing] = useState(false);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 12;
 
     // Linking logic
     const availableQuotesForClient = useMemo(() => {
@@ -144,7 +149,18 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
             return matchesSearch && matchesTech && matchesDate;
         });
-    }, [allItems, searchTerm, techFilter, startDate, endDate]);
+    }, [allItems, searchTerm, startDate, endDate, techFilter]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, startDate, endDate, techFilter]);
+
+    const paginatedItems = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredItems.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredItems, currentPage]);
+
+    const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
 
     // 3. Cálculos do Dashboard
     const stats = useMemo(() => {
@@ -411,7 +427,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredItems.map(item => (
+                            {paginatedItems.map(item => (
                                 <tr
                                     key={item.id}
                                     className={`group hover:bg-primary-50/40 transition-all cursor-pointer border-b last:border-0 border-slate-50 ${selectedIds.includes(item.id) ? 'bg-primary-50/50' : 'bg-white'}`}
@@ -456,6 +472,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         </tbody>
                     </table>
                 </div>
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredItems.length}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                    onPageChange={setCurrentPage}
+                />
             </div>
 
             {/* Somatório Flutuante */}
