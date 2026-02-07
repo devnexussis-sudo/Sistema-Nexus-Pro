@@ -7,7 +7,7 @@ import {
   Plus, Printer, X, FileText, CheckCircle2, ShieldCheck,
   Edit3, ExternalLink, Search, Filter, Calendar, Share2,
   Users, UserCheck, Clock, FileSpreadsheet, Download, Camera, ClipboardList, Ban, MapPin, Box,
-  DollarSign, Eye, EyeOff
+  DollarSign, Eye, EyeOff, LayoutDashboard, User, AlertTriangle
 } from 'lucide-react';
 import { CreateOrderModal } from './CreateOrderModal';
 import { PublicOrderView } from '../public/PublicOrderView';
