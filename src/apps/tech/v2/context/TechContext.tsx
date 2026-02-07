@@ -44,7 +44,7 @@ const STORAGE_KEYS = {
     SESSION: 'nexus_tech_session_v2',
     CACHE: 'nexus_tech_cache_v2',
     CACHE_META: 'nexus_tech_cache_meta_v2',
-    TENANT: 'tenant_id',
+    TENANT: 'current_tenant',
     LAST_SYNC: 'nexus_tech_last_sync'
 } as const;
 
@@ -83,11 +83,15 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             const cached = localStorage.getItem(STORAGE_KEYS.CACHE);
             if (cached) {
-                console.log('[TechContext] ⚡ Cache carregado (Offline-First)');
-                return JSON.parse(cached);
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed)) {
+                    console.log('[TechContext] ⚡ Cache validado e carregado');
+                    return parsed;
+                }
             }
         } catch (e) {
             console.error('[TechContext] Erro ao carregar cache:', e);
+            localStorage.removeItem(STORAGE_KEYS.CACHE);
         }
         return [];
     });
@@ -174,7 +178,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // 🛡️ CRITICAL: Last-mile verification for Tenant ID
             // Garante que o ID do cliente esteja na memória antes do request
             if (auth.user?.tenantId && !SessionStorage.get(STORAGE_KEYS.TENANT)) {
-                console.warn('[TechContext] ⚠️ Tenant ID restaurado em refreshData');
+                console.warn('[TechContext] ⚠️ [RefreshData] Tenant ID restaurado.');
                 SessionStorage.set(STORAGE_KEYS.TENANT, auth.user.tenantId);
             }
 
@@ -236,7 +240,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (auth.user?.tenantId) {
             const currentTenant = SessionStorage.get(STORAGE_KEYS.TENANT);
             if (!currentTenant) {
-                console.warn('[TechContext] ⚠️ Tenant ID perdido em memória. Restaurando...');
+                console.warn('[TechContext] ⚠️ [Revalidate] Tenant ID restaurado do cache persistente.');
                 SessionStorage.set(STORAGE_KEYS.TENANT, auth.user.tenantId);
             }
         }
@@ -276,7 +280,17 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         const handleResume = () => {
             if (document.visibilityState === 'visible' && auth.isAuthenticated) {
-                console.log('[TechContext] 👁️ App Visible/Focused');
+                console.log('[TechContext] 👁️ App Visible/Focused - Triggering Hydration');
+
+                // 🛡️ CRITICAL: Last-mile verification for Tenant ID before any sync
+                if (auth.user?.tenantId) {
+                    const currentTenant = SessionStorage.get(STORAGE_KEYS.TENANT);
+                    if (!currentTenant) {
+                        console.warn('[TechContext] ⚠️ [Resume] Tenant ID restaurado do cache persistente.');
+                        SessionStorage.set(STORAGE_KEYS.TENANT, auth.user.tenantId);
+                    }
+                }
+
                 revalidateSession();
             }
         };
@@ -296,7 +310,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Listeners múltiplos para garantir captura (iOS/Android behaviors)
         document.addEventListener('visibilitychange', handleResume);
-        window.addEventListener('focus', handleResume); // Adicionado para desktop/alguns mobiles
+        window.addEventListener('focus', handleResume);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
@@ -315,7 +329,9 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             window.removeEventListener('offline', handleOffline);
             clearInterval(intervalId);
         };
-    }, [auth.isAuthenticated, revalidateSession]);
+    }, [auth.isAuthenticated, auth.user?.tenantId, revalidateSession]);
+
+
 
     // 🚪 AUTH ACTIONS
     const login = async (email: string, pass: string) => {
@@ -352,6 +368,47 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setConnectivity({ isOnline: navigator.onLine, isSessionValid: false, lastSync: null });
     }, [stopGPS]);
+
+    // 🔐 SUPABASE AUTH SYNC (onAuthStateChange)
+    useEffect(() => {
+        let authListener: any = null;
+
+        const initAuth = async () => {
+            const { supabase } = await import('../../../../lib/supabase');
+
+            // Listen for auth changes (Recovery, Sign In, Sign Out)
+            const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+                console.log(`[TechContext] 🔑 Auth Event: ${event}`);
+
+                if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                    if (session?.user && !auth.isAuthenticated) {
+                        try {
+                            const freshUser = await DataService.refreshUser();
+                            if (freshUser && mountedRef.current) {
+                                localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(freshUser));
+                                setAuth({ user: freshUser, isAuthenticated: true });
+                                if (freshUser.tenantId) {
+                                    SessionStorage.set(STORAGE_KEYS.TENANT, freshUser.tenantId);
+                                }
+                            }
+                        } catch (e) {
+                            console.error('[TechContext] Auth Sync Error:', e);
+                        }
+                    }
+                } else if (event === 'SIGNED_OUT') {
+                    if (auth.isAuthenticated) logout();
+                }
+            });
+
+            authListener = data.subscription;
+        };
+
+        if (mountedRef.current) initAuth();
+
+        return () => {
+            if (authListener) authListener.unsubscribe();
+        };
+    }, [auth.isAuthenticated, logout]);
 
     const updateOrderStatus = useCallback(async (id: string, status: OrderStatus, notes?: string, formData?: any) => {
         try {
