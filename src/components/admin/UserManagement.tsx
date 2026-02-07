@@ -7,8 +7,9 @@ import {
   LayoutDashboard, ClipboardList, FileText,
   UserCheck, Box, Building2, Settings, ShieldAlert,
   ArrowLeft, Filter, Calendar, RefreshCw, FolderTree,
-  ChevronDown, Check, Package, Workflow, CalendarClock
+  ChevronDown, Check, Package, Workflow, CalendarClock, ChevronLeft
 } from 'lucide-react';
+import { Pagination } from '../ui/Pagination';
 import { DataService } from '../../services/dataService';
 import { User, UserRole, UserPermissions, UserGroup, DEFAULT_PERMISSIONS, ADMIN_PERMISSIONS } from '../../types';
 
@@ -48,6 +49,9 @@ export const UserManagement: React.FC = () => {
     permissions: { ...DEFAULT_PERMISSIONS }
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
+
   const loadData = async () => {
     const [usersList, groupsList] = await Promise.all([
       DataService.getAllUsers(),
@@ -86,7 +90,22 @@ export const UserManagement: React.FC = () => {
         permissions: { ...DEFAULT_PERMISSIONS }
       });
     }
-  }, [isModalOpen, editingUser]);
+  }, [users, groups, searchTerm, statusFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, activeTab]);
+
+  const handleDeleteUser = async (id: string) => {
+    try {
+      await DataService.deleteUser(id);
+      await loadData();
+      alert("✅ Administrador removido com sucesso!");
+    } catch (error: any) {
+      console.error("Failed to delete user:", error);
+      alert("ERRO AO REMOVER USUÁRIO:\n" + error.message);
+    }
+  };
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,6 +209,9 @@ export const UserManagement: React.FC = () => {
     const matchesStatus = statusFilter === 'ALL' || (statusFilter === 'ACTIVE' ? u.active : !u.active);
     return matchesSearch && matchesStatus;
   });
+
+  const paginatedUsers = users.length > 0 ? filteredUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE) : [];
+  const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
 
   const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtitle }: { perms: UserPermissions, onUpdate: (p: UserPermissions) => void, title: string, subtitle: string }) => {
     const modules = [
@@ -441,7 +463,7 @@ export const UserManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.length > 0 ? filteredUsers.map(user => (
+                {paginatedUsers.length > 0 ? paginatedUsers.map(user => (
                   <tr key={user.id} className={`bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md ${!user.active ? 'opacity-60' : ''}`}>
                     <td className="px-4 py-4 rounded-l-[1.5rem] border border-slate-100 border-r-0">
                       <div className="flex items-center gap-4">
@@ -534,151 +556,166 @@ export const UserManagement: React.FC = () => {
             </div>
           )}
         </div>
+        {activeTab === 'users' && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredUsers.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
+        )}
       </div>
 
       {/* Modal de Usuário */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6">
-          <div className="bg-white rounded-[3rem] w-full max-w-2xl shadow-2xl border border-white/20 animate-fade-in-up">
-            <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
-              <div className="flex items-center gap-6">
-                <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><UserPlus size={32} /></div>
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingUser ? 'Atualizar Identidade' : 'Registrar Novo Gestor'}</h2>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Acesso e Privilégios Corporativos</p>
-                </div>
-              </div>
-              <button onClick={() => setIsModalOpen(false)} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>
-            </div>
-            <form onSubmit={handleSaveUser} className="p-12 space-y-8" autoComplete="off">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <Input label="Nome do Colaborador" required icon={<Users size={18} />} className="rounded-2xl py-4 font-bold" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} autoComplete="new-name" />
-                <Input label="E-mail Corporativo" type="email" required icon={<Mail size={18} />} className="rounded-2xl py-4 font-bold" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} autoComplete="new-email" />
-                <Input label="Senha Temporária" type="password" required={!editingUser} icon={<Lock size={18} />} className="rounded-2xl py-4 font-bold" value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} autoComplete="new-password" />
-
-                <div className="relative">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-3 block italic flex items-center gap-2">
-                    Grupo de Permissões
-                    {editingUser && groups.find(g => g.id === editingUser.groupId)?.isSystem && (
-                      <span className="text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full ring-1 ring-amber-200 animate-pulse">Protegido</span>
-                    )}
-                  </label>
-                  <select
-                    className={`w-full border rounded-2xl px-6 py-4 text-xs font-bold outline-none appearance-none focus:ring-4 focus:ring-primary-100 transition-all ${editingUser && groups.find(g => g.id === editingUser.groupId)?.isSystem && !isMasterMode
-                      ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
-                      : 'bg-slate-50 border-slate-200 text-slate-700 cursor-pointer'}`}
-                    value={formData.groupId || ''}
-                    onChange={e => setFormData({ ...formData, groupId: e.target.value })}
-                    required
-                    disabled={editingUser && groups.find(g => g.id === editingUser.groupId)?.isSystem && !isMasterMode}
-                  >
-                    <option value="">Selecione um Grupo...</option>
-                    {groups.map(g => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-6 top-[42px] text-slate-400 pointer-events-none" size={16} />
-                </div>
-
-                <div
-                  onClick={() => setFormData({ ...formData, active: !formData.active })}
-                  className={`flex items-center gap-4 p-5 rounded-2xl border transition-all cursor-pointer ${formData.active ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}
-                >
-                  <div className={`w-10 h-6 rounded-full relative transition-all ${formData.active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.active ? 'left-5' : 'left-1'}`} />
+      {
+        isModalOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6">
+            <div className="bg-white rounded-[3rem] w-full max-w-2xl shadow-2xl border border-white/20 animate-fade-in-up">
+              <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
+                <div className="flex items-center gap-6">
+                  <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><UserPlus size={32} /></div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingUser ? 'Atualizar Identidade' : 'Registrar Novo Gestor'}</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Acesso e Privilégios Corporativos</p>
                   </div>
-                  <span className={`text-[10px] font-black uppercase italic ${formData.active ? 'text-emerald-700' : 'text-slate-500'}`}>Status: {formData.active ? 'Ativo' : 'Bloqueado'}</span>
                 </div>
+                <button onClick={() => setIsModalOpen(false)} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>
               </div>
-              <div className="pt-4 flex justify-end gap-4">
-                <Button variant="secondary" className="rounded-2xl px-10" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-                <Button type="submit" className="rounded-2xl px-16 shadow-xl shadow-primary-600/30">
-                  <Save size={20} className="mr-3" /> {editingUser ? 'Atualizar' : 'Salvar'}
-                </Button>
-              </div>
-            </form>
+              <form onSubmit={handleSaveUser} className="p-12 space-y-8" autoComplete="off">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <Input label="Nome do Colaborador" required icon={<Users size={18} />} className="rounded-2xl py-4 font-bold" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} autoComplete="new-name" />
+                  <Input label="E-mail Corporativo" type="email" required icon={<Mail size={18} />} className="rounded-2xl py-4 font-bold" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} autoComplete="new-email" />
+                  <Input label="Senha Temporária" type="password" required={!editingUser} icon={<Lock size={18} />} className="rounded-2xl py-4 font-bold" value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} autoComplete="new-password" />
+
+                  <div className="relative">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-3 block italic flex items-center gap-2">
+                      Grupo de Permissões
+                      {editingUser && groups.find(g => g.id === editingUser.groupId)?.isSystem && (
+                        <span className="text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full ring-1 ring-amber-200 animate-pulse">Protegido</span>
+                      )}
+                    </label>
+                    <select
+                      className={`w-full border rounded-2xl px-6 py-4 text-xs font-bold outline-none appearance-none focus:ring-4 focus:ring-primary-100 transition-all ${editingUser && groups.find(g => g.id === editingUser.groupId)?.isSystem && !isMasterMode
+                        ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 cursor-pointer'}`}
+                      value={formData.groupId || ''}
+                      onChange={e => setFormData({ ...formData, groupId: e.target.value })}
+                      required
+                      disabled={editingUser && groups.find(g => g.id === editingUser.groupId)?.isSystem && !isMasterMode}
+                    >
+                      <option value="">Selecione um Grupo...</option>
+                      {groups.map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-6 top-[42px] text-slate-400 pointer-events-none" size={16} />
+                  </div>
+
+                  <div
+                    onClick={() => setFormData({ ...formData, active: !formData.active })}
+                    className={`flex items-center gap-4 p-5 rounded-2xl border transition-all cursor-pointer ${formData.active ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}
+                  >
+                    <div className={`w-10 h-6 rounded-full relative transition-all ${formData.active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.active ? 'left-5' : 'left-1'}`} />
+                    </div>
+                    <span className={`text-[10px] font-black uppercase italic ${formData.active ? 'text-emerald-700' : 'text-slate-500'}`}>Status: {formData.active ? 'Ativo' : 'Bloqueado'}</span>
+                  </div>
+                </div>
+                <div className="pt-4 flex justify-end gap-4">
+                  <Button variant="secondary" className="rounded-2xl px-10" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                  <Button type="submit" className="rounded-2xl px-16 shadow-xl shadow-primary-600/30">
+                    <Save size={20} className="mr-3" /> {editingUser ? 'Atualizar' : 'Salvar'}
+                  </Button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Modal de Grupo */}
-      {isGroupModalOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6">
-          <div className="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl border border-white/20 animate-fade-in-up">
-            <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
-              <div className="flex items-center gap-6">
-                <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><FolderTree size={32} /></div>
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingGroup ? 'Editar Grupo' : 'Novo Grupo de Acesso'}</h2>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Categorização de Regras de Negócio</p>
+      {
+        isGroupModalOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6">
+            <div className="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl border border-white/20 animate-fade-in-up">
+              <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
+                <div className="flex items-center gap-6">
+                  <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><FolderTree size={32} /></div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingGroup ? 'Editar Grupo' : 'Novo Grupo de Acesso'}</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Categorização de Regras de Negócio</p>
+                  </div>
                 </div>
+                <button onClick={() => setIsGroupModalOpen(false)} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>
               </div>
-              <button onClick={() => setIsGroupModalOpen(false)} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>
+              <form onSubmit={handleSaveGroup} className="p-10 space-y-6">
+                <Input label="Nome do Grupo (Ex: Supervisão de Campo)" required icon={<Building2 size={18} />} className="rounded-2xl py-4 font-bold" value={groupFormData.name || ''} onChange={e => setGroupFormData({ ...groupFormData, name: e.target.value })} />
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-3 block italic">Descrição e Objetivo</label>
+                  <textarea
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all min-h-[100px]"
+                    placeholder="Descreva quais responsabilidades este grupo possui..."
+                    value={groupFormData.description || ''}
+                    onChange={e => setGroupFormData({ ...groupFormData, description: e.target.value })}
+                  />
+                </div>
+                <div className="pt-6 flex justify-end gap-4">
+                  <Button variant="secondary" className="rounded-2xl px-12" onClick={() => setIsGroupModalOpen(false)}>Descartar</Button>
+                  <Button type="submit" className="rounded-2xl px-20 shadow-xl shadow-primary-600/30">
+                    <Check size={20} className="mr-3" /> {editingGroup ? 'Salvar' : 'Criar Grupo'}
+                  </Button>
+                </div>
+              </form>
             </div>
-            <form onSubmit={handleSaveGroup} className="p-10 space-y-6">
-              <Input label="Nome do Grupo (Ex: Supervisão de Campo)" required icon={<Building2 size={18} />} className="rounded-2xl py-4 font-bold" value={groupFormData.name || ''} onChange={e => setGroupFormData({ ...groupFormData, name: e.target.value })} />
-              <div className="flex flex-col">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-3 block italic">Descrição e Objetivo</label>
-                <textarea
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all min-h-[100px]"
-                  placeholder="Descreva quais responsabilidades este grupo possui..."
-                  value={groupFormData.description || ''}
-                  onChange={e => setGroupFormData({ ...groupFormData, description: e.target.value })}
-                />
-              </div>
-              <div className="pt-6 flex justify-end gap-4">
-                <Button variant="secondary" className="rounded-2xl px-12" onClick={() => setIsGroupModalOpen(false)}>Descartar</Button>
-                <Button type="submit" className="rounded-2xl px-20 shadow-xl shadow-primary-600/30">
-                  <Check size={20} className="mr-3" /> {editingGroup ? 'Salvar' : 'Criar Grupo'}
-                </Button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* 🚨 Modal de Confirmação de Exclusão de Grupo */}
-      {groupToDelete && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-6">
-          <div className="bg-white rounded-[3rem] w-full max-w-lg p-12 shadow-2xl border border-red-100 animate-scale-in">
-            <div className="flex flex-col items-center text-center space-y-8">
-              <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center text-red-500 animate-pulse ring-8 ring-red-50">
-                <ShieldAlert size={48} />
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-900 leading-none">Excluir Grupo</h3>
-                <p className="text-slate-500 font-medium px-4">
-                  Confirmar a remoção do grupo <span className="text-slate-900 font-black">"{groupToDelete.name}"</span>?
-                </p>
-                <div className="bg-amber-50 text-amber-700 text-[10px] font-black uppercase p-4 rounded-2xl border border-amber-100 flex items-start gap-4 text-left">
-                  <ShieldAlert size={20} className="shrink-0" />
-                  <span>Atenção: Usuários vinculados a este grupo perderão suas permissões de acesso até que um novo grupo seja atribuído.</span>
+      {
+        groupToDelete && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-6">
+            <div className="bg-white rounded-[3rem] w-full max-w-lg p-12 shadow-2xl border border-red-100 animate-scale-in">
+              <div className="flex flex-col items-center text-center space-y-8">
+                <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center text-red-500 animate-pulse ring-8 ring-red-50">
+                  <ShieldAlert size={48} />
                 </div>
-              </div>
 
-              <div className="flex flex-col w-full gap-4">
-                <Button
-                  variant="primary"
-                  onClick={handleDeleteGroup}
-                  disabled={isSaving}
-                  className="bg-red-600 hover:bg-red-700 py-6 rounded-2xl font-black uppercase tracking-widest text-xs italic shadow-2xl shadow-red-600/30 active:scale-95 transition-all text-white"
-                >
-                  {isSaving ? "Processando..." : "Sim, Confirmar Exclusão"}
-                </Button>
-                <button
-                  onClick={() => setGroupToDelete(null)}
-                  disabled={isSaving}
-                  className="py-4 text-slate-400 hover:text-slate-900 font-black uppercase tracking-[0.3em] text-[9px] transition-colors"
-                >
-                  Cancelar
-                </button>
+                <div className="space-y-4">
+                  <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-900 leading-none">Excluir Grupo</h3>
+                  <p className="text-slate-500 font-medium px-4">
+                    Confirmar a remoção do grupo <span className="text-slate-900 font-black">"{groupToDelete.name}"</span>?
+                  </p>
+                  <div className="bg-amber-50 text-amber-700 text-[10px] font-black uppercase p-4 rounded-2xl border border-amber-100 flex items-start gap-4 text-left">
+                    <ShieldAlert size={20} className="shrink-0" />
+                    <span>Atenção: Usuários vinculados a este grupo perderão suas permissões de acesso até que um novo grupo seja atribuído.</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col w-full gap-4">
+                  <Button
+                    variant="primary"
+                    onClick={handleDeleteGroup}
+                    disabled={isSaving}
+                    className="bg-red-600 hover:bg-red-700 py-6 rounded-2xl font-black uppercase tracking-widest text-xs italic shadow-2xl shadow-red-600/30 active:scale-95 transition-all text-white"
+                  >
+                    {isSaving ? "Processando..." : "Sim, Confirmar Exclusão"}
+                  </Button>
+                  <button
+                    onClick={() => setGroupToDelete(null)}
+                    disabled={isSaving}
+                    className="py-4 text-slate-400 hover:text-slate-900 font-black uppercase tracking-[0.3em] text-[9px] transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 

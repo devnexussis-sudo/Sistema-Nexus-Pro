@@ -5,8 +5,9 @@ import { Input } from '../ui/Input';
 import {
   Search, Plus, Building2, User, MapPin, Phone, Mail,
   Trash2, Edit2, X, Save, Power, PowerOff, Info, Box,
-  ChevronDown, ChevronUp, Laptop, Hash, Filter, Calendar
+  ChevronDown, ChevronUp, Laptop, Hash, Filter, Calendar, ChevronLeft
 } from 'lucide-react';
+import { Pagination } from '../ui/Pagination';
 
 import { Customer, Equipment } from '../../types';
 import { DataService } from '../../services/dataService';
@@ -38,6 +39,9 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
   const [mockEquipments, setMockEquipments] = useState<Record<string, LinkedEquipment[]>>({});
 
@@ -243,6 +247,13 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     return matchesSearch && matchesStatus;
   });
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const paginatedCustomers = filteredCustomers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
+
   return (
     <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
       {/* Toolbar */}
@@ -298,7 +309,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
               </tr>
             </thead>
             <tbody>
-              {filteredCustomers.map(c => {
+              {paginatedCustomers.map(c => {
                 const isSelected = selectedCustomerId === c.id;
                 return (
                   <React.Fragment key={c.id}>
@@ -399,110 +410,119 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredCustomers.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
-          <div className="bg-white rounded-[4rem] w-full max-w-4xl shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[92vh] animate-fade-in-up">
-            <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[4rem]">
-              <div className="flex items-center gap-6">
-                <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><Building2 size={32} /></div>
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingId ? 'Atualizar Cliente' : 'Novo Cadastro Corporativo'}</h2>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Provisionamento de base operacional</p>
+      {
+        isModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
+            <div className="bg-white rounded-[4rem] w-full max-w-4xl shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[92vh] animate-fade-in-up">
+              <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[4rem]">
+                <div className="flex items-center gap-6">
+                  <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><Building2 size={32} /></div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingId ? 'Atualizar Cliente' : 'Novo Cadastro Corporativo'}</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Provisionamento de base operacional</p>
+                  </div>
                 </div>
-              </div>
-              <button onClick={closeModal} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all"><X size={28} /></button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-12 space-y-12 overflow-y-auto custom-scrollbar flex-1">
-              <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
-                <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })} className={`px-10 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Empresa (PJ)</button>
-                <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })} className={`px-10 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Individual (PF)</button>
+                <button onClick={closeModal} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all"><X size={28} /></button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                <Input label={formData.type === 'PJ' ? "Razão Social" : "Nome Completo"} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-                <div className="relative">
-                  <Input
-                    label={formData.type === 'PJ' ? "CNPJ" : "CPF"}
-                    required
-                    className={`rounded-2xl py-4 font-bold ${documentDuplicate ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
-                    value={formData.document || ''}
-                    onChange={e => {
-                      const formatted = formData.type === 'PJ'
-                        ? formatCNPJ(e.target.value)
-                        : formatCPF(e.target.value);
-                      setFormData({ ...formData, document: formatted });
-                    }}
-                    placeholder={formData.type === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
-                  />
-                  {documentDuplicate && (
-                    <div className="mt-2 p-3 bg-red-100 border border-red-300 rounded-xl flex items-start gap-2 animate-pulse">
-                      <span className="text-red-600 font-bold text-lg">⚠️</span>
-                      <p className="text-red-700 text-xs font-bold">
-                        {formData.type === 'PJ' ? 'CNPJ' : 'CPF'} já cadastrado para: <span className="font-black uppercase">{documentDuplicate}</span>
-                      </p>
-                    </div>
-                  )}
+              <form onSubmit={handleSubmit} className="p-12 space-y-12 overflow-y-auto custom-scrollbar flex-1">
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
+                  <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })} className={`px-10 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Empresa (PJ)</button>
+                  <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })} className={`px-10 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Individual (PF)</button>
                 </div>
-                <Input label="E-mail Administrativo" type="email" required icon={<Mail size={16} />} className="rounded-2xl py-4 font-bold border-slate-200" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
-                <div className="grid grid-cols-2 gap-6">
-                  <Input
-                    label="Telefone Fixo"
-                    className="rounded-2xl py-4 font-bold border-slate-200"
-                    value={formData.phone || ''}
-                    onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })}
-                    placeholder="(00) 0000-0000"
-                  />
-                  <Input
-                    label="WhatsApp Direto"
-                    icon={<Phone size={14} className="text-emerald-500" />}
-                    className="rounded-2xl py-4 font-bold border-slate-200"
-                    value={formData.whatsapp || ''}
-                    onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })}
-                    placeholder="(00) 00000-0000"
-                  />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <Input label={formData.type === 'PJ' ? "Razão Social" : "Nome Completo"} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                  <div className="relative">
+                    <Input
+                      label={formData.type === 'PJ' ? "CNPJ" : "CPF"}
+                      required
+                      className={`rounded-2xl py-4 font-bold ${documentDuplicate ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
+                      value={formData.document || ''}
+                      onChange={e => {
+                        const formatted = formData.type === 'PJ'
+                          ? formatCNPJ(e.target.value)
+                          : formatCPF(e.target.value);
+                        setFormData({ ...formData, document: formatted });
+                      }}
+                      placeholder={formData.type === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
+                    />
+                    {documentDuplicate && (
+                      <div className="mt-2 p-3 bg-red-100 border border-red-300 rounded-xl flex items-start gap-2 animate-pulse">
+                        <span className="text-red-600 font-bold text-lg">⚠️</span>
+                        <p className="text-red-700 text-xs font-bold">
+                          {formData.type === 'PJ' ? 'CNPJ' : 'CPF'} já cadastrado para: <span className="font-black uppercase">{documentDuplicate}</span>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <Input label="E-mail Administrativo" type="email" required icon={<Mail size={16} />} className="rounded-2xl py-4 font-bold border-slate-200" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                  <div className="grid grid-cols-2 gap-6">
+                    <Input
+                      label="Telefone Fixo"
+                      className="rounded-2xl py-4 font-bold border-slate-200"
+                      value={formData.phone || ''}
+                      onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })}
+                      placeholder="(00) 0000-0000"
+                    />
+                    <Input
+                      label="WhatsApp Direto"
+                      icon={<Phone size={14} className="text-emerald-500" />}
+                      className="rounded-2xl py-4 font-bold border-slate-200"
+                      value={formData.whatsapp || ''}
+                      onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })}
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
                 </div>
+
+                <div className="pt-10 border-t border-slate-100 space-y-10">
+                  <div className="flex items-center gap-3 text-primary-600 font-black text-xs uppercase tracking-[0.2em] italic"><MapPin size={20} /> Localização e Atendimento</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <Input label="CEP" onBlur={handleZipBlur} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} />
+                    <Input label="Estado (UF)" value={formData.state || ''} readOnly className="rounded-2xl py-4 bg-slate-50 border-slate-100 font-black text-primary-600" />
+                    <Input label="Cidade" value={formData.city || ''} readOnly className="rounded-2xl py-4 bg-slate-50 border-slate-100 font-black" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+                    <div className="md:col-span-9"><Input label="Logradouro" value={formData.address || ''} readOnly className="rounded-2xl py-4 bg-slate-50 border-slate-100 font-black" /></div>
+                    <div className="md:col-span-3"><Input label="Número" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} /></div>
+                  </div>
+                  <Input label="Ponto de Referência / Complemento" icon={<Info size={18} />} className="rounded-2xl py-4 font-bold border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
+                </div>
+
+                {errorMessage && (
+                  <div className="mx-auto w-full p-4 bg-red-100 border border-red-200 text-red-600 rounded-2xl text-center font-bold text-xs uppercase animate-pulse">
+                    Erro: {errorMessage}
+                  </div>
+                )}
+              </form>
+
+              <div className="p-10 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-6 rounded-b-[4rem]">
+                <Button variant="secondary" className="rounded-2xl px-12" onClick={closeModal}>Descartar</Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!!documentDuplicate}
+                  className={`rounded-2xl px-20 shadow-sm font-bold uppercase transition-all ${documentDuplicate
+                    ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                    : 'bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]'
+                    }`}
+                >
+                  <Save size={20} className="mr-3" /> Salvar Cadastro
+                </Button>
               </div>
-
-              <div className="pt-10 border-t border-slate-100 space-y-10">
-                <div className="flex items-center gap-3 text-primary-600 font-black text-xs uppercase tracking-[0.2em] italic"><MapPin size={20} /> Localização e Atendimento</div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <Input label="CEP" onBlur={handleZipBlur} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} />
-                  <Input label="Estado (UF)" value={formData.state || ''} readOnly className="rounded-2xl py-4 bg-slate-50 border-slate-100 font-black text-primary-600" />
-                  <Input label="Cidade" value={formData.city || ''} readOnly className="rounded-2xl py-4 bg-slate-50 border-slate-100 font-black" />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-                  <div className="md:col-span-9"><Input label="Logradouro" value={formData.address || ''} readOnly className="rounded-2xl py-4 bg-slate-50 border-slate-100 font-black" /></div>
-                  <div className="md:col-span-3"><Input label="Número" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} /></div>
-                </div>
-                <Input label="Ponto de Referência / Complemento" icon={<Info size={18} />} className="rounded-2xl py-4 font-bold border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
-              </div>
-
-              {errorMessage && (
-                <div className="mx-auto w-full p-4 bg-red-100 border border-red-200 text-red-600 rounded-2xl text-center font-bold text-xs uppercase animate-pulse">
-                  Erro: {errorMessage}
-                </div>
-              )}
-            </form>
-
-            <div className="p-10 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-6 rounded-b-[4rem]">
-              <Button variant="secondary" className="rounded-2xl px-12" onClick={closeModal}>Descartar</Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={!!documentDuplicate}
-                className={`rounded-2xl px-20 shadow-sm font-bold uppercase transition-all ${documentDuplicate
-                  ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                  : 'bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]'
-                  }`}
-              >
-                <Save size={20} className="mr-3" /> Salvar Cadastro
-              </Button>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
