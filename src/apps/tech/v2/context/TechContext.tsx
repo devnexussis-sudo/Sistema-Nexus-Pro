@@ -35,6 +35,8 @@ interface TechContextType {
     logout: () => void;
     refreshData: (params?: { page?: number; newFilters?: Partial<FilterState>; silent?: boolean }) => Promise<void>;
     updateOrderStatus: (id: string, status: OrderStatus, notes?: string, formData?: any) => Promise<void>;
+    toast: { message: string; type: 'success' | 'error' | 'info' } | null;
+    clearToast: () => void;
 }
 
 const TechContext = createContext<TechContextType | undefined>(undefined);
@@ -98,6 +100,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const [isSyncing, setIsSyncing] = useState(false);
     const [gpsStatus, setGpsStatus] = useState<'active' | 'error' | 'inactive'>('inactive');
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [connectivity, setConnectivity] = useState<ConnectivityState>({
         isOnline: navigator.onLine,
         isSessionValid: true,
@@ -231,7 +234,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [auth.user?.id, filters, pagination.page]);
 
     // 🚀 SESSION REVALIDATION (Big Tech Pattern)
-    const revalidateSession = useCallback(async () => {
+    const revalidateSession = useCallback(async (silent = true) => {
         if (!auth.user?.id) return;
 
         console.log('[TechContext] 🔄 Revalidando sessão (Resume/Focus)...');
@@ -247,34 +250,39 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         try {
             // Check connection first
-            if (!navigator.onLine) {
-                console.log('[TechContext] 📡 Offline. Mantendo dados em cache.');
-                return;
-            }
+            if (!navigator.onLine) return;
 
             const { supabase } = await import('../../../../lib/supabase');
+
+            // 🚀 EXPLICT HEARTBEAT: Tenta atualizar a sessão se estiver instável
             const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error || !session) {
-                console.warn('[TechContext] ⚠️ Sessão inválida no Supabase');
-                // Tentar refresh token ou logout se for crítico
-                // Mas não limpa dados imediatamente para UX melhor se for erro de rede momentâneo
-                if (error?.message?.includes('refresh_token_not_found')) {
-                    logout();
+                console.warn('[TechContext] 🗝️ Sessão instável. Tentando refresh...');
+                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+                if (refreshError || !refreshData.session) {
+                    console.error('[TechContext] ❌ Falha crítica no heartbeat:', refreshError);
+                    if (refreshError?.message?.includes('refresh_token_not_found')) {
+                        logout();
+                    }
                     return;
                 }
             }
 
-            // Sessão válida (ou recuperável) - refresh dados
-            console.log('[TechContext] ✅ Sessão OK, buscando dados novos...');
-
-            // Força busca de dados
+            // Sessão válida (ou recuperada) - refresh dados
+            console.log('[TechContext] ✅ Sessão OK, sincronizando...');
             await refreshData({ silent: true });
+
+            if (!silent) {
+                setToast({ message: 'Conexão restaurada', type: 'success' });
+                setTimeout(() => setToast(null), 3000);
+            }
 
         } catch (e) {
             console.error('[TechContext] ❌ Erro ao revalidar sessão:', e);
         }
-    }, [auth.user?.id, auth.user?.tenantId, refreshData]);
+    }, [auth.user?.id, auth.user?.tenantId, refreshData, logout]);
 
     // 🔥 LIFECYCLE MANAGEMENT (visibilitychange + Focus)
     useEffect(() => {
@@ -282,16 +290,18 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (document.visibilityState === 'visible' && auth.isAuthenticated) {
                 console.log('[TechContext] 👁️ App Visible/Focused - Triggering Hydration');
 
+                // 🌀 Invalida cache local no retorno
+                DataService.forceGlobalRefresh();
+
                 // 🛡️ CRITICAL: Last-mile verification for Tenant ID before any sync
                 if (auth.user?.tenantId) {
                     const currentTenant = SessionStorage.get(STORAGE_KEYS.TENANT);
                     if (!currentTenant) {
-                        console.warn('[TechContext] ⚠️ [Resume] Tenant ID restaurado do cache persistente.');
                         SessionStorage.set(STORAGE_KEYS.TENANT, auth.user.tenantId);
                     }
                 }
 
-                revalidateSession();
+                revalidateSession(false);
             }
         };
 
@@ -461,7 +471,9 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             login,
             logout,
             refreshData,
-            updateOrderStatus
+            updateOrderStatus,
+            toast,
+            clearToast: () => setToast(null)
         }}>
             {children}
         </TechContext.Provider>
