@@ -209,44 +209,44 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
         {/* TABELA PADRONIZADA */}
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'list' ? (
-            <table className="w-full border-separate border-spacing-y-3 px-8">
+            <table className="w-full border-separate border-spacing-y-3">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                  <th className="px-8 py-5">Equipamento / Modelo</th>
-                  <th className="px-8 py-5 text-center">Nº de Série</th>
-                  <th className="px-8 py-5">Proprietário</th>
-                  <th className="px-8 py-5 text-center">Status</th>
-                  <th className="px-8 py-5 text-right pr-12">Ações</th>
+                  <th className="px-4 py-5">Equipamento / Modelo</th>
+                  <th className="px-4 py-5 text-center whitespace-nowrap">Nº de Série</th>
+                  <th className="px-4 py-5">Proprietário</th>
+                  <th className="px-4 py-5 text-center">Status</th>
+                  <th className="px-4 py-5 text-right pr-6">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.map((e: any) => (
                   <tr key={e.id} className="bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
-                    <td className="px-8 py-6 rounded-l-[2rem] border border-slate-100 border-r-0 font-black text-xs">
-                      <div className="flex items-center gap-5">
-                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-primary-400 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all">
-                          <Box size={22} />
+                    <td className="px-4 py-4 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-black text-xs max-w-[200px]">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-primary-400 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
+                          <Box size={18} />
                         </div>
-                        <div>
-                          <p className="text-slate-900 uppercase italic tracking-tight">{e.model}</p>
-                          <p className="text-[9px] font-black text-primary-400 uppercase tracking-widest mt-1 italic">{e.familyName}</p>
+                        <div className="truncate">
+                          <p className="text-slate-900 uppercase italic tracking-tight truncate">{e.model}</p>
+                          <p className="text-[9px] font-black text-primary-400 uppercase tracking-widest mt-1 italic truncate">{e.familyName}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-6 border-y border-slate-100 text-center font-mono text-[11px] font-black text-slate-500 tracking-tighter italic uppercase">#{e.serialNumber}</td>
-                    <td className="px-8 py-6 border-y border-slate-100 text-[10px] font-black uppercase text-slate-600 italic tracking-tight">
+                    <td className="px-4 py-4 border-y border-slate-100 text-center font-mono text-[11px] font-black text-slate-500 tracking-tighter italic uppercase whitespace-nowrap">#{e.serialNumber}</td>
+                    <td className="px-4 py-4 border-y border-slate-100 text-[10px] font-black uppercase text-slate-600 italic tracking-tight truncate max-w-[150px]">
                       {customers.find(c => c.id === e.customerId)?.name || e.customerName || 'Não vinculado'}
                     </td>
 
-                    <td className="px-8 py-6 border-y border-slate-100 text-center">
+                    <td className="px-4 py-4 border-y border-slate-100 text-center">
                       <StatusBadge status={e.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                     </td>
-                    <td className="px-8 py-6 rounded-r-[2rem] border border-slate-100 border-l-0 text-right pr-8">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={(evt) => { evt.stopPropagation(); toggleEquipmentStatus(e); }} className={`p-3 rounded-xl shadow-sm border border-transparent transition-all active:scale-95 ${e.active ? 'bg-slate-50 text-amber-500 hover:bg-white hover:border-amber-100 hover:text-amber-600' : 'bg-slate-50 text-emerald-500 hover:bg-white hover:border-emerald-100 hover:text-emerald-600'}`}>
-                          {e.active ? <PowerOff size={18} /> : <Power size={18} />}
+                    <td className="px-4 py-4 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button onClick={(evt) => { evt.stopPropagation(); toggleEquipmentStatus(e); }} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${e.active ? 'bg-slate-50 text-amber-500 hover:bg-white hover:border-amber-100 hover:text-amber-600' : 'bg-slate-50 text-emerald-500 hover:bg-white hover:border-emerald-100 hover:text-emerald-600'}`}>
+                          {e.active ? <PowerOff size={16} /> : <Power size={16} />}
                         </button>
-                        <button onClick={(evt) => { evt.stopPropagation(); setEqFormData(e); setEditingId(e.id); setIsModalOpen(true); }} className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar"><Edit2 size={18} /></button>
+                        <button onClick={(evt) => { evt.stopPropagation(); setEqFormData(e); setEditingId(e.id); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar"><Edit2 size={16} /></button>
                       </div>
                     </td>
                   </tr>
@@ -254,38 +254,38 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </tbody>
             </table>
           ) : (
-            <table className="w-full border-separate border-spacing-y-3 px-8">
+            <table className="w-full border-separate border-spacing-y-3">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                  <th className="px-8 py-5">Nome da Família</th>
-                  <th className="px-8 py-5">Descrição Técnica de Escopo</th>
-                  <th className="px-8 py-5 text-center">Status</th>
-                  <th className="px-8 py-5 text-right pr-12">Ações</th>
+                  <th className="px-4 py-5">Nome da Família</th>
+                  <th className="px-4 py-5">Descrição Técnica de Escopo</th>
+                  <th className="px-4 py-5 text-center">Status</th>
+                  <th className="px-4 py-5 text-right pr-6">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.map((f: any) => (
                   <tr key={f.id} className="bg-white hover:bg-primary-50/30 transition-all group shadow-sm cursor-pointer">
-                    <td className="px-8 py-6 rounded-l-[2rem] border border-slate-100 border-r-0 font-black text-xs">
-                      <div className="flex items-center gap-5">
-                        <div className="p-4 rounded-2xl bg-primary-50 text-primary-600 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all">
-                          <Layers size={22} />
+                    <td className="px-4 py-4 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-black text-xs max-w-[200px]">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-primary-50 text-primary-600 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
+                          <Layers size={18} />
                         </div>
-                        <p className="text-slate-900 uppercase italic tracking-tight">{f.name}</p>
+                        <p className="text-slate-900 uppercase italic tracking-tight truncate">{f.name}</p>
                       </div>
                     </td>
-                    <td className="px-8 py-6 border-y border-slate-100 text-[10px] font-medium text-slate-500 italic max-w-sm truncate">{f.description}</td>
-                    <td className="px-8 py-6 border-y border-slate-100 text-center">
+                    <td className="px-4 py-4 border-y border-slate-100 text-[10px] font-medium text-slate-500 italic max-w-sm truncate">{f.description}</td>
+                    <td className="px-4 py-4 border-y border-slate-100 text-center">
                       <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${f.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                         {f.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td className="px-8 py-6 rounded-r-[2rem] border border-slate-100 border-l-0 text-right pr-8">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => setFamilies(families.map(item => item.id === f.id ? { ...item, active: !item.active } : item))} className={`p-3 rounded-xl shadow-sm border border-transparent transition-all ${f.active ? 'bg-slate-50 text-amber-500 hover:bg-amber-50' : 'bg-slate-50 text-emerald-500 hover:bg-emerald-50'}`}>
-                          {f.active ? <PowerOff size={18} /> : <Power size={18} />}
+                    <td className="px-4 py-4 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button onClick={() => setFamilies(families.map(item => item.id === f.id ? { ...item, active: !item.active } : item))} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${f.active ? 'bg-slate-50 text-amber-500 hover:bg-amber-50' : 'bg-slate-50 text-emerald-500 hover:bg-emerald-50'}`}>
+                          {f.active ? <PowerOff size={16} /> : <Power size={16} />}
                         </button>
-                        <button onClick={() => { setFamilyFormData(f); setEditingId(f.id); setIsModalOpen(true); }} className="p-3 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all"><Edit2 size={18} /></button>
+                        <button onClick={() => { setFamilyFormData(f); setEditingId(f.id); setIsModalOpen(true); }} className="p-2.5 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95"><Edit2 size={16} /></button>
                       </div>
                     </td>
                   </tr>

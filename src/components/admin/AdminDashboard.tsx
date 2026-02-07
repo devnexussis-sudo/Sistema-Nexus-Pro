@@ -449,7 +449,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('status')}>
                   <div className="flex items-center">Status {getSortIcon('status')}</div>
                 </th>
-                <th className="px-6 py-5 text-right pr-12">Ações</th>
+                <th className="px-3 py-5 text-right pr-6">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -462,7 +462,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className={`transition-all border-b border-slate-50 group cursor-pointer ${isSelected ? 'bg-primary-50/30' : 'bg-white hover:bg-slate-50/50'}`}
                     onClick={() => setSelectedOrder(order)}
                   >
-                    <td className="px-8 py-5 text-center" onClick={(e) => toggleSelection(order.id, e)}>
+                    <td className="px-3 py-4 text-center shrink-0 w-12" onClick={(e) => toggleSelection(order.id, e)}>
                       <input
                         type="checkbox"
                         className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 cursor-pointer"
@@ -470,52 +470,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         readOnly
                       />
                     </td>
-                    <td className="px-6 py-5 font-bold text-slate-900 text-xs tracking-tight uppercase italic">{order.id}</td>
-                    <td className="px-6 py-5 text-xs font-bold text-slate-700">
+                    <td className="px-3 py-4 font-bold text-slate-900 text-xs tracking-tight uppercase italic whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{order.id}</td>
+                    <td className="px-3 py-4 text-xs font-bold text-slate-700 whitespace-nowrap">
                       {formatDateDisplay(order.scheduledDate)}
                     </td>
-                    <td className="px-6 py-5 text-xs text-slate-400 font-bold uppercase tracking-tighter">
+                    <td className="px-3 py-4 text-xs text-slate-400 font-bold uppercase tracking-tighter whitespace-nowrap">
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-6 py-5 font-black text-xs text-slate-800 uppercase italic truncate max-w-[220px]">
+                    <td className="px-3 py-4 font-black text-xs text-slate-800 uppercase italic truncate max-w-[160px]">
                       {customers.find(c => c.name === order.customerName || c.document === order.customerName)?.name || order.customerName}
                     </td>
 
-                    <td className="px-6 py-5">
+                    <td className="px-3 py-4">
                       <div className="flex justify-center">
                         {assignedTech ? (
-                          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white border border-slate-100 shadow-sm group-hover:bg-primary-50/50 transition-all">
-                            <img src={assignedTech.avatar} className="w-5 h-5 rounded-lg object-cover shadow-sm" />
-                            <span className="text-[10px] font-black text-slate-700 uppercase italic truncate max-w-[80px]">{assignedTech?.name?.split(' ')[0]}</span>
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-slate-100 shadow-sm group-hover:bg-primary-50/50 transition-all shrink-0">
+                            <img src={assignedTech.avatar} className="w-4 h-4 rounded object-cover shadow-sm" />
+                            <span className="text-[9px] font-black text-slate-700 uppercase italic truncate max-w-[60px]">{assignedTech?.name?.split(' ')[0]}</span>
                           </div>
                         ) : <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">-</span>}
                       </div>
                     </td>
-                    <td className="px-6 py-5"><StatusBadge status={order.status} /></td>
-                    <td className="px-6 py-5 text-right pr-6">
-                      <div className="flex items-center justify-end gap-2 transition-all opacity-80 group-hover:opacity-100 scale-95 group-hover:scale-100 origin-right">
+                    <td className="px-3 py-4 whitespace-nowrap"><StatusBadge status={order.status} /></td>
+                    <td className="px-3 py-4 text-right pr-3">
+                      <div className="flex items-center justify-end gap-1.5 transition-all opacity-80 group-hover:opacity-100 scale-95 group-hover:scale-100 origin-right">
                         <button
                           onClick={(e) => handleOpenPublicView(order, e)}
-                          className="p-3 text-slate-400 bg-slate-50 hover:text-slate-900 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-slate-100 transition-all active:scale-90"
+                          className="p-2.5 text-slate-400 bg-slate-50 hover:text-slate-900 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all active:scale-90"
                           title="Compartilhar"
                         >
-                          <Share2 size={16} />
+                          <Share2 size={14} />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className="p-3 text-primary-400 bg-primary-50/50 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all disabled:opacity-30 active:scale-90"
+                          className="p-2.5 text-primary-400 bg-primary-50/50 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all disabled:opacity-30 active:scale-90"
                           title="Editar"
                         >
-                          <Edit3 size={16} />
+                          <Edit3 size={14} />
                         </button>
                         <button
                           onClick={(e) => handleCancelOrder(order, e)}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className="p-3 text-rose-400 bg-rose-50/50 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-rose-100 transition-all disabled:opacity-30 active:scale-90"
+                          className="p-2.5 text-rose-400 bg-rose-50/50 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all disabled:opacity-30 active:scale-90"
                           title="Cancelar"
                         >
-                          <Ban size={16} />
+                          <Ban size={14} />
                         </button>
                       </div>
                     </td>

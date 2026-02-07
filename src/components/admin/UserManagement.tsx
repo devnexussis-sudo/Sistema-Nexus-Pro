@@ -431,50 +431,50 @@ export const UserManagement: React.FC = () => {
       <div className="bg-white border border-slate-100 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0 mx-2 mb-2">
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'users' ? (
-            <table className="w-full border-separate border-spacing-y-3 px-8">
+            <table className="w-full border-separate border-spacing-y-3">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                  <th className="px-8 py-5">Administrador / Identidade</th>
-                  <th className="px-8 py-5">Grupo de Acesso</th>
-                  <th className="px-8 py-5 text-center">Status</th>
-                  <th className="px-8 py-5 text-right pr-12">Ações</th>
+                  <th className="px-4 py-5">Administrador / Identidade</th>
+                  <th className="px-4 py-5">Grupo de Acesso</th>
+                  <th className="px-4 py-5 text-center">Status</th>
+                  <th className="px-4 py-5 text-right pr-6">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.length > 0 ? filteredUsers.map(user => (
                   <tr key={user.id} className={`bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md ${!user.active ? 'opacity-60' : ''}`}>
-                    <td className="px-8 py-6 rounded-l-[2rem] border border-slate-100 border-r-0">
-                      <div className="flex items-center gap-5">
-                        <div className="relative group/avatar">
-                          <img src={user.avatar} className="w-14 h-14 rounded-3xl border-2 border-white shadow-xl bg-slate-50 grayscale group-hover:grayscale-0 transition-all group-hover/avatar:scale-105" alt="" />
+                    <td className="px-4 py-4 rounded-l-[1.5rem] border border-slate-100 border-r-0">
+                      <div className="flex items-center gap-4">
+                        <div className="relative group/avatar shrink-0">
+                          <img src={user.avatar} className="w-10 h-10 rounded-xl border-2 border-white shadow-xl bg-slate-50 grayscale group-hover:grayscale-0 transition-all group-hover/avatar:scale-105" alt="" />
                           <button
                             onClick={(e) => { e.stopPropagation(); handleRandomizeAvatar(user); }}
-                            className="absolute -bottom-1 -right-1 p-1.5 bg-primary-600 text-white rounded-lg shadow-lg transition-all hover:bg-primary-700 scale-90"
+                            className="absolute -bottom-1 -right-1 p-1 bg-primary-600 text-white rounded shadow-lg scale-75"
                           >
-                            <RefreshCw size={12} />
+                            <RefreshCw size={10} />
                           </button>
                         </div>
-                        <div>
-                          <p className="font-black text-slate-900 uppercase italic tracking-tighter text-sm">{user.name}</p>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 italic">{user.email}</p>
+                        <div className="truncate">
+                          <p className="font-black text-slate-900 uppercase italic tracking-tighter text-xs truncate max-w-[150px]">{user.name}</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 italic truncate max-w-[180px]">{user.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-6 border-y border-slate-100">
-                      <span className="flex items-center gap-2 text-[10px] font-black text-primary-500 uppercase italic">
-                        <ShieldCheck size={14} />
-                        {groups.find(g => g.id === user.groupId)?.name || 'Sem Grupo (Padrão)'}
+                    <td className="px-4 py-4 border-y border-slate-100">
+                      <span className="flex items-center gap-1.5 text-[9px] font-black text-primary-500 uppercase italic truncate max-w-[120px]">
+                        <ShieldCheck size={12} className="shrink-0" />
+                        <span className="truncate">{groups.find(g => g.id === user.groupId)?.name || 'Sem Grupo (Padrão)'}</span>
                       </span>
                     </td>
-                    <td className="px-8 py-6 border-y border-slate-100 text-center">
-                      <span className={`px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${user.active ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                    <td className="px-4 py-4 border-y border-slate-100 text-center whitespace-nowrap">
+                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${user.active ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                         {user.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td className="px-8 py-6 rounded-r-[2rem] border border-slate-100 border-l-0 text-right pr-8">
-                      <div className="flex items-center justify-end gap-3 transition-all">
-                        <button onClick={() => { setEditingUser(user); setFormData(user); setIsModalOpen(true); }} className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Usuário">
-                          <Edit3 size={18} />
+                    <td className="px-4 py-4 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                      <div className="flex items-center justify-end gap-1.5 transition-all">
+                        <button onClick={() => { setEditingUser(user); setFormData(user); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Usuário">
+                          <Edit3 size={16} />
                         </button>
                       </div>
                     </td>

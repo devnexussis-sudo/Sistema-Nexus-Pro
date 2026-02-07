@@ -270,33 +270,33 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                 </div>
 
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                    <table className="w-full border-separate border-spacing-y-0 px-8">
+                    <table className="w-full border-separate border-spacing-y-0">
                         <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
                             <tr className="border-b border-slate-100">
-                                <th className="px-8 py-6">Código / PMOC</th>
-                                <th className="px-6 py-6">Cliente</th>
-                                <th className="px-6 py-6 font-black uppercase">Mensalidade</th>
-                                <th className="px-6 py-6">Dia</th>
-                                <th className="px-6 py-6">Status</th>
-                                <th className="px-6 py-6 text-right pr-12">Ações</th>
+                                <th className="px-4 py-6">Código / PMOC</th>
+                                <th className="px-4 py-6">Cliente</th>
+                                <th className="px-4 py-6 font-black uppercase">Mensalidade</th>
+                                <th className="px-4 py-6">Dia</th>
+                                <th className="px-4 py-6 text-center">Status</th>
+                                <th className="px-4 py-6 text-right pr-6">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredContracts.length > 0 ? (
                                 filteredContracts.map(contract => (
                                     <tr key={contract.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
-                                        <td className="px-8 py-5">
-                                            <div className="flex flex-col">
-                                                <span className="text-[12px] font-black uppercase italic text-primary-600 tracking-tighter">{contract.pmocCode}</span>
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase">{contract.title.replace('CONTRATO Master: ', '')}</span>
+                                        <td className="px-4 py-4">
+                                            <div className="flex flex-col truncate max-w-[120px]">
+                                                <span className="text-[11px] font-black uppercase italic text-primary-600 tracking-tighter truncate">{contract.pmocCode}</span>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase truncate mt-0.5 italic">{contract.title.replace('CONTRATO Master: ', '')}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-5 text-[10px] font-black uppercase italic">{contract.customerName}</td>
-                                        <td className="px-6 py-5 text-[11px] font-black text-emerald-600">R$ {contract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                        <td className="px-6 py-5"><span className="px-2 py-1 bg-primary-50 text-primary-600 rounded-lg text-[10px] font-black uppercase italic">{contract.maintenanceDay || '1'}º</span></td>
-                                        <td className="px-6 py-5">
-                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase ${contract.status === OrderStatus.CANCELED ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-600'}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${contract.status === OrderStatus.CANCELED ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                                        <td className="px-4 py-4 text-[10px] font-black uppercase italic truncate max-w-[150px]">{contract.customerName}</td>
+                                        <td className="px-4 py-4 text-[11px] font-black text-emerald-600 whitespace-nowrap">R$ {contract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                        <td className="px-4 py-4 text-center whitespace-nowrap"><span className="px-2 py-1 bg-primary-50 text-primary-600 rounded-lg text-[10px] font-black uppercase italic">{contract.maintenanceDay || '1'}º</span></td>
+                                        <td className="px-4 py-4 text-center whitespace-nowrap">
+                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase ${contract.status === OrderStatus.CANCELED ? 'bg-red-50 text-red-500 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                                <span className={`w-1 h-1 rounded-full animate-pulse ${contract.status === OrderStatus.CANCELED ? 'bg-red-500' : 'bg-emerald-500'}`} />
                                                 {contract.status === OrderStatus.CANCELED ? 'Inativo' : 'Ativo'}
                                             </div>
                                         </td>

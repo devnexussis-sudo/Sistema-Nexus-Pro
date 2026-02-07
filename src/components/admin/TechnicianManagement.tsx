@@ -149,42 +149,42 @@ export const TechnicianManagement: React.FC = () => {
 
       <div className="bg-white border border-slate-100 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0 mx-2 mb-2">
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
-          <table className="w-full border-separate border-spacing-y-3 px-8">
+          <table className="w-full border-separate border-spacing-y-3">
             <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
               <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                <th className="px-8 py-5">Identidade Visual</th>
-                <th className="px-8 py-5">Credencial (E-mail)</th>
-                <th className="px-8 py-5 text-center">Status App</th>
-                <th className="px-8 py-5 text-right pr-12">Ações</th>
+                <th className="px-4 py-5">Identidade Visual</th>
+                <th className="px-4 py-5 font-bold uppercase tracking-[0.3em]">Credencial (E-mail)</th>
+                <th className="px-4 py-5 text-center">Status App</th>
+                <th className="px-4 py-5 text-right pr-6">Ações</th>
               </tr>
             </thead>
             <tbody>
               {filteredTechs.map(t => (
                 <tr key={t.id} className="bg-white hover:bg-emerald-50/40 transition-all group shadow-sm hover:shadow-md">
-                  <td className="px-8 py-6 rounded-l-[2rem] border border-slate-100 border-r-0">
-                    <div className="flex items-center gap-5">
-                      <div className="relative group/avatar">
-                        <img src={t.avatar} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
+                  <td className="px-4 py-4 rounded-l-[1.5rem] border border-slate-100 border-r-0">
+                    <div className="flex items-center gap-4">
+                      <div className="relative group/avatar shrink-0">
+                        <img src={t.avatar} className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
                         <button
                           onClick={(e) => { e.stopPropagation(); handleRandomizeAvatar(t); }}
-                          className="absolute -bottom-1 -right-1 p-1.5 bg-primary-600 text-white rounded-lg shadow-lg transition-all hover:bg-primary-700 scale-90"
+                          className="absolute -bottom-1 -right-1 p-1 bg-primary-600 text-white rounded-md shadow-lg transition-all hover:bg-primary-700 scale-75"
                           title="Trocar Avatar Aleatório"
                         >
-                          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+                          <RefreshCw size={10} className={loading ? 'animate-spin' : ''} />
                         </button>
                       </div>
-                      <div>
-                        <p className="font-black text-slate-900 uppercase tracking-tight text-sm">{t.name}</p>
-                        <div className="flex items-center gap-2 mt-1"><Smartphone size={10} className="text-emerald-500" /><span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Mobile Ativo</span></div>
+                      <div className="truncate">
+                        <p className="font-black text-slate-900 uppercase tracking-tight text-xs truncate max-w-[150px]">{t.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5"><Smartphone size={10} className="text-emerald-500" /><span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Mobile Ativo</span></div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-8 py-6 border-y border-slate-100 italic text-xs font-bold text-slate-500">{t.email}</td>
-                  <td className="px-8 py-6 border-y border-slate-100 text-center">
+                  <td className="px-4 py-4 border-y border-slate-100 italic text-[11px] font-bold text-slate-500 truncate max-w-[180px]">{t.email}</td>
+                  <td className="px-4 py-4 border-y border-slate-100 text-center whitespace-nowrap">
                     <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                   </td>
-                  <td className="px-8 py-6 rounded-r-[2rem] border border-slate-100 border-l-0 text-right pr-8">
-                    <button onClick={() => { setFormData(t); setEditingId(t.id); setIsModalOpen(true); }} className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Técnico"><Edit2 size={18} /></button>
+                  <td className="px-4 py-4 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                    <button onClick={() => { setFormData(t); setEditingId(t.id); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Técnico"><Edit2 size={16} /></button>
                   </td>
                 </tr>
               ))}
