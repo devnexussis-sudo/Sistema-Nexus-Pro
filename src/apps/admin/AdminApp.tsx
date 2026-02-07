@@ -249,7 +249,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 <div className="flex items-center">
                     {/* Logo Area - Alinhada com a largura da Sidebar */}
                     <div className={`${isSidebarCollapsed ? 'w-12 text-center' : 'w-56'} transition-all duration-300 ease-in-out flex items-center`}>
-                        <NexusBranding variant="dark" size="lg" className="h-10" />
+                        <NexusBranding variant="dark" size="lg" className="h-12" />
                     </div>
 
                     {/* View Title */}

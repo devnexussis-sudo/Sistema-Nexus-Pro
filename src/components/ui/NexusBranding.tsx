@@ -18,7 +18,7 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
     const sizes = {
         sm: { icon: 'h-4', text: 'text-[10px]' },
         md: { icon: 'h-6', text: 'text-sm' },
-        lg: { icon: 'h-10', text: 'text-2xl' }
+        lg: { icon: 'h-12', text: 'text-2xl' }
     };
 
     const current = sizes[size];
