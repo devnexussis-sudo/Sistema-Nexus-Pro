@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Package, Search, Plus, Edit3, Trash2, X, Save, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Scale, Box, Barcode, Filter, Wand2, Layers, Tag, LayoutGrid, List, UserCheck, RefreshCw } from 'lucide-react';
+import { Package, Search, Plus, Edit3, Trash2, X, Save, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Scale, Box, Barcode, Filter, Wand2, Layers, Tag, LayoutGrid, List, RefreshCw } from 'lucide-react';
 import { StockItem, Category } from '../../types';
 import { DataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
@@ -84,7 +84,7 @@ export const StockManagement: React.FC = () => {
 
     const loadTechs = async () => {
         try {
-            const data = await DataService.getUsers();
+            const data = await DataService.getAllUsers();
             setTechs(data.filter(u => u.role === 'TECHNICIAN' || u.role === 'ADMIN'));
         } catch (error) {
             console.error('Erro ao carregar técnicos:', error);
@@ -349,7 +349,7 @@ export const StockManagement: React.FC = () => {
                         <Tag size={14} /> Categorias
                     </button>
                     <button onClick={() => setActiveTab('techs')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'techs' ? 'bg-amber-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
-                        {typeof UserCheck !== 'undefined' ? <UserCheck size={14} /> : <Box size={14} />} Estoque Técnico
+                        <Box size={14} /> Estoque Técnico
                     </button>
                     <button onClick={() => setActiveTab('movements')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'movements' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
                         <Scale size={14} /> Movimentações
@@ -544,7 +544,7 @@ export const StockManagement: React.FC = () => {
                             <div className="space-y-6">
                                 <div className="flex justify-between items-center">
                                     <h3 className="text-xl font-black text-slate-800 uppercase italic flex items-center gap-3">
-                                        {typeof UserCheck !== 'undefined' ? <UserCheck className="text-amber-500" /> : <Box className="text-amber-500" />} Estoque por Técnico
+                                        <Box className="text-amber-500" /> Estoque por Técnico
                                     </h3>
                                     <button
                                         onClick={() => setIsTransferModalOpen(true)}

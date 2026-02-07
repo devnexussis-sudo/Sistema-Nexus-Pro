@@ -3,8 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
-  Plus, Edit2, X, Save, Lock, UserCheck, AtSign,
-  Camera, Trash2, Smartphone, Search, Filter, Calendar, RefreshCw
+  Plus, Edit2, X, Save, Lock, AtSign,
+  Smartphone, Search, Filter, RefreshCw
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { User as UserType, UserRole } from '../../types';
