@@ -688,89 +688,108 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 </div>
             )}
 
-            {/* Modal Checkout (PDV) */}
+            {/* Modal Checkout (PDV Professional) */}
             {isInvoiceModalOpen && (
-                <div className="fixed inset-0 z-[2000] bg-slate-900/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in shadow-inner">
-                    <div className="bg-white w-full max-w-4xl rounded-[4rem] shadow-[0_40px_100px_rgba(0,0,0,0.4)] overflow-hidden flex flex-col md:flex-row border border-white/20">
-                        {/* Coluna Left PDV */}
-                        <div className="md:w-5/12 bg-emerald-600 text-white p-12 flex flex-col justify-between relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+                <div className="fixed inset-0 z-[2000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row border border-white/10">
+                        {/* Coluna Left: Resumo (1/3) */}
+                        <div className="md:w-1/3 bg-slate-50 border-r border-slate-200 p-8 flex flex-col justify-between">
+                            <div>
+                                <NexusBranding className="w-24 text-slate-300 mb-8" />
+                                <h2 className="text-xl font-semibold text-slate-800 mb-1">Finalizar Venda</h2>
+                                <p className="text-xs text-slate-500 uppercase tracking-wider mb-8">Resumo da Operação</p>
 
-                            <div className="relative z-10">
-                                <NexusBranding className="mb-10 text-white/40" />
-                                <h2 className="text-4xl font-black uppercase italic tracking-tighter leading-none mb-2">Finalizar<br />Venda</h2>
-                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-200 opacity-60">Processamento de Recebimento</p>
-                            </div>
-
-                            <div className="bg-white/10 backdrop-blur-md rounded-[2.5rem] p-8 border border-white/10 mt-10 relative z-10">
-                                <p className="text-[10px] font-black text-emerald-100 uppercase mb-2 tracking-[0.2em] italic">Total Consolidado</p>
-                                <h3 className="text-5xl font-black italic tracking-tighter leading-none">
-                                    {formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}
-                                </h3>
-                                <div className="mt-8 space-y-3">
-                                    <div className="flex justify-between text-[10px] font-bold text-white/60 font-mono">
-                                        <span>REGISTROS</span>
-                                        <span>{selectedIds.length} ITENS</span>
+                                <div className="space-y-8">
+                                    <div>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Total Consolidado</p>
+                                        <div className="text-3xl font-bold text-slate-900 tracking-tight">
+                                            {formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between text-[10px] font-bold text-white/60 font-mono">
-                                        <span>STATUS</span>
-                                        <span>PENDENTE</span>
+
+                                    <div className="space-y-3 pt-6 border-t border-slate-200/60">
+                                        <div className="flex justify-between items-center text-xs text-slate-600">
+                                            <span>Registros Selecionados</span>
+                                            <span className="font-semibold">{selectedIds.length} Itens</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs text-slate-600">
+                                            <span>Cliente</span>
+                                            <span className="font-semibold truncate max-w-[120px]">{selectedIds.length === 1 ? selectedItem?.customerName : 'Múltiplos'}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs text-slate-600">
+                                            <span>Status Atual</span>
+                                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-bold uppercase">Pendente</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="relative z-10 flex items-center gap-4 text-emerald-200">
-                                <ShieldCheck size={20} className="opacity-40" />
-                                <p className="text-[9px] font-black uppercase tracking-widest italic">Conexão Criptografada & Segura</p>
+                            <div className="text-[10px] text-slate-400 font-medium flex items-center gap-2 mt-8">
+                                <ShieldCheck size={14} className="text-emerald-500" />
+                                <span className="uppercase tracking-wider">Ambiente Seguro</span>
                             </div>
                         </div>
 
-                        {/* Coluna Right PDV */}
-                        <div className="flex-1 p-12 md:p-16 space-y-10 bg-white">
-                            <div className="flex justify-between items-center mb-4">
-                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Forma de Pagamento</h4>
-                                <button onClick={() => setIsInvoiceModalOpen(false)} className="text-slate-300 hover:text-rose-500 transition-all"><X size={28} /></button>
+                        {/* Coluna Right: Ações (2/3) */}
+                        <div className="flex-1 p-8 bg-white flex flex-col h-full">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                    <Wallet size={16} className="text-indigo-500" /> Forma de Pagamento
+                                </h3>
+                                <button onClick={() => setIsInvoiceModalOpen(false)} className="text-slate-300 hover:text-rose-500 transition-colors p-2 hover:bg-rose-50 rounded-full">
+                                    <X size={18} />
+                                </button>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
                                 {[
-                                    { id: 'Pix', icon: <Smartphone size={24} />, label: 'Pix Instantâneo' },
-                                    { id: 'Dinheiro', icon: <DollarSign size={24} />, label: 'Dinheiro (Espécie)' },
-                                    { id: 'Cartão à Vista', icon: <CreditCard size={24} />, label: 'Débito / Crédito 1x' },
-                                    { id: 'Cartão Parcelado', icon: <Layers size={24} />, label: 'Crédito Parcelado' }
+                                    { id: 'Pix', icon: <Smartphone size={18} />, label: 'Pix' },
+                                    { id: 'Dinheiro', icon: <DollarSign size={18} />, label: 'Dinheiro' },
+                                    { id: 'Cartão Débito', icon: <CreditCard size={18} />, label: 'Débito' },
+                                    { id: 'Cartão Crédito 1x', icon: <CreditCard size={18} />, label: 'Crédito 1x' },
+                                    { id: 'Cartão Parcelado', icon: <Layers size={18} />, label: 'Parcelado' },
+                                    { id: 'Boleto', icon: <FileText size={18} />, label: 'Boleto' }
                                 ].map(method => (
                                     <button
                                         key={method.id}
                                         onClick={() => setPaymentMethod(method.id)}
-                                        className={`p-6 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-4 text-center ${paymentMethod === method.id ? 'border-indigo-600 bg-indigo-600 text-white shadow-2xl scale-[1.05]' : 'border-slate-100 bg-slate-50/50 text-slate-500'}`}
+                                        className={`flex flex-col items-center justify-center p-4 border rounded-xl transition-all h-24 duration-200 ${paymentMethod === method.id
+                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600 shadow-md transform scale-[1.02]'
+                                            : 'border-slate-100 hover:border-indigo-200 text-slate-500 hover:bg-slate-50 hover:text-indigo-600'}`}
                                     >
-                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${paymentMethod === method.id ? 'bg-white/20' : 'bg-white shadow-sm text-indigo-600'}`}>
-                                            {method.icon}
-                                        </div>
-                                        <span className="text-[11px] font-black uppercase italic tracking-tight">{method.label}</span>
+                                        <div className="mb-2 opacity-80">{method.icon}</div>
+                                        <span className="text-[10px] font-bold uppercase text-center leading-tight">{method.label}</span>
                                     </button>
                                 ))}
                             </div>
 
-                            <div className="space-y-4">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 block italic">Notas / Comprovante</label>
+                            <div className="mb-6 flex-1 flex flex-col">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 pl-1">Observações / Comprovante</label>
                                 <textarea
-                                    className="w-full h-32 bg-slate-50/50 border border-slate-100 rounded-[2.5rem] p-8 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-indigo-50 transition-all resize-none shadow-inner"
-                                    placeholder="Adicione observações para este recebimento..."
+                                    className="w-full flex-1 min-h-[80px] bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all resize-none placeholder:text-slate-400"
+                                    placeholder="Opcional: Digite o número do comprovante ou notas sobre a transação..."
                                     value={billingNotes}
                                     onChange={e => setBillingNotes(e.target.value)}
                                 />
                             </div>
 
-                            <div className="pt-4">
-                                <button
-                                    onClick={confirmInvoice}
-                                    disabled={isProcessing}
-                                    className="w-full py-7 bg-indigo-600 text-white rounded-[2.5rem] font-black uppercase text-sm italic tracking-[0.1em] shadow-2xl shadow-indigo-600/30 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
-                                >
-                                    {isProcessing ? 'Gravando Dados...' : 'Confirmar e Finalizar'} <ArrowRight size={24} />
-                                </button>
-                            </div>
+                            <button
+                                onClick={confirmInvoice}
+                                disabled={isProcessing}
+                                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold uppercase tracking-wide shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                {isProcessing ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        <span>Processando...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>Confirmar e Finalizar</span>
+                                        <ArrowRight size={16} />
+                                    </>
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>
