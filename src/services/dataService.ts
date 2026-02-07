@@ -1032,10 +1032,12 @@ export const DataService = {
           }));
         }
 
-        if (error && (error.code === 'PGRST202' || error.message?.includes('404') || error.message?.includes('not found'))) {
-          console.warn("⚠️ RPC get_public_technicians não encontrado. Usando fallback.");
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
+          console.warn("⚠️ Conflito de Lock no RPC técnicos. Tentando novamente em 1s...");
+          await new Promise(r => setTimeout(r, 1000));
+          return DataService.getPublicTechnicians(tenantId);
         }
-      } catch (err) {
         console.warn("⚠️ Erro RPC técnicos, usando fallback:", err);
       }
 
@@ -2357,14 +2359,12 @@ export const DataService = {
           return DataService._mapOrderFromDB(orderData);
         }
 
-        // Se erro for 404 (função não existe), usa fallback
-        if (error && (error.code === 'PGRST202' || error.message?.includes('404') || error.message?.includes('not found'))) {
-          console.warn("⚠️ RPC get_public_order não encontrado. Usando fallback direto.");
-        } else if (error) {
-          console.error("Erro RPC ao buscar OS pública:", error);
-          // Continua para tentar fallback
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
+          console.warn("⚠️ Conflito de Lock no RPC. Tentando novamente em 1s...");
+          await new Promise(r => setTimeout(r, 1000));
+          return DataService.getPublicOrderById(id); // Recurrsive retry (safe for 1 level)
         }
-      } catch (err) {
         console.warn("⚠️ Erro ao chamar RPC, tentando fallback:", err);
       }
 
@@ -3358,24 +3358,31 @@ export const DataService = {
 
   getUnreadSystemNotifications: async (userId: string): Promise<any[]> => {
     if (isCloudEnabled) {
-      // 1. Busca IDs das notificações que o usuário JÁ leu
-      const { data: readRecords } = await supabase.from('system_notification_reads').select('notification_id').eq('user_id', userId);
-      const readIds = (readRecords || []).map(r => r.notification_id);
+      try {
+        // 1. Busca IDs das notificações que o usuário JÁ leu
+        const { data: readRecords } = await supabase.from('system_notification_reads').select('notification_id').eq('user_id', userId);
+        const readIds = (readRecords || []).map(r => r.notification_id);
 
-      // 2. Busca notificações relevantes que NÃO estão na lista de lidas
-      let query = supabase.from('system_notifications')
-        .select('*')
-        .order('created_at', { ascending: false });
+        // 2. Busca notificações relevantes que NÃO estão na lista de lidas
+        let query = supabase.from('system_notifications')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      const { data: notifications, error } = await query;
+        const { data: notifications, error } = await query;
 
-      if (error) {
-        console.error("Erro ao buscar notificações globais:", error);
+        if (error) throw error;
+
+        // Filtragem manual para evitar problemas com sintaxe de array complexa no Supabase JS
+        return (notifications || []).filter(n => !readIds.includes(n.id));
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
+          console.warn("⚠️ Conflito de Lock nas notificações. Tentando novamente em 1.5s...");
+          await new Promise(r => setTimeout(r, 1500));
+          return DataService.getUnreadSystemNotifications(userId);
+        }
+        console.error("Erro ao buscar notificações globais:", err);
         return [];
       }
-
-      // Filtragem manual para evitar problemas com sintaxe de array complexa no Supabase JS
-      return (notifications || []).filter(n => !readIds.includes(n.id));
     }
     return [];
   },
