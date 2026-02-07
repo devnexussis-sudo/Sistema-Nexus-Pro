@@ -110,170 +110,179 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {/* ============================================================
              LAYOUT DE IMPRESSÃO (INSPIRADO NO MODELO PROLOG)
              ============================================================ */}
-        <div className={`${isPrint ? 'block' : 'hidden print:block'} bg-white text-[9px] leading-tight space-y-4`}>
+        {/* ============================================================
+             LAYOUT DE IMPRESSÃO - PADRÃO OS (Clean & Professional)
+             ============================================================ */}
+        <div className={`${isPrint ? 'block' : 'hidden print:block'} bg-white text-[10px] leading-tight font-sans`}>
 
-          {/* 1. CABEÇALHO LIMPO */}
-          <div className="flex justify-between items-start py-6 border-b-2 border-slate-900 px-2">
-            <div className="flex gap-6 items-center">
+          {/* 1. CABEÇALHO PADRÃO */}
+          <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
+            <div className="flex gap-4 items-center">
               {companyLogo ? (
-                <img src={companyLogo} alt="Logo" className="h-20 w-auto object-contain" />
+                <img src={companyLogo} alt="Logo" className="h-16 w-auto object-contain" />
               ) : (
-                <div className="bg-slate-900 p-3 rounded-2xl flex items-center justify-center min-w-[70px] min-h-[70px]">
+                <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px]">
                   <Hexagon size={32} className="text-white fill-white/10" />
                 </div>
               )}
-              <div className="space-y-1 ml-4">
-                <h1 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none italic">{companyName}</h1>
-                <div className="text-[7.5px] font-bold text-slate-500 uppercase tracking-tight max-w-[350px]">
+              <div className="space-y-1">
+                <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
+                <div className="text-[9px] text-slate-600 max-w-[400px]">
                   {companyAddress && <div>{companyAddress}</div>}
-                  <div className="flex gap-2">
-                    {companyPhone && <span>Tel: {companyPhone}</span>}
+                  <div className="flex gap-3 mt-0.5">
+                    {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
                     {companyEmail && <span>Email: {companyEmail}</span>}
                   </div>
-                  {companyDoc && <div>CNPJ: {companyDoc}</div>}
+                  {companyDoc && <div className="mt-0.5">CNPJ: {companyDoc}</div>}
                 </div>
               </div>
             </div>
 
-            <div className="text-right flex flex-col items-end gap-2">
-              <div className="bg-indigo-600 text-white px-4 py-2 rounded-xl">
-                <div className="text-[8px] font-black uppercase tracking-widest opacity-70">Protocolo da OS</div>
-                <div className="text-lg font-black tracking-tighter">#{order.id.toUpperCase()}</div>
+            <div className="text-right flex flex-col items-end justify-center">
+              <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
+                <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nº da Ordem de Serviço</div>
+                <div className="text-2xl font-black text-slate-900 tracking-tighter">#{order.id.toUpperCase()}</div>
               </div>
-              <div className="text-[7px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
-                <NexusBranding size="sm" showText={true} />
-              </div>
-            </div>
-          </div>
-          <div className="text-center py-1">
-            <p className="text-[7px] font-bold text-slate-300 uppercase tracking-[0.3em]">Documento de Uso Técnico • Gerado via Nexus Cloud em {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-          </div>
-
-          {/* 2. INFORMAÇÕES DO CLIENTE (BARRA SÓLIDA) */}
-          <div className="space-y-0">
-            <div className="bg-slate-900 text-white px-3 py-1 font-black text-[8px] uppercase tracking-wider">
-              Informações do Cliente e Atendimento
-            </div>
-            <div className="grid grid-cols-2 border border-slate-200 divide-x divide-slate-200">
-              <div className="p-2 space-y-1">
-                <div>
-                  <span className="text-[6px] font-black text-slate-400 uppercase block leading-none underline decoration-slate-200">Nome do Cliente</span>
-                  <span className="text-xs font-black text-slate-900 uppercase">{order.customerName}</span>
-                </div>
-                <div>
-                  <span className="text-[6px] font-black text-slate-400 uppercase block leading-none underline decoration-slate-200">Endereço da Atividade</span>
-                  <span className="text-[9px] font-bold text-slate-600 uppercase leading-snug">{order.customerAddress}</span>
-                </div>
-              </div>
-              <div className="p-2 grid grid-cols-2 gap-2">
-                <div>
-                  <span className="text-[6px] font-black text-slate-400 uppercase block leading-none italic">Data de Abertura</span>
-                  <span className="font-bold text-slate-900">{formatOSDate(order.createdAt)}</span>
-                </div>
-                <div>
-                  <span className="text-[6px] font-black text-slate-400 uppercase block leading-none italic">Operação</span>
-                  <span className="font-bold text-slate-900 uppercase">{order.operationType || 'Visita Técnica'}</span>
-                </div>
-                <div>
-                  <span className="text-[6px] font-black text-slate-400 uppercase block leading-none italic">Status Atual</span>
-                  <span className="font-black text-indigo-600 uppercase">{order.status}</span>
-                </div>
-                <div>
-                  <span className="text-[6px] font-black text-slate-400 uppercase block leading-none italic">Prioridade</span>
-                  <span className="font-black text-slate-900 uppercase">{order.priority}</span>
-                </div>
+              <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
+                Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           </div>
 
-          {/* 3. DADOS DO ATIVO / EQUIPAMENTO (BARRA SÓLIDA) */}
-          <div className="space-y-0">
-            <div className="bg-slate-800 text-white px-3 py-1 font-black text-[8px] uppercase tracking-wider">
-              Veículo / Equipamento Vinculado
+          {/* 2. DADOS DO CLIENTE E DO CHAMADO (GRID) */}
+          <div className="mb-4 border border-slate-300 rounded-lg overflow-hidden">
+            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700 flex items-center gap-2">
+              <UserIcon size={10} /> Dados do Cliente e Chamado
             </div>
-            <div className="grid grid-cols-3 border border-slate-200 divide-x divide-slate-200 bg-slate-50/30">
-              <div className="p-2 px-3">
-                <span className="text-[6px] font-black text-slate-400 uppercase block leading-none mb-0.5">Descrição do Ativo</span>
-                <span className="text-xs font-black text-slate-900 uppercase">{order.equipmentName}</span>
-              </div>
-              <div className="p-2 px-3">
-                <span className="text-[6px] font-black text-slate-400 uppercase block leading-none mb-0.5">Modelo / Versão</span>
-                <span className="text-[10px] font-bold text-slate-700 uppercase">{order.equipmentModel}</span>
-              </div>
-              <div className="p-2 px-3">
-                <span className="text-[6px] font-black text-slate-400 uppercase block leading-none mb-0.5">Nº de Série / Identificação</span>
-                <span className="text-[10px] font-black text-indigo-700 uppercase">{order.equipmentSerial}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 4. EXECUÇÃO TÉCNICA (BARRA SÓLIDA) */}
-          <div className="space-y-0">
-            <div className="bg-indigo-600 text-white px-3 py-1 font-black text-[8px] uppercase tracking-wider flex justify-between">
-              <span>Relatório Técnico e Notas de Campo</span>
-              <span className="italic opacity-70">Executado por: {tech?.name || 'Não Atribuído'}</span>
-            </div>
-            <div className="border border-slate-200 p-3 bg-slate-50/20">
-              {/* Horários de Execução Integrados */}
-              <div className="flex gap-6 mb-3 border-b border-slate-100 pb-2">
+            <div className="grid grid-cols-12 divide-x divide-slate-200">
+              {/* Coluna 1: Cliente (Maior) - Span 7 */}
+              <div className="col-span-12 sm:col-span-7 p-2.5 space-y-2">
                 <div>
-                  <span className="text-[6px] font-black text-slate-400 block uppercase mb-0.5">Data Agendada</span>
-                  <span className="font-bold text-slate-900">{formatOSDate(order.scheduledDate)} {order.scheduledTime}</span>
+                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente / Solicitante</label>
+                  <div className="font-bold text-slate-900 text-sm uppercase">{order.customerName}</div>
                 </div>
-                <div className="flex gap-4 border-l border-slate-200 pl-4 text-emerald-700">
-                  <div>
-                    <span className="text-[6px] font-black text-slate-400 block uppercase mb-0.5">Check-In Real</span>
-                    <span className="font-black text-[9px]">
-                      {order.startDate ? new Date(order.startDate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--/--/---- --:--'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[6px] font-black text-slate-400 block uppercase mb-0.5">Check-Out Real</span>
-                    <span className="font-black text-[9px]">
-                      {order.endDate ? new Date(order.endDate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--/--/---- --:--'}
-                    </span>
-                  </div>
+                <div>
+                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço do Serviço</label>
+                  <div className="font-medium text-slate-700 text-xs uppercase">{order.customerAddress}</div>
                 </div>
               </div>
-              {/* Descrição em Bullets (se possível) ou Bloco Compacto */}
-              <div className="space-y-2">
-                <span className="text-[6px] font-black text-indigo-400 uppercase block leading-none italic">Diagnóstico / Atividades Realizadas:</span>
-                <p className="text-[8.5px] font-medium text-slate-700 italic border-l-2 border-slate-200 pl-2 leading-tight">
-                  {order.description}
-                </p>
+
+              {/* Coluna 2: Detalhes do Chamado - Span 5 */}
+              <div className="col-span-12 sm:col-span-5 p-2.5 grid grid-cols-2 gap-y-3 gap-x-2 bg-slate-50/30">
+                <div>
+                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Data Abertura</label>
+                  <div className="font-bold text-slate-800">{formatOSDate(order.createdAt)}</div>
+                </div>
+                <div>
+                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Tipo de Serviço</label>
+                  <div className="font-bold text-slate-800 uppercase">{order.operationType || 'Manutenção'}</div>
+                </div>
+                <div>
+                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Status Atual</label>
+                  <div className="font-bold text-slate-800 uppercase border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white text-[9px]">{order.status}</div>
+                </div>
+                <div>
+                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Prioridade</label>
+                  <div className="font-bold text-slate-800 uppercase text-[9px]">{order.priority}</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* 4.5 VALORES E PEÇAS (OPCIONAL) */}
+          {/* 3. EQUIPAMENTO / ATIVO (SE HOUVER) */}
+          {(order.equipmentName || order.equipmentSerial) && (
+            <div className="mb-4 border border-slate-300 rounded-lg overflow-hidden">
+              <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                <Box size={10} /> Equipamento Vinculado
+              </div>
+              <div className="grid grid-cols-3 divide-x divide-slate-200 bg-white">
+                <div className="p-2.5">
+                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Equipamento / Ativo</label>
+                  <div className="font-bold text-slate-900 uppercase text-xs">{order.equipmentName || 'Não Informado'}</div>
+                </div>
+                <div className="p-2.5">
+                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Modelo / Versão</label>
+                  <div className="font-medium text-slate-700 uppercase">{order.equipmentModel || '-'}</div>
+                </div>
+                <div className="p-2.5">
+                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Nº de Série / Identificação</label>
+                  <div className="font-bold text-slate-800 uppercase font-mono">{order.equipmentSerial || '-'}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 4. EXECUÇÃO TÉCNICA E CUSTOS (LADO A LADO SE POSSÍVEL, MAS EM FLUXO NORMAL AQUI) */}
+          <div className="mb-4 border border-slate-300 rounded-lg overflow-hidden">
+            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 flex justify-between items-center">
+              <span className="font-bold text-[9px] uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                <FileText size={10} /> Relatório Técnico
+              </span>
+              <span className="text-[8px] font-semibold text-slate-500 uppercase">
+                Técnico Responsável: <span className="text-slate-900 font-bold">{tech?.name || 'Não Atribuído'}</span>
+              </span>
+            </div>
+
+            <div className="p-0">
+              {/* Linha de Tempos */}
+              <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50/30 divide-x divide-slate-200">
+                <div className="p-2 text-center">
+                  <span className="block text-[8px] text-slate-400 font-bold uppercase">Agendado Para</span>
+                  <span className="font-bold text-slate-700">{formatOSDate(order.scheduledDate)} {order.scheduledTime}</span>
+                </div>
+                <div className="p-2 text-center">
+                  <span className="block text-[8px] text-slate-400 font-bold uppercase">Início (Check-in)</span>
+                  <span className="font-bold text-emerald-700">
+                    {order.startDate ? new Date(order.startDate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--/-- --:--'}
+                  </span>
+                </div>
+                <div className="p-2 text-center">
+                  <span className="block text-[8px] text-slate-400 font-bold uppercase">Fim (Check-out)</span>
+                  <span className="font-bold text-emerald-700">
+                    {order.endDate ? new Date(order.endDate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--/-- --:--'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Descrição do Serviço */}
+              <div className="p-3 bg-white min-h-[80px]">
+                <label className="block text-[8px] font-bold text-slate-400 uppercase mb-1">Diagnóstico / Atividades Realizadas</label>
+                <div className="text-[10px] text-slate-800 leading-relaxed whitespace-pre-wrap font-medium">
+                  {order.description || "Nenhuma descrição técnica registrada."}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. PEÇAS E VALORES (TABELA CLÁSSICA) */}
           {order.showValueToClient && order.items && order.items.length > 0 && (
-            <div className="space-y-0">
-              <div className="bg-slate-700 text-white px-3 py-1 font-black text-[8px] uppercase tracking-wider">
-                Composição de Valores e Peças Aplicadas
+            <div className="mb-4 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+              <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                <DollarSign size={10} /> Peças e Serviços
               </div>
-              <table className="w-full border-x border-b border-slate-200 text-left border-collapse">
-                <thead className="bg-slate-50">
-                  <tr className="text-[6.5px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                    <th className="px-3 py-1.5">Descrição</th>
-                    <th className="px-3 py-1.5 w-16 text-center">Qtd</th>
-                    <th className="px-3 py-1.5 w-24 text-right">Unitário</th>
-                    <th className="px-3 py-1.5 w-24 text-right">Total</th>
+              <table className="w-full text-left collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                    <th className="px-3 py-2 w-[50%]">Descrição</th>
+                    <th className="px-3 py-2 text-center w-[15%]">Qtd</th>
+                    <th className="px-3 py-2 text-right w-[15%]">Unitário</th>
+                    <th className="px-3 py-2 text-right w-[20%]">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {order.items.map(item => (
-                    <tr key={item.id}>
-                      <td className="px-3 py-1.5 font-bold text-slate-700 uppercase">{item.description}</td>
-                      <td className="px-3 py-1.5 text-center">{item.quantity}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="px-3 py-1.5 text-right font-black text-slate-900 font-mono">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                  {order.items.map((item, idx) => (
+                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
+                      <td className="px-3 py-1.5 text-[9px] font-medium text-slate-700">{item.description}</td>
+                      <td className="px-3 py-1.5 text-center text-[9px] text-slate-600">{item.quantity}</td>
+                      <td className="px-3 py-1.5 text-right text-[9px] text-slate-600 font-mono">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-1.5 text-right text-[9px] font-bold text-slate-800 font-mono">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-slate-50 font-black">
+                <tfoot className="border-t border-slate-200 bg-slate-50">
                   <tr>
-                    <td colSpan={3} className="px-3 py-2 text-right text-[7px] uppercase tracking-widest text-slate-500">Valor Total da OS:</td>
-                    <td className="px-3 py-2 text-right text-[10px] text-indigo-700 font-mono border-l border-slate-200 bg-indigo-50/30">
+                    <td colSpan={3} className="px-3 py-2 text-right text-[9px] font-bold uppercase text-slate-500">Total Geral:</td>
+                    <td className="px-3 py-2 text-right text-[11px] font-black text-slate-900 font-mono bg-slate-100">
                       R$ {order.items.reduce((acc, i) => acc + i.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
@@ -282,134 +291,120 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             </div>
           )}
 
-          {/* 5. CHECKLIST E EVIDÊNCIAS (LAYOUT DE TABELA) */}
+          {/* 6. CHECKLIST E EVIDÊNCIAS (TABELA STANDARD) */}
           {(order.formData && Object.keys(order.formData).length > 0) && (
-            <div className="space-y-0">
-              <div className="bg-emerald-600 text-white px-3 py-1 font-black text-[8px] uppercase tracking-wider">
-                Auditoria de Conformidade e Evidências Fotográficas
+            <div className="mb-4 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+              <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                <CheckCircle2 size={10} /> Auditoria e Verificações
               </div>
-              <div className="border border-slate-200 bg-white">
-                <div className="grid grid-cols-2 border-b border-slate-200">
-                  {/* Column 1 of Checklist */}
-                  <div className="divide-y divide-slate-100 border-r border-slate-200">
-                    {Object.entries(order.formData).filter(([key, val]) => {
-                      if (Array.isArray(val)) return false;
-                      if (typeof val === 'string' && (val.startsWith('data:image') || val.startsWith('http'))) return false;
-                      if (key.includes('Assinatura') || key.includes('CPF') || key.includes('Nascimento')) return false;
-                      return true;
-                    }).slice(0, Math.ceil(Object.keys(order.formData).length / 2)).map(([key, val]) => (
-                      <div key={key} className="flex justify-between items-center px-3 py-1 bg-white hover:bg-slate-50 transition-colors">
-                        <span className="text-[7.5px] font-black text-slate-500 uppercase italic leading-none">{!isNaN(Number(key)) ? `Item de Verificação nº ${key}` : key}</span>
-                        <span className={`text-[8px] font-black flex items-center gap-1 ${String(val).toLowerCase().includes('sim') || String(val).toLowerCase().includes('ok') ? 'text-emerald-600' : 'text-slate-900 uppercase'}`}>
-                          {String(val).toLowerCase().includes('sim') || String(val).toLowerCase().includes('ok') ? <CheckCircle2 size={8} /> : null}
-                          {String(val)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Column 2 of Checklist */}
-                  <div className="divide-y divide-slate-100">
-                    {Object.entries(order.formData).filter(([key, val]) => {
-                      if (Array.isArray(val)) return false;
-                      if (typeof val === 'string' && (val.startsWith('data:image') || val.startsWith('http'))) return false;
-                      if (key.includes('Assinatura') || key.includes('CPF') || key.includes('Nascimento')) return false;
-                      return true;
-                    }).slice(Math.ceil(Object.keys(order.formData).length / 2)).map(([key, val]) => (
-                      <div key={key} className="flex justify-between items-center px-3 py-1 bg-white hover:bg-slate-50 transition-colors">
-                        <span className="text-[7.5px] font-black text-slate-500 uppercase italic leading-none">{!isNaN(Number(key)) ? `Item de Verificação nº ${key}` : key}</span>
-                        <span className={`text-[8px] font-black flex items-center gap-1 ${String(val).toLowerCase().includes('sim') || String(val).toLowerCase().includes('ok') ? 'text-emerald-600' : 'text-slate-900 uppercase'}`}>
-                          {String(val).toLowerCase().includes('sim') || String(val).toLowerCase().includes('ok') ? <CheckCircle2 size={8} /> : null}
-                          {String(val)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
 
-                <div className="p-3 space-y-4">
+              {/* Tabela de Itens de Checklist */}
+              <div className="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200">
+                {/* Coluna Esquerda */}
+                <div className="divide-y divide-slate-100">
+                  {Object.entries(order.formData).filter(([key, val]) => {
+                    if (Array.isArray(val)) return false;
+                    if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) return false;
+                    if (key.includes('Assinatura') || key.includes('CPF') || key.includes('Nascimento')) return false;
+                    return true;
+                  }).slice(0, Math.ceil(Object.entries(order.formData).filter(([k, v]) => typeof v !== 'object').length / 2) + 1).map(([key, val]) => (
+                    <div key={key} className="flex justify-between px-3 py-1 items-center bg-white">
+                      <span className="text-[9px] text-slate-600 font-medium truncate pr-2 max-w-[200px]">{key}</span>
+                      <span className="text-[9px] font-bold text-slate-900 uppercase">{String(val)}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Coluna Direita */}
+                <div className="divide-y divide-slate-100">
+                  {Object.entries(order.formData).filter(([key, val]) => {
+                    if (Array.isArray(val)) return false;
+                    if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) return false;
+                    if (key.includes('Assinatura') || key.includes('CPF') || key.includes('Nascimento')) return false;
+                    return true;
+                  }).slice(Math.ceil(Object.entries(order.formData).filter(([k, v]) => typeof v !== 'object').length / 2) + 1).map(([key, val]) => (
+                    <div key={key} className="flex justify-between px-3 py-1 items-center bg-white">
+                      <span className="text-[9px] text-slate-600 font-medium truncate pr-2 max-w-[200px]">{key}</span>
+                      <span className="text-[9px] font-bold text-slate-900 uppercase">{String(val)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Evidências Fotográficas (Grid Compacto) */}
+              <div className="p-3 bg-white">
+                <div className="text-[8px] font-bold text-slate-400 uppercase mb-2 border-b border-slate-100 pb-1">Evidências Fotográficas</div>
+                <div className="grid grid-cols-5 gap-2">
                   {Object.entries(order.formData).map(([key, val]) => {
                     if (key.includes('Assinatura')) return null;
                     let photos: string[] = [];
-                    if (Array.isArray(val)) {
-                      photos = val.filter(item => typeof item === 'string' && (item.startsWith('http') || item.startsWith('data:image')));
-                    } else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) {
-                      photos = [val];
-                    }
+                    if (Array.isArray(val)) photos = val.filter(item => typeof item === 'string' && (item.startsWith('http') || item.startsWith('data:')));
+                    else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) photos = [val];
 
                     if (photos.length === 0) return null;
 
-                    return (
-                      <div key={key} className="space-y-1.5">
-                        <p className="text-[7px] font-black text-indigo-600 uppercase tracking-widest border-l-2 border-indigo-500 pl-2">{key}</p>
-                        <div className="grid grid-cols-6 gap-2">
-                          {photos.map((url, idx) => (
-                            <div
-                              key={idx}
-                              className="relative aspect-square border border-slate-200 rounded-md overflow-hidden bg-slate-50 cursor-zoom-in group"
-                              onClick={() => setFullscreenImage(url)}
-                            >
-                              <img src={url} className="w-full h-full object-cover" />
-                            </div>
-                          ))}
+                    return photos.map((url, i) => (
+                      <div key={`${key}-${i}`} className="space-y-1 break-inside-avoid text-center">
+                        <div className="aspect-[4/3] border border-slate-200 bg-slate-50 overflow-hidden rounded-sm mx-auto w-full max-w-[120px]">
+                          <img src={url} className="w-full h-full object-cover grayscale brightness-110 contrast-125" alt={key} />
                         </div>
+                        <p className="text-[7px] text-slate-500 font-medium truncate px-1">{key}</p>
                       </div>
-                    );
+                    ));
                   })}
                 </div>
               </div>
             </div>
           )}
 
-          {/* 6. ASSINATURAS E AUTENTICAÇÃO */}
-          <div className="pt-4 border-t border-slate-200 mt-6 break-inside-avoid">
-            <div className="grid grid-cols-2 gap-20">
-              <div className="text-center space-y-2">
-                <div className="h-14 border-b-2 border-slate-900 flex flex-col items-center justify-end pb-1 overflow-hidden relative grayscale opacity-40">
-                  <Hexagon size={40} className="absolute top-0 opacity-10 rotate-12" />
-                  <span className="text-[6px] font-black text-slate-300 uppercase italic leading-none">Validado Digitalmente pela Nexus Cloud</span>
+          {/* 7. ÁREA DE ASSINATURAS (FOOTER SÓLIDO) */}
+          <div className="mt-8 pt-4 border-t-2 border-slate-800 break-inside-avoid">
+            <div className="grid grid-cols-2 gap-10">
+              {/* Assinatura Técnico */}
+              <div className="text-center">
+                <div className="h-16 flex items-end justify-center pb-1">
+                  {/* Espaço para assinatura digital se houvesse, ou apenas linha */}
+                  <div className="w-2/3 border-b border-slate-400"></div>
                 </div>
-                <div>
-                  <div className="text-[9px] font-black text-slate-900 uppercase">{tech?.name || 'Responsável Técnico'}</div>
-                  <div className="text-[6.5px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Assinatura do Prestador / Técnico</div>
+                <div className="mt-1">
+                  <div className="text-[9px] font-bold text-slate-900 uppercase">{tech?.name || 'Técnico Responsável'}</div>
+                  <div className="text-[7px] font-medium text-slate-500 uppercase">Assinatura do Prestador</div>
                 </div>
               </div>
-              <div className="text-center space-y-2">
-                <div className="h-14 border-b-2 border-slate-900 flex flex-col items-center justify-center pb-1 bg-white overflow-hidden px-2">
+
+              {/* Assinatura Cliente */}
+              <div className="text-center">
+                <div className="h-16 flex items-end justify-center pb-1 relative">
                   {(() => {
                     const signatureEntry = Object.entries(order.formData || {}).find(([k, v]) => {
                       const isImage = typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'));
-                      const isSignatureKey = k.toLowerCase() === 'assinatura do cliente' ||
-                        (k.toLowerCase().includes('assinat') && !k.toLowerCase().includes('nome') && !k.toLowerCase().includes('cpf'));
+                      const isSignatureKey = k.toLowerCase().includes('assinatura') && (k.toLowerCase().includes('cliente') || k.toLowerCase().includes('responsavel'));
                       return isImage && isSignatureKey;
                     });
 
-                    return signatureEntry ? (
-                      <img
-                        src={signatureEntry[1]}
-                        className="h-full w-full object-contain mix-blend-multiply"
-                        alt="Assinatura do Cliente"
-                      />
-                    ) : (
-                      <span className="text-[6px] font-black text-slate-300 uppercase italic leading-none">Inconsistência na Assinatura Digital</span>
-                    );
+                    if (signatureEntry) {
+                      return <img src={signatureEntry[1]} className="absolute bottom-0 h-14 object-contain mix-blend-multiply opacity-90" />;
+                    }
+                    return <div className="w-2/3 border-b border-slate-400"></div>;
                   })()}
                 </div>
-                <div>
-                  <div className="text-[9px] font-black text-slate-900 uppercase">
-                    {Object.entries(order.formData || {}).find(([k, v]) => {
-                      const key = k.toLowerCase();
-                      return key.includes('nome') || key.includes('responsável') || key.includes('responsavel');
-                    })?.[1] || ''}
+                <div className="mt-1">
+                  <div className="text-[9px] font-bold text-slate-900 uppercase">
+                    {Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('nome') && (k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('responsavel')))?.[1] || order.customerName}
                   </div>
-                  <div className="text-[6.5px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Assinatura do Cliente / Preposto</div>
-                  {(Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('data'))?.[1] ||
-                    Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('hora'))?.[1]) && (
-                      <div className="text-[6px] font-bold text-slate-400 uppercase mt-0.5">
-                        {Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('data') && k.toLowerCase().includes('assinatura'))?.[1]} às {Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('hora') && k.toLowerCase().includes('assinatura'))?.[1]}
-                      </div>
-                    )}
+                  <div className="text-[7px] font-medium text-slate-500 uppercase">Assinatura do Cliente / Responsável</div>
+                  {/* Data e Hora da Assinatura */}
+                  <div className="text-[7px] text-slate-400 mt-0.5 font-mono">
+                    Doc: {Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('cpf') || k.toLowerCase().includes('doc'))?.[1] || 'N/A'}
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Rodapé Legal */}
+            <div className="mt-6 text-center border-t border-slate-200 pt-2">
+              <p className="text-[7px] text-slate-400 uppercase tracking-widest font-medium">
+                Este documento comprova a execução dos serviços descritos acima. Gerado eletronicamente via Nexus System.
+              </p>
             </div>
           </div>
         </div>

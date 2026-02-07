@@ -110,8 +110,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // Tempo maior para garantir renderização de imagens e componentes
     setTimeout(() => {
       window.print();
-      setIsBatchPrinting(false);
-      document.body.classList.remove('is-printing');
+      // Em alguns browsers o print é non-blocking, então usamos listener para garantir
+      const cleanup = () => {
+        setIsBatchPrinting(false);
+        document.body.classList.remove('is-printing');
+        window.removeEventListener('afterprint', cleanup);
+      };
+
+      // Se for blocking (Chrome/Firefox), isso roda depois do dialog fechar
+      // Se for non-blocking (Safari), precisamos do listener
+      window.addEventListener('afterprint', cleanup);
+
+      // Fallback para browsers que não disparam afterprint corretamente ou se user cancelar rápido
+      setTimeout(cleanup, 5000);
     }, 1500);
   };
 
@@ -121,8 +132,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     document.body.classList.add('is-printing');
     setTimeout(() => {
       window.print();
-      setIsBatchPrinting(false);
-      document.body.classList.remove('is-printing');
+      const cleanup = () => {
+        setIsBatchPrinting(false);
+        document.body.classList.remove('is-printing');
+        window.removeEventListener('afterprint', cleanup);
+      };
+      window.addEventListener('afterprint', cleanup);
+      setTimeout(cleanup, 5000);
     }, 1500);
   };
 
@@ -464,348 +480,329 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
 
       {selectedOrder && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-4 sm:p-8">
-          <div className="bg-white rounded-[3rem] w-full max-w-[96vw] h-[92vh] shadow-[0_32px_128px_rgba(0,0,0,0.2)] border border-white/50 overflow-hidden flex flex-col animate-scale-up">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-xl w-full max-w-6xl max-h-[95vh] shadow-2xl flex flex-col overflow-hidden">
 
-            {/* AUDIT HEADER */}
-            <div className="px-10 py-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-6">
-              <div className="flex items-center gap-6">
-                <div className="w-16 h-16 bg-slate-900 rounded-[1.5rem] flex items-center justify-center text-white shadow-2xl rotate-3 shadow-indigo-500/20">
-                  <ShieldCheck size={32} />
+            {/* HEADER - Enterprise Style */}
+            <div className="px-6 py-4 border-b border-slate-200 bg-white flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md">
+                  <FileText size={20} />
                 </div>
                 <div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-widest">Protocolo #{selectedOrder.id}</span>
+                    <h2 className="text-lg font-bold text-slate-900 leading-none">Ordem de Serviço #{selectedOrder.id}</h2>
                     <StatusBadge status={selectedOrder.status} />
                   </div>
-                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic leading-none mt-2">{selectedOrder.title}</h2>
+                  <p className="text-[11px] text-slate-500 mt-1 uppercase tracking-wider font-semibold">
+                    {selectedOrder.customerName} • {selectedOrder.customerAddress}
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-                {[
-                  { id: 'overview', label: 'Geral', icon: FileText },
-                  { id: 'execution', label: 'Execução', icon: ClipboardList },
-                  { id: 'media', label: 'Mídias', icon: Camera },
-                  { id: 'costs', label: 'Custos', icon: DollarSign },
-                  { id: 'audit', label: 'Assinaturas', icon: UserCheck }
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
-                  >
-                    <tab.icon size={16} /> {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button onClick={(e) => handleOpenPublicView(selectedOrder, e)} className="p-4 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-2xl transition-all border border-slate-100 hover:shadow-md">
-                  <Share2 size={20} />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePrintOrder(selectedOrder.id)}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold uppercase hover:bg-slate-800 transition-all shadow-sm active:scale-95"
+                >
+                  <Printer size={14} /> Imprimir PDF
                 </button>
-                <button onClick={() => setSelectedOrder(null)} className="p-4 bg-slate-50 text-slate-400 hover:text-red-500 rounded-2xl transition-all border border-slate-100 hover:shadow-md">
+                <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
+                <button onClick={() => setSelectedOrder(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all">
                   <X size={20} />
                 </button>
               </div>
             </div>
 
-            {/* AUDIT CONTENT */}
-            <div className="flex-1 overflow-y-auto p-10 custom-scrollbar bg-white">
+            {/* TABS - Underlined Style */}
+            <div className="px-6 border-b border-slate-200 bg-slate-50/50 flex gap-6 shrink-0 overflow-x-auto">
+              {[
+                { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
+                { id: 'execution', label: 'Execução & Checklist', icon: ClipboardList },
+                { id: 'media', label: 'Evidências (Fotos)', icon: Camera },
+                { id: 'costs', label: 'Peças e Custos', icon: DollarSign },
+                { id: 'audit', label: 'Auditoria e Assinaturas', icon: ShieldCheck }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-2 py-3 text-[11px] font-bold uppercase tracking-widest border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+                >
+                  <tab.icon size={14} /> {tab.label}
+                </button>
+              ))}
+            </div>
 
-              {/* TAB OVERVIEW */}
+            {/* CONTENT AREA */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">
+
+              {/* TAB: VISÃO GERAL */}
               {activeTab === 'overview' && (
-                <div className="animate-fade-in space-y-10">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div className="col-span-2 space-y-8">
-                      <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity"><Users size={120} /></div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Informações do Cliente</p>
-                        <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{selectedOrder.customerName}</h3>
-                        <div className="flex items-center gap-2 text-slate-500 mt-3">
-                          <MapPin size={14} className="text-indigo-400" />
-                          <span className="text-xs font-bold uppercase tracking-tight italic">{selectedOrder.customerAddress}</span>
+                <div className="grid grid-cols-12 gap-6">
+                  {/* Left Column: Details */}
+                  <div className="col-span-12 md:col-span-8 space-y-6">
+                    {/* Info Card Grid */}
+                    <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                      <h3 className="text-[11px] font-bold text-slate-900 uppercase tracking-wide border-b border-slate-100 pb-3 mb-4 flex items-center gap-2">
+                        <User size={14} className="text-slate-400" /> Detalhes do Cliente
+                      </h3>
+                      <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Cliente / Razão Social</label>
+                          <div className="text-sm font-semibold text-slate-900">{selectedOrder.customerName}</div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Endereço / Local</label>
+                          <div className="text-sm text-slate-700">{selectedOrder.customerAddress}</div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Contato</label>
+                          <div className="text-sm text-slate-700">Não informado</div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-1">Documento / CNPJ</label>
+                          <div className="text-sm text-slate-700">Não informado</div>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="grid grid-cols-2 gap-8">
-                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Calendar size={14} /> Cronograma</p>
-                          <div className="space-y-4">
-                            <div><p className="text-[8px] font-black text-slate-300 uppercase">Abertura</p><p className="text-xs font-bold text-slate-600">{new Date(selectedOrder.createdAt).toLocaleString()}</p></div>
-                            <div><p className="text-[8px] font-black text-slate-300 uppercase">Agendado p/</p><p className="text-xs font-black text-indigo-600 uppercase">{formatDateDisplay(selectedOrder.scheduledDate)} às {selectedOrder.scheduledTime}</p></div>
+                    <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                      <h3 className="text-[11px] font-bold text-slate-900 uppercase tracking-wide border-b border-slate-100 pb-3 mb-4 flex items-center gap-2">
+                        <FileText size={14} className="text-slate-400" /> Relatório Técnico
+                      </h3>
+                      <div className="relative">
+                        <label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block mb-2">Descrição das Atividades</label>
+                        <div className="p-4 bg-slate-50 rounded border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[100px]">
+                          {selectedOrder.description || "Nenhuma observação técnica registrada."}
+                        </div>
+                      </div>
+                      {selectedOrder.notes && (
+                        <div className="mt-4">
+                          <label className="text-[10px] uppercase tracking-wider text-indigo-500 font-bold block mb-2">Notas de Fechamento</label>
+                          <div className="p-3 bg-indigo-50/50 rounded border border-indigo-100 text-xs font-medium text-indigo-900">
+                            {selectedOrder.notes}
                           </div>
                         </div>
-                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Clock size={14} /> Execução Real</p>
-                          <div className="space-y-4">
-                            <div><p className="text-[8px] font-black text-slate-300 uppercase">Check-In</p><p className="text-xs font-bold text-emerald-600 uppercase">{selectedOrder.startDate ? new Date(selectedOrder.startDate).toLocaleString() : '---'}</p></div>
-                            <div><p className="text-[8px] font-black text-slate-300 uppercase">Check-Out</p><p className="text-xs font-bold text-emerald-600 uppercase">{selectedOrder.endDate ? new Date(selectedOrder.endDate).toLocaleString() : '---'}</p></div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Metadata */}
+                  <div className="col-span-12 md:col-span-4 space-y-4">
+                    {/* Dates Card */}
+                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                      <h3 className="text-[10px] font-bold text-slate-900 uppercase mb-3 flex items-center gap-2"><Clock size={12} /> Cronograma</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center border-b border-slate-50 pb-2">
+                          <span className="text-[10px] text-slate-500 uppercase font-bold">Abertura</span>
+                          <span className="text-xs font-medium text-slate-900">{new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-slate-50 pb-2">
+                          <span className="text-[10px] text-slate-500 uppercase font-bold">Agendado</span>
+                          <span className="text-xs font-bold text-indigo-600">{formatDateDisplay(selectedOrder.scheduledDate)} {selectedOrder.scheduledTime}</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-emerald-50/50 p-2 rounded">
+                          <span className="text-[10px] text-emerald-600 uppercase font-bold">Execução</span>
+                          <div className="text-right">
+                            <span className="text-[10px] block font-bold text-emerald-700">{selectedOrder.startDate ? new Date(selectedOrder.startDate).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '--/--'}</span>
+                            <span className="text-[10px] block font-bold text-emerald-700">{selectedOrder.endDate ? new Date(selectedOrder.endDate).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '--/--'}</span>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-8">
-                      <div className="bg-indigo-600 p-8 rounded-[2.5rem] shadow-xl shadow-indigo-600/20 text-white relative overflow-hidden">
-                        <div className="absolute -bottom-4 -right-4 opacity-10"><Box size={140} /></div>
-                        <p className="text-[10px] font-black uppercase tracking-widest mb-6 opacity-70">Ativo Relacionado</p>
-                        <h4 className="text-xl font-black uppercase italic tracking-tighter leading-tight">{selectedOrder.equipmentName || 'Equipamento não especificado'}</h4>
-                        <div className="mt-6 space-y-2 border-t border-white/10 pt-6 font-bold text-[10px] uppercase">
-                          <div className="flex justify-between"><span>Modelo</span><span className="text-indigo-200">{selectedOrder.equipmentModel || '--'}</span></div>
-                          <div className="flex justify-between"><span>Série</span><span className="text-indigo-200">{selectedOrder.equipmentSerial || '--'}</span></div>
-                        </div>
-                      </div>
-
-                      <div className="bg-emerald-50 p-8 rounded-[2.5rem] border border-emerald-100">
-                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2"><UserCheck size={14} /> Responsável</p>
-                        {(() => {
-                          const tech = techs.find(t => t.id === selectedOrder.assignedTo);
-                          return tech ? (
-                            <div className="flex items-center gap-4">
-                              <img src={tech.avatar} className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-sm" />
-                              <div><p className="font-black text-slate-900 text-sm uppercase italic">{tech.name}</p><p className="text-[9px] text-emerald-600 font-bold uppercase tracking-tight">Técnico Nível 1</p></div>
+                    {/* Tech Card */}
+                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                      <h3 className="text-[10px] font-bold text-slate-900 uppercase mb-3 flex items-center gap-2"><UserCheck size={12} /> Técnico</h3>
+                      {(() => {
+                        const tech = techs.find(t => t.id === selectedOrder.assignedTo);
+                        return tech ? (
+                          <div className="flex items-center gap-3">
+                            <img src={tech.avatar} className="w-10 h-10 rounded bg-slate-100 object-cover" />
+                            <div>
+                              <div className="text-xs font-bold text-slate-900 uppercase">{tech.name}</div>
+                              <div className="text-[10px] text-slate-500">Técnico de Campo</div>
                             </div>
-                          ) : <p className="text-xs font-bold text-slate-400 italic font-black uppercase">Não Atribuído</p>;
-                        })()}
+                          </div>
+                        ) : <span className="text-xs text-slate-400 italic">Não atribuído</span>;
+                      })()}
+                    </div>
+
+                    {/* Asset Card */}
+                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                      <h3 className="text-[10px] font-bold text-slate-900 uppercase mb-3 flex items-center gap-2"><Box size={12} /> Ativo / Equipamento</h3>
+                      <div className="space-y-2">
+                        <div className="text-sm font-bold text-slate-900 uppercase">{selectedOrder.equipmentName || 'N/A'}</div>
+                        <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-500 uppercase">
+                          <div><span className="block font-bold">Modelo</span> {selectedOrder.equipmentModel || '-'}</div>
+                          <div><span className="block font-bold">Série</span> {selectedOrder.equipmentSerial || '-'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: EXECUÇÃO (CHECKLIST) */}
+              {activeTab === 'execution' && (
+                <div className="max-w-4xl mx-auto">
+                  {selectedOrder.status === 'IMPEDIDO' && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-4">
+                      <AlertTriangle className="text-red-600 shrink-0" size={20} />
+                      <div>
+                        <h4 className="text-sm font-bold text-red-900 uppercase">Atendimento Impedido</h4>
+                        <p className="text-xs text-red-700 mt-1">{selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Sem motivo detalhado.'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                    <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+                      <h3 className="text-xs font-bold text-slate-700 uppercase">Lista de Verificação (Checklist)</h3>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{Object.keys(selectedOrder.formData || {}).length} itens verificados</span>
+                    </div>
+                    {(selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) ? (
+                      <div className="divide-y divide-slate-100">
+                        {Object.entries(selectedOrder.formData).filter(([key, val]) => {
+                          if (Array.isArray(val)) return false;
+                          if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) return false;
+                          if (key.includes('Assinatura') || key.includes('impediment')) return false;
+                          if (['signature', 'signatureName', 'signatureDoc', 'finishedAt'].includes(key)) return false;
+                          return true;
+                        }).map(([key, val]) => (
+                          <div key={key} className="px-5 py-3 flex justify-between gap-4 hover:bg-slate-50 items-center">
+                            <div className="text-xs font-medium text-slate-600 uppercase">{key}</div>
+                            <div className={`text-xs font-bold uppercase px-2 py-1 rounded ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-800'}`}>
+                              {String(val)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-10 text-center text-slate-400 text-xs uppercase italic">Nenhum dado de checklist registrado.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: MÍDIAS */}
+              {activeTab === 'media' && (
+                <div className="space-y-6">
+                  {Object.entries(selectedOrder.formData || {}).map(([key, val]) => {
+                    let photos: string[] = [];
+                    if (Array.isArray(val)) photos = val;
+                    else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) photos = [val];
+
+                    if (photos.length === 0) return null;
+                    return (
+                      <div key={key} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                        <h4 className="text-xs font-bold text-slate-700 uppercase mb-3 pb-2 border-b border-slate-100">{key}</h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                          {photos.map((p, i) => (
+                            <div key={i} className="aspect-square bg-slate-100 rounded border border-slate-200 overflow-hidden cursor-zoom-in" onClick={() => setFullscreenImage(p)}>
+                              <img src={p} className="w-full h-full object-cover hover:scale-110 transition-transform duration-300" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* TAB: CUSTOS */}
+              {activeTab === 'costs' && (
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <div className="flex justify-between items-center bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 uppercase">Peças e Serviços</h3>
+                      <p className="text-[10px] text-slate-500 uppercase">Itens aplicados na ordem de serviço</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase">Total Geral</div>
+                      <div className="text-xl font-bold text-indigo-600 font-mono">
+                        R$ {(selectedOrder.items?.reduce((acc, i) => acc + i.total, 0) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><FileText size={14} /> Descrição das Atividades / Diagnóstico</p>
-                    <p className="text-sm font-medium text-slate-700 leading-relaxed italic whitespace-pre-wrap">{selectedOrder.description || "Nenhum relatório técnico fornecido pelo solicitante."}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB EXECUTION (CHECKLIST) */}
-              {activeTab === 'execution' && (
-                <div className="animate-fade-in space-y-10">
-                  {selectedOrder.status === 'IMPEDIDO' && (
-                    <div className="bg-red-50 p-10 rounded-[3rem] border-2 border-dashed border-red-200 text-center">
-                      <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6"><Ban size={40} className="text-red-500" /></div>
-                      <h3 className="text-xl font-black text-red-900 uppercase italic mb-2 tracking-tighter">Atendimento Impedido pelo Técnico</h3>
-                      <p className="text-sm font-bold text-red-600 uppercase tracking-widest italic leading-relaxed max-w-xl mx-auto italic">
-                        Motivo: "{selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.'}"
-                      </p>
-                    </div>
-                  )}
-
-                  {(selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {Object.entries(selectedOrder.formData).filter(([key, val]) => {
-                        if (Array.isArray(val)) return false;
-                        if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) return false;
-                        if (key.includes('Assinatura') || key.includes('impediment')) return false;
-                        // Hide internal V2 fields
-                        if (['signature', 'signatureName', 'signatureDoc', 'finishedAt'].includes(key)) return false;
-                        return true;
-                      }).map(([key, val]) => (
-                        <div key={key} className="flex justify-between items-center p-6 bg-slate-50 rounded-2xl border border-slate-100 group hover:bg-indigo-50 hover:border-indigo-100 transition-all">
-                          <span className="text-[10px] font-black text-slate-500 uppercase italic group-hover:text-indigo-400">{key}</span>
-                          <span className="text-xs font-black text-slate-900 uppercase">{String(val)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="py-20 text-center text-slate-300 font-black uppercase text-[10px] italic tracking-[0.3em]">
-                      Nenhum checklist registrado para esta operação.
-                    </div>
-                  )}
-
-                  {selectedOrder.notes && (
-                    <div className="bg-indigo-50 p-8 rounded-[2.5rem] border border-indigo-100">
-                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4 italic">Observações de Fechamento (Técnico)</p>
-                      <p className="text-xs font-bold text-indigo-900 leading-relaxed italic">{selectedOrder.notes}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB COSTS */}
-              {activeTab === 'costs' && (
-                <div className="animate-fade-in space-y-10">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 italic">Detalhamento Financeiro</p>
-                      <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">Peças e Serviços</h3>
-                    </div>
-                    <div className={`px-5 py-2 rounded-2xl border flex items-center gap-2 ${selectedOrder.showValueToClient ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
-                      {selectedOrder.showValueToClient ? <><Eye size={14} /> Visível no Link Público</> : <><EyeOff size={14} /> Oculto no Link Público</>}
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm">
+                  <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
                     <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50/50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                          <th className="px-8 py-5">Descrição do Item</th>
-                          <th className="px-8 py-5 w-32 text-center">Origem</th>
-                          <th className="px-8 py-5 w-24 text-center">Qtd</th>
-                          <th className="px-8 py-5 w-32 text-right">Unitário</th>
-                          <th className="px-8 py-5 w-40 text-right">Total</th>
+                      <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                        <tr>
+                          <th className="px-4 py-3">Descrição</th>
+                          <th className="px-4 py-3 text-center">Origem</th>
+                          <th className="px-4 py-3 text-center">Qtd</th>
+                          <th className="px-4 py-3 text-right">Unitário</th>
+                          <th className="px-4 py-3 text-right">Total</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-50">
+                      <tbody className="divide-y divide-slate-100 text-xs">
                         {selectedOrder.items?.map(item => (
-                          <tr key={item.id} className="hover:bg-slate-50/30 transition-colors">
-                            <td className="px-8 py-5">
-                              <span className="text-xs font-black text-slate-700 uppercase">{item.description}</span>
+                          <tr key={item.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 font-medium text-slate-700">{item.description}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`text-[9px] px-2 py-0.5 rounded uppercase font-bold ${item.fromStock ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                                {item.fromStock ? 'Estoque' : 'Manual'}
+                              </span>
                             </td>
-                            <td className="px-8 py-5 text-center">
-                              {item.fromStock ? (
-                                <span className="text-[8px] font-black text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full uppercase italic">Estoque</span>
-                              ) : (
-                                <span className="text-[8px] font-black text-slate-400 bg-slate-100 px-3 py-1 rounded-full uppercase italic">Manual</span>
-                              )}
-                            </td>
-                            <td className="px-8 py-5 text-center text-xs font-bold text-slate-500">{item.quantity}</td>
-                            <td className="px-8 py-5 text-right text-xs font-mono text-slate-600">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                            <td className="px-8 py-5 text-right font-black text-slate-900 text-xs font-mono">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="px-4 py-3 text-center text-slate-600">{item.quantity}</td>
+                            <td className="px-4 py-3 text-right font-mono text-slate-600">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="px-4 py-3 text-right font-mono font-bold text-slate-800">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                           </tr>
                         ))}
                         {(!selectedOrder.items || selectedOrder.items.length === 0) && (
-                          <tr>
-                            <td colSpan={5} className="py-20 text-center text-[10px] font-black text-slate-300 uppercase italic tracking-[0.2em]">
-                              Não há itens ou peças vinculadas a esta OS.
-                            </td>
-                          </tr>
+                          <tr><td colSpan={5} className="py-8 text-center text-slate-400 italic text-xs">Nenhum item adicionado.</td></tr>
                         )}
                       </tbody>
                     </table>
                   </div>
-
-                  <div className="bg-indigo-600 p-10 rounded-[3rem] flex justify-between items-center text-white shadow-2xl shadow-indigo-600/30 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12"><DollarSign size={160} /></div>
-                    <div className="flex items-center gap-6">
-                      <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/20">
-                        <DollarSign size={32} />
-                      </div>
-                      <div>
-                        <h4 className="text-lg font-black uppercase italic tracking-tighter">Valor Total Realizado</h4>
-                        <p className="text-[10px] uppercase font-black opacity-60 italic mt-1 tracking-widest">Este valor é contabilizado no painel financeiro</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-5xl font-black italic tracking-tighter font-mono">
-                        R$ {(selectedOrder.items?.reduce((acc, i) => acc + i.total, 0) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {/* TAB MEDIA (PHOTOS) */}
-              {activeTab === 'media' && (
-                <div className="animate-fade-in space-y-10">
-                  {/* Photos Gallery */}
-                  <div className="space-y-8">
-                    {Object.entries(selectedOrder.formData || {}).map(([key, val]) => {
-                      let photos: string[] = [];
-                      if (Array.isArray(val)) photos = val;
-                      else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) photos = [val];
-
-                      if (photos.length === 0) return null;
-
-                      return (
-                        <div key={key} className="space-y-4">
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic border-b border-slate-100 pb-2 flex items-center gap-2"><Camera size={14} /> {key}</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                            {photos.map((p, i) => (
-                              <div
-                                key={i}
-                                onClick={() => setFullscreenImage(p)}
-                                className="aspect-square bg-slate-100 rounded-3xl overflow-hidden border border-slate-200 group relative cursor-zoom-in shadow-sm hover:shadow-xl transition-all"
-                              >
-                                <img src={p} className="w-full h-full object-cover grayscale brightness-110 group-hover:grayscale-0 group-hover:scale-110 transition-all duration-500" />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB AUDIT (SIGNATURES) */}
+              {/* TAB: AUDITORIA */}
               {activeTab === 'audit' && (
-                <div className="animate-fade-in grid grid-cols-1 md:grid-cols-2 gap-10">
-                  {/* Technician Verification */}
-                  <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 text-center relative overflow-hidden">
-                    <div className="absolute top-0 left-0 p-8 opacity-2 -rotate-12"><ShieldCheck size={200} /></div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Auditoria Técnica</p>
-                    <div className="w-40 h-1 bg-slate-200 mx-auto mb-10" />
-                    <p className="font-black text-slate-900 uppercase italic text-lg">{techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Responsável Técnico'}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Validação Digital Nexus Cloud</p>
-                    <div className="mt-10 p-4 bg-white/50 rounded-2xl border border-white inline-block">
-                      <p className="text-[8px] font-black text-indigo-400 uppercase">Fingerprint de Segurança</p>
-                      <p className="font-mono text-[8px] text-slate-400 mt-1 uppercase leading-none">{selectedOrder.id}-SECURE-AUTH-{new Date(selectedOrder.createdAt).getTime()}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center text-center">
+                    <ShieldCheck size={48} className="text-slate-200 mb-4" />
+                    <h3 className="text-sm font-bold text-slate-900 uppercase">Validação Técnica</h3>
+                    <p className="text-[10px] text-slate-500 uppercase mt-1 mb-6">Assinatura do Técnico Responsável</p>
+                    <div className="flex-1 flex items-end w-full justify-center">
+                      <div className="border-b border-slate-300 w-2/3 pb-1">
+                        <div className="text-sm font-bold text-slate-800 uppercase">{techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Técnico'}</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 p-2 bg-slate-50 rounded border border-slate-100 w-full">
+                      <p className="text-[9px] font-mono text-slate-400 break-all">{selectedOrder.id}-AUTH-{new Date(selectedOrder.createdAt).getTime()}</p>
                     </div>
                   </div>
 
-                  {/* Customer SCIENCE */}
-                  <div className="bg-white p-10 rounded-[3rem] border-2 border-dashed border-slate-200 text-center">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Ciência do Cliente</p>
+                  <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center text-center">
+                    <UserCheck size={48} className="text-slate-200 mb-4" />
+                    <h3 className="text-sm font-bold text-slate-900 uppercase">Aceite do Cliente</h3>
+                    <p className="text-[10px] text-slate-500 uppercase mt-1 mb-6">Confirmação de Execução de Serviço</p>
 
                     {(() => {
                       const data = selectedOrder.formData || {};
-                      const signature = data.signature || data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string')?.[1];
+                      const signature = data.signature || data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string' && (v.startsWith('data:') || v.startsWith('http')))?.[1];
                       const name = data.signatureName || data['Assinatura do Cliente - Nome'] || selectedOrder.customerName;
-                      const cpf = data.signatureDoc || data['Assinatura do Cliente - CPF'] || 'N/D';
 
-                      return (
-                        <div className="space-y-6">
-                          {signature ? (
-                            <div
-                              className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex items-center justify-center min-h-[200px] cursor-zoom-in group"
-                              onClick={() => setFullscreenImage(signature)}
-                            >
-                              <img src={signature} className="max-h-32 object-contain mix-blend-multiply transition-transform group-hover:scale-105" alt="Assinatura" />
-                            </div>
-                          ) : (
-                            <div className="h-[200px] flex flex-col items-center justify-center text-slate-200 gap-4">
-                              <UserCheck size={64} opacity={0.3} />
-                              <p className="text-[9px] font-black uppercase tracking-widest">Protocolo s/ assinatura manuscrita</p>
-                            </div>
-                          )}
-                          <div>
-                            <p className="font-black text-slate-900 uppercase italic text-xl">{name}</p>
-                            <p className="text-[10px] font-black text-indigo-500 uppercase mt-1 tracking-widest flex justify-center gap-3">
-                              <span>Documento: {cpf}</span>
-                              {data['Assinatura do Cliente - Nascimento'] && (
-                                <span>• Nascimento: {data['Assinatura do Cliente - Nascimento']}</span>
-                              )}
-                            </p>
+                      return signature ? (
+                        <div className="w-full">
+                          <img src={signature} className="h-20 mx-auto object-contain mix-blend-multiply mb-2" alt="Assinatura" />
+                          <div className="border-t border-slate-200 pt-2">
+                            <div className="text-sm font-bold text-slate-900 uppercase">{name}</div>
+                            <div className="text-[10px] text-slate-500 uppercase">Assinado digitalmente</div>
                           </div>
                         </div>
+                      ) : (
+                        <div className="py-4 text-xs text-slate-400 italic">Assinatura pendente ou não capturada.</div>
                       );
                     })()}
                   </div>
                 </div>
               )}
 
-            </div>
-
-            {/* AUDIT FOOTER */}
-            <div className="p-10 border-t border-slate-100 bg-slate-50/30 flex justify-between items-center">
-              <div className="flex gap-10">
-                <div>
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Tempo de Resposta</p>
-                  <p className="text-xs font-black text-slate-900">42 min <span className="text-emerald-500 leading-none">▼ 12%</span></p>
-                </div>
-                <div>
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Conformidade</p>
-                  <p className="text-xs font-black text-indigo-600 italic uppercase">100% Validado</p>
-                </div>
-              </div>
-              <div className="flex gap-4">
-                <Button variant="ghost" className="px-10 rounded-2xl font-black text-[10px] uppercase tracking-widest" onClick={() => setSelectedOrder(null)}>Fechar</Button>
-                <Button variant="primary" className="px-10 py-5 rounded-2xl font-black text-xs uppercase italic shadow-xl shadow-indigo-600/20 flex items-center gap-3" onClick={() => handlePrintOrder(selectedOrder.id)}>
-                  <Download size={18} /> Baixar Auditoria (PDF)
-                </Button>
-              </div>
             </div>
           </div>
         </div>
