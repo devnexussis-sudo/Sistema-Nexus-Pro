@@ -49,14 +49,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
         <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
             <div className="w-full max-w-md">
                 {/* Logo e Título */}
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-20 h-20 bg-[#1c2d4f] rounded-3xl mb-6 shadow-2xl shadow-[#1c2d4f]/20">
-                        <NexusBranding variant="light" size="lg" showText={false} />
-                    </div>
-                    <h1 className="text-4xl font-bold text-white tracking-tight mb-2">
-                        Nexus<span className="text-white/50">Line</span>
-                    </h1>
-                    <p className="text-white/40 text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+                <div className="text-center mb-10 flex flex-col items-center">
+                    <NexusBranding variant="light" size="lg" className="mb-4" />
+                    <p className="text-white/40 text-[9px] font-bold uppercase tracking-[0.3em] flex items-center justify-center gap-2 mt-4">
                         <Shield size={14} />
                         Enterprise Management Portal
                     </p>
