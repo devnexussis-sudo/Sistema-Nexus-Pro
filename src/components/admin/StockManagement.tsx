@@ -349,7 +349,7 @@ export const StockManagement: React.FC = () => {
                         <Tag size={14} /> Categorias
                     </button>
                     <button onClick={() => setActiveTab('techs')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'techs' ? 'bg-amber-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <UserCheck size={14} /> Estoque Técnico
+                        {typeof UserCheck !== 'undefined' ? <UserCheck size={14} /> : <Box size={14} />} Estoque Técnico
                     </button>
                     <button onClick={() => setActiveTab('movements')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'movements' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
                         <Scale size={14} /> Movimentações
@@ -544,7 +544,7 @@ export const StockManagement: React.FC = () => {
                             <div className="space-y-6">
                                 <div className="flex justify-between items-center">
                                     <h3 className="text-xl font-black text-slate-800 uppercase italic flex items-center gap-3">
-                                        <UserCheck className="text-amber-500" /> Estoque por Técnico
+                                        {typeof UserCheck !== 'undefined' ? <UserCheck className="text-amber-500" /> : <Box className="text-amber-500" />} Estoque por Técnico
                                     </h3>
                                     <button
                                         onClick={() => setIsTransferModalOpen(true)}
