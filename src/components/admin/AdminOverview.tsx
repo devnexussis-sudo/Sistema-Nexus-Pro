@@ -39,12 +39,12 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
 
       // 3. Filtro de Técnico
-      const assignedTech = techs.find(t => t.id === order.assignedTo);
-      const techName = assignedTech ? assignedTech.name.toLowerCase() : '';
+      const assignedTech = order.assignedTo ? techs.find(t => t.id === order.assignedTo) : null;
+      const techName = assignedTech?.name?.toLowerCase() || '';
       const matchesTech = techFilter === 'ALL' || techName.includes(techFilter.toLowerCase());
 
       // 4. Filtro de Cliente
-      const matchesCustomer = customerFilter === 'ALL' || order.customerName.toLowerCase().includes(customerFilter.toLowerCase());
+      const matchesCustomer = customerFilter === 'ALL' || (order.customerName || '').toLowerCase().includes(customerFilter.toLowerCase());
 
       // 5. Filtro de Data
       const sDate = order.scheduledDate ? order.scheduledDate.substring(0, 10) : null;
@@ -77,13 +77,18 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     let within48 = 0;
 
     completed.forEach(o => {
-      const created = new Date(o.createdAt).getTime();
-      const closed = new Date(o.endDate!).getTime();
-      const diffHours = (closed - created) / (1000 * 60 * 60);
+      if (!o.createdAt || !o.endDate) return;
+      try {
+        const created = new Date(o.createdAt).getTime();
+        const closed = new Date(o.endDate).getTime();
+        const diffHours = (closed - created) / (1000 * 60 * 60);
 
-      if (diffHours <= 24) within24++;
-      else if (diffHours <= 36) within36++;
-      else if (diffHours <= 48) within48++;
+        if (diffHours <= 24) within24++;
+        else if (diffHours <= 36) within36++;
+        else if (diffHours <= 48) within48++;
+      } catch (e) {
+        console.warn("Nexus Analytics: Erro ao calcular diffHours", e);
+      }
     });
 
     const slaEfficiency = completed.length > 0 ? Math.round((within24 / completed.length) * 100) : 0;
@@ -141,7 +146,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     const parts = filteredStatusData.map(s => {
       const start = accumulated;
       accumulated += s.percentage;
-      return `${pieColors[s.status]} ${start}% ${accumulated}%`;
+      const color = pieColors[s.status] || '#cbd5e1';
+      return `${color} ${start}% ${accumulated}%`;
     });
     return `conic-gradient(${parts.join(', ')})`;
   };

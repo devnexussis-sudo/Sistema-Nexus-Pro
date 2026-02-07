@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Package, Search, Plus, Edit3, Trash2, X, Save, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Scale, Box, Barcode, Filter, Wand2, Layers, Tag, LayoutGrid, List } from 'lucide-react';
+import { Package, Search, Plus, Edit3, Trash2, X, Save, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Scale, Box, Barcode, Filter, Wand2, Layers, Tag, LayoutGrid, List, UserCheck, RefreshCw } from 'lucide-react';
 import { StockItem, Category } from '../../types';
 import { DataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
@@ -101,10 +101,25 @@ export const StockManagement: React.FC = () => {
     };
 
     useEffect(() => {
-        loadItems();
-        loadCategories();
-        loadTechs();
-        loadMovements();
+        const tid = DataService.getCurrentTenantId();
+        if (tid) {
+            loadItems();
+            loadCategories();
+            loadTechs();
+            loadMovements();
+        } else {
+            console.warn("🛡️ [StockManagement] Tenant ID não detectado. Aguardando sincronização...");
+            // Tenta carregar novamente após um pequeno delay caso a sessão esteja inicializando
+            setTimeout(() => {
+                const retryTid = DataService.getCurrentTenantId();
+                if (retryTid) {
+                    loadItems();
+                    loadCategories();
+                    loadTechs();
+                    loadMovements();
+                }
+            }, 1000);
+        }
     }, []);
 
     // --- Item Handlers ---
@@ -413,7 +428,14 @@ export const StockManagement: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {items.length === 0 && !loading ? (
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan={8} className="py-20 text-center">
+                                                <RefreshCw size={40} className="mx-auto text-indigo-600 animate-spin mb-4" />
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sincronizando Estoque...</p>
+                                            </td>
+                                        </tr>
+                                    ) : items.length === 0 ? (
                                         <tr>
                                             <td colSpan={8} className="py-20 text-center">
                                                 <Package size={40} className="mx-auto text-slate-200 mb-4" />
