@@ -29,12 +29,13 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
                 <img
                     src="/nexus-logo.png"
                     alt="Nexus Line"
-                    className={`${current.icon} w-auto object-contain h-full`}
+                    className={`${current.icon} w-auto max-w-full object-contain block`}
                     onLoad={() => setImageLoaded(true)}
                     onError={(e) => {
                         setImageLoaded(false);
                         e.currentTarget.style.display = 'none';
-                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        const svg = e.currentTarget.nextElementSibling;
+                        if (svg) svg.classList.remove('hidden');
                     }}
                 />
                 <svg
