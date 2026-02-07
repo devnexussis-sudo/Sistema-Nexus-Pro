@@ -5,7 +5,7 @@ import {
   CashFlowEntry, TechStockItem, StockMovement, OrderItem
 } from '../types';
 import { MOCK_USERS, MOCK_ORDERS } from '../constants';
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase, adminSupabase, publicSupabase } from '../lib/supabase';
 import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
 import { CacheManager } from '../lib/cache';
 
@@ -117,9 +117,17 @@ export const DataService = {
     };
 
     try {
-      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      // Usa timeout curto para evitar travar o heartbeat
+      const sessionPromise = supabase.auth.getSession();
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth Timeout')), 3000));
+
+      const { data: { session }, error: authError }: any = await Promise.race([sessionPromise, timeoutPromise]).catch(err => ({ error: err, data: { session: null } }));
+
       if (authError) {
         report.auth = `Error: ${authError.message}`;
+        if (authError.message?.includes('Lock') || authError.name === 'AbortError' || authError.message?.includes('aborted')) {
+          report.diagnosis = "Conflito de Lock (Normal em múltiplas abas)";
+        }
       } else {
         report.auth = session ? 'Authenticated' : 'Logged Out';
         if (session) report.userEmail = session.user.email;
@@ -143,6 +151,9 @@ export const DataService = {
       }
     } catch (err: any) {
       report.connectivity = `Uncaught Exception: ${err.message}`;
+      if (err.message?.includes('Lock') || err.name === 'AbortError' || err.message?.includes('aborted')) {
+        report.diagnosis = "Lock Conflict Detectado";
+      }
     }
 
     console.group('🛡️ Nexus System Health Report');
@@ -162,7 +173,7 @@ export const DataService = {
     CacheManager.clear();
   },
 
-  getCurrentUser: async (): Promise<User | null> => {
+  getCurrentUser: async (retryCount = 0): Promise<User | null> => {
     try {
       // Prioridade 1: Session Storage
       const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
@@ -184,8 +195,14 @@ export const DataService = {
       }
 
       return null;
-    } catch (e) {
-      console.error("[DataService] User Error:", e);
+    } catch (err: any) {
+      if (err?.name === 'AbortError' || err?.message?.includes('Lock') || err?.message?.includes('aborted')) {
+        if (retryCount < 2) {
+          await new Promise(r => setTimeout(r, 800));
+          return DataService.getCurrentUser(retryCount + 1);
+        }
+      }
+      console.error("[DataService] User Error:", err);
       return null;
     }
   },
@@ -657,55 +674,70 @@ export const DataService = {
     return user;
   },
 
-  refreshUser: async (): Promise<User | null> => {
+  refreshUser: async (retryCount = 0): Promise<User | null> => {
     if (!isCloudEnabled) return null;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      console.warn('[DataService] ⚠️ Sessão não encontrada no Supabase Auth.');
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        console.warn('[DataService] ⚠️ Sessão não encontrada no Supabase Auth.');
+        return null;
+      }
+
+      const meta = session.user.user_metadata;
+      let tenantId = meta?.tenantId || meta?.tenant_id;
+      console.log('[DataService] 🔍 Refreshing User:', { email: session.user.email, metaTenant: tenantId });
+
+      // 🔍 Nexus Deep Security: Fallback para tenant_id no banco
+      if (!tenantId) {
+        console.log('[DataService] 🕵️ Tenant não encontrado no metadata. Buscando no DB...');
+        const { data: dbUser, error: dbError } = await supabase.from('users').select('tenant_id').eq('id', session.user.id).maybeSingle();
+        if (dbError) console.error('[DataService] ❌ Erro ao buscar tenant_id no DB:', dbError);
+
+        if (dbUser?.tenant_id) {
+          tenantId = dbUser.tenant_id;
+          console.log('[DataService] ✅ Tenant recuperado do DB. Sincronizando metadados do JWT...');
+
+          // 🔄 Nexus Sync: Atualiza o metadata do Auth para que o JWT passe a ter o tenant_id (Necessário para RLS funcionar)
+          await supabase.auth.updateUser({
+            data: { tenantId: tenantId, tenant_id: tenantId }
+          });
+        }
+      }
+
+      // 🛡️ Nexus Safety Check: Verifica se a empresa está ativa
+      let enabledModules = {};
+      if (tenantId) {
+        // Usamos o cliente padrão autenticado para evitar dependência de service_key
+        const { data: tenantData } = await supabase.from('tenants').select('status, enabled_modules').eq('id', tenantId).maybeSingle();
+        if (tenantData && tenantData.status === 'suspended') {
+          console.warn("🚫 Acesso negado: Empresa suspensa.");
+          await supabase.auth.signOut();
+          SessionStorage.clear();
+          throw new Error('TENANT_SUSPENDED');
+        }
+        if (tenantData?.enabled_modules) {
+          enabledModules = tenantData.enabled_modules;
+        }
+      }
+
+      const user = await DataService._fetchFullUser(session.user, meta, tenantId, enabledModules);
+
+      SessionStorage.set('user', user);
+      return user;
+    } catch (err: any) {
+      if (err?.message === 'TENANT_SUSPENDED') throw err;
+
+      if (err?.name === 'AbortError' || err?.message?.includes('Lock') || err?.message?.includes('aborted')) {
+        if (retryCount < 2) {
+          console.warn(`[DataService] 🔄 Lock Conflict no refresh. Retentativa ${retryCount + 1}...`);
+          await new Promise(r => setTimeout(r, 1000));
+          return DataService.refreshUser(retryCount + 1);
+        }
+      }
+      console.error('[DataService] ❌ Falha crítica no refreshUser:', err);
       return null;
     }
-
-    const meta = session.user.user_metadata;
-    let tenantId = meta?.tenantId || meta?.tenant_id;
-    console.log('[DataService] 🔍 Refreshing User:', { email: session.user.email, metaTenant: tenantId });
-
-    // 🔍 Nexus Deep Security: Fallback para tenant_id no banco
-    if (!tenantId) {
-      console.log('[DataService] 🕵️ Tenant não encontrado no metadata. Buscando no DB...');
-      const { data: dbUser, error: dbError } = await supabase.from('users').select('tenant_id').eq('id', session.user.id).maybeSingle();
-      if (dbError) console.error('[DataService] ❌ Erro ao buscar tenant_id no DB:', dbError);
-
-      if (dbUser?.tenant_id) {
-        tenantId = dbUser.tenant_id;
-        console.log('[DataService] ✅ Tenant recuperado do DB. Sincronizando metadados do JWT...');
-
-        // 🔄 Nexus Sync: Atualiza o metadata do Auth para que o JWT passe a ter o tenant_id (Necessário para RLS funcionar)
-        await supabase.auth.updateUser({
-          data: { tenantId: tenantId, tenant_id: tenantId }
-        });
-      }
-    }
-
-    // 🛡️ Nexus Safety Check: Verifica se a empresa está ativa
-    let enabledModules = {};
-    if (tenantId) {
-      // Usamos o cliente padrão autenticado para evitar dependência de service_key
-      const { data: tenantData } = await supabase.from('tenants').select('status, enabled_modules').eq('id', tenantId).maybeSingle();
-      if (tenantData && tenantData.status === 'suspended') {
-        console.warn("🚫 Acesso negado: Empresa suspensa.");
-        await supabase.auth.signOut();
-        SessionStorage.clear();
-        throw new Error('TENANT_SUSPENDED');
-      }
-      if (tenantData?.enabled_modules) {
-        enabledModules = tenantData.enabled_modules;
-      }
-    }
-
-    const user = await DataService._fetchFullUser(session.user, meta, tenantId, enabledModules);
-
-    SessionStorage.set('user', user);
-    return user;
   },
 
   toggleTenantStatus: async (tenantId: string, currentStatus: string): Promise<string> => {
@@ -1017,11 +1049,11 @@ export const DataService = {
     return users.filter(u => u.role === UserRole.TECHNICIAN);
   },
 
-  getPublicTechnicians: async (tenantId: string): Promise<any[]> => {
+  getPublicTechnicians: async (tenantId: string, retryCount = 0): Promise<any[]> => {
     if (isCloudEnabled) {
       // 🛡️ ESTRATÉGIA 1: Tentar RPC
       try {
-        const { data, error } = await supabase.rpc('get_public_technicians', { p_tenant_id: tenantId });
+        const { data, error } = await publicSupabase.rpc('get_public_technicians', { p_tenant_id: tenantId });
 
         if (!error && data) {
           return (data || []).map(t => ({
@@ -1033,17 +1065,19 @@ export const DataService = {
         }
 
       } catch (err: any) {
-        if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
-          console.warn("⚠️ Conflito de Lock no RPC técnicos. Tentando novamente em 1s...");
-          await new Promise(r => setTimeout(r, 1000));
-          return DataService.getPublicTechnicians(tenantId);
+        if (err?.name === 'AbortError' || err?.message?.includes('Lock') || err?.message?.includes('aborted')) {
+          if (retryCount < 3) {
+            console.warn(`⚠️ Conflito de Lock no RPC técnicos (Tentativa ${retryCount + 1}). Retentando...`);
+            await new Promise(r => setTimeout(r, 1000 + (retryCount * 500)));
+            return DataService.getPublicTechnicians(tenantId, retryCount + 1);
+          }
         }
         console.warn("⚠️ Erro RPC técnicos, usando fallback:", err);
       }
 
       // 🔄 ESTRATÉGIA 2: Fallback
       try {
-        const { data, error } = await supabase
+        const { data, error } = await publicSupabase
           .from('technicians')
           .select('id, name, avatar, tenant_id')
           .eq('tenant_id', tenantId)
@@ -1808,6 +1842,11 @@ export const DataService = {
 
       const { data, error } = await query.single();
       if (error) {
+        if ((error as any).name === 'AbortError' || error.message?.includes('Lock') || error.message?.includes('aborted')) {
+          console.warn("⚠️ Lock Detectado no Orçamento. Tentando novamente...");
+          await new Promise(r => setTimeout(r, 1000));
+          return DataService.getPublicQuoteById(id);
+        }
         console.error("Erro ao buscar Orçamento público:", error);
         return null;
       }
@@ -2347,11 +2386,11 @@ export const DataService = {
     }
   },
 
-  getPublicOrderById: async (id: string): Promise<ServiceOrder | null> => {
+  getPublicOrderById: async (id: string, retryCount = 0): Promise<ServiceOrder | null> => {
     if (isCloudEnabled) {
       // 🛡️ ESTRATÉGIA 1: Tentar RPC Seguro (Ideal)
       try {
-        const { data, error } = await supabase.rpc('get_public_order', { search_term: id });
+        const { data, error } = await publicSupabase.rpc('get_public_order', { search_term: id });
 
         // Se RPC funcionou
         if (!error && data && (Array.isArray(data) ? data.length > 0 : true)) {
@@ -2360,10 +2399,12 @@ export const DataService = {
         }
 
       } catch (err: any) {
-        if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
-          console.warn("⚠️ Conflito de Lock no RPC. Tentando novamente em 1s...");
-          await new Promise(r => setTimeout(r, 1000));
-          return DataService.getPublicOrderById(id); // Recurrsive retry (safe for 1 level)
+        if (err?.name === 'AbortError' || err?.message?.includes('Lock') || err?.message?.includes('aborted')) {
+          if (retryCount < 3) {
+            console.warn(`⚠️ Conflito de Lock no RPC (Tentativa ${retryCount + 1}). Retentando...`);
+            await new Promise(r => setTimeout(r, 1000 + (retryCount * 500)));
+            return DataService.getPublicOrderById(id, retryCount + 1);
+          }
         }
         console.warn("⚠️ Erro ao chamar RPC, tentando fallback:", err);
       }
@@ -2371,30 +2412,40 @@ export const DataService = {
       // 🔄 ESTRATÉGIA 2: Fallback - Query Direta (Temporário)
       // Usa filtro público (apenas ordens com public_token preenchido)
       try {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-        let query = supabase.from('orders').select('*');
+        let query = publicSupabase.from('orders').select('*');
 
         if (isUuid) {
-          // Busca por token UUID
           query = query.eq('public_token', id);
         } else {
-          // Busca por ID, mas APENAS se tiver public_token (segurança)
           query = query.eq('id', id).not('public_token', 'is', null);
         }
 
         const { data, error } = await query.single();
 
         if (error) {
+          if ((error as any).name === 'AbortError' || error.message?.includes('Lock') || error.message?.includes('aborted')) {
+            if (retryCount < 3) {
+              console.warn(`⚠️ Conflito de Lock no Fallback (Tentativa ${retryCount + 1}). Retentando...`);
+              await new Promise(r => setTimeout(r, 1000 + (retryCount * 500)));
+              return DataService.getPublicOrderById(id, retryCount + 1);
+            }
+          }
           console.error("❌ Erro no fallback de busca pública:", error);
           return null;
         }
 
         if (!data) return null;
-
-        console.log("✅ OS pública carregada via fallback (aplique as migrações SQL para melhor segurança)");
         return DataService._mapOrderFromDB(data);
-      } catch (fallbackErr) {
+      } catch (fallbackErr: any) {
+        if (fallbackErr?.name === 'AbortError' || fallbackErr?.message?.includes('Lock') || fallbackErr?.message?.includes('aborted')) {
+          if (retryCount < 3) {
+            await new Promise(r => setTimeout(r, 1000));
+            return DataService.getPublicOrderById(id, retryCount + 1);
+          }
+        }
         console.error("❌ Erro crítico ao buscar OS pública:", fallbackErr);
         return null;
       }
@@ -3375,7 +3426,7 @@ export const DataService = {
         // Filtragem manual para evitar problemas com sintaxe de array complexa no Supabase JS
         return (notifications || []).filter(n => !readIds.includes(n.id));
       } catch (err: any) {
-        if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
+        if (err?.name === 'AbortError' || err?.message?.includes('Lock') || err?.message?.includes('aborted')) {
           console.warn("⚠️ Conflito de Lock nas notificações. Tentando novamente em 1.5s...");
           await new Promise(r => setTimeout(r, 1500));
           return DataService.getUnreadSystemNotifications(userId);

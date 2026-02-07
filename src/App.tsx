@@ -98,7 +98,7 @@ const App: React.FC = () => {
         }
       } catch (err: any) {
         // 🛡️ Nexus Silent Recovery: Se for um erro de trava ou aborto, tenta novamente em 2s
-        if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
+        if (err?.name === 'AbortError' || err?.message?.includes('Lock') || err?.message?.includes('aborted')) {
           console.warn('[App] 🛡️ Lock Conflict detectado no Heartbeat. Agendando retry silencioso...');
           setTimeout(() => validateAndRestoreSession(true), 2000);
           return;

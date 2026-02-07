@@ -21,3 +21,12 @@ export const adminSupabase = createClient(supabaseUrl, supabaseServiceKey, {
         persistSession: false
     }
 });
+
+// 🛡️ Nexus Public Client: Otimizado para visualização pública sem Auth/Locks
+export const publicSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false
+    }
+});
