@@ -210,15 +210,15 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
         <div className="p-8 space-y-6 animate-fade-in flex flex-col h-full bg-slate-50/20">
             <div className="flex justify-between items-center">
                 <div>
-                    <div className="flex items-center gap-3"><Briefcase className="text-indigo-600" size={32} /><h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Gestão de Contratos</h1></div>
-                    <p className="text-gray-400 text-[10px] font-black italic uppercase pl-11">Auditoria Jurídica, Comercial e Operacional Nexus.</p>
+                    <div className="flex items-center gap-3"><Briefcase className="text-[#1c2d4f]" size={32} /><h1 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">Gestão de Contratos</h1></div>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase pl-11">Auditoria Jurídica, Comercial e Operacional Nexus Line.</p>
                 </div>
                 <button onClick={() => {
                     setSelectedContract(null); setModalStep(1); setPendingAction('CREATE');
                     setSelectedCustomerId(customers[0]?.name || ''); setChangeReason('');
                     setContractValue('0,00'); setIncludesParts(false); setVisitCount(1); setContractTerms('');
                     setIsModalOpen(true);
-                }} className="px-6 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-indigo-600/20">Novo Contrato</button>
+                }} className="px-6 py-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm transition-all border border-[#1c2d4f]">Novo Contrato</button>
             </div>
 
             <div className="bg-white border border-slate-100 rounded-[3rem] overflow-hidden shadow-2xl flex-1 flex flex-col">
@@ -232,19 +232,19 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                 placeholder="Pesquisar código, cliente ou título..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+                                className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-slate-100 transition-all shadow-sm"
                             />
                         </div>
 
                         <div className="flex items-center gap-3 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
                             <div className="flex items-center gap-2 px-2 border-r border-slate-100">
-                                <Calendar size={16} className="text-indigo-600" />
-                                <span className="text-[9px] font-black uppercase text-slate-400">Ciclo</span>
+                                <Calendar size={16} className="text-[#1c2d4f]" />
+                                <span className="text-[9px] font-bold uppercase text-slate-400">Ciclo</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <input type="date" value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="bg-slate-50 border-none text-[10px] font-black uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
-                                <span className="text-[10px] font-black text-slate-300">até</span>
-                                <input type="date" value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} className="bg-slate-50 border-none text-[10px] font-black uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
+                                <input type="date" value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
+                                <span className="text-[10px] font-bold text-slate-300">até</span>
+                                <input type="date" value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
                             </div>
                         </div>
                     </div>
@@ -252,7 +252,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                     <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10">
                             <ListFilter size={14} className="text-slate-400 mr-2" />
-                            <select className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                            <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                                 <option value="ALL">Todos Status</option>
                                 <option value={OrderStatus.PENDING}>Ativo</option>
                                 <option value={OrderStatus.CANCELED}>Inativo</option>
@@ -262,7 +262,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                             onClick={() => {
                                 setSearchTerm(''); setStatusFilter('ALL'); setStartDateFilter(''); setEndDateFilter('');
                             }}
-                            className="px-4 py-2 text-[9px] font-black uppercase text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-dashed border-indigo-200"
+                            className="px-4 py-2 text-[9px] font-bold uppercase text-[#1c2d4f] hover:bg-slate-100 rounded-lg transition-colors border border-dashed border-slate-200"
                         >
                             Limpar Filtros
                         </button>

@@ -39,6 +39,8 @@ interface AdminAppProps {
 
 const getInitialDateRange = () => ({ start: '', end: '' });
 
+import { NexusBranding } from '../../components/ui/NexusBranding';
+
 export const AdminApp: React.FC<AdminAppProps> = ({
     auth, onLogin, onLogout, isImpersonating, onToggleMaster,
     systemNotifications, onMarkNotificationRead
@@ -241,134 +243,135 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     ].filter(item => item.visible);
 
     return (
-        <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
-            {/* Sidebar */}
-            <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-[#1c2d4f] h-screen flex flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative overflow-hidden`}>
-                <button
-                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                    className="absolute -right-3 top-10 w-6 h-6 bg-[#1c2d4f] text-white/50 border border-white/10 rounded-full flex items-center justify-center hover:text-white transition-all z-[60]"
-                >
-                    {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-                </button>
-
-                <div className={`flex-1 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
-                    <div className={`flex items-center gap-3 mb-10 mt-2 transition-all ${isSidebarCollapsed ? 'justify-center' : 'px-2'}`}>
-                        <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center shrink-0">
-                            <Hexagon size={18} className="text-white" />
-                        </div>
-                        {!isSidebarCollapsed && (
-                            <h1 className="text-white font-bold text-lg tracking-tight">
-                                Nexus<span className="text-white/50">Pro</span>
-                            </h1>
-                        )}
+        <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-sans">
+            {/* Header Global */}
+            <header className="h-16 bg-[#1c2d4f] text-white flex justify-between items-center z-[100] shadow-sm px-4 shrink-0 border-b border-white/5">
+                <div className="flex items-center gap-8">
+                    {/* Logo Area */}
+                    <div className={`${isSidebarCollapsed ? 'w-12' : 'w-56'} transition-all duration-300 ease-in-out flex items-center`}>
+                        <NexusBranding variant="light" size="md" />
                     </div>
 
-                    <nav className="space-y-1">
-                        {menuItems.map(item => (
-                            <button
-                                key={item.id}
-                                onClick={() => item.enabled && setCurrentView(item.id as any)}
-                                disabled={!item.enabled}
-                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${!item.enabled
-                                    ? 'opacity-20 grayscale cursor-not-allowed'
-                                    : currentView === item.id
-                                        ? 'bg-white/10 text-white'
-                                        : 'text-white/70 hover:text-white hover:bg-white/5'
-                                    }`}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <item.icon size={18} className={`${currentView === item.id ? 'text-white' : 'text-white/60'}`} />
-                                    {!isSidebarCollapsed && <span>{item.label}</span>}
-                                </div>
-                            </button>
-                        ))}
-                    </nav>
-                </div>
-
-                <div className={`shrink-0 p-4 border-t border-white/5 flex flex-col gap-2 ${isSidebarCollapsed ? 'items-center' : ''}`}>
-                    {isImpersonating && (
-                        <button
-                            onClick={() => { SessionStorage.remove('is_impersonating'); onLogout(); }}
-                            className="w-full py-2.5 bg-indigo-600/20 text-indigo-100 rounded-md text-xs font-semibold hover:bg-indigo-600/30 transition-all border border-indigo-500/20"
-                        >
-                            <ShieldCheck size={16} className="inline mr-2" /> {!isSidebarCollapsed && "Finalizar Auditoria"}
-                        </button>
-                    )}
-                    <button
-                        onClick={onLogout}
-                        className="w-full py-2.5 text-white/50 hover:text-white hover:bg-white/5 rounded-md text-xs font-semibold flex items-center justify-center gap-2 transition-all"
-                    >
-                        <LogOut size={16} /> {!isSidebarCollapsed && "Sair da Conta"}
-                    </button>
-                </div>
-            </aside>
-
-            {/* Main Content */}
-            <main className="flex-1 overflow-hidden flex flex-col relative">
-                <header className="h-16 bg-white border-b border-slate-200 px-8 flex justify-between items-center z-[40]">
-                    <div className="flex items-center gap-4">
-                        <h2 className="text-sm font-semibold text-slate-900 capitalize">
+                    {/* View Title */}
+                    <div className="flex items-center gap-6 border-l border-white/10 pl-8 h-8">
+                        <h2 className="text-sm font-semibold text-white/90 capitalize tracking-tight">
                             {menuItems.find(m => m.id === currentView)?.label || 'Dashboard'}
                         </h2>
                         {(isRefreshing || isFetchingAny) && (
-                            <div className="flex items-center gap-2 px-2 py-1 bg-slate-50 text-slate-500 rounded border border-slate-200">
+                            <div className="flex items-center gap-2 px-2 py-1 bg-white/5 text-white/40 rounded border border-white/10">
                                 <RefreshCw size={12} className="animate-spin" />
                                 <span className="text-[10px] font-medium uppercase tracking-wider">Sincronizando</span>
                             </div>
                         )}
                     </div>
-                    <div className="flex items-center gap-6">
-                        <div className="flex flex-col items-end border-r border-slate-200 pr-6">
-                            <span className="text-sm font-semibold text-slate-700">{auth.user?.name}</span>
-                            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">Administrador</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {!isOnline && (
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-50 border border-rose-100 rounded-full text-rose-600">
-                                    <WifiOff size={14} />
-                                    <span className="text-[10px] font-bold uppercase tracking-wider">Offline</span>
-                                </div>
-                            )}
-                            <button
-                                onClick={async () => setHealthReport(await DataService.checkSystemHealth())}
-                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md transition-all"
-                                title="Saúde do Sistema"
-                            >
-                                <ShieldCheck size={20} />
-                            </button>
-                            <button
-                                onClick={handleManualRefresh}
-                                disabled={isRefreshing}
-                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md transition-all"
-                                title="Atualizar Dados"
-                            >
-                                <RefreshCw size={20} className={isRefreshing || isFetchingAny ? 'animate-spin text-indigo-500' : ''} />
-                            </button>
-                            <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md transition-all relative">
-                                <Bell size={20} />
-                                {systemNotifications.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>}
-                            </button>
-                        </div>
-                    </div>
-                </header>
-
-                <div className="flex-1 overflow-hidden relative">
-                    {currentView === 'dashboard' && <AdminOverview orders={orders} contracts={contracts} techs={techs} customers={customers} startDate={overviewDateRange.start} endDate={overviewDateRange.end} onDateChange={(start, end) => setOverviewDateRange({ start, end })} onSwitchView={(v) => setCurrentView(v as any)} />}
-                    {currentView === 'orders' && <AdminDashboard orders={orders} techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => setActivitiesDateRange({ start, end })} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await fetchGlobalData(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await fetchGlobalData(); }} />}
-                    {currentView === 'contracts' && <PlannedMaintenance orders={contracts} techs={techs} customers={customers} equipments={equipments} user={auth.user} onUpdateOrders={fetchGlobalData} onEditOrder={async (c) => { await DataService.updateContract(c); await fetchGlobalData(); }} onCreateOrder={async (c) => { await DataService.createContract(c); await fetchGlobalData(); }} />}
-                    {currentView === 'quotes' && <QuoteManagement quotes={quotes} customers={customers} orders={orders} stockItems={stockItems} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await fetchGlobalData(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await fetchGlobalData(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await fetchGlobalData(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await fetchGlobalData(); }} />}
-                    {currentView === 'clients' && <CustomerManagement customers={customers} equipments={equipments} onUpdateCustomers={fetchGlobalData} onSwitchView={(v, p) => setCurrentView(v)} />}
-                    {currentView === 'equip' && <EquipmentManagement equipments={equipments} customers={customers} onUpdateEquipments={fetchGlobalData} />}
-                    {currentView === 'stock' && <StockManagement />}
-                    {currentView === 'techs' && <TechnicianManagement />}
-                    {currentView === 'map' && <TechnicianMap />}
-                    {currentView === 'forms' && <FormManagement />}
-                    {currentView === 'users' && <UserManagement />}
-                    {currentView === 'settings' && <SettingsPage />}
-                    {currentView === 'financial' && <FinancialDashboard orders={orders} quotes={quotes} techs={techs} onRefresh={fetchGlobalData} />}
-                    {currentView === 'calendar' && <OrderCalendar orders={orders} techs={techs} customers={customers} />}
                 </div>
-            </main>
+
+                <div className="flex items-center gap-6">
+                    <div className="flex flex-col items-end border-r border-white/10 pr-6">
+                        <span className="text-sm font-semibold text-white tracking-tight">{auth.user?.name}</span>
+                        <span className="text-[10px] font-medium text-white/40 uppercase tracking-tighter">Administrador</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {!isOnline && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/20 border border-rose-500/40 rounded-full text-rose-200">
+                                <WifiOff size={14} />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Offline</span>
+                            </div>
+                        )}
+                        <button
+                            onClick={async () => setHealthReport(await DataService.checkSystemHealth())}
+                            className="p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-md transition-all"
+                            title="Saúde do Sistema"
+                        >
+                            <ShieldCheck size={20} />
+                        </button>
+                        <button
+                            onClick={handleManualRefresh}
+                            disabled={isRefreshing}
+                            className="p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-md transition-all"
+                            title="Atualizar Dados"
+                        >
+                            <RefreshCw size={20} className={isRefreshing || isFetchingAny ? 'animate-spin text-white' : ''} />
+                        </button>
+                        <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-md transition-all relative">
+                            <Bell size={20} />
+                            {systemNotifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-[#1c2d4f]"></span>}
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <div className="flex flex-1 overflow-hidden">
+                {/* Sidebar */}
+                <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-[#1c2d4f] h-full flex flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5`}>
+                    <button
+                        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                        className="absolute -right-3 top-6 w-6 h-6 bg-[#1c2d4f] text-white/50 border border-white/10 rounded-full flex items-center justify-center hover:text-white transition-all z-[60]"
+                    >
+                        {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                    </button>
+
+                    <div className={`flex-1 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
+                        <nav className="space-y-1">
+                            {menuItems.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => item.enabled && setCurrentView(item.id as any)}
+                                    disabled={!item.enabled}
+                                    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${!item.enabled
+                                        ? 'opacity-20 grayscale cursor-not-allowed'
+                                        : currentView === item.id
+                                            ? 'bg-white/10 text-white shadow-sm'
+                                            : 'text-white/70 hover:text-white hover:bg-white/5'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <item.icon size={18} className={`${currentView === item.id ? 'text-white' : 'text-white/60'}`} />
+                                        {!isSidebarCollapsed && <span>{item.label}</span>}
+                                    </div>
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
+
+                    <div className={`shrink-0 p-4 border-t border-white/5 flex flex-col gap-2 ${isSidebarCollapsed ? 'items-center' : ''}`}>
+                        {isImpersonating && (
+                            <button
+                                onClick={() => { SessionStorage.remove('is_impersonating'); onLogout(); }}
+                                className="w-full py-2.5 bg-indigo-600/20 text-indigo-100 rounded-md text-xs font-semibold hover:bg-indigo-600/30 transition-all border border-indigo-500/20"
+                            >
+                                <ShieldCheck size={16} className="inline mr-2" /> {!isSidebarCollapsed && "Finalizar Auditoria"}
+                            </button>
+                        )}
+                        <button
+                            onClick={onLogout}
+                            className="w-full py-2 text-white/40 hover:text-rose-400 hover:bg-rose-500/5 rounded-md text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+                        >
+                            <LogOut size={14} /> {!isSidebarCollapsed && "Sair da Conta"}
+                        </button>
+                    </div>
+                </aside>
+
+                {/* Main Content Area */}
+                <main className="flex-1 overflow-hidden flex flex-col relative bg-slate-50/50">
+                    <div className="flex-1 overflow-hidden relative">
+                        {currentView === 'dashboard' && <AdminOverview orders={orders} contracts={contracts} techs={techs} customers={customers} startDate={overviewDateRange.start} endDate={overviewDateRange.end} onDateChange={(start, end) => setOverviewDateRange({ start, end })} onSwitchView={(v) => setCurrentView(v as any)} />}
+                        {currentView === 'orders' && <AdminDashboard orders={orders} techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => setActivitiesDateRange({ start, end })} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await fetchGlobalData(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await fetchGlobalData(); }} />}
+                        {currentView === 'contracts' && <PlannedMaintenance orders={contracts} techs={techs} customers={customers} equipments={equipments} user={auth.user} onUpdateOrders={fetchGlobalData} onEditOrder={async (c) => { await DataService.updateContract(c); await fetchGlobalData(); }} onCreateOrder={async (c) => { await DataService.createContract(c); await fetchGlobalData(); }} />}
+                        {currentView === 'quotes' && <QuoteManagement quotes={quotes} customers={customers} orders={orders} stockItems={stockItems} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await fetchGlobalData(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await fetchGlobalData(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await fetchGlobalData(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await fetchGlobalData(); }} />}
+                        {currentView === 'clients' && <CustomerManagement customers={customers} equipments={equipments} onUpdateCustomers={fetchGlobalData} onSwitchView={(v, p) => setCurrentView(v)} />}
+                        {currentView === 'equip' && <EquipmentManagement equipments={equipments} customers={customers} onUpdateEquipments={fetchGlobalData} />}
+                        {currentView === 'stock' && <StockManagement />}
+                        {currentView === 'techs' && <TechnicianManagement />}
+                        {currentView === 'map' && <TechnicianMap />}
+                        {currentView === 'forms' && <FormManagement />}
+                        {currentView === 'users' && <UserManagement />}
+                        {currentView === 'settings' && <SettingsPage />}
+                        {currentView === 'financial' && <FinancialDashboard orders={orders} quotes={quotes} techs={techs} onRefresh={fetchGlobalData} />}
+                        {currentView === 'calendar' && <OrderCalendar orders={orders} techs={techs} customers={customers} />}
+                    </div>
+                </main>
+            </div>
 
             {/* Health Report Modal - SaaS Style */}
             {healthReport && (

@@ -365,13 +365,13 @@ export const UserManagement: React.FC = () => {
         <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm flex-shrink-0">
           <button
             onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'users' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Users size={14} /> Usuários
           </button>
           <button
             onClick={() => setActiveTab('groups')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'groups' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${activeTab === 'groups' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <FolderTree size={14} /> Grupos
           </button>
@@ -410,7 +410,7 @@ export const UserManagement: React.FC = () => {
               setFormData({ name: '', email: '', password: '', active: true, groupId: '', permissions: { ...DEFAULT_PERMISSIONS } });
               setIsModalOpen(true);
             }}
-              className="rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/20 text-white whitespace-nowrap bg-indigo-600 hover:bg-indigo-700"
+              className="rounded-xl px-6 h-[42px] font-bold uppercase text-[10px] tracking-widest shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
             >
               <UserPlus size={16} className="mr-2" /> Novo Usuário
             </Button>
@@ -420,7 +420,7 @@ export const UserManagement: React.FC = () => {
               setGroupFormData({ name: '', description: '', active: true, permissions: { ...DEFAULT_PERMISSIONS } });
               setIsGroupModalOpen(true);
             }}
-              className="rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/20 text-white whitespace-nowrap bg-indigo-600 hover:bg-indigo-700"
+              className="rounded-xl px-6 h-[42px] font-bold uppercase text-[10px] tracking-widest shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
             >
               <UserPlus size={16} className="mr-2" /> Novo Grupo
             </Button>
@@ -542,10 +542,10 @@ export const UserManagement: React.FC = () => {
           <div className="bg-white rounded-[3rem] w-full max-w-2xl shadow-2xl border border-white/20 animate-fade-in-up">
             <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
               <div className="flex items-center gap-6">
-                <div className="p-5 bg-indigo-600 rounded-[1.5rem] text-white shadow-xl shadow-indigo-600/20"><UserPlus size={32} /></div>
+                <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><UserPlus size={32} /></div>
                 <div>
-                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{editingUser ? 'Atualizar Identidade' : 'Registrar Novo Gestor'}</h2>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2 italic">Acesso e Privilégios Corporativos</p>
+                  <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingUser ? 'Atualizar Identidade' : 'Registrar Novo Gestor'}</h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Acesso e Privilégios Corporativos</p>
                 </div>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>
@@ -607,10 +607,10 @@ export const UserManagement: React.FC = () => {
           <div className="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl border border-white/20 animate-fade-in-up">
             <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
               <div className="flex items-center gap-6">
-                <div className="p-5 bg-indigo-500 rounded-[1.5rem] text-white shadow-xl shadow-indigo-500/20"><FolderTree size={32} /></div>
+                <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><FolderTree size={32} /></div>
                 <div>
-                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{editingGroup ? 'Editar Grupo' : 'Novo Grupo de Acesso'}</h2>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2 italic shadow-sm">Categorização de Regras de Negócio</p>
+                  <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingGroup ? 'Editar Grupo' : 'Novo Grupo de Acesso'}</h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Categorização de Regras de Negócio</p>
                 </div>
               </div>
               <button onClick={() => setIsGroupModalOpen(false)} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>

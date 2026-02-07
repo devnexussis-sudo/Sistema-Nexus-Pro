@@ -276,7 +276,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
           <Button
             onClick={() => setIsModalOpen(true)}
-            className="rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/20 text-white whitespace-nowrap bg-indigo-600 hover:bg-indigo-700"
+            className="rounded-xl px-6 h-[42px] font-bold uppercase text-[10px] tracking-widest shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
           >
             <Plus size={16} className="mr-2" /> Novo Cliente
           </Button>
@@ -315,8 +315,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                             {c.type === 'PJ' ? <Building2 size={20} /> : <User size={20} />}
                           </div>
                           <div>
-                            <p className="text-slate-800 uppercase italic tracking-tight">{c.name}</p>
-                            <p className="text-[9px] text-slate-400 font-black mt-1 uppercase tracking-widest">{c.document}</p>
+                            <p className="text-slate-800 uppercase font-bold tracking-tight">{c.name}</p>
+                            <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{c.document}</p>
                           </div>
                         </div>
                       </td>
@@ -406,10 +406,10 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
           <div className="bg-white rounded-[4rem] w-full max-w-4xl shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[92vh] animate-fade-in-up">
             <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[4rem]">
               <div className="flex items-center gap-6">
-                <div className="p-5 bg-indigo-600 rounded-[1.5rem] text-white shadow-xl shadow-indigo-600/20"><Building2 size={32} /></div>
+                <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><Building2 size={32} /></div>
                 <div>
-                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{editingId ? 'Atualizar Cliente' : 'Novo Cadastro Corporativo'}</h2>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2 italic">Provisionamento de base operacional</p>
+                  <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingId ? 'Atualizar Cliente' : 'Novo Cadastro Corporativo'}</h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Provisionamento de base operacional</p>
                 </div>
               </div>
               <button onClick={closeModal} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all"><X size={28} /></button>
@@ -417,8 +417,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
             <form onSubmit={handleSubmit} className="p-12 space-y-12 overflow-y-auto custom-scrollbar flex-1">
               <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
-                <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })} className={`px-10 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${formData.type === 'PJ' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Empresa (PJ)</button>
-                <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })} className={`px-10 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${formData.type === 'PF' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Individual (PF)</button>
+                <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })} className={`px-10 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Empresa (PJ)</button>
+                <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })} className={`px-10 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Individual (PF)</button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -492,9 +492,9 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
               <Button
                 onClick={handleSubmit}
                 disabled={!!documentDuplicate}
-                className={`rounded-2xl px-20 shadow-2xl font-black italic uppercase ${documentDuplicate
+                className={`rounded-2xl px-20 shadow-sm font-bold uppercase transition-all ${documentDuplicate
                   ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                  : 'shadow-indigo-600/30'
+                  : 'bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]'
                   }`}
               >
                 <Save size={20} className="mr-3" /> Salvar Cadastro

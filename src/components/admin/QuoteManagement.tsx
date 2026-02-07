@@ -190,7 +190,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 </div>
                 <button
                     onClick={() => { resetForm(); setIsModalOpen(true); }}
-                    className="px-6 py-3 h-[46px] bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all flex items-center gap-2 whitespace-nowrap"
+                    className="px-6 py-3 h-[46px] bg-[#1c2d4f] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm shadow-[#1c2d4f]/10 hover:bg-[#253a66] transition-all flex items-center gap-2 whitespace-nowrap"
                 >
                     <Plus size={16} /> Novo Orçamento
                 </button>
@@ -233,14 +233,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             <span className="text-[10px] font-bold text-slate-600 uppercase">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'N/D'}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5 text-[12px] font-black text-emerald-600 italic">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                    <td className="px-6 py-5 text-[10px] font-black uppercase italic">
+                                    <td className="px-6 py-5 text-[12px] font-bold text-emerald-600">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-6 py-5 text-[10px] font-bold uppercase">
                                         {quote.linkedOrderId ? (
-                                            <span className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100 flex items-center gap-1 w-fit">
+                                            <span className="px-2 py-1 bg-slate-50 text-[#1c2d4f] rounded-lg border border-slate-200 flex items-center gap-1 w-fit">
                                                 <Link2 size={10} /> {quote.linkedOrderId}
                                             </span>
                                         ) : (
-                                            <span className="text-slate-300 italic">Sem Vínculo</span>
+                                            <span className="text-slate-300">Sem Vínculo</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-5">
@@ -340,12 +340,12 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                     <div className="bg-white rounded-[3.5rem] w-full max-w-5xl shadow-2xl overflow-hidden animate-fade-in-up my-auto">
                         <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl">
+                                <div className="w-12 h-12 bg-[#1c2d4f] rounded-2xl flex items-center justify-center text-white shadow-xl">
                                     <Calculator size={24} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-slate-900 uppercase italic">{selectedQuote ? 'Ajustar Proposta' : 'Nova Proposta Comercial'}</h2>
-                                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest leading-none">Validade, Vínculos e Itens Faturáveis.</p>
+                                    <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{selectedQuote ? 'Ajustar Proposta' : 'Nova Proposta Comercial'}</h2>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none">Validade, Vínculos e Itens Faturáveis.</p>
                                 </div>
                             </div>
                             <button onClick={() => setIsModalOpen(false)}><XCircle size={24} className="text-slate-400" /></button>
@@ -353,13 +353,13 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                         <div className="p-10 max-h-[65vh] overflow-y-auto custom-scrollbar space-y-8">
                             {/* Banner de Identidade Única */}
-                            <div className="p-6 bg-indigo-50 border border-indigo-100 rounded-[2rem] shadow-inner flex items-center justify-between">
+                            <div className="p-6 bg-slate-50 border border-slate-200 rounded-[2rem] shadow-inner flex items-center justify-between">
                                 <div>
-                                    <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block tracking-widest italic">Identificador Único Nexus</label>
-                                    <p className="text-3xl font-black text-indigo-600 uppercase italic tracking-tighter leading-none">{previewId}</p>
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase mb-1 block tracking-widest">Identificador Único Nexus</label>
+                                    <p className="text-3xl font-bold text-[#1c2d4f] uppercase tracking-tighter leading-none">{previewId}</p>
                                 </div>
                                 <div className="text-right">
-                                    <span className="px-3 py-1 bg-white text-indigo-600 rounded-full text-[8px] font-black uppercase shadow-sm border border-indigo-100">Código Automático</span>
+                                    <span className="px-3 py-1 bg-white text-[#1c2d4f] rounded-full text-[8px] font-bold uppercase shadow-sm border border-slate-200">Código Automático</span>
                                 </div>
                             </div>
 
@@ -525,7 +525,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 <button
                                     onClick={handleSaveQuote}
                                     disabled={!customerName || !title || items.length === 0}
-                                    className="px-10 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-lg shadow-indigo-600/20 disabled:opacity-50 transition-all hover:bg-indigo-700 hover:scale-[1.02]"
+                                    className="px-10 py-4 bg-[#1c2d4f] text-white rounded-2xl text-[10px] font-bold uppercase shadow-sm shadow-[#1c2d4f]/10 disabled:opacity-50 transition-all hover:bg-[#253a66] hover:scale-[1.02]"
                                 >
                                     Confirmar Orçamento <ArrowRight size={16} className="inline ml-2" />
                                 </button>

@@ -139,7 +139,7 @@ export const TechnicianManagement: React.FC = () => {
 
           <Button
             onClick={() => setIsModalOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-600/20 whitespace-nowrap text-white"
+            className="bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-[42px] font-bold uppercase text-[10px] tracking-widest shadow-sm shadow-emerald-500/10 whitespace-nowrap text-white"
           >
             <Plus size={16} className="mr-2" /> Novo Técnico
           </Button>
@@ -166,7 +166,7 @@ export const TechnicianManagement: React.FC = () => {
                         <img src={t.avatar} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
                         <button
                           onClick={(e) => { e.stopPropagation(); handleRandomizeAvatar(t); }}
-                          className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 text-white rounded-lg shadow-lg opacity-0 group-hover/avatar:opacity-100 transition-all hover:bg-indigo-700 scale-75 group-hover/avatar:scale-100"
+                          className="absolute -bottom-1 -right-1 p-1.5 bg-[#1c2d4f] text-white rounded-lg shadow-lg opacity-0 group-hover/avatar:opacity-100 transition-all hover:bg-[#253a66] scale-75 group-hover/avatar:scale-100"
                           title="Trocar Avatar Aleatório"
                         >
                           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
@@ -203,8 +203,8 @@ export const TechnicianManagement: React.FC = () => {
                   {editingId ? <Edit2 size={24} /> : <Plus size={24} />}
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter italic leading-none">{editingId ? 'Editar Técnico' : 'Novo Técnico'}</h2>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2 italic">Acesso exclusivo via App Móvel</p>
+                  <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingId ? 'Editar Técnico' : 'Novo Técnico'}</h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Acesso exclusivo via App Móvel</p>
                 </div>
               </div>
               <button
@@ -282,7 +282,7 @@ export const TechnicianManagement: React.FC = () => {
               <div className="pt-6">
                 <Button
                   type="submit"
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-5 font-black uppercase italic tracking-widest shadow-xl shadow-emerald-600/20 transition-all"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-5 font-bold uppercase tracking-widest shadow-sm shadow-emerald-500/10 transition-all border-none"
                 >
                   <Save size={20} className="mr-3" /> {editingId ? 'Salvar Alterações' : 'Confirmar Cadastro'}
                 </Button>

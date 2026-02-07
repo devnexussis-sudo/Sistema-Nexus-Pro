@@ -155,13 +155,13 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
         <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm">
           <button
             onClick={() => setActiveTab('list')}
-            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'list' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`px-4 py-2 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${activeTab === 'list' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
           >
             <div className="flex items-center gap-2"><Box size={14} /> Ativos</div>
           </button>
           <button
             onClick={() => setActiveTab('families')}
-            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'families' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`px-4 py-2 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${activeTab === 'families' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
           >
             <div className="flex items-center gap-2"><Layers size={14} /> Famílias</div>
           </button>
@@ -196,7 +196,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
           <Button
             onClick={() => setIsModalOpen(true)}
-            className="rounded-xl px-6 h-[46px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/20 whitespace-nowrap"
+            className="rounded-xl px-6 h-[46px] font-bold uppercase text-[10px] tracking-widest shadow-sm shadow-[#1c2d4f]/10 whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
           >
             <Plus size={16} className="mr-2" /> {activeTab === 'list' ? 'Novo' : 'Nova Categoria'}
           </Button>
@@ -304,14 +304,14 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
           <div className="bg-white rounded-[4rem] w-full max-w-3xl shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[92vh] animate-fade-in-up">
             <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[4rem]">
               <div className="flex items-center gap-6">
-                <div className="p-5 bg-indigo-600 rounded-[1.5rem] text-white shadow-xl shadow-indigo-600/20">
+                <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl">
                   {activeTab === 'list' ? <Box size={32} /> : <Layers size={32} />}
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">
+                  <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">
                     {activeTab === 'list' ? (editingId ? 'Atualizar Ativo' : 'Novo Registro de Ativo') : (editingId ? 'Editar Categoria' : 'Nova Categoria Técnica')}
                   </h2>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2 italic">Controle técnico de inventário</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Controle técnico de inventário</p>
                 </div>
               </div>
               <button onClick={closeModal} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>
@@ -362,7 +362,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
             <div className="p-10 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-6 rounded-b-[4rem]">
               <Button variant="secondary" className="rounded-2xl px-12" onClick={closeModal}>Descartar</Button>
-              <Button onClick={activeTab === 'list' ? handleSaveEquipment : handleSaveFamily} className="rounded-2xl px-20 shadow-2xl shadow-indigo-600/20 font-black italic uppercase">
+              <Button onClick={activeTab === 'list' ? handleSaveEquipment : handleSaveFamily} className="rounded-2xl px-20 shadow-sm font-bold uppercase bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]">
                 <Save size={20} className="mr-3" /> Gravar Ativo
               </Button>
             </div>
