@@ -258,14 +258,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         </div>
                                     </td>
                                     <td className="px-6 py-5 text-right pr-6">
-                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex justify-end gap-1.5 mt-1">
                                             {/* Visualizar Tudo */}
                                             <button
                                                 onClick={() => {
                                                     setViewQuote(quote);
                                                     setIsViewModalOpen(true);
                                                 }}
-                                                className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-900 hover:text-white transition-all shadow-sm border border-slate-100"
+                                                className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-all border border-slate-200/50"
                                                 title="Visualizar Completo"
                                             >
                                                 <Eye size={14} />
@@ -278,7 +278,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     navigator.clipboard.writeText(url);
                                                     alert('URL pública copiada para a área de transferência!');
                                                 }}
-                                                className="p-2.5 bg-primary-50 text-primary-600 rounded-xl hover:bg-primary-600 hover:text-white transition-all shadow-sm border border-primary-100"
+                                                className="p-2 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-all border border-primary-200/50"
                                                 title="Copiar URL Pública"
                                             >
                                                 <Link size={14} />
@@ -290,7 +290,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     const url = `${window.location.origin}${window.location.pathname}#/view-quote/${quote.publicToken || quote.id}`;
                                                     window.open(url, '_blank');
                                                 }}
-                                                className="p-2.5 bg-primary-50 text-primary-600 rounded-xl hover:bg-primary-600 hover:text-white transition-all shadow-sm border border-primary-100"
+                                                className="p-2 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-all border border-primary-200/50"
                                                 title="Abrir Link Público"
                                             >
                                                 <ExternalLink size={14} />
@@ -298,7 +298,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             {quote.status !== 'CONVERTIDO' && (
                                                 <button
                                                     onClick={() => handleConvertToOrder(quote)}
-                                                    className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-600/20 hover:scale-110 transition-all"
+                                                    className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-all border border-emerald-200/50"
                                                     title="Converter em O.S."
                                                 >
                                                     <ArrowUpRight size={14} />
@@ -315,13 +315,15 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     setLinkedOrderId(quote.linkedOrderId || '');
                                                     setIsModalOpen(true);
                                                 }}
-                                                className="p-2.5 bg-white text-slate-400 rounded-xl hover:text-primary-600 shadow-sm border border-slate-100"
+                                                className="p-2 bg-white text-primary-600 rounded-lg hover:bg-primary-50 transition-all border border-primary-100 shadow-sm"
+                                                title="Editar"
                                             >
                                                 <Edit3 size={14} />
                                             </button>
                                             <button
                                                 onClick={() => onDeleteQuote(quote.id)}
-                                                className="p-2.5 bg-white text-slate-400 rounded-xl hover:text-rose-600 shadow-sm border border-slate-100"
+                                                className="p-2 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-100 transition-all border border-rose-100"
+                                                title="Excluir"
                                             >
                                                 <Trash2 size={14} />
                                             </button>
