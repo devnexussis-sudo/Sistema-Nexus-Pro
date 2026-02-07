@@ -8,7 +8,7 @@ import { Button } from '../ui/Button';
 
 export const StockManagement: React.FC = () => {
     // Application State
-    const [activeTab, setActiveTab] = useState<'items' | 'categories'>('items');
+    const [activeTab, setActiveTab] = useState<'items' | 'categories' | 'techs' | 'movements'>('items');
 
     // --- Items State ---
     const [items, setItems] = useState<StockItem[]>([]);
@@ -51,6 +51,14 @@ export const StockManagement: React.FC = () => {
     const [selectedRestockItem, setSelectedRestockItem] = useState<StockItem | null>(null);
     const [restockQuantity, setRestockQuantity] = useState('');
 
+    // --- Technical Stock State ---
+    const [techs, setTechs] = useState<any[]>([]);
+    const [selectedTech, setSelectedTech] = useState<any | null>(null);
+    const [techStock, setTechStock] = useState<any[]>([]);
+    const [movements, setMovements] = useState<any[]>([]);
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+    const [transferData, setTransferData] = useState({ itemId: '', techId: '', quantity: '' });
+
     // --- Loaders ---
     const loadItems = async () => {
         setLoading(true);
@@ -68,15 +76,35 @@ export const StockManagement: React.FC = () => {
         try {
             const data = await DataService.getCategories();
             setCategories(data);
-            setAvailableCategories(data); // Using managed categories for filters now
+            setAvailableCategories(data);
         } catch (error) {
             console.error('Erro ao carregar categorias:', error);
+        }
+    };
+
+    const loadTechs = async () => {
+        try {
+            const data = await DataService.getUsers();
+            setTechs(data.filter(u => u.role === 'TECHNICIAN' || u.role === 'ADMIN'));
+        } catch (error) {
+            console.error('Erro ao carregar técnicos:', error);
+        }
+    };
+
+    const loadMovements = async () => {
+        try {
+            const data = await DataService.getServiceClient().from('stock_movements').select('*, stock_items(description), users:user_id(name)').order('created_at', { ascending: false }).limit(50);
+            if (data.data) setMovements(data.data);
+        } catch (error) {
+            console.error('Erro ao carregar movimentações:', error);
         }
     };
 
     useEffect(() => {
         loadItems();
         loadCategories();
+        loadTechs();
+        loadMovements();
     }, []);
 
     // --- Item Handlers ---
@@ -305,6 +333,12 @@ export const StockManagement: React.FC = () => {
                     <button onClick={() => setActiveTab('categories')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'categories' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
                         <Tag size={14} /> Categorias
                     </button>
+                    <button onClick={() => setActiveTab('techs')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'techs' ? 'bg-amber-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <UserCheck size={14} /> Estoque Técnico
+                    </button>
+                    <button onClick={() => setActiveTab('movements')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'movements' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <Scale size={14} /> Movimentações
+                    </button>
                 </div>
 
                 {/* Search */}
@@ -443,42 +477,156 @@ export const StockManagement: React.FC = () => {
                     </>
                 ) : (
                     <div className="p-10 flex-1 overflow-auto custom-scrollbar">
-                        {/* Categories View */}
-                        <h3 className="text-xl font-black text-slate-800 uppercase italic mb-6 flex items-center gap-3">
-                            <Tag className="text-emerald-500" /> Gerenciar Categorias
-                        </h3>
-
-                        {categories.length === 0 ? (
-                            <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
-                                <Tag size={40} className="mx-auto text-slate-300 mb-4" />
-                                <p className="text-slate-400 font-bold uppercase text-xs">Nenhuma categoria encontrada.</p>
-                                <button onClick={() => handleOpenCategoryModal()} className="mt-4 text-emerald-600 font-black text-[10px] uppercase hover:underline">
-                                    Criar Primeira Categoria
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {categories.map(cat => (
-                                    <div key={cat.id} className="p-6 bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-                                                <Layers size={18} />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-black text-slate-700 uppercase text-xs">{cat.name}</h4>
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase">{cat.active ? 'Ativo' : 'Inativo'}</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg">
-                                                <Edit3 size={14} />
-                                            </button>
-                                            <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg">
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
+                        {activeTab === 'categories' && (
+                            <>
+                                <h3 className="text-xl font-black text-slate-800 uppercase italic mb-6 flex items-center gap-3">
+                                    <Tag className="text-emerald-500" /> Gerenciar Categorias
+                                </h3>
+                                {categories.length === 0 ? (
+                                    <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                        <Tag size={40} className="mx-auto text-slate-300 mb-4" />
+                                        <p className="text-slate-400 font-bold uppercase text-xs">Nenhuma categoria encontrada.</p>
+                                        <button onClick={() => handleOpenCategoryModal()} className="mt-4 text-emerald-600 font-black text-[10px] uppercase hover:underline">
+                                            Criar Primeira Categoria
+                                        </button>
                                     </div>
-                                ))}
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {categories.map(cat => (
+                                            <div key={cat.id} className="p-6 bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                                        <Layers size={18} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-black text-slate-700 uppercase text-xs">{cat.name}</h4>
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase">{cat.active ? 'Ativo' : 'Inativo'}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg">
+                                                        <Edit3 size={14} />
+                                                    </button>
+                                                    <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {activeTab === 'techs' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-xl font-black text-slate-800 uppercase italic flex items-center gap-3">
+                                        <UserCheck className="text-amber-500" /> Estoque por Técnico
+                                    </h3>
+                                    <button
+                                        onClick={() => setIsTransferModalOpen(true)}
+                                        className="px-6 py-2.5 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20"
+                                    >
+                                        Nova Transferência
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                                    <div className="lg:col-span-1 space-y-2">
+                                        {techs.map(t => (
+                                            <button
+                                                key={t.id}
+                                                onClick={async () => {
+                                                    setSelectedTech(t);
+                                                    const stock = await DataService.getTechStock(t.id);
+                                                    setTechStock(stock);
+                                                }}
+                                                className={`w-full p-4 rounded-2xl border text-left transition-all ${selectedTech?.id === t.id ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-white border-slate-100 hover:border-amber-200'}`}
+                                            >
+                                                <p className="text-xs font-black text-slate-800 uppercase italic">{t.name}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase">{t.role === 'ADMIN' ? 'Administrador' : 'Técnico de Campo'}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="lg:col-span-3">
+                                        {selectedTech ? (
+                                            <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden min-h-[400px]">
+                                                <table className="w-full text-left">
+                                                    <thead className="bg-slate-50 border-b border-slate-200">
+                                                        <tr className="text-[10px] font-black text-slate-500 uppercase">
+                                                            <th className="px-6 py-4">Item</th>
+                                                            <th className="px-6 py-4">Quantidade</th>
+                                                            <th className="px-6 py-4 text-right">Valor Unit.</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {techStock.length === 0 ? (
+                                                            <tr><td colSpan={3} className="p-10 text-center text-[10px] font-bold text-slate-400 uppercase italic">Nenhum item em mãos</td></tr>
+                                                        ) : techStock.map(ts => (
+                                                            <tr key={ts.id}>
+                                                                <td className="px-6 py-4">
+                                                                    <p className="text-[11px] font-black text-slate-800 uppercase italic">{ts.item?.description}</p>
+                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Cód: {ts.item?.code}</p>
+                                                                </td>
+                                                                <td className="px-6 py-4">
+                                                                    <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11px] font-black">{ts.quantity}</span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <span className="text-[11px] font-black text-slate-700">R$ {ts.item?.sellPrice?.toFixed(2)}</span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center p-20 text-center">
+                                                <p className="text-xs font-black text-slate-300 uppercase italic tracking-widest">Selecione um técnico para ver o estoque</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'movements' && (
+                            <div className="space-y-6">
+                                <h3 className="text-xl font-black text-slate-800 uppercase italic flex items-center gap-3">
+                                    <Scale className="text-slate-800" /> Auditoria de Movimentações
+                                </h3>
+                                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-slate-50 border-b border-slate-200">
+                                            <tr className="text-[10px] font-black text-slate-500 uppercase">
+                                                <th className="px-6 py-4 text-center">Data</th>
+                                                <th className="px-6 py-4 text-center">Tipo</th>
+                                                <th className="px-6 py-4">Item</th>
+                                                <th className="px-6 py-4 text-center">Qtd.</th>
+                                                <th className="px-6 py-4 text-center">Fluxo</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {movements.map(m => (
+                                                <tr key={m.id} className="text-[11px]">
+                                                    <td className="px-6 py-4 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                            {m.type === 'TRANSFER' ? 'Transferência' : 'Consumo'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <p className="font-black text-slate-800 uppercase italic">{m.stock_items?.description}</p>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center font-bold text-slate-900">{m.quantity}</td>
+                                                    <td className="px-6 py-4 text-center text-[10px] font-bold text-slate-400 italic">
+                                                        {m.source} → {m.destination}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -864,6 +1012,91 @@ export const StockManagement: React.FC = () => {
                                     Salvar
                                 </Button>
                             </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            {/* TRANSFER MODAL */}
+            {isTransferModalOpen && (
+                <div className="fixed inset-0 z-[203] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-white/50">
+                        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <h2 className="text-lg font-black text-slate-800 uppercase italic flex items-center gap-2">
+                                <Scale className="text-amber-600" size={20} /> Transferência Provisória
+                            </h2>
+                            <button onClick={() => setIsTransferModalOpen(false)} className="text-slate-400 hover:text-rose-500 transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form className="p-8 space-y-6" onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (!transferData.itemId || !transferData.techId || !transferData.quantity) return;
+                            try {
+                                await DataService.transferToTech(transferData.techId, transferData.itemId, Number(transferData.quantity));
+                                setIsTransferModalOpen(false);
+                                alert('Transferência concluída com sucesso!');
+                                loadItems();
+                                loadMovements();
+                                if (selectedTech?.id === transferData.techId) {
+                                    const stock = await DataService.getTechStock(selectedTech.id);
+                                    setTechStock(stock);
+                                }
+                            } catch (error: any) {
+                                alert(error.message || 'Erro ao transferir.');
+                            }
+                        }}>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Item do Estoque Geral</label>
+                                    <select
+                                        required
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-100"
+                                        value={transferData.itemId}
+                                        onChange={e => setTransferData({ ...transferData, itemId: e.target.value })}
+                                    >
+                                        <option value="">Selecione o Item</option>
+                                        {items.map(i => (
+                                            <option key={i.id} value={i.id}>{i.description} ({i.quantity} {i.unit} disp.)</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Técnico Destino</label>
+                                    <select
+                                        required
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-100"
+                                        value={transferData.techId}
+                                        onChange={e => setTransferData({ ...transferData, techId: e.target.value })}
+                                    >
+                                        <option value="">Selecione o Técnico</option>
+                                        {techs.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Quantidade a Transferir</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="0.1"
+                                        step="0.1"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-100"
+                                        value={transferData.quantity}
+                                        onChange={e => setTransferData({ ...transferData, quantity: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black uppercase text-xs italic tracking-widest shadow-xl shadow-amber-500/20 transition-all active:scale-95"
+                            >
+                                Confirmar Envio ao Técnico
+                            </button>
                         </form>
                     </div>
                 </div>

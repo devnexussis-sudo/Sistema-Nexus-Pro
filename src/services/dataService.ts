@@ -1146,6 +1146,7 @@ export const DataService = {
       payment_method: order.paymentMethod,
       paid_at: order.paidAt,
       billing_notes: order.billingNotes,
+      linked_quotes: order.linkedQuotes || [],
       updated_at: new Date().toISOString()
     };
   },
@@ -2943,6 +2944,174 @@ export const DataService = {
     }
     const current = await DataService.getStockItems();
     setStorage(STORAGE_KEYS.STOCK, current.map(i => i.id === item.id ? item : i));
+  },
+
+  // --- Estoque Técnico e Movimentações ---
+
+  transferToTech: async (techId: string, itemId: string, quantity: number): Promise<void> => {
+    const tenantId = DataService.getCurrentTenantId();
+    if (isCloudEnabled && tenantId) {
+      const client = DataService.getServiceClient();
+
+      // 1. Reduz estoque geral
+      const { data: item } = await client.from('stock_items').select('quantity').eq('id', itemId).single();
+      if (!item || item.quantity < quantity) throw new Error('Saldo insuficiente no estoque geral');
+
+      await client.from('stock_items').update({ quantity: item.quantity - quantity }).eq('id', itemId);
+
+      // 2. Aumenta estoque do técnico (upsert)
+      const { data: currentTechStock } = await client.from('tech_stock')
+        .select('quantity')
+        .eq('user_id', techId)
+        .eq('stock_item_id', itemId)
+        .maybeSingle();
+
+      if (currentTechStock) {
+        await client.from('tech_stock')
+          .update({ quantity: currentTechStock.quantity + quantity, updated_at: new Date().toISOString() })
+          .eq('user_id', techId)
+          .eq('stock_item_id', itemId);
+      } else {
+        await client.from('tech_stock').insert([{
+          tenant_id: tenantId,
+          user_id: techId,
+          stock_item_id: itemId,
+          quantity: quantity
+        }]);
+      }
+
+      // 3. Registra movimentação (Audit)
+      await client.from('stock_movements').insert([{
+        tenant_id: tenantId,
+        item_id: itemId,
+        user_id: techId,
+        type: 'TRANSFER',
+        quantity: quantity,
+        source: 'GENERAL',
+        destination: 'TECH',
+        created_by: (await DataService.getCurrentUser())?.id
+      }]);
+    }
+  },
+
+  getTechStock: async (techId: string): Promise<any[]> => {
+    const tenantId = DataService.getCurrentTenantId();
+    if (isCloudEnabled && tenantId) {
+      const { data, error } = await DataService.getServiceClient()
+        .from('tech_stock')
+        .select('*, stock_items(*)')
+        .eq('user_id', techId)
+        .eq('tenant_id', tenantId);
+      if (error) throw error;
+      return data.map(ts => ({
+        id: ts.id,
+        stockItemId: ts.stock_item_id,
+        quantity: Number(ts.quantity),
+        item: ts.stock_items ? {
+          description: ts.stock_items.description,
+          code: ts.stock_items.code,
+          sellPrice: Number(ts.stock_items.sell_price)
+        } : null
+      }));
+    }
+    return [];
+  },
+
+  consumeTechStock: async (techId: string, stockItemId: string, quantity: number, orderId: string): Promise<void> => {
+    const tenantId = DataService.getCurrentTenantId();
+    if (isCloudEnabled && tenantId) {
+      // 1. Verificar se o técnico tem o item e em quantidade suficiente
+      const { data: techItems, error: fetchError } = await DataService.getServiceClient()
+        .from('tech_stock')
+        .select('*')
+        .eq('user_id', techId)
+        .eq('stock_item_id', stockItemId)
+        .eq('tenant_id', tenantId);
+
+      if (fetchError) throw fetchError;
+      if (!techItems || techItems.length === 0 || Number(techItems[0].quantity) < quantity) {
+        throw new Error(`Estoque insuficiente com o técnico para o item selecionado.`);
+      }
+
+      const currentTechQty = Number(techItems[0].quantity);
+
+      // 2. Deduzir do estoque do técnico
+      const { error: updateError } = await DataService.getServiceClient()
+        .from('tech_stock')
+        .update({
+          quantity: currentTechQty - quantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', techItems[0].id);
+
+      if (updateError) throw updateError;
+
+      // 3. Registrar a movimentação
+      const { error: moveError } = await DataService.getServiceClient()
+        .from('stock_movements')
+        .insert([{
+          tenant_id: tenantId,
+          stock_item_id: stockItemId,
+          user_id: techId,
+          type: 'CONSUMPTION',
+          quantity: quantity,
+          source: 'Técnico (' + techId.slice(0, 5) + ')',
+          destination: 'O.S. #' + orderId.slice(0, 8),
+          reference_id: orderId,
+          created_at: new Date().toISOString()
+        }]);
+
+      if (moveError) throw moveError;
+    }
+  },
+
+  // --- Fluxo de Caixa ---
+
+  registerCashFlow: async (entry: Partial<CashFlowEntry>): Promise<void> => {
+    const tenantId = DataService.getCurrentTenantId();
+    if (isCloudEnabled && tenantId) {
+      const dbEntry = {
+        tenant_id: tenantId,
+        type: entry.type,
+        category: entry.category,
+        amount: entry.amount,
+        description: entry.description,
+        reference_id: entry.referenceId,
+        reference_type: entry.referenceType,
+        payment_method: entry.paymentMethod,
+        entry_date: entry.entryDate || new Date().toISOString(),
+        created_by: (await DataService.getCurrentUser())?.id
+      };
+      const { error } = await DataService.getServiceClient().from('cash_flow').insert([dbEntry]);
+      if (error) throw error;
+    }
+  },
+
+  getCashFlow: async (filters?: { start?: string, end?: string }): Promise<CashFlowEntry[]> => {
+    const tenantId = DataService.getCurrentTenantId();
+    if (isCloudEnabled && tenantId) {
+      let query = DataService.getServiceClient().from('cash_flow').select('*').eq('tenant_id', tenantId);
+      if (filters?.start) query = query.gte('entry_date', filters.start);
+      if (filters?.end) query = query.lte('entry_date', filters.end);
+
+      const { data, error } = await query.order('entry_date', { ascending: false });
+      if (error) throw error;
+      return data.map(d => ({
+        id: d.id,
+        tenantId: d.tenant_id,
+        type: d.type,
+        category: d.category,
+        amount: Number(d.amount),
+        description: d.description,
+        referenceId: d.reference_id,
+        referenceType: d.reference_type,
+        paymentMethod: d.payment_method,
+        entryDate: d.entry_date,
+        createdAt: d.created_at,
+        createdBy: d.created_by
+      })) as CashFlowEntry[];
+    }
+    return [];
   },
 
   deleteStockItem: async (id: string): Promise<void> => {

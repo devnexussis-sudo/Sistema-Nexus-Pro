@@ -196,6 +196,7 @@ export interface ServiceOrder {
   paymentMethod?: string;
   paidAt?: string;
   billingNotes?: string;
+  linkedQuotes?: string[];
 }
 
 
@@ -334,4 +335,42 @@ export interface Category {
   name: string;
   type: 'stock' | 'service'; // To distinguish if needed later
   active: boolean;
+}
+
+export interface CashFlowEntry {
+  id: string;
+  tenantId: string;
+  type: 'INCOME' | 'EXPENSE';
+  category: string;
+  amount: number;
+  description: string;
+  referenceId?: string;
+  referenceType?: 'ORDER' | 'QUOTE';
+  paymentMethod?: string;
+  entryDate: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface TechStockItem {
+  id: string;
+  tenantId: string;
+  userId: string;
+  stockItemId: string;
+  quantity: number;
+  updatedAt: string;
+}
+
+export interface StockMovement {
+  id: string;
+  tenantId: string;
+  itemId: string;
+  userId?: string;
+  type: 'TRANSFER' | 'CONSUMPTION' | 'RESTOCK' | 'ADJUSTMENT';
+  quantity: number;
+  source: 'GENERAL' | 'TECH' | string;
+  destination: 'TECH' | 'ORDER' | string;
+  referenceId?: string;
+  createdAt: string;
+  createdBy: string;
 }

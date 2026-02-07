@@ -31,29 +31,80 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [billingNotes, setBillingNotes] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Linking logic
+    const availableQuotesForClient = useMemo(() => {
+        if (!selectedItem || selectedItem.type !== 'ORDER') return [];
+        return quotes.filter(q =>
+            q.customerName === selectedItem.customerName &&
+            (q.status === 'APROVADO' || q.status === 'CONVERTIDO') &&
+            !selectedItem.original.linkedQuotes?.includes(q.id)
+        );
+    }, [selectedItem, quotes]);
+
+    const handleLinkQuote = async (quoteId: string) => {
+        if (!selectedItem || selectedItem.type !== 'ORDER') return;
+        setIsProcessing(true);
+        try {
+            const currentLinks = selectedItem.original.linkedQuotes || [];
+            await DataService.updateOrder({
+                ...selectedItem.original,
+                linkedQuotes: [...currentLinks, quoteId]
+            });
+            await onRefresh();
+            setSelectedItem((prev: any) => ({
+                ...prev,
+                value: prev.value + (quotes.find(q => q.id === quoteId)?.totalValue || 0),
+                original: {
+                    ...prev.original,
+                    linkedQuotes: [...currentLinks, quoteId]
+                }
+            }));
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao vincular orçamento.");
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     // 1. Preparar Dados Unificados
     const allItems = useMemo(() => {
-        // Orçamentos Aprovados
-        const approvedQuotes = quotes.filter(q =>
-            q.status === 'APROVADO' || q.status === 'CONVERTIDO'
-        ).map(q => ({
-            type: 'QUOTE' as const,
-            id: q.id,
-            customerName: q.customerName,
-            customerAddress: q.customerAddress,
-            title: q.title,
-            description: q.description,
-            date: q.createdAt,
-            value: Number(q.totalValue) || 0,
-            status: q.billingStatus || 'PENDING',
-            original: q,
-            technician: 'Administrador' // Orçamentos geralmente não tem tech vinculado no início
-        }));
+        // IDs de orçamentos que já estão vinculados a alguma OS (para não duplicar na lista principal)
+        const linkedQuoteIds = new Set<string>();
+        orders.forEach(o => o.linkedQuotes?.forEach(id => linkedQuoteIds.add(id)));
+
+        // Orçamentos Aprovados (apenas os NÃO vinculados)
+        const approvedQuotes = quotes
+            .filter(q => (q.status === 'APROVADO' || q.status === 'CONVERTIDO') && !linkedQuoteIds.has(q.id))
+            .map(q => ({
+                type: 'QUOTE' as const,
+                id: q.id,
+                customerName: q.customerName,
+                customerAddress: q.customerAddress,
+                title: q.title,
+                description: q.description,
+                date: q.createdAt,
+                value: Number(q.totalValue) || 0,
+                status: q.billingStatus || 'PENDING',
+                original: q,
+                technician: 'Administrador'
+            }));
 
         // OS Concluídas
         const completedOrders = orders.filter(o => o.status === OrderStatus.COMPLETED).map(order => {
             const itemsValue = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
-            const value = itemsValue || (order.formData as any)?.totalValue || (order.formData as any)?.price || 0;
+            let value = itemsValue || (order.formData as any)?.totalValue || (order.formData as any)?.price || 0;
+
+            // Somar valores de orçamentos vinculados
+            if (order.linkedQuotes && order.linkedQuotes.length > 0) {
+                const linkedValues = order.linkedQuotes.reduce((acc, qId) => {
+                    const quote = quotes.find(q => q.id === qId);
+                    return acc + (Number(quote?.totalValue) || 0);
+                }, 0);
+                value += linkedValues;
+            }
+
+            const techObj = techs.find(t => t.id === order.assignedTo);
 
             return {
                 type: 'ORDER' as const,
@@ -66,14 +117,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 value: Number(value),
                 status: order.billingStatus || 'PENDING',
                 original: order,
-                technician: order.assignedTo || 'N/A'
+                technician: techObj?.name || order.assignedTo || 'N/A'
             };
         });
 
         return [...approvedQuotes, ...completedOrders].sort((a, b) =>
             new Date(b.date).getTime() - new Date(a.date).getTime()
         );
-    }, [orders, quotes]);
+    }, [orders, quotes, techs]);
 
     // 2. Aplicar Filtros
     const filteredItems = useMemo(() => {
@@ -135,6 +186,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 if (!item) continue;
 
                 if (item.type === 'ORDER') {
+                    // Atualizar OS
                     await DataService.updateOrder({
                         ...item.original,
                         billingStatus: 'PAID',
@@ -142,6 +194,22 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         billingNotes,
                         paidAt: new Date().toISOString()
                     });
+
+                    // Atualizar Orçamentos Vinculados
+                    if (item.original.linkedQuotes && item.original.linkedQuotes.length > 0) {
+                        for (const qId of item.original.linkedQuotes) {
+                            const quote = quotes.find(q => q.id === qId);
+                            if (quote) {
+                                await DataService.updateQuote({
+                                    ...quote,
+                                    billingStatus: 'PAID',
+                                    paymentMethod,
+                                    billingNotes: `Faturado via O.S. #${item.id.slice(0, 8)}`,
+                                    paidAt: new Date().toISOString()
+                                });
+                            }
+                        }
+                    }
                 } else {
                     await DataService.updateQuote({
                         ...item.original,
@@ -151,6 +219,18 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         paidAt: new Date().toISOString()
                     });
                 }
+
+                // REGISTRAR NO FLUXO DE CAIXA
+                await DataService.registerCashFlow({
+                    type: 'INCOME',
+                    category: item.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
+                    amount: item.value,
+                    description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${item.id.slice(0, 8)} - Cliente: ${item.customerName}`,
+                    referenceId: item.id,
+                    referenceType: item.type,
+                    paymentMethod: paymentMethod,
+                    entryDate: new Date().toISOString()
+                });
             }
             alert(`✅ ${selectedIds.length} Itens faturados com sucesso!`);
             setSelectedIds([]);
@@ -224,44 +304,52 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             </div>
 
             {/* Dash Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 flex-shrink-0">
-                <div className="bg-indigo-600 p-8 rounded-[2.5rem] shadow-xl shadow-indigo-600/20 text-white relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-125 transition-transform duration-500">
-                        <DollarSign size={80} />
+            {/* Minimalist Stats Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 flex-shrink-0">
+                <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <DollarSign size={20} />
                     </div>
-                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2">Total Realizado (Pago)</p>
-                    <h3 className="text-4xl font-black italic tracking-tighter">{formatCurrency(stats.totalFaturado)}</h3>
-                    <div className="mt-4 flex items-center gap-2 text-[10px] font-bold bg-white/10 w-fit px-3 py-1 rounded-full border border-white/20">
-                        <CheckCircle2 size={12} /> Fluxo de Caixa Ativo
-                    </div>
-                </div>
-
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-125 transition-transform duration-500 text-indigo-600">
-                        <TrendingUp size={80} />
-                    </div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Pendente de Recebimento</p>
-                    <h3 className="text-4xl font-black text-slate-900 italic tracking-tighter">{formatCurrency(stats.totalPendente)}</h3>
-                    <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-amber-600 bg-amber-50 w-fit px-3 py-1 rounded-full border border-amber-100">
-                        <AlertCircle size={12} /> {filteredItems.filter(i => i.status === 'PENDING').length} Itens em aberto
+                    <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Total Recebido</p>
+                        <h3 className="text-xl font-black text-slate-900">{formatCurrency(stats.totalFaturado)}</h3>
                     </div>
                 </div>
 
-                <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl shadow-slate-900/10 text-white relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:scale-125 transition-transform duration-500">
-                        <Bookmark size={80} className="text-indigo-400" />
+                <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <Clock size={20} />
                     </div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Destaque de Faturamento</p>
-                    <h3 className="text-xl font-black italic tracking-tighter mb-1 uppercase">{stats.topTech[0]}</h3>
-                    <p className="text-3xl font-black text-indigo-400 italic tracking-tighter">{formatCurrency(stats.topTech[1] as number)}</p>
-                    <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-indigo-300">
-                        <TrendingUp size={12} /> Melhor desempenho no período
+                    <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Pendente</p>
+                        <h3 className="text-xl font-black text-slate-900">{formatCurrency(stats.totalPendente)}</h3>
+                    </div>
+                </div>
+
+                <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <TrendingUp size={20} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Ticket Médio</p>
+                        <h3 className="text-xl font-black text-slate-900">{formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0)}</h3>
+                    </div>
+                </div>
+
+                <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+                        <UserCheck size={20} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Maior Faturamento</p>
+                        <h3 className="text-sm font-black text-slate-900 truncate uppercase italic">{stats.topTech[0]}</h3>
                     </div>
                 </div>
             </div>
 
             {/* List Table with Selection */}
-            <div className="bg-white rounded-[3rem] border border-slate-100 shadow-2xl flex flex-col overflow-hidden flex-1 min-h-0 relative">
+            {/* Minimalist Table View */}
+            <div className="bg-white border border-slate-200 rounded-2xl flex flex-col overflow-hidden flex-1 min-h-0 shadow-sm">
 
                 {/* Excel Export Button in Table Header */}
                 <div className="absolute top-6 right-8 z-20">
@@ -274,10 +362,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 </div>
 
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                    <table className="w-full text-left border-separate border-spacing-0">
-                        <thead className="sticky top-0 bg-white/95 backdrop-blur-md z-10">
-                            <tr className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                                <th className="p-8 border-b border-slate-50 w-20 text-center">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+                            <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                                <th className="px-6 py-4 w-12 text-center">
                                     <input
                                         type="checkbox"
                                         className="w-5 h-5 rounded-lg border-slate-200 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
@@ -288,14 +376,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         }}
                                     />
                                 </th>
-                                <th className="p-8 border-b border-slate-50">Documento / Cliente</th>
-                                <th className="p-8 border-b border-slate-50">Descrição Técnica</th>
-                                <th className="p-8 border-b border-slate-50">Técnico Resp.</th>
-                                <th className="p-8 border-b border-slate-50">Valor Bruto</th>
-                                <th className="p-8 border-b border-slate-50">Status</th>
+                                <th className="px-6 py-4">Documento / Cliente</th>
+                                <th className="px-6 py-4">Descrição</th>
+                                <th className="px-6 py-4">Técnico</th>
+                                <th className="px-6 py-4">Valor</th>
+                                <th className="px-6 py-4 text-center">Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
+                        <tbody className="divide-y divide-slate-100">
                             {filteredItems.map(item => (
                                 <tr
                                     key={item.id}
@@ -305,41 +393,34 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         setIsSidebarOpen(true);
                                     }}
                                 >
-                                    <td className="p-8 text-center" onClick={(e) => e.stopPropagation()}>
+                                    <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                                         <input
                                             type="checkbox"
-                                            className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                             checked={selectedIds.includes(item.id)}
                                             onChange={() => toggleSelect(item.id)}
                                         />
                                     </td>
-                                    <td className="p-8">
-                                        <div className="flex flex-col gap-1">
-                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg w-fit ${item.type === 'QUOTE' ? 'bg-blue-50 text-blue-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded w-fit mb-1 ${item.type === 'QUOTE' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
                                                 {item.type === 'QUOTE' ? 'ORC' : 'OS'}#{item.id.slice(0, 8)}
                                             </span>
-                                            <p className="text-sm font-black text-slate-900 italic tracking-tight">{item.customerName}</p>
-                                            <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1"><Calendar size={10} /> {new Date(item.date).toLocaleDateString('pt-BR')}</p>
+                                            <p className="text-xs font-bold text-slate-800 tracking-tight">{item.customerName}</p>
                                         </div>
                                     </td>
-                                    <td className="p-8">
-                                        <p className="text-[11px] font-black text-slate-700 uppercase italic line-clamp-1">{item.title}</p>
-                                        <p className="text-[10px] text-slate-400 line-clamp-1 mt-1 font-medium">{item.description || 'Sem descrição adicional'}</p>
+                                    <td className="px-6 py-4">
+                                        <p className="text-[11px] text-slate-600 line-clamp-1 truncate">{item.title}</p>
+                                        <p className="text-[10px] text-slate-400 truncate">{new Date(item.date).toLocaleDateString()}</p>
                                     </td>
-                                    <td className="p-8">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-[10px] font-black text-slate-400 border border-white">
-                                                {item.technician?.[0]}
-                                            </div>
-                                            <span className="text-[11px] font-black text-slate-700 italic">{item.technician}</span>
-                                        </div>
+                                    <td className="px-6 py-4">
+                                        <span className="text-[11px] font-medium text-slate-700 capitalize">{item.technician?.toLowerCase()}</span>
                                     </td>
-                                    <td className="p-8">
-                                        <span className="text-lg font-black text-slate-900 italic tracking-tighter">{formatCurrency(item.value)}</span>
+                                    <td className="px-6 py-4">
+                                        <span className="text-xs font-bold text-slate-900">{formatCurrency(item.value)}</span>
                                     </td>
-                                    <td className="p-8">
-                                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest ${item.status === 'PAID' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-amber-100 text-amber-600'}`}>
-                                            {item.status === 'PAID' ? <Check size={14} /> : <Clock size={14} />}
+                                    <td className="px-6 py-4 text-center">
+                                        <div className={`inline-flex items-center px-2.5 py-1 rounded text-[9px] font-bold uppercase ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                                             {item.status === 'PAID' ? 'Pago' : 'Pendente'}
                                         </div>
                                     </td>
@@ -440,6 +521,56 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     </button>
                                 </div>
                             </div>
+
+                            {/* Linked Quotes Section */}
+                            {selectedItem.type === 'ORDER' && (
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Orçamentos Vinculados</h4>
+
+                                    <div className="space-y-2">
+                                        {selectedItem.original.linkedQuotes?.map((qId: string) => {
+                                            const q = quotes.find(quote => quote.id === qId);
+                                            return q ? (
+                                                <div key={qId} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col">
+                                                    <div className="flex justify-between items-start">
+                                                        <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">ORC#{qId.slice(0, 8)}</span>
+                                                        <span className="text-xs font-bold text-slate-900">{formatCurrency(q.totalValue)}</span>
+                                                    </div>
+                                                    <p className="text-[10px] font-medium text-slate-700 mt-1">{q.title}</p>
+                                                </div>
+                                            ) : null;
+                                        })}
+
+                                        {(!selectedItem.original.linkedQuotes || selectedItem.original.linkedQuotes.length === 0) && (
+                                            <p className="text-[10px] text-slate-400 italic text-center py-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">Nenhum orçamento vinculado</p>
+                                        )}
+                                    </div>
+
+                                    {availableQuotesForClient.length > 0 && selectedItem.status === 'PENDING' && (
+                                        <div className="pt-2">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase mb-2">Vincular Novo Orçamento:</p>
+                                            <div className="space-y-2">
+                                                {availableQuotesForClient.map(q => (
+                                                    <button
+                                                        key={q.id}
+                                                        onClick={() => handleLinkQuote(q.id)}
+                                                        disabled={isProcessing}
+                                                        className="w-full p-4 bg-white border border-slate-200 rounded-2xl flex justify-between items-center hover:border-indigo-400 transition-all group"
+                                                    >
+                                                        <div className="text-left">
+                                                            <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-600">{q.title}</p>
+                                                            <p className="text-[9px] text-slate-400 uppercase font-black">ORC#{q.id.slice(0, 8)} - {formatCurrency(q.totalValue)}</p>
+                                                        </div>
+                                                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                                            <ChevronRight size={16} />
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {selectedItem.status === 'PAID' && (
                                 <div className="p-8 bg-emerald-50 border border-emerald-100 rounded-[2.5rem] space-y-4">

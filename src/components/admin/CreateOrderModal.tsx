@@ -102,13 +102,31 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     loadData();
   }, [initialData]);
 
-  const handleSelectTechnician = (techId: string) => {
+  const handleSelectTechnician = async (techId: string) => {
     if (isCompleted) return;
     setFormData(prev => ({
       ...prev,
       assignedTo: techId,
       status: techId ? OrderStatus.ASSIGNED : OrderStatus.PENDING
     }));
+
+    // Ao selecionar um técnico, carregar o estoque DELE para as peças
+    if (techId) {
+      try {
+        const techItems = await DataService.getTechStock(techId);
+        const formattedStock = techItems.map(ts => ({
+          ...ts.item,
+          id: ts.stockItemId,
+          quantity: ts.quantity
+        }));
+        setStock(formattedStock as any);
+      } catch (error) {
+        console.error('Erro ao carregar estoque do técnico:', error);
+      }
+    } else {
+      const generalStock = await DataService.getStockItems();
+      setStock(generalStock);
+    }
   };
 
   const handleSelectClient = (client: any) => {
@@ -206,8 +224,32 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
       console.log('Dados finais a serem enviados:', finalData);
 
-      await onSubmit(finalData);
-      console.log('✅ Ordem criada com sucesso!');
+      const orderResult: any = await onSubmit(finalData);
+
+      // Se a OS foi FINALIZADA ou é um novo protocolo com itens do estoque
+      // Dar baixa no estoque do técnico
+      if (formData.assignedTo && items.some(i => i.fromStock)) {
+        const orderId = orderResult?.id || initialData?.id;
+        if (orderId) {
+          for (const item of items) {
+            if (item.fromStock && item.stockItemId) {
+              try {
+                await DataService.consumeTechStock(
+                  formData.assignedTo,
+                  item.stockItemId,
+                  item.quantity,
+                  orderId
+                );
+              } catch (e) {
+                console.warn('Alerta de estoque:', e);
+                // Não bloqueia a criação da OS mas avisa
+              }
+            }
+          }
+        }
+      }
+
+      console.log('✅ Ordem processada com sucesso!');
       onClose();
     } catch (error: any) {
       console.error('❌ ERRO COMPLETO:', error);
