@@ -22,7 +22,7 @@ import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, RefreshCw, Package, ArrowRight,
-    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X
+    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone
 } from 'lucide-react';
 import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, Customer, Equipment, StockItem } from '../../types';
 import { Button } from '../../components/ui/Button';
@@ -333,6 +333,28 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                                 </button>
                             ))}
                         </nav>
+
+                        <div className="mt-6 pt-4 border-t border-white/5 mx-2">
+                            <a
+                                href="https://wa.me/553534227420"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3 justify-start'} py-2.5 rounded-lg transition-all duration-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 group`}
+                                title="Suporte Técnico"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="p-1.5 bg-emerald-500/20 rounded-md group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                                        <Phone size={14} className="text-emerald-400 group-hover:text-white" />
+                                    </div>
+                                    {!isSidebarCollapsed && (
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-100/90 group-hover:text-white">Suporte</span>
+                                            <span className="text-[8px] font-bold text-emerald-500/80 group-hover:text-emerald-400">Online Agora</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </a>
+                        </div>
                     </div>
 
                     <div className={`shrink-0 p-4 border-t border-white/5 flex flex-col gap-2 ${isSidebarCollapsed ? 'items-center' : ''}`}>
