@@ -29,7 +29,8 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
                 <img
                     src="/nexus-logo.png"
                     alt="Nexus Line"
-                    className={`${current.icon} w-auto max-w-full object-contain block`}
+                    style={{ height: current.icon.replace('h-', '') === '12' ? '48px' : current.icon.replace('h-', '') === '6' ? '24px' : '16px' }}
+                    className={`${current.icon} w-auto max-w-full object-contain`}
                     onLoad={() => setImageLoaded(true)}
                     onError={(e) => {
                         setImageLoaded(false);
