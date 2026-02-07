@@ -93,7 +93,13 @@ export const StockManagement: React.FC = () => {
 
     const loadMovements = async () => {
         try {
-            const data = await DataService.getServiceClient().from('stock_movements').select('*, stock_items(description), users:user_id(name)').order('created_at', { ascending: false }).limit(50);
+            // Simplified query to avoid 400 errors on join if RLS/Permissions issues exist
+            const data = await DataService.getServiceClient()
+                .from('stock_movements')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(50);
+
             if (data.data) setMovements(data.data);
         } catch (error) {
             console.error('Erro ao carregar movimentações:', error);
@@ -101,25 +107,30 @@ export const StockManagement: React.FC = () => {
     };
 
     useEffect(() => {
-        const tid = DataService.getCurrentTenantId();
-        if (tid) {
-            loadItems();
-            loadCategories();
-            loadTechs();
-            loadMovements();
-        } else {
-            console.warn("🛡️ [StockManagement] Tenant ID não detectado. Aguardando sincronização...");
-            // Tenta carregar novamente após um pequeno delay caso a sessão esteja inicializando
-            setTimeout(() => {
-                const retryTid = DataService.getCurrentTenantId();
-                if (retryTid) {
-                    loadItems();
-                    loadCategories();
-                    loadTechs();
-                    loadMovements();
-                }
-            }, 1000);
+        const init = async () => {
+            const user = await DataService.getCurrentUser();
+            const tid = user?.tenantId;
+
+            if (tid) {
+                loadItems();
+                loadCategories();
+                loadTechs();
+                loadMovements();
+            } else {
+                console.warn("🛡️ [StockManagement] Tenant ID não detectado. Aguardando sincronização...");
+                // Retry logic safely
+                setTimeout(async () => {
+                    const retryUser = await DataService.getCurrentUser();
+                    if (retryUser?.tenantId) {
+                        loadItems();
+                        loadCategories();
+                        loadTechs();
+                        loadMovements();
+                    }
+                }, 1000);
+            }
         }
+        init();
     }, []);
 
     // --- Item Handlers ---
@@ -449,8 +460,8 @@ export const StockManagement: React.FC = () => {
                                             <tr key={item.id} className="hover:bg-slate-50 transition-colors border-b border-slate-50">
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-indigo-600 uppercase">{item.code}</span>
-                                                        {item.externalCode && (
+                                                        <span className="text-[10px] font-black text-indigo-600 uppercase">{item?.code || '---'}</span>
+                                                        {item?.externalCode && (
                                                             <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1">
                                                                 <Barcode size={10} /> {item.externalCode}
                                                             </span>
@@ -458,22 +469,22 @@ export const StockManagement: React.FC = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <p className="text-[11px] font-bold text-slate-700 uppercase">{item.description}</p>
+                                                    <p className="text-[11px] font-bold text-slate-700 uppercase">{item?.description || 'Item sem descrição'}</p>
                                                     <div className="flex gap-2">
-                                                        <span className="text-[9px] text-slate-400 font-bold uppercase">{item.category || '-'}</span>
+                                                        <span className="text-[9px] text-slate-400 font-bold uppercase">{item?.category || '-'}</span>
                                                         <span className="text-[9px] text-slate-300 font-bold uppercase">•</span>
-                                                        <span className="text-[9px] text-slate-400 font-bold uppercase">{item.unit}</span>
+                                                        <span className="text-[9px] text-slate-400 font-bold uppercase">{item?.unit || 'UN'}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">{item.location}</td>
+                                                <td className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase">{item?.location || '-'}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`text-[11px] font-black ${item.quantity <= item.minQuantity ? 'text-rose-500' : 'text-slate-700'}`}>{item.quantity}</span>
-                                                        {item.quantity <= item.minQuantity && <AlertTriangle size={12} className="text-rose-500" />}
+                                                        <span className={`text-[11px] font-black ${(item?.quantity || 0) <= (item?.minQuantity || 0) ? 'text-rose-500' : 'text-slate-700'}`}>{item?.quantity || 0}</span>
+                                                        {(item?.quantity || 0) <= (item?.minQuantity || 0) && <AlertTriangle size={12} className="text-rose-500" />}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-[10px] font-bold text-slate-500">R$ {totalCost.toFixed(2)}</td>
-                                                <td className="px-6 py-4 text-[10px] font-bold text-slate-700">R$ {item.sellPrice.toFixed(2)}</td>
+                                                <td className="px-6 py-4 text-[10px] font-bold text-slate-700">R$ {(item?.sellPrice || 0).toFixed(2)}</td>
                                                 <td className="px-6 py-4">
                                                     <div className={`flex items-center gap-1 text-[10px] font-black ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
                                                         {margin >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
