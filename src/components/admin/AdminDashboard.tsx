@@ -353,19 +353,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </Button>
 
           <div className="flex items-center gap-3 ml-auto">
+            {/* Exportação Geral (Baseada em Filtros) */}
+            {selectedOrderIds.length === 0 && (
+              <div className="flex items-center gap-2 mr-2">
+                <button
+                  onClick={handleExportExcel}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100/50"
+                  title="Exportar Filtrados para Excel"
+                >
+                  <FileSpreadsheet size={14} /> Exportar Excel
+                </button>
+              </div>
+            )}
+
+            {/* Ações em Lote (Seleção) */}
             {selectedOrderIds.length > 0 && (
-              <div className="flex items-center gap-2 px-3 h-10 bg-slate-100 border border-slate-200 rounded-md animate-in fade-in slide-in-from-right-2">
-                <span className="text-xs font-bold text-slate-600">{selectedOrderIds.length} selecionados</span>
-                <div className="w-px h-4 bg-slate-300 mx-1" />
-                <button onClick={handleBatchPrint} className="p-1.5 text-slate-500 hover:text-slate-700 transition-colors" title="Imprimir"><Printer size={16} /></button>
-                <button onClick={handleExportExcel} className="p-1.5 text-slate-500 hover:text-slate-700 transition-colors" title="Excel"><FileSpreadsheet size={16} /></button>
-                <button onClick={() => setSelectedOrderIds([])} className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"><X size={16} /></button>
+              <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-900 rounded-[1.5rem] shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100">
+                <div className="flex flex-col pr-3 border-r border-slate-700">
+                  <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Selecionados</span>
+                  <span className="text-xs font-black text-white leading-none">{selectedOrderIds.length}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportExcel}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                    title="Exportar Seleção para Excel"
+                  >
+                    <FileSpreadsheet size={14} /> Excel
+                  </button>
+
+                  <button
+                    onClick={handleBatchPrint}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-slate-500/20 active:scale-95"
+                    title="Gerar PDF / Imprimir Seleção"
+                  >
+                    <FileText size={14} /> Exportar PDF
+                  </button>
+
+                  <div className="w-px h-6 bg-slate-700 mx-1" />
+
+                  <button
+                    onClick={() => setSelectedOrderIds([])}
+                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
+                    title="Limpar Seleção"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
             )}
 
             <Button
               variant="primary"
-              className="h-10 px-5 gap-2"
+              className="h-10 px-6 gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
               onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
             >
               <Plus size={16} /> Novo Atendimento
