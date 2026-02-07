@@ -21,12 +21,13 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
             (async () => {
                 try {
                     setIsFetchingPublicOrder(true);
-                    const [order, t] = await Promise.all([
-                        DataService.getPublicOrderById(publicOrderId),
-                        DataService.getAllTechnicians()
-                    ]);
+                    const order = await DataService.getPublicOrderById(publicOrderId);
+
+                    if (order && order.tenantId) {
+                        const t = await DataService.getPublicTechnicians(order.tenantId);
+                        setTechs(t);
+                    }
                     setFetchedPublicOrder(order);
-                    setTechs(t);
                 } catch (e) {
                     console.error(e);
                 } finally {
