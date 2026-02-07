@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { ServiceOrder, User, OrderStatus, OrderPriority, Customer } from '../../types';
+import { OrderStatus, OrderPriority, type ServiceOrder, type User, type Customer } from '../../types';
 import { Button } from '../ui/Button';
 import { StatusBadge, PriorityBadge } from '../ui/StatusBadge';
 import {
