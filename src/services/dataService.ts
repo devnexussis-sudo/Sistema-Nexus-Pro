@@ -1008,17 +1008,51 @@ export const DataService = {
 
   getPublicTechnicians: async (tenantId: string): Promise<any[]> => {
     if (isCloudEnabled) {
-      const { data, error } = await supabase.rpc('get_public_technicians', { p_tenant_id: tenantId });
-      if (error) {
-        console.error("Erro ao buscar técnicos públicos:", error);
+      // 🛡️ ESTRATÉGIA 1: Tentar RPC
+      try {
+        const { data, error } = await supabase.rpc('get_public_technicians', { p_tenant_id: tenantId });
+
+        if (!error && data) {
+          return (data || []).map(t => ({
+            ...t,
+            role: UserRole.TECHNICIAN,
+            email: '',
+            active: true
+          }));
+        }
+
+        if (error && (error.code === 'PGRST202' || error.message?.includes('404') || error.message?.includes('not found'))) {
+          console.warn("⚠️ RPC get_public_technicians não encontrado. Usando fallback.");
+        }
+      } catch (err) {
+        console.warn("⚠️ Erro RPC técnicos, usando fallback:", err);
+      }
+
+      // 🔄 ESTRATÉGIA 2: Fallback
+      try {
+        const { data, error } = await supabase
+          .from('technicians')
+          .select('id, name, avatar, tenant_id')
+          .eq('tenant_id', tenantId)
+          .eq('active', true);
+
+        if (error) {
+          console.error("❌ Erro ao buscar técnicos públicos (fallback):", error);
+          return [];
+        }
+
+        console.log("✅ Técnicos carregados via fallback");
+        return (data || []).map(t => ({
+          ...t,
+          role: UserRole.TECHNICIAN,
+          email: '',
+          active: true,
+          tenantId: t.tenant_id
+        }));
+      } catch (fallbackErr) {
+        console.error("❌ Erro crítico ao buscar técnicos:", fallbackErr);
         return [];
       }
-      return (data || []).map(t => ({
-        ...t,
-        role: UserRole.TECHNICIAN,
-        email: '',
-        active: true
-      }));
     }
     return [];
   },
@@ -2302,23 +2336,57 @@ export const DataService = {
 
   getPublicOrderById: async (id: string): Promise<ServiceOrder | null> => {
     if (isCloudEnabled) {
-      // 🛡️ Nexus Secure Fetch: Usa RPC público (bypass RLS controlado) em vez de Admin Key
-      const { data, error } = await supabase.rpc('get_public_order', { search_term: id });
+      // 🛡️ ESTRATÉGIA 1: Tentar RPC Seguro (Ideal)
+      try {
+        const { data, error } = await supabase.rpc('get_public_order', { search_term: id });
 
-      if (error) {
-        console.error("Erro RPC ao buscar OS pública:", error);
-        return null;
+        // Se RPC funcionou
+        if (!error && data && (Array.isArray(data) ? data.length > 0 : true)) {
+          const orderData = Array.isArray(data) ? data[0] : data;
+          return DataService._mapOrderFromDB(orderData);
+        }
+
+        // Se erro for 404 (função não existe), usa fallback
+        if (error && (error.code === 'PGRST202' || error.message?.includes('404') || error.message?.includes('not found'))) {
+          console.warn("⚠️ RPC get_public_order não encontrado. Usando fallback direto.");
+        } else if (error) {
+          console.error("Erro RPC ao buscar OS pública:", error);
+          // Continua para tentar fallback
+        }
+      } catch (err) {
+        console.warn("⚠️ Erro ao chamar RPC, tentando fallback:", err);
       }
 
-      // Se não retornou nada (array vazio ou null)
-      if (!data || (Array.isArray(data) && data.length === 0)) {
+      // 🔄 ESTRATÉGIA 2: Fallback - Query Direta (Temporário)
+      // Usa filtro público (apenas ordens com public_token preenchido)
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+        let query = supabase.from('orders').select('*');
+
+        if (isUuid) {
+          // Busca por token UUID
+          query = query.eq('public_token', id);
+        } else {
+          // Busca por ID, mas APENAS se tiver public_token (segurança)
+          query = query.eq('id', id).not('public_token', 'is', null);
+        }
+
+        const { data, error } = await query.single();
+
+        if (error) {
+          console.error("❌ Erro no fallback de busca pública:", error);
+          return null;
+        }
+
+        if (!data) return null;
+
+        console.log("✅ OS pública carregada via fallback (aplique as migrações SQL para melhor segurança)");
+        return DataService._mapOrderFromDB(data);
+      } catch (fallbackErr) {
+        console.error("❌ Erro crítico ao buscar OS pública:", fallbackErr);
         return null;
       }
-
-      const orderData = Array.isArray(data) ? data[0] : data;
-
-      // Mapping snake_case to camelCase
-      return DataService._mapOrderFromDB(orderData);
     }
     return null;
   },
