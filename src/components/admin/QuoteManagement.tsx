@@ -198,62 +198,58 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
             <div className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0 mx-2 mb-2">
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                    <table className="w-full border-separate border-spacing-y-0 px-8">
+                    <table className="w-full border-separate border-spacing-y-0">
                         <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
                             <tr className="border-b border-slate-100">
-                                <th className="px-8 py-6">Orçamento ID</th>
-                                <th className="px-6 py-6">Criado em</th>
-                                <th className="px-6 py-6">Cliente</th>
-                                <th className="px-6 py-6">Validade</th>
-                                <th className="px-6 py-6">Valor Total</th>
-                                <th className="px-6 py-6">Vínculo O.S.</th>
-                                <th className="px-6 py-6">Status</th>
-                                <th className="px-6 py-6 text-right pr-12">Ações</th>
+                                <th className="px-4 py-6">Orçamento ID</th>
+                                <th className="px-4 py-6">Criado em</th>
+                                <th className="px-4 py-6">Cliente</th>
+                                <th className="px-4 py-6">Validade</th>
+                                <th className="px-4 py-6">Valor Total</th>
+                                <th className="px-4 py-6">Vínculo O.S.</th>
+                                <th className="px-4 py-6 text-center">Status</th>
+                                <th className="px-4 py-6 text-right pr-6">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredQuotes.map(quote => (
                                 <tr key={quote.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
-                                    <td className="px-8 py-5">
-                                        <div className="flex flex-col">
-                                            <span className="text-[12px] font-black uppercase italic text-primary-600 tracking-tighter">{quote.id}</span>
-                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[150px]">{quote.title}</span>
+                                    <td className="px-4 py-4">
+                                        <div className="flex flex-col truncate max-w-[120px]">
+                                            <span className="text-[11px] font-black uppercase italic text-primary-600 tracking-tighter truncate">{quote.id}</span>
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">{quote.title}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center gap-2">
-                                            <Clock size={12} className="text-slate-400" />
+                                    <td className="px-4 py-4">
+                                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                            <Clock size={10} className="text-slate-400" />
                                             <span className="text-[10px] font-bold text-slate-600 uppercase">{new Date(quote.createdAt).toLocaleDateString()}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5 text-[10px] font-black uppercase italic text-slate-700">{quote.customerName}</td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center gap-2">
-                                            <Calendar size={12} className="text-slate-400" />
+                                    <td className="px-4 py-4 text-[10px] font-black uppercase italic text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
+                                    <td className="px-4 py-4">
+                                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                            <Calendar size={10} className="text-slate-400" />
                                             <span className="text-[10px] font-bold text-slate-600 uppercase">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'N/D'}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5 text-[12px] font-bold text-emerald-600">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                    <td className="px-6 py-5 text-[10px] font-bold uppercase">
+                                    <td className="px-4 py-4 text-[11px] font-bold text-emerald-600 whitespace-nowrap">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-4 py-4 text-[9px] font-bold uppercase whitespace-nowrap">
                                         {quote.linkedOrderId ? (
-                                            <span className="px-2 py-1 bg-slate-50 text-[#1c2d4f] rounded-lg border border-slate-200 flex items-center gap-1 w-fit">
-                                                <Link2 size={10} /> {quote.linkedOrderId}
+                                            <span className="px-1.5 py-0.5 bg-slate-50 text-[#1c2d4f] rounded-lg border border-slate-200 flex items-center gap-1 w-fit">
+                                                <Link2 size={10} /> {quote.linkedOrderId.slice(0, 8)}
                                             </span>
                                         ) : (
                                             <span className="text-slate-300">Sem Vínculo</span>
                                         )}
                                     </td>
-                                    <td className="px-6 py-5">
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase ${quote.status === 'ABERTO' ? 'bg-primary-50 text-primary-600' :
-                                            quote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600' :
-                                                quote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400' :
-                                                    'bg-rose-50 text-rose-500'
+                                    <td className="px-4 py-4 text-center whitespace-nowrap">
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase ${quote.status === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
+                                            quote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                quote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
+                                                    'bg-rose-50 text-rose-500 border border-rose-100'
                                             }`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${quote.status === 'ABERTO' ? 'bg-primary-600' :
-                                                quote.status === 'APROVADO' ? 'bg-emerald-600' :
-                                                    quote.status === 'CONVERTIDO' ? 'bg-emerald-400' :
-                                                        'bg-rose-600'
-                                                }`} />
+                                            <span className={`w-1 h-1 rounded-full animate-pulse ${quote.status === 'ABERTO' ? 'bg-primary-600' : quote.status === 'APROVADO' ? 'bg-emerald-600' : quote.status === 'CONVERTIDO' ? 'bg-emerald-400' : 'bg-rose-500'}`} />
                                             {quote.status}
                                         </div>
                                     </td>

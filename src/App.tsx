@@ -7,7 +7,7 @@ import { AdminApp } from './apps/admin/AdminApp';
 import { PublicApp } from './apps/public/PublicApp';
 import { MasterLogin } from './components/admin/MasterLogin';
 import { SuperAdminPage } from './components/admin/SuperAdminPage';
-import { Hexagon } from 'lucide-react';
+import { Hexagon, Phone } from 'lucide-react';
 
 const App: React.FC = () => {
   const [auth, setAuth] = useState<AuthState>(() => {
@@ -267,6 +267,22 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Floating Support Balloon */}
+      <a
+        href="https://wa.me/5500000000000" // Placeholder link
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-8 left-8 z-[9990] flex items-center gap-3 px-5 py-3 bg-[#1c2d4f] text-white rounded-full shadow-2xl hover:bg-[#253a66] transition-all hover:scale-105 group border border-white/10 backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-500"
+      >
+        <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <Phone size={14} className="text-white" />
+        </div>
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] leading-none">Suporte técnico</span>
+          <span className="text-[8px] text-emerald-400 font-bold uppercase mt-1">Online agora</span>
+        </div>
+      </a>
     </>
   );
 };

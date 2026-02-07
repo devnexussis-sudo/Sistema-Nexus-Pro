@@ -340,8 +340,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               {[1, 2, 3, 4].map((s) => (
                 <div key={s} className="flex items-center">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold transition-all border ${step === s
-                      ? 'bg-[#1c2d4f] border-[#1c2d4f] text-white shadow-md'
-                      : (step > s ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-50 border-slate-200 text-slate-400')
+                    ? 'bg-[#1c2d4f] border-[#1c2d4f] text-white shadow-md'
+                    : (step > s ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-50 border-slate-200 text-slate-400')
                     }`}>
                     {step > s ? <CheckCircle2 size={16} /> : s}
                   </div>
@@ -363,8 +363,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <button
                     onClick={() => setSearchMode('client')}
                     className={`px-8 py-2.5 rounded-lg text-xs font-bold transition-all ${searchMode === 'client'
-                        ? 'bg-[#1c2d4f] text-white shadow-md'
-                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                      ? 'bg-[#1c2d4f] text-white shadow-md'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                       }`}
                   >
                     Por Cliente
@@ -372,8 +372,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <button
                     onClick={() => setSearchMode('serial')}
                     className={`px-8 py-2.5 rounded-lg text-xs font-bold transition-all ${searchMode === 'serial'
-                        ? 'bg-[#1c2d4f] text-white shadow-md'
-                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                      ? 'bg-[#1c2d4f] text-white shadow-md'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                       }`}
                   >
                     Por Serial
@@ -452,8 +452,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         key={eq.id}
                         onClick={() => handleEquipmentToggle(eq.id)}
                         className={`flex items-center gap-4 p-5 rounded-xl border transition-all cursor-pointer group ${selectedEquipIds.includes(eq.id)
-                            ? 'border-[#1c2d4f] bg-[#1c2d4f05] ring-1 ring-[#1c2d4f]'
-                            : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
+                          ? 'border-[#1c2d4f] bg-[#1c2d4f05] ring-1 ring-[#1c2d4f]'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
                           }`}
                       >
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${selectedEquipIds.includes(eq.id) ? 'bg-[#1c2d4f] text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-slate-100'
@@ -561,8 +561,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         type="button"
                         onClick={() => handleSelectTechnician('')}
                         className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${formData.assignedTo === ''
-                            ? 'border-amber-200 bg-amber-50 shadow-sm'
-                            : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
+                          ? 'border-amber-200 bg-amber-50 shadow-sm'
+                          : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
                           }`}
                       >
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${formData.assignedTo === '' ? 'bg-amber-400 border-amber-500 text-white' : 'bg-white border-slate-200 text-slate-400 group-hover:text-amber-500'
@@ -581,8 +581,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                           type="button"
                           onClick={() => handleSelectTechnician(t.id)}
                           className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${formData.assignedTo === t.id
-                              ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
-                              : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
+                            ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
+                            : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
                             }`}
                         >
                           <div className="relative">
@@ -615,8 +615,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   type="button"
                   onClick={() => setFormData({ ...formData, showValueToClient: !formData.showValueToClient })}
                   className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all border ${formData.showValueToClient
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
                     }`}
                 >
                   {formData.showValueToClient ? <><Eye size={16} /> Visível para Cliente</> : <><EyeOff size={16} /> Oculto para Cliente</>}
@@ -628,47 +628,47 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                      <th className="px-8 py-5">Item / Descrição</th>
-                      <th className="px-8 py-5 w-32">Qtd</th>
-                      <th className="px-8 py-5 w-40">Unitário (R$)</th>
-                      <th className="px-8 py-5 w-40">Subtotal</th>
-                      <th className="px-8 py-5 text-center w-24">Ações</th>
+                      <th className="px-4 py-4">Item / Descrição</th>
+                      <th className="px-4 py-4 w-28 text-center">Qtd</th>
+                      <th className="px-4 py-4 w-32">Unitário (R$)</th>
+                      <th className="px-4 py-4 w-36">Subtotal</th>
+                      <th className="px-4 py-4 text-center w-20">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {items.map(item => (
                       <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                        <td className="px-8 py-4">
+                        <td className="px-4 py-3">
                           <input
                             type="text"
                             value={item.description}
                             onChange={e => updateItem(item.id, { description: e.target.value })}
-                            className="bg-transparent border-none text-xs font-bold text-slate-700 outline-none w-full focus:ring-0"
+                            className="bg-transparent border-none text-[11px] font-bold text-slate-700 outline-none w-full focus:ring-0 truncate"
                           />
                         </td>
-                        <td className="px-8 py-4">
+                        <td className="px-4 py-3">
                           <input
                             type="number"
                             step="0.1"
                             value={item.quantity}
                             onChange={e => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
-                            className="bg-slate-50 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none w-20 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all"
+                            className="bg-slate-50 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-700 outline-none w-16 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all text-center"
                           />
                         </td>
-                        <td className="px-8 py-4">
+                        <td className="px-4 py-3">
                           <input
                             type="number"
                             step="0.01"
                             value={item.unitPrice}
                             onChange={e => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                            className="bg-slate-50 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none w-32 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all"
+                            className="bg-slate-50 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-700 outline-none w-28 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all"
                           />
                         </td>
-                        <td className="px-8 py-4">
-                          <span className="text-sm font-bold text-slate-900">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <td className="px-4 py-3">
+                          <span className="text-[12px] font-black text-slate-900 whitespace-nowrap">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </td>
-                        <td className="px-8 py-4 text-center">
-                          <button onClick={() => removeItem(item.id)} className="p-2.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
+                        <td className="px-4 py-3 text-center">
+                          <button onClick={() => removeItem(item.id)} className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
                             <Trash2 size={16} />
                           </button>
                         </td>
