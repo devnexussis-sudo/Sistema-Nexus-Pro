@@ -979,9 +979,9 @@ export const DataService = {
 
 
 
-  getAllTechnicians: async (): Promise<any[]> => {
+  getAllTechnicians: async (tenantIdOverride?: string): Promise<any[]> => {
     if (isCloudEnabled) {
-      const tenantId = DataService.getCurrentTenantId();
+      const tenantId = tenantIdOverride || DataService.getCurrentTenantId();
       if (!tenantId) return [];
 
       const cacheKey = `techs_${tenantId}`;
@@ -1004,6 +1004,23 @@ export const DataService = {
     }
     const users = getStorage<UserWithPassword[]>(STORAGE_KEYS.USERS, MOCK_USERS_POOL);
     return users.filter(u => u.role === UserRole.TECHNICIAN);
+  },
+
+  getPublicTechnicians: async (tenantId: string): Promise<any[]> => {
+    if (isCloudEnabled) {
+      const { data, error } = await supabase.rpc('get_public_technicians', { p_tenant_id: tenantId });
+      if (error) {
+        console.error("Erro ao buscar técnicos públicos:", error);
+        return [];
+      }
+      return (data || []).map(t => ({
+        ...t,
+        role: UserRole.TECHNICIAN,
+        email: '',
+        active: true
+      }));
+    }
+    return [];
   },
 
   createTechnician: async (tech: any): Promise<any> => {
@@ -2285,44 +2302,23 @@ export const DataService = {
 
   getPublicOrderById: async (id: string): Promise<ServiceOrder | null> => {
     if (isCloudEnabled) {
-      // Tenta buscar pelo Token Seguro (UUID) primeiro, ou pelo ID (legado)
-      // Usamos adminSupabase para bypassar RLS mas buscamos apenas um registro específico
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      // 🛡️ Nexus Secure Fetch: Usa RPC público (bypass RLS controlado) em vez de Admin Key
+      const { data, error } = await supabase.rpc('get_public_order', { search_term: id });
 
-      let query = adminSupabase.from('orders').select('*');
-
-      if (isUuid) {
-        query = query.eq('public_token', id);
-      } else {
-        query = query.eq('id', id);
-      }
-
-      const { data, error } = await query.single();
       if (error) {
-        console.error("Erro ao buscar OS pública:", error);
+        console.error("Erro RPC ao buscar OS pública:", error);
         return null;
       }
 
-      // Mapping snake_case to camelCase for the frontend
-      return {
-        ...data,
-        tenantId: data.tenant_id,
-        customerName: data.customer_name || data.customerName,
-        customerAddress: data.customer_address || data.customerAddress,
-        operationType: data.operation_type || data.operationType,
-        equipmentName: data.equipment_name || data.equipmentName,
-        equipmentModel: data.equipment_model || data.equipmentModel,
-        equipmentSerial: data.equipment_serial || data.equipmentSerial,
-        createdAt: data.created_at || data.createdAt,
-        updatedAt: data.updated_at || data.updatedAt,
-        scheduledDate: data.scheduled_date || data.scheduledDate,
-        scheduledTime: data.scheduled_time || data.scheduledTime,
-        startDate: data.start_date || data.startDate,
-        endDate: data.end_date || data.endDate,
-        assignedTo: data.assigned_to || data.assignedTo,
-        formId: data.form_id || data.formId,
-        formData: data.form_data || data.formData
-      } as ServiceOrder;
+      // Se não retornou nada (array vazio ou null)
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        return null;
+      }
+
+      const orderData = Array.isArray(data) ? data[0] : data;
+
+      // Mapping snake_case to camelCase
+      return DataService._mapOrderFromDB(orderData);
     }
     return null;
   },
