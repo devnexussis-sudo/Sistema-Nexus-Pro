@@ -207,7 +207,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     }, [orders, searchTerm, statusFilter, startDateFilter, endDateFilter]);
 
     return (
-        <div className="p-8 space-y-6 animate-fade-in flex flex-col h-full bg-slate-50/20">
+        <div className="p-4 space-y-4 animate-fade-in flex flex-col h-full bg-slate-50/20">
             <div className="flex justify-between items-center">
                 <div>
                     <div className="flex items-center gap-3"><Briefcase className="text-[#1c2d4f]" size={32} /><h1 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">Gestão de Contratos</h1></div>
@@ -221,7 +221,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                 }} className="px-6 py-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm transition-all border border-[#1c2d4f]">Novo Contrato</button>
             </div>
 
-            <div className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0 mx-2 mb-2">
+            <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
                 {/* Toolbar de Filtros Unificada */}
                 <div className="p-6 border-b border-slate-50 bg-slate-50/30 space-y-4">
                     <div className="flex flex-col lg:flex-row justify-between items-center gap-4">

@@ -428,7 +428,7 @@ export const UserManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0 mx-2 mb-2">
+      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'users' ? (
             <table className="w-full border-separate border-spacing-y-3">

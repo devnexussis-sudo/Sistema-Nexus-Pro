@@ -288,7 +288,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   return (
-    <div className="p-6 animate-fade-in flex flex-col h-full bg-slate-50 overflow-hidden">
+    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50 overflow-hidden">
       {/* Search & Filter Toolbar */}
       <div className="mb-6 space-y-4">
         {/* Row 1: Search & Date Filters */}
@@ -418,7 +418,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       {/* Main Table Container */}
-      <div className="bg-white border border-slate-100 rounded-[2.5rem] shadow-sm flex flex-col overflow-hidden flex-1 mx-2 mb-2">
+      <div className="bg-white border border-slate-100 rounded-[2rem] shadow-sm flex flex-col overflow-hidden flex-1">
         <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-slate-50/80 backdrop-blur-md border-b border-slate-100 z-10">
