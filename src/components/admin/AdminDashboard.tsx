@@ -555,7 +555,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <label className="text-[11px] font-bold text-[#1c2d4f] uppercase tracking-wider flex items-center gap-2 mb-2">
                               <ShieldCheck size={14} /> Notas de Encerramento
                             </label>
-                            <p className="text-sm font-medium text-slate-700 leading-relaxed italic">{selectedOrder.notes}</p>
+                            <p className="text-sm font-medium text-slate-700 leading-relaxed">{selectedOrder.notes}</p>
                           </div>
                         )}
                       </div>
