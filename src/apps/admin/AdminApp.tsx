@@ -246,14 +246,14 @@ export const AdminApp: React.FC<AdminAppProps> = ({
         <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-sans">
             {/* Header Global */}
             <header className="h-14 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm px-4 shrink-0 border-b border-slate-200">
-                <div className="flex items-center gap-8">
-                    {/* Logo Area */}
-                    <div className={`${isSidebarCollapsed ? 'w-12' : 'w-56'} transition-all duration-300 ease-in-out flex items-center`}>
-                        <NexusBranding variant="dark" size="md" />
+                <div className="flex items-center">
+                    {/* Logo Area - Alinhada com a largura da Sidebar */}
+                    <div className={`${isSidebarCollapsed ? 'w-12' : 'w-56'} transition-all duration-300 ease-in-out flex items-center px-2`}>
+                        <NexusBranding variant="dark" size="lg" />
                     </div>
 
                     {/* View Title */}
-                    <div className="flex items-center gap-6 border-l border-slate-100 pl-8 h-8">
+                    <div className="flex items-center gap-6 border-l border-slate-100 pl-8 h-8 ml-4">
                         <h2 className="text-sm font-semibold text-slate-900 capitalize tracking-tight">
                             {menuItems.find(m => m.id === currentView)?.label || 'Dashboard'}
                         </h2>
