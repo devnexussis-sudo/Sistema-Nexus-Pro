@@ -449,7 +449,7 @@ export const UserManagement: React.FC = () => {
                           <img src={user.avatar} className="w-14 h-14 rounded-3xl border-2 border-white shadow-xl bg-slate-50 grayscale group-hover:grayscale-0 transition-all group-hover/avatar:scale-105" alt="" />
                           <button
                             onClick={(e) => { e.stopPropagation(); handleRandomizeAvatar(user); }}
-                            className="absolute -bottom-1 -right-1 p-1.5 bg-primary-600 text-white rounded-lg shadow-lg opacity-0 group-hover/avatar:opacity-100 transition-all hover:bg-primary-700 scale-75 group-hover/avatar:scale-100"
+                            className="absolute -bottom-1 -right-1 p-1.5 bg-primary-600 text-white rounded-lg shadow-lg transition-all hover:bg-primary-700 scale-90"
                           >
                             <RefreshCw size={12} />
                           </button>
@@ -472,8 +472,8 @@ export const UserManagement: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-8 py-6 rounded-r-[2rem] border border-slate-100 border-l-0 text-right pr-8">
-                      <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all">
-                        <button onClick={() => { setEditingUser(user); setFormData(user); setIsModalOpen(true); }} className="p-3.5 bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-white rounded-2xl shadow-sm border border-transparent hover:border-primary-100 transition-all" title="Editar Usuário">
+                      <div className="flex items-center justify-end gap-3 transition-all">
+                        <button onClick={() => { setEditingUser(user); setFormData(user); setIsModalOpen(true); }} className="p-3 bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-2xl shadow-sm border border-primary-100 transition-all" title="Editar Usuário">
                           <Edit3 size={20} />
                         </button>
                       </div>
@@ -498,14 +498,14 @@ export const UserManagement: React.FC = () => {
                       <FolderTree size={24} />
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-3 bg-slate-50 text-slate-400 hover:text-primary-600 rounded-xl transition-all" title="Configurar Regras de Acesso">
+                      <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-3 bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl transition-all border border-primary-100/50" title="Configurar Regras de Acesso">
                         <Settings size={18} />
                       </button>
                       {!group.isSystem && (
                         <button
                           onClick={() => setGroupToDelete(group)}
                           disabled={isSaving}
-                          className="p-3 bg-slate-50 text-slate-400 hover:text-red-500 rounded-xl transition-all disabled:opacity-50"
+                          className="p-3 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-xl transition-all disabled:opacity-50 border border-rose-100/50"
                         >
                           <Trash2 size={18} />
                         </button>

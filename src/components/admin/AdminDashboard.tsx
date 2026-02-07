@@ -395,10 +395,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </td>
                     <td className="px-4 py-3.5"><StatusBadge status={order.status} /></td>
                     <td className="px-4 py-3.5 text-right pr-6">
-                      <div className="flex items-center justify-end gap-1 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-1.5 transition-all">
                         <button
                           onClick={(e) => handleOpenPublicView(order, e)}
-                          className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-all"
+                          className="p-2 text-slate-500 bg-slate-100 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition-all border border-slate-200/50"
                           title="Compartilhar"
                         >
                           <Share2 size={16} />
@@ -406,7 +406,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-md disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                          className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all border border-primary-200/50"
                           title="Editar"
                         >
                           <Edit3 size={16} />
@@ -414,7 +414,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           onClick={(e) => handleCancelOrder(order, e)}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                          className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all border border-rose-200/50"
                           title="Cancelar"
                         >
                           <Ban size={16} />

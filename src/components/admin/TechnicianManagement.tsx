@@ -166,7 +166,7 @@ export const TechnicianManagement: React.FC = () => {
                         <img src={t.avatar} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
                         <button
                           onClick={(e) => { e.stopPropagation(); handleRandomizeAvatar(t); }}
-                          className="absolute -bottom-1 -right-1 p-1.5 bg-[#1c2d4f] text-white rounded-lg shadow-lg opacity-0 group-hover/avatar:opacity-100 transition-all hover:bg-[#253a66] scale-75 group-hover/avatar:scale-100"
+                          className="absolute -bottom-1 -right-1 p-1.5 bg-primary-600 text-white rounded-lg shadow-lg transition-all hover:bg-primary-700 scale-90"
                           title="Trocar Avatar Aleatório"
                         >
                           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
@@ -185,7 +185,7 @@ export const TechnicianManagement: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-8 py-6 rounded-r-[2rem] border border-slate-100 border-l-0 text-right pr-8">
-                    <button onClick={() => { setFormData(t); setEditingId(t.id); setIsModalOpen(true); }} className="p-3 text-slate-400 hover:text-emerald-600 bg-slate-50 hover:bg-white rounded-xl shadow-sm transition-all"><Edit2 size={18} /></button>
+                    <button onClick={() => { setFormData(t); setEditingId(t.id); setIsModalOpen(true); }} className="p-3 bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl shadow-sm border border-primary-100 transition-all"><Edit2 size={18} /></button>
                   </td>
                 </tr>
               ))}

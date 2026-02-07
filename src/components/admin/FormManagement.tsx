@@ -267,9 +267,9 @@ export const FormManagement: React.FC = () => {
                         <div className="p-3 bg-white rounded-2xl text-primary-600 shadow-sm"><Tag size={20} /></div>
                         <span className="font-bold text-gray-900 uppercase text-xs tracking-tight">{type.name}</span>
                       </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button onClick={() => { setEditingType(type); setIsTypeModalOpen(true); }} className="p-2 text-gray-400 hover:text-primary-600"><Edit2 size={16} /></button>
-                        <button onClick={(e) => handleDeleteType(type.id, e)} className="p-2 text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
+                      <div className="flex gap-1.5 transition-all">
+                        <button onClick={() => { setEditingType(type); setIsTypeModalOpen(true); }} className="p-2 bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-xl transition-all border border-primary-200/50" title="Editar"><Edit2 size={16} /></button>
+                        <button onClick={(e) => handleDeleteType(type.id, e)} className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-xl transition-all border border-rose-200/50" title="Excluir"><Trash2 size={16} /></button>
                       </div>
                     </div>
                   ))}
@@ -280,10 +280,10 @@ export const FormManagement: React.FC = () => {
               {activeTab === 'templates' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {filteredForms.map(form => (
-                    <div key={form.id} className="bg-gray-50/30 p-8 rounded-[3rem] border border-gray-100 hover:border-primary-200 hover:bg-white transition-all group relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                        <button onClick={() => { setEditingForm(form); setIsModalOpen(true); }} className="p-3 bg-white text-primary-600 rounded-2xl shadow-md"><Edit2 size={16} /></button>
-                        <button onClick={(e) => handleDeleteForm(form.id, e)} className="p-3 bg-white text-red-500 rounded-2xl shadow-md"><Trash2 size={16} /></button>
+                    <div key={form.id} className="bg-slate-50/30 p-8 rounded-[3rem] border border-slate-100 hover:border-primary-200 hover:bg-white transition-all group relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-6 transition-opacity flex gap-2">
+                        <button onClick={() => { setEditingForm(form); setIsModalOpen(true); }} className="p-3 bg-white text-primary-600 rounded-2xl shadow-md border border-primary-100 hover:bg-primary-50 transition-all" title="Editar"><Edit2 size={18} /></button>
+                        <button onClick={(e) => handleDeleteForm(form.id, e)} className="p-3 bg-white text-rose-500 rounded-2xl shadow-md border border-rose-100 hover:bg-rose-50 transition-all" title="Excluir"><Trash2 size={18} /></button>
                       </div>
                       <div className="p-5 bg-white rounded-[2rem] shadow-sm border border-gray-100 w-fit mb-6 text-primary-600"><FileText size={32} /></div>
                       <h3 className="text-xl font-black text-gray-900 mb-2 tracking-tight">{form.title}</h3>

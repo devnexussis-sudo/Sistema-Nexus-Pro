@@ -536,11 +536,11 @@ export const StockManagement: React.FC = () => {
                                                         <span className="text-[9px] font-bold text-slate-400 uppercase">{cat.active ? 'Ativo' : 'Inativo'}</span>
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 text-slate-300 hover:text-primary-500 hover:bg-primary-50 rounded-lg">
+                                                <div className="flex gap-2 transition-opacity">
+                                                    <button onClick={() => handleOpenCategoryModal(cat)} className="p-2 bg-primary-50 text-primary-600 hover:bg-primary-100 rounded-lg border border-primary-100/50" title="Editar">
                                                         <Edit3 size={14} />
                                                     </button>
-                                                    <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg">
+                                                    <button onClick={() => handleDeleteCategory(cat.id)} className="p-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-lg border border-rose-100/50" title="Excluir">
                                                         <Trash2 size={14} />
                                                     </button>
                                                 </div>
