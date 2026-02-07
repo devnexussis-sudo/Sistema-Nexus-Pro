@@ -259,7 +259,7 @@ const App: React.FC = () => {
 
       {/* Global Toast Layer */}
       {toast && (
-        <div className="fixed bottom-8 right-8 z-[9999] animate-in slide-in-from-right fade-in duration-300">
+        <div className="fixed bottom-24 right-8 z-[9999] animate-in slide-in-from-right fade-in duration-300">
           <div className={`px-6 py-4 rounded-2xl shadow-2xl border flex items-center gap-3 backdrop-blur-xl ${toast.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
             }`}>
             <div className={`w-2 h-2 rounded-full animate-pulse ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
@@ -270,10 +270,10 @@ const App: React.FC = () => {
 
       {/* Floating Support Balloon */}
       <a
-        href="https://wa.me/5500000000000" // Placeholder link
+        href="https://wa.me/553534227420"
         target="_blank"
         rel="noopener noreferrer"
-        className="fixed bottom-8 left-8 z-[9990] flex items-center gap-3 px-5 py-3 bg-[#1c2d4f] text-white rounded-full shadow-2xl hover:bg-[#253a66] transition-all hover:scale-105 group border border-white/10 backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-500"
+        className="fixed bottom-8 right-8 z-[9990] flex items-center gap-3 px-5 py-3 bg-[#1c2d4f] text-white rounded-full shadow-2xl hover:bg-[#253a66] transition-all hover:scale-105 group border border-white/10 backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-500"
       >
         <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20">
           <Phone size={14} className="text-white" />
