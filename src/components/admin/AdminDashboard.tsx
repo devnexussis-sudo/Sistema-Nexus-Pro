@@ -397,7 +397,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       {assignedTech ? (
                         <div className="flex items-center gap-2">
                           <img src={assignedTech.avatar} className="w-6 h-6 rounded-lg object-cover border border-slate-100" />
-                          <span className="text-[10px] font-black uppercase text-slate-500 italic">{assignedTech.name.split(' ')[0]}</span>
+                          <span className="text-[10px] font-black uppercase text-slate-500 italic">{assignedTech?.name?.split(' ')[0] || '---'}</span>
                         </div>
                       ) : <span className="text-[8px] text-slate-300 italic font-black">---</span>}
                     </td>
