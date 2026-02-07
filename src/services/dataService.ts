@@ -97,9 +97,6 @@ export const DataService = {
       const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
       if (urlTid) return urlTid;
 
-      // Prioridade 4: Shared Auth Fallback (Check direct Supabase session metadata)
-      // Note: This is sync, so it might return old value, but useful as last resort.
-
       return undefined;
     } catch (e) {
       console.error("[DataService] Critical Tenant Detection Error:", e);
@@ -661,12 +658,17 @@ export const DataService = {
     // 🔍 Nexus Deep Security: Fallback para tenant_id no banco
     if (!tenantId) {
       console.log('[DataService] 🕵️ Tenant não encontrado no metadata. Buscando no DB...');
-      // Usamos o cliente padrão autenticado (seguro e não trava)
       const { data: dbUser, error: dbError } = await supabase.from('users').select('tenant_id').eq('id', session.user.id).maybeSingle();
       if (dbError) console.error('[DataService] ❌ Erro ao buscar tenant_id no DB:', dbError);
+
       if (dbUser?.tenant_id) {
         tenantId = dbUser.tenant_id;
-        console.log('[DataService] ✅ Tenant recuperado do DB:', tenantId);
+        console.log('[DataService] ✅ Tenant recuperado do DB. Sincronizando metadados do JWT...');
+
+        // 🔄 Nexus Sync: Atualiza o metadata do Auth para que o JWT passe a ter o tenant_id (Necessário para RLS funcionar)
+        await supabase.auth.updateUser({
+          data: { tenantId: tenantId, tenant_id: tenantId }
+        });
       }
     }
 
