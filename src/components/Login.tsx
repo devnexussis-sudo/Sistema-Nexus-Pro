@@ -85,7 +85,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
           <div className="flex justify-center mb-6">
             <div
               onClick={handleLogoClick}
-              className={`relative p-4 rounded-[1.5rem] bg-gradient-to-br shadow-2xl cursor-pointer active:scale-90 transition-all ${logoClicks >= 3 ? 'ring-2 ring-purple-500 animate-pulse' : ''} ${roleMode === 'admin' ? 'from-indigo-500 to-blue-600' : 'from-emerald-500 to-teal-600'}`}
+              className={`relative p-4 rounded-[1.5rem] bg-gradient-to-br shadow-2xl cursor-pointer active:scale-90 transition-all ${logoClicks >= 3 ? 'ring-2 ring-indigo-500 animate-pulse' : ''} ${roleMode === 'admin' ? 'from-indigo-500 to-blue-600' : 'from-emerald-500 to-teal-600'}`}
             >
               <Hexagon size={40} className="text-white" fill="currentColor" fillOpacity={0.2} />
               <div className="absolute inset-0 flex items-center justify-center">

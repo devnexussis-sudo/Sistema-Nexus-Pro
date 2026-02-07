@@ -303,82 +303,82 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             {/* Header / Filtros */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 flex-shrink-0">
                 <div className="md:col-span-2 relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={16} />
                     <input
                         type="text"
                         placeholder="Pesquisar por cliente, título ou protocolo..."
-                        className="w-full bg-white border border-slate-200 rounded-3xl pl-12 pr-6 py-4 text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+                        className="w-full bg-white border border-slate-200 rounded-md pl-10 pr-4 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 transition-all shadow-sm"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                     />
                 </div>
 
-                <div className="flex bg-white border border-slate-200 rounded-3xl p-1 shadow-sm px-4 items-center">
-                    <Calendar size={18} className="text-indigo-500 mr-2" />
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer w-full" />
+                <div className="flex bg-white border border-slate-200 rounded-md p-1 shadow-sm px-3 items-center">
+                    <Calendar size={14} className="text-indigo-500 mr-2" />
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full" />
                     <span className="text-slate-300 mx-1">-</span>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer w-full" />
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full" />
                 </div>
 
-                <div className="flex bg-white border border-slate-200 rounded-3xl p-1 shadow-sm px-4 items-center">
-                    <UserCheck size={18} className="text-indigo-500 mr-2" />
+                <div className="flex bg-white border border-slate-200 rounded-md p-1 shadow-sm px-3 items-center">
+                    <UserCheck size={14} className="text-indigo-500 mr-2" />
                     <select
-                        className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer w-full h-full py-2"
+                        className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full h-full py-1.5"
                         value={techFilter}
                         onChange={e => setTechFilter(e.target.value)}
                     >
-                        <option value="ALL">Todos Técnicos</option>
+                        <option value="ALL">Técnicos</option>
                         {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                        <option value="Administrador">Administrador</option>
+                        <option value="Administrador">Admin</option>
                     </select>
                 </div>
             </div>
 
             {/* Stats Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 flex-shrink-0">
-                <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <DollarSign size={20} />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 flex-shrink-0">
+                <div className="bg-white border border-slate-200 p-4 rounded-md shadow-sm flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <DollarSign size={16} />
                     </div>
                     <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Total Recebido</p>
-                        <h3 className="text-xl font-black text-slate-900">{formatCurrency(stats.totalFaturado)}</h3>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Total Recebido</p>
+                        <h3 className="text-base font-medium text-slate-900 leading-none mt-0.5">{formatCurrency(stats.totalFaturado)}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                        <Clock size={20} />
+                <div className="bg-white border border-slate-200 p-4 rounded-md shadow-sm flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <Clock size={16} />
                     </div>
                     <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Pendente</p>
-                        <h3 className="text-xl font-black text-slate-900">{formatCurrency(stats.totalPendente)}</h3>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Pendente</p>
+                        <h3 className="text-base font-medium text-slate-900 leading-none mt-0.5">{formatCurrency(stats.totalPendente)}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                        <TrendingUp size={20} />
+                <div className="bg-white border border-slate-200 p-4 rounded-md shadow-sm flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <TrendingUp size={16} />
                     </div>
                     <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Ticket Médio</p>
-                        <h3 className="text-xl font-black text-slate-900">{formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0)}</h3>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Ticket Médio</p>
+                        <h3 className="text-base font-medium text-slate-900 leading-none mt-0.5">{formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0)}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
-                        <UserCheck size={20} />
+                <div className="bg-white border border-slate-200 p-4 rounded-md shadow-sm flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-md bg-slate-50 text-slate-600 flex items-center justify-center">
+                        <UserCheck size={16} />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Maior Faturamento</p>
-                        <h3 className="text-sm font-black text-slate-900 truncate uppercase italic">{stats.topTech[0]}</h3>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Maior Faturamento</p>
+                        <h3 className="text-xs font-medium text-slate-900 truncate uppercase mt-0.5">{stats.topTech[0]}</h3>
                     </div>
                 </div>
             </div>
 
             {/* List Table */}
-            <div className="bg-white border border-slate-200 rounded-2xl flex flex-col overflow-hidden flex-1 min-h-0 shadow-sm relative">
+            <div className="bg-white border border-slate-200 rounded-md flex flex-col overflow-hidden flex-1 min-h-0 shadow-sm relative">
                 <div className="absolute top-4 right-8 z-20">
                     <button
                         onClick={handleExportExcel}
@@ -463,8 +463,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
                     <div className="bg-slate-900/90 backdrop-blur-xl border border-white/20 px-10 py-5 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center gap-10">
                         <div className="flex flex-col">
-                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-1">Itens Selecionados</p>
-                            <p className="text-xl font-black text-white italic">{selectedIds.length} Registros</p>
+                            <p className="text-[9px] font-medium text-indigo-400 uppercase tracking-widest leading-none mb-1">Selecionados</p>
+                            <p className="text-lg font-bold text-white uppercase tracking-tight">{selectedIds.length} Itens</p>
                         </div>
                         <div className="h-10 w-[1px] bg-white/10" />
                         <div className="flex flex-col">
@@ -498,13 +498,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     {selectedItem.type === 'QUOTE' ? <FileText size={32} /> : <Wrench size={32} />}
                                 </div>
                                 <div>
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full ${selectedItem.status === 'PAID' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                            {selectedItem.status === 'PAID' ? 'Faturado/Pago' : 'Pendente de Pagamento'}
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className={`text-[9px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-md ${selectedItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                            {selectedItem.status === 'PAID' ? 'Faturado' : 'Pendente'}
                                         </span>
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-3 py-1 rounded-full">{selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</span>
+                                        <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-md">{selectedItem.type === 'QUOTE' ? 'Orçamento' : 'O.S'}</span>
                                     </div>
-                                    <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">#{selectedItem.id.slice(0, 12)}</h2>
+                                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight leading-none">#{selectedItem.id.slice(0, 12)}</h2>
                                 </div>
                             </div>
                             <button onClick={() => setIsSidebarOpen(false)} className="p-4 bg-white text-slate-400 hover:text-rose-500 rounded-2xl shadow-sm border border-slate-100 transition-all hover:rotate-90">
@@ -708,8 +708,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                                 <div className="space-y-8">
                                     <div>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Total Consolidado</p>
-                                        <div className="text-3xl font-bold text-slate-900 tracking-tight">
+                                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-2">Total</p>
+                                        <div className="text-2xl font-bold text-slate-900 tracking-tight">
                                             {formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}
                                         </div>
                                     </div>

@@ -248,7 +248,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
             <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm px-4 shrink-0 border-b border-slate-200">
                 <div className="flex items-center">
                     {/* Logo Area - Alinhada com a largura da Sidebar */}
-                    <div className={`${isSidebarCollapsed ? 'w-12 text-center' : 'w-56'} transition-all duration-300 ease-in-out flex items-center`}>
+                    <div className={`${isSidebarCollapsed ? 'w-12 justify-center' : 'w-56 justify-center'} transition-all duration-300 ease-in-out flex items-center overflow-hidden`}>
                         <NexusBranding variant="dark" size="lg" className="h-12" />
                     </div>
 

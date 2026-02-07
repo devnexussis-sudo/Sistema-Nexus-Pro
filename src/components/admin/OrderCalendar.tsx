@@ -93,7 +93,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
     switch (status) {
       case OrderStatus.COMPLETED: return 'bg-emerald-500 text-white border-emerald-600';
       case OrderStatus.IN_PROGRESS: return 'bg-blue-500 text-white border-blue-600';
-      case OrderStatus.ASSIGNED: return 'bg-violet-500 text-white border-violet-600';
+      case OrderStatus.ASSIGNED: return 'bg-indigo-500 text-white border-indigo-600';
       case OrderStatus.PENDING: return 'bg-amber-500 text-white border-amber-600';
       case OrderStatus.CANCELED: return 'bg-rose-500 text-white border-rose-600';
       case OrderStatus.BLOCKED: return 'bg-slate-500 text-white border-slate-600';
