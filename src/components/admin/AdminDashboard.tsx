@@ -72,13 +72,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const itemsValue = o.items?.reduce((acc, i) => acc + i.total, 0) || 0;
       const value = itemsValue || (o.formData as any)?.totalValue || (o.formData as any)?.price || 0;
 
+      const techObj = techs.find(t => t.id === o.assignedTo);
+
       return {
         'ID O.S.': o.id,
         'Data Agendada': o.scheduledDate,
         'Cliente': o.customerName,
         'Título': o.title,
         'Descrição': o.description,
-        'Técnico': o.assignedTo || 'N/A',
+        'Técnico': techObj?.name || o.assignedTo || 'N/A',
         'Status': o.status,
         'Prioridade': o.priority,
         'Valor Total': value,

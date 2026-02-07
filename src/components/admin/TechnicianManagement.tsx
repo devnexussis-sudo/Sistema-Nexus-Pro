@@ -7,7 +7,8 @@ import {
   Smartphone, Search, Filter, RefreshCw
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
-import { User as UserType, UserRole } from '../../types';
+import { User as UserType, UserRole, OrderStatus } from '../../types';
+import { StatusBadge } from '../ui/StatusBadge';
 
 export const TechnicianManagement: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
