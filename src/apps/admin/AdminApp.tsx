@@ -22,7 +22,7 @@ import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, RefreshCw, Package, ArrowRight,
-    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff
+    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X
 } from 'lucide-react';
 import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, Customer, Equipment, StockItem } from '../../types';
 import { Button } from '../../components/ui/Button';
