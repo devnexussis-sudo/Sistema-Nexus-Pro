@@ -1,5 +1,9 @@
 
-import { ServiceOrder, User, OrderStatus, UserRole, FormTemplate, FormFieldType, Customer, Equipment, StockItem, UserPermissions, UserGroup, DEFAULT_PERMISSIONS } from '../types';
+import {
+  ServiceOrder, User, OrderStatus, UserRole, FormTemplate, FormFieldType, Customer, Equipment,
+  StockItem, UserPermissions, UserGroup, DEFAULT_PERMISSIONS,
+  CashFlowEntry, TechStockItem, StockMovement
+} from '../types';
 import { MOCK_USERS, MOCK_ORDERS } from '../constants';
 import { supabase, adminSupabase } from '../lib/supabase';
 import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
@@ -91,6 +95,34 @@ export const DataService = {
     } catch (e) {
       console.error("[DataService] Tenant Error:", e);
       return undefined;
+    }
+  },
+
+  getCurrentUser: async (): Promise<User | null> => {
+    try {
+      // Prioridade 1: Session Storage
+      const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
+      if (userStr) {
+        return typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
+      }
+
+      // Prioridade 2: Local Storage (Tech App)
+      const techSession = localStorage.getItem('nexus_tech_session') || localStorage.getItem('nexus_tech_persistent');
+      if (techSession) {
+        return JSON.parse(techSession);
+      }
+
+      // Fallback: Supabase Auth Session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        // Mapear do Auth para o nosso tipo User se necessário, mas geralmente temos o perfil no storage
+        return null;
+      }
+
+      return null;
+    } catch (e) {
+      console.error("[DataService] User Error:", e);
+      return null;
     }
   },
 
