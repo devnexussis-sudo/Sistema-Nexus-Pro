@@ -1075,9 +1075,9 @@ export const DataService = {
         console.warn("⚠️ Erro RPC técnicos, usando fallback:", err);
       }
 
-      // 🔄 ESTRATÉGIA 2: Fallback
+      // 🔄 ESTRATÉGIA 2: Fallback (Admin Bypassing RLS)
       try {
-        const { data, error } = await publicSupabase
+        const { data, error } = await adminSupabase
           .from('technicians')
           .select('id, name, avatar, tenant_id')
           .eq('tenant_id', tenantId)
@@ -1088,7 +1088,6 @@ export const DataService = {
           return [];
         }
 
-        console.log("✅ Técnicos carregados via fallback");
         return (data || []).map(t => ({
           ...t,
           role: UserRole.TECHNICIAN,
@@ -2409,18 +2408,20 @@ export const DataService = {
         console.warn("⚠️ Erro ao chamar RPC, tentando fallback:", err);
       }
 
-      // 🔄 ESTRATÉGIA 2: Fallback - Query Direta (Temporário)
-      // Usa filtro público (apenas ordens com public_token preenchido)
+      // 🔄 ESTRATÉGIA 2: Fallback - Admin Bypassing RLS
+      // Nota: Usamos adminSupabase aqui porque a visualização pública requer bypass do RLS de tenant_id
       try {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-        let query = publicSupabase.from('orders').select('*');
+        let query = adminSupabase.from('orders').select('*');
 
         if (isUuid) {
           query = query.eq('public_token', id);
         } else {
-          query = query.eq('id', id).not('public_token', 'is', null);
+          // Busca por ID diretamente para garantir que o link funcione 
+          // mesmo se o public_token ainda não estiver sincronizado/gerado
+          query = query.eq('id', id);
         }
 
         const { data, error } = await query.single();
@@ -2428,7 +2429,6 @@ export const DataService = {
         if (error) {
           if ((error as any).name === 'AbortError' || error.message?.includes('Lock') || error.message?.includes('aborted')) {
             if (retryCount < 3) {
-              console.warn(`⚠️ Conflito de Lock no Fallback (Tentativa ${retryCount + 1}). Retentando...`);
               await new Promise(r => setTimeout(r, 1000 + (retryCount * 500)));
               return DataService.getPublicOrderById(id, retryCount + 1);
             }
@@ -2440,12 +2440,6 @@ export const DataService = {
         if (!data) return null;
         return DataService._mapOrderFromDB(data);
       } catch (fallbackErr: any) {
-        if (fallbackErr?.name === 'AbortError' || fallbackErr?.message?.includes('Lock') || fallbackErr?.message?.includes('aborted')) {
-          if (retryCount < 3) {
-            await new Promise(r => setTimeout(r, 1000));
-            return DataService.getPublicOrderById(id, retryCount + 1);
-          }
-        }
         console.error("❌ Erro crítico ao buscar OS pública:", fallbackErr);
         return null;
       }

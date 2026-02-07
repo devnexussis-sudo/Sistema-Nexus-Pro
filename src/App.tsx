@@ -116,9 +116,12 @@ const App: React.FC = () => {
     };
 
     const initApp = async () => {
-      // Se for link público, não precisamos inicializar sessão completa agora
-      // O PublicApp cuidará de si mesmo
-      if (publicOrderId || publicQuoteId) {
+      // 🛡️ Nexus Public Route Detector: Verifica o hash diretamente para evitar delay de estado
+      const hash = window.location.hash;
+      const isPublic = hash.startsWith('#/view/') || hash.startsWith('#/view-quote/');
+
+      if (isPublic) {
+        console.log('[App] 🌐 Rota Pública detectada. Ignorando Heartbeat de sessão.');
         setIsInitializing(false);
         return;
       }
