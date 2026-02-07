@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User, ServiceOrder, AuthState, UserRole, OrderStatus } from '../../../../types';
 import { DataService } from '../../../../services/dataService';
+import SessionStorage, { GlobalStorage } from '../../../../lib/sessionStorage';
 
 interface PaginationState {
     page: number;
@@ -16,6 +17,12 @@ interface FilterState {
     endDate: string;
 }
 
+interface ConnectivityState {
+    isOnline: boolean;
+    isSessionValid: boolean;
+    lastSync: string | null;
+}
+
 interface TechContextType {
     auth: AuthState;
     orders: ServiceOrder[];
@@ -23,32 +30,87 @@ interface TechContextType {
     gpsStatus: 'active' | 'error' | 'inactive';
     pagination: PaginationState;
     filters: FilterState;
+    connectivity: ConnectivityState;
     login: (email: string, pass: string) => Promise<void>;
     logout: () => void;
-    refreshData: (params?: { page?: number; newFilters?: Partial<FilterState> }) => Promise<void>;
+    refreshData: (params?: { page?: number; newFilters?: Partial<FilterState>; silent?: boolean }) => Promise<void>;
     updateOrderStatus: (id: string, status: OrderStatus, notes?: string, formData?: any) => Promise<void>;
 }
 
 const TechContext = createContext<TechContextType | undefined>(undefined);
 
+// 🛡️ CACHE KEYS CONSTANTS
+const STORAGE_KEYS = {
+    SESSION: 'nexus_tech_session_v2',
+    CACHE: 'nexus_tech_cache_v2',
+    CACHE_META: 'nexus_tech_cache_meta_v2',
+    TENANT: 'tenant_id',
+    LAST_SYNC: 'nexus_tech_last_sync'
+} as const;
+
 export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    // 🔐 AUTH STATE com recuperação multi-camada
     const [auth, setAuth] = useState<AuthState>(() => {
-        const stored = localStorage.getItem('nexus_tech_session_v2');
-        if (stored) {
-            try {
+        try {
+            // Priority 1: localStorage
+            const stored = localStorage.getItem(STORAGE_KEYS.SESSION);
+            if (stored) {
                 const user = JSON.parse(stored);
+                // Restaurar tenant_id para o SessionStorage
+                if (user.tenantId) {
+                    SessionStorage.set(STORAGE_KEYS.TENANT, user.tenantId);
+                }
                 return { user, isAuthenticated: true };
-            } catch { return { user: null, isAuthenticated: false }; }
+            }
+
+            // Priority 2: SessionStorage fallback
+            const sessionUser = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
+            if (sessionUser) {
+                const user = typeof sessionUser === 'string' ? JSON.parse(sessionUser) : sessionUser;
+                if (user.role === UserRole.TECHNICIAN) {
+                    localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(user));
+                    return { user, isAuthenticated: true };
+                }
+            }
+        } catch (e) {
+            console.error('[TechContext] Erro ao recuperar sessão:', e);
         }
         return { user: null, isAuthenticated: false };
     });
 
-    const [orders, setOrders] = useState<ServiceOrder[]>([]);
+    const [orders, setOrders] = useState<ServiceOrder[]>(() => {
+        // 📦 OFFLINE-FIRST: Carrega cache imediatamente
+        try {
+            const cached = localStorage.getItem(STORAGE_KEYS.CACHE);
+            if (cached) {
+                console.log('[TechContext] ⚡ Cache carregado (Offline-First)');
+                return JSON.parse(cached);
+            }
+        } catch (e) {
+            console.error('[TechContext] Erro ao carregar cache:', e);
+        }
+        return [];
+    });
+
     const [isSyncing, setIsSyncing] = useState(false);
     const [gpsStatus, setGpsStatus] = useState<'active' | 'error' | 'inactive'>('inactive');
+    const [connectivity, setConnectivity] = useState<ConnectivityState>({
+        isOnline: navigator.onLine,
+        isSessionValid: true,
+        lastSync: localStorage.getItem(STORAGE_KEYS.LAST_SYNC)
+    });
 
     // Estado local de paginação e filtros
-    const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0, totalPages: 0 });
+    const [pagination, setPagination] = useState<PaginationState>(() => {
+        try {
+            const meta = localStorage.getItem(STORAGE_KEYS.CACHE_META);
+            if (meta) {
+                return JSON.parse(meta);
+            }
+        } catch (e) { }
+        return { page: 1, limit: 10, total: 0, totalPages: 0 };
+    });
+
     const [filters, setFilters] = useState<FilterState>(() => {
         // Default: Dia Atual
         const today = new Date().toISOString().split('T')[0];
@@ -57,6 +119,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const watchIdRef = useRef<number | null>(null);
     const mountedRef = useRef(true);
+    const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // 📍 MOTOR GPS 2.0 (Resiliente)
     const startGPS = useCallback(() => {
@@ -69,18 +132,15 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             async (pos) => {
                 const { latitude, longitude } = pos.coords;
                 try {
-                    // Update silencioso
                     await DataService.updateTechnicianLocation(auth.user!.id, latitude, longitude);
                 } catch (e) { }
             },
             (err) => {
-                // Filtra erros comuns de ambiente de desenvolvimento/perda de sinal momentânea
                 if (err.message.includes('Timeout') || err.message.includes('unavailable') || err.message.includes('kCLErrorLocationUnknown')) {
-                    console.debug("[GPS-V2] ℹ️ Sinal instável ou indisponível (Tentando novamente...):", err.message);
+                    console.debug("[GPS-V2] ℹ️ Sinal instável (tentando novamente):", err.message);
                 } else {
                     console.warn("[GPS-V2] ⚠️ Erro de sinal:", err.message);
                 }
-                // Não desativa, apenas loga. Em túneis o sinal volta sozinho.
             },
             { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 }
         );
@@ -95,24 +155,25 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     // 🔄 MOTOR DE SINCRONIZAÇÃO (Inteligente)
-    const refreshData = useCallback(async (params?: { page?: number; newFilters?: Partial<FilterState> }) => {
-        if (!auth.user?.id) return;
+    const refreshData = useCallback(async (params?: { page?: number; newFilters?: Partial<FilterState>; silent?: boolean }) => {
+        if (!auth.user?.id) {
+            console.warn('[TechContext] ⚠️ refreshData chamado sem user autenticado');
+            return;
+        }
 
-        setIsSyncing(true);
+        if (!params?.silent) setIsSyncing(true);
 
-        // Calcula novos estados baseados nos params ou usa o atual
         const targetPage = params?.page || (params?.newFilters ? 1 : pagination.page);
         const targetFilters = { ...filters, ...(params?.newFilters || {}) };
 
-        // Se mudou filtros, atualiza estado
         if (params?.newFilters) setFilters(targetFilters);
 
         try {
-            console.log(`[TechContext] Fetching page ${targetPage} with filters:`, targetFilters);
+            console.log(`[TechContext] 📡 Sincronizando página ${targetPage}...`);
 
             const { orders: fetchedOrders, total } = await DataService.getOrdersPaginated(
                 targetPage,
-                10, // Limit fixo 10 por página conforme solicitado
+                10,
                 auth.user.id,
                 {
                     status: targetFilters.status === 'ALL' ? undefined : targetFilters.status,
@@ -122,50 +183,134 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             );
 
             if (mountedRef.current) {
-                // Se for página 1, substitui. Se for > 1, append (opcional, mas aqui vamos substituir pq é paginação clássica ou load more?)
-                // O usuário pediu "mudar de página abaixo", então é substituição clássica de lista, não infinite scroll.
                 setOrders(fetchedOrders);
-                setPagination({
+                const newPagination = {
                     page: targetPage,
                     limit: 10,
                     total: total,
                     totalPages: Math.ceil(total / 10)
-                });
+                };
+                setPagination(newPagination);
 
-                // Cache apenas da primeira página/filtro default para offline rápido
-                if (targetPage === 1 && !params?.newFilters) {
-                    localStorage.setItem('nexus_tech_cache_v2', JSON.stringify(fetchedOrders));
-                }
+                // Cache sempre (offline-first)
+                localStorage.setItem(STORAGE_KEYS.CACHE, JSON.stringify(fetchedOrders));
+                localStorage.setItem(STORAGE_KEYS.CACHE_META, JSON.stringify(newPagination));
+
+                const now = new Date().toISOString();
+                localStorage.setItem(STORAGE_KEYS.LAST_SYNC, now);
+                setConnectivity(prev => ({ ...prev, lastSync: now, isSessionValid: true }));
+
+                console.log(`✅ Sincronizado: ${fetchedOrders.length} OSs`);
             }
         } catch (e: any) {
-            console.error("[Context-V2] Sync Error:", e);
-            // 🛡️ Nexus Auto-Recovery: Se a sessão expirou (401/JWT), força logout para o usuário logar novamente e corrigir o token.
+            console.error("❌ [TechContext] Erro de sincronização:", e);
+
+            // 🛡️ Auto-Recovery por tipo de erro
             if (e?.message?.includes('JWT') || e?.code === 'PGRST301' || e?.status === 401 || e?.status === 403) {
-                console.warn("[TechContext] Sessão expirada detectada. Realizando logout automático...");
+                console.warn("🔐 Sessão expirada detectada. Forçando logout...");
+                setConnectivity(prev => ({ ...prev, isSessionValid: false }));
                 logout();
+            } else if (!navigator.onLine) {
+                console.warn("📡 Sem conexão. Usando dados em cache.");
+                setConnectivity(prev => ({ ...prev, isOnline: false }));
             }
         } finally {
             if (mountedRef.current) setIsSyncing(false);
         }
     }, [auth.user?.id, filters, pagination.page]);
 
+    // 🚀 SESSION REVALIDATION (Big Tech Pattern)
+    const revalidateSession = useCallback(async () => {
+        if (!auth.user?.id) return;
+
+        console.log('[TechContext] 🔄 Revalidando sessão...');
+
+        try {
+            const { supabase } = await import('../../../../lib/supabase');
+            const { data: { session }, error } = await supabase.auth.getSession();
+
+            if (error || !session) {
+                console.warn('[TechContext] ⚠️ Sessão inválida detectada');
+                setConnectivity(prev => ({ ...prev, isSessionValid: false }));
+                logout();
+                return;
+            }
+
+            // Sessão válida - refresh silencioso dos dados
+            console.log('[TechContext] ✅ Sessão válida, atualizando dados...');
+            await refreshData({ silent: true });
+        } catch (e) {
+            console.error('[TechContext] ❌ Erro ao revalidar sessão:', e);
+        }
+    }, [auth.user?.id, refreshData]);
+
+    // 🔥 LIFECYCLE MANAGEMENT (visibilitychange)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && auth.isAuthenticated) {
+                console.log('[TechContext] 👁️ App retornou ao foco - revalidando sessão...');
+                revalidateSession();
+            }
+        };
+
+        const handleOnline = () => {
+            console.log('[TechContext] 📡 Conexão restaurada');
+            setConnectivity(prev => ({ ...prev, isOnline: true }));
+            if (auth.isAuthenticated) {
+                revalidateSession();
+            }
+        };
+
+        const handleOffline = () => {
+            console.log('[TechContext] 📡 Sem conexão (modo offline)');
+            setConnectivity(prev => ({ ...prev, isOnline: false }));
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [auth.isAuthenticated, revalidateSession]);
+
     // 🚪 AUTH ACTIONS
     const login = async (email: string, pass: string) => {
         const user = await DataService.login(email, pass);
         if (user && user.role === UserRole.TECHNICIAN) {
-            localStorage.setItem('nexus_tech_session_v2', JSON.stringify(user));
+            localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(user));
+            if (user.tenantId) {
+                SessionStorage.set(STORAGE_KEYS.TENANT, user.tenantId);
+            }
             setAuth({ user, isAuthenticated: true });
+            setConnectivity(prev => ({ ...prev, isSessionValid: true }));
         } else {
             throw new Error("Acesso negado. Apenas técnicos podem usar este App.");
         }
     };
 
     const logout = useCallback(async () => {
-        await DataService.logout();
+        try {
+            await DataService.logout();
+        } catch (e) {
+            console.error('[TechContext] Erro ao fazer logout:', e);
+        }
+
         setAuth({ user: null, isAuthenticated: false });
         setOrders([]);
         stopGPS();
-        localStorage.removeItem('nexus_tech_cache_v2');
+
+        // Limpa todos os dados armazenados
+        localStorage.removeItem(STORAGE_KEYS.SESSION);
+        localStorage.removeItem(STORAGE_KEYS.CACHE);
+        localStorage.removeItem(STORAGE_KEYS.CACHE_META);
+        localStorage.removeItem(STORAGE_KEYS.LAST_SYNC);
+        SessionStorage.remove(STORAGE_KEYS.TENANT);
+
+        setConnectivity({ isOnline: navigator.onLine, isSessionValid: false, lastSync: null });
     }, [stopGPS]);
 
     const updateOrderStatus = useCallback(async (id: string, status: OrderStatus, notes?: string, formData?: any) => {
@@ -174,35 +319,53 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (mountedRef.current) {
                 // Atualização Otimista local
                 setOrders(prev => prev.map(o => o.id === id ? { ...o, status, notes, formData: { ...o.formData, ...formData } } : o));
+
+                // Atualiza cache
+                const updated = orders.map(o => o.id === id ? { ...o, status, notes, formData: { ...o.formData, ...formData } } : o);
+                localStorage.setItem(STORAGE_KEYS.CACHE, JSON.stringify(updated));
             }
         } catch (e) {
             console.error("[Context-V2] Update Status Error:", e);
             throw e;
         }
-    }, []);
+    }, [orders]);
 
-    // EFETUAR SYNC AO LOGAR (Apenas Page 1 Default)
+    // INICIALIZAÇÃO AO LOGAR
     useEffect(() => {
-        if (auth.isAuthenticated) {
+        if (auth.isAuthenticated && auth.user) {
+            console.log('[TechContext] 🚀 Iniciando sistema...');
             startGPS();
-            // Carrega cache first
-            const cached = localStorage.getItem('nexus_tech_cache_v2');
-            if (cached) setOrders(JSON.parse(cached));
-
-            // Then sync fresh
             refreshData({ page: 1 });
         } else {
             stopGPS();
         }
-    }, [auth.isAuthenticated, startGPS, stopGPS]); // refreshData removido da dep array para evitar loop, pois refreshData muda com filters
+    }, [auth.isAuthenticated]);
 
     useEffect(() => {
         mountedRef.current = true;
-        return () => { mountedRef.current = false; stopGPS(); };
+        return () => {
+            mountedRef.current = false;
+            stopGPS();
+            if (syncTimeoutRef.current) {
+                clearTimeout(syncTimeoutRef.current);
+            }
+        };
     }, [stopGPS]);
 
     return (
-        <TechContext.Provider value={{ auth, orders, isSyncing, gpsStatus, pagination, filters, login, logout, refreshData, updateOrderStatus }}>
+        <TechContext.Provider value={{
+            auth,
+            orders,
+            isSyncing,
+            gpsStatus,
+            pagination,
+            filters,
+            connectivity,
+            login,
+            logout,
+            refreshData,
+            updateOrderStatus
+        }}>
             {children}
         </TechContext.Provider>
     );
