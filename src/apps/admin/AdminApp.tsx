@@ -245,11 +245,11 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     return (
         <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-sans">
             {/* Header Global */}
-            <header className="h-14 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm px-4 shrink-0 border-b border-slate-200">
+            <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm px-4 shrink-0 border-b border-slate-200">
                 <div className="flex items-center">
                     {/* Logo Area - Alinhada com a largura da Sidebar */}
-                    <div className={`${isSidebarCollapsed ? 'w-12' : 'w-56'} transition-all duration-300 ease-in-out flex items-center px-2`}>
-                        <NexusBranding variant="dark" size="lg" />
+                    <div className={`${isSidebarCollapsed ? 'w-12 text-center' : 'w-56'} transition-all duration-300 ease-in-out flex items-center`}>
+                        <NexusBranding variant="dark" size="lg" className="h-10" />
                     </div>
 
                     {/* View Title */}
