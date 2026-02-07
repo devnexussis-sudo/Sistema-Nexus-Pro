@@ -245,20 +245,20 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     return (
         <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-sans">
             {/* Header Global */}
-            <header className="h-16 bg-[#1c2d4f] text-white flex justify-between items-center z-[100] shadow-sm px-4 shrink-0 border-b border-white/5">
+            <header className="h-14 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm px-4 shrink-0 border-b border-slate-200">
                 <div className="flex items-center gap-8">
                     {/* Logo Area */}
                     <div className={`${isSidebarCollapsed ? 'w-12' : 'w-56'} transition-all duration-300 ease-in-out flex items-center`}>
-                        <NexusBranding variant="light" size="md" />
+                        <NexusBranding variant="dark" size="md" />
                     </div>
 
                     {/* View Title */}
-                    <div className="flex items-center gap-6 border-l border-white/10 pl-8 h-8">
-                        <h2 className="text-sm font-semibold text-white/90 capitalize tracking-tight">
+                    <div className="flex items-center gap-6 border-l border-slate-100 pl-8 h-8">
+                        <h2 className="text-sm font-semibold text-slate-900 capitalize tracking-tight">
                             {menuItems.find(m => m.id === currentView)?.label || 'Dashboard'}
                         </h2>
                         {(isRefreshing || isFetchingAny) && (
-                            <div className="flex items-center gap-2 px-2 py-1 bg-white/5 text-white/40 rounded border border-white/10">
+                            <div className="flex items-center gap-2 px-2 py-1 bg-slate-50 text-slate-400 rounded border border-slate-200">
                                 <RefreshCw size={12} className="animate-spin" />
                                 <span className="text-[10px] font-medium uppercase tracking-wider">Sincronizando</span>
                             </div>
@@ -267,9 +267,9 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 </div>
 
                 <div className="flex items-center gap-6">
-                    <div className="flex flex-col items-end border-r border-white/10 pr-6">
-                        <span className="text-sm font-semibold text-white tracking-tight">{auth.user?.name}</span>
-                        <span className="text-[10px] font-medium text-white/40 uppercase tracking-tighter">Administrador</span>
+                    <div className="flex flex-col items-end border-r border-slate-100 pr-6">
+                        <span className="text-sm font-semibold text-slate-900 tracking-tight">{auth.user?.name}</span>
+                        <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">Administrador</span>
                     </div>
                     <div className="flex items-center gap-2">
                         {!isOnline && (
@@ -280,7 +280,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                         )}
                         <button
                             onClick={async () => setHealthReport(await DataService.checkSystemHealth())}
-                            className="p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-md transition-all"
+                            className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all"
                             title="Saúde do Sistema"
                         >
                             <ShieldCheck size={20} />
@@ -288,14 +288,14 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                         <button
                             onClick={handleManualRefresh}
                             disabled={isRefreshing}
-                            className="p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-md transition-all"
+                            className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all"
                             title="Atualizar Dados"
                         >
-                            <RefreshCw size={20} className={isRefreshing || isFetchingAny ? 'animate-spin text-white' : ''} />
+                            <RefreshCw size={20} className={isRefreshing || isFetchingAny ? 'animate-spin text-[#1c2d4f]' : ''} />
                         </button>
-                        <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-md transition-all relative">
+                        <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all relative">
                             <Bell size={20} />
-                            {systemNotifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-[#1c2d4f]"></span>}
+                            {systemNotifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>}
                         </button>
                     </div>
                 </div>
