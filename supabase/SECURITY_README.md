@@ -53,7 +53,7 @@ SELECT
   COUNT(*)::text
 FROM pg_proc p
 JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE n.nspname = 'auth' 
+WHERE n.nspname = 'public' 
   AND p.proname IN ('get_user_tenant_id', 'is_admin');
 ```
 
@@ -85,9 +85,9 @@ curl -X GET 'https://gbwkfumodaqbmmiwayhf.supabase.co/rest/v1/users' \
 
 ### 1. Funções Helper Seguras (SECURITY DEFINER)
 
-- `auth.get_user_tenant_id()` - Extrai tenant_id do JWT ou tabela users
-- `auth.is_admin()` - Verifica se usuário é admin
-- `auth.get_user_organization_id()` - Alias para compatibilidade
+- `public.get_user_tenant_id()` - Extrai tenant_id do JWT ou tabela users
+- `public.is_admin()` - Verifica se usuário é admin
+- `public.get_user_organization_id()` - Alias para compatibilidade
 
 ### 2. Habilita RLS em Todas as Tabelas
 
@@ -189,8 +189,8 @@ ALTER TABLE public.orders DISABLE ROW LEVEL SECURITY;
 -- ... (repetir para todas as tabelas)
 
 -- Dropar funções
-DROP FUNCTION IF EXISTS auth.get_user_tenant_id();
-DROP FUNCTION IF EXISTS auth.is_admin();
+DROP FUNCTION IF EXISTS public.get_user_tenant_id();
+DROP FUNCTION IF EXISTS public.is_admin();
 ```
 
 ---
@@ -274,7 +274,7 @@ sed -i '' 's/tenant_id/organization_id/g' 20260207_enterprise_security_rls.sql
 
 ```sql
 -- Editar função helper
-CREATE OR REPLACE FUNCTION auth.get_user_tenant_id()
+CREATE OR REPLACE FUNCTION public.get_user_tenant_id()
 RETURNS uuid AS $$
 BEGIN
   -- Trocar 'metaTenant' pelo seu claim
