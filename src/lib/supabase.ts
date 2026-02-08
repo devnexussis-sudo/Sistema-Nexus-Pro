@@ -1,10 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('🚨 CRITICAL ERROR: Supabase URL or Anon Key is missing in environment variables!');
+}
+
+const safeUrl = supabaseUrl || 'https://placeholder.supabase.co';
+const safeKey = supabaseAnonKey || 'placeholder';
+
+export const supabase = createClient(safeUrl, safeKey, {
     auth: {
         storageKey: 'nexus_shared_auth',
         persistSession: true,
@@ -14,7 +21,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 // Cliente administrativo para criação de usuários no Auth Oficial
-export const adminSupabase = createClient(supabaseUrl, supabaseServiceKey, {
+export const adminSupabase = createClient(safeUrl, supabaseServiceKey, {
     auth: {
         storageKey: 'nexus_admin_safe',
         autoRefreshToken: false,
@@ -23,7 +30,7 @@ export const adminSupabase = createClient(supabaseUrl, supabaseServiceKey, {
 });
 
 // 🛡️ Nexus Public Client: Otimizado para visualização pública sem Auth/Locks
-export const publicSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const publicSupabase = createClient(safeUrl, safeKey, {
     auth: {
         persistSession: false,
         autoRefreshToken: false,
