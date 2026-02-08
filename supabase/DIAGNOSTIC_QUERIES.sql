@@ -93,7 +93,8 @@ SELECT
   END as volatility
 FROM pg_proc p
 JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE n.nspname = 'auth'
+WHERE n.nspname = 'public'
+  AND p.proname IN ('get_user_tenant_id', 'is_admin', 'get_user_organization_id')
 ORDER BY p.proname;
 
 -- ============================================================================
@@ -107,7 +108,7 @@ SELECT
   array_to_string(p.proacl, ', ') as acl_permissions
 FROM pg_proc p
 JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE n.nspname IN ('auth', 'public')
+WHERE n.nspname = 'public'
   AND p.proname IN ('get_user_tenant_id', 'is_admin', 'get_user_organization_id')
 ORDER BY n.nspname, p.proname;
 
@@ -203,8 +204,8 @@ LIMIT 100;
 -- Get current auth context
 SELECT 
   auth.uid() as current_user_id,
-  auth.get_user_tenant_id() as current_tenant_id,
-  auth.is_admin() as is_admin_user;
+  public.get_user_tenant_id() as current_tenant_id,
+  public.is_admin() as is_admin_user;
 
 -- Get current JWT claims
 SELECT current_setting('request.jwt.claims', true)::json as jwt_claims;
@@ -383,7 +384,9 @@ SELECT
   COUNT(*)::text
 FROM pg_proc p
 JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE n.nspname IN ('auth', 'public') AND p.prosecdef = true;
+WHERE n.nspname = 'public' 
+  AND p.prosecdef = true
+  AND p.proname IN ('get_user_tenant_id', 'is_admin', 'get_user_organization_id', 'audit_trigger_func');
 
 -- ============================================================================
 -- END OF DIAGNOSTIC QUERIES
