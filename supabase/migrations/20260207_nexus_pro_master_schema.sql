@@ -483,9 +483,11 @@ BEGIN
         VALUES (uuid_generate_v4(), 'Nexus Corp', 'nexus-corp', 'ENTERPRISE', 'NEX-')
         RETURNING id INTO v_tenant_id;
         
-        -- Criar Usuário Admin Dummy (Necessário criar correspondente no Auth para login real)
-        INSERT INTO public.users (id, tenant_id, email, name, role)
-        VALUES (v_admin_id, v_tenant_id, 'admin@nexus.com', 'Admin Nexus', 'ADMIN');
+        -- Criar Usuário Admin Dummy (COMENTADO: Necessário criar usuário no Auth primeiro)
+        -- INSERT INTO public.users (id, tenant_id, email, name, role)
+        -- VALUES (v_admin_id, v_tenant_id, 'admin@nexus.com', 'Admin Nexus', 'ADMIN');
+        
+        -- DICA: Crie um usuário no Authentication > Users e depois insira manualmente em public.users com o ID gerado.
         
         -- Criar Cliente
         INSERT INTO public.customers (tenant_id, name, document, type)
