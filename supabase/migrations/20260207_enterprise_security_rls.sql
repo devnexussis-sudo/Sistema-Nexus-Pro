@@ -25,7 +25,7 @@
 -- ============================================================================
 
 -- Function to extract tenant_id from JWT claim 'metaTenant'
-CREATE OR REPLACE FUNCTION auth.get_user_tenant_id()
+CREATE OR REPLACE FUNCTION public.get_user_tenant_id()
 RETURNS uuid
 LANGUAGE plpgsql
 STABLE
@@ -58,10 +58,10 @@ EXCEPTION
 END;
 $$;
 
-COMMENT ON FUNCTION auth.get_user_tenant_id() IS 'Securely extracts tenant_id from JWT claims or users table. Used by RLS policies.';
+COMMENT ON FUNCTION public.get_user_tenant_id() IS 'Securely extracts tenant_id from JWT claims or users table. Used by RLS policies.';
 
 -- Function to check if user is admin
-CREATE OR REPLACE FUNCTION auth.is_admin()
+CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean
 LANGUAGE plpgsql
 STABLE
@@ -91,10 +91,10 @@ EXCEPTION
 END;
 $$;
 
-COMMENT ON FUNCTION auth.is_admin() IS 'Checks if current user has admin role from JWT or users table.';
+COMMENT ON FUNCTION public.is_admin() IS 'Checks if current user has admin role from JWT or users table.';
 
 -- Function to get current user's organization/tenant
-CREATE OR REPLACE FUNCTION auth.get_user_organization_id()
+CREATE OR REPLACE FUNCTION public.get_user_organization_id()
 RETURNS uuid
 LANGUAGE plpgsql
 STABLE
@@ -103,7 +103,7 @@ SET search_path = public
 AS $$
 BEGIN
   -- Alias for get_user_tenant_id for compatibility
-  RETURN auth.get_user_tenant_id();
+  RETURN public.get_user_tenant_id();
 END;
 $$;
 
@@ -113,14 +113,14 @@ $$;
 
 -- Revoke direct execution of helper functions from anon/authenticated
 -- These should only be called within policies
-REVOKE EXECUTE ON FUNCTION auth.get_user_tenant_id() FROM anon, authenticated;
-REVOKE EXECUTE ON FUNCTION auth.is_admin() FROM anon, authenticated;
-REVOKE EXECUTE ON FUNCTION auth.get_user_organization_id() FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_user_tenant_id() FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.is_admin() FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_user_organization_id() FROM anon, authenticated;
 
 -- Grant to postgres and service_role only
-GRANT EXECUTE ON FUNCTION auth.get_user_tenant_id() TO postgres, service_role;
-GRANT EXECUTE ON FUNCTION auth.is_admin() TO postgres, service_role;
-GRANT EXECUTE ON FUNCTION auth.get_user_organization_id() TO postgres, service_role;
+GRANT EXECUTE ON FUNCTION public.get_user_tenant_id() TO postgres, service_role;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO postgres, service_role;
+GRANT EXECUTE ON FUNCTION public.get_user_organization_id() TO postgres, service_role;
 
 -- ============================================================================
 -- SECTION 3: ENABLE RLS ON ALL PUBLIC TABLES
@@ -206,9 +206,9 @@ CREATE POLICY "users_select_policy" ON public.users
   FOR SELECT
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
     OR id = auth.uid()
-    OR auth.is_admin()
+    OR public.is_admin()
   );
 
 -- INSERT: Only service_role or admin can create users (typically done via auth triggers)
@@ -217,7 +217,7 @@ CREATE POLICY "users_insert_policy" ON public.users
   TO authenticated
   WITH CHECK (
     id = auth.uid()
-    OR auth.is_admin()
+    OR public.is_admin()
   );
 
 -- UPDATE: Users can update own profile, admins can update all in tenant
@@ -226,11 +226,11 @@ CREATE POLICY "users_update_policy" ON public.users
   TO authenticated
   USING (
     id = auth.uid()
-    OR (auth.is_admin() AND tenant_id = auth.get_user_tenant_id())
+    OR (public.is_admin() AND tenant_id = public.get_user_tenant_id())
   )
   WITH CHECK (
     id = auth.uid()
-    OR (auth.is_admin() AND tenant_id = auth.get_user_tenant_id())
+    OR (public.is_admin() AND tenant_id = public.get_user_tenant_id())
   );
 
 -- DELETE: Only admins can delete users in same tenant
@@ -238,8 +238,8 @@ CREATE POLICY "users_delete_policy" ON public.users
   FOR DELETE
   TO authenticated
   USING (
-    auth.is_admin()
-    AND tenant_id = auth.get_user_tenant_id()
+    public.is_admin()
+    AND tenant_id = public.get_user_tenant_id()
     AND id != auth.uid() -- Prevent self-deletion
   );
 
@@ -251,19 +251,19 @@ CREATE POLICY "tenants_select_policy" ON public.tenants
   FOR SELECT
   TO authenticated
   USING (
-    id = auth.get_user_tenant_id()
+    id = public.get_user_tenant_id()
   );
 
 CREATE POLICY "tenants_update_policy" ON public.tenants
   FOR UPDATE
   TO authenticated
   USING (
-    id = auth.get_user_tenant_id()
-    AND auth.is_admin()
+    id = public.get_user_tenant_id()
+    AND public.is_admin()
   )
   WITH CHECK (
-    id = auth.get_user_tenant_id()
-    AND auth.is_admin()
+    id = public.get_user_tenant_id()
+    AND public.is_admin()
   );
 
 -- ============================================================================
@@ -274,7 +274,7 @@ CREATE POLICY "orders_select_policy" ON public.orders
   FOR SELECT
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
     OR technician_id = auth.uid()
   );
 
@@ -282,26 +282,26 @@ CREATE POLICY "orders_insert_policy" ON public.orders
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
   );
 
 CREATE POLICY "orders_update_policy" ON public.orders
   FOR UPDATE
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
     OR technician_id = auth.uid()
   )
   WITH CHECK (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
   );
 
 CREATE POLICY "orders_delete_policy" ON public.orders
   FOR DELETE
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
-    AND auth.is_admin()
+    tenant_id = public.get_user_tenant_id()
+    AND public.is_admin()
   );
 
 -- ============================================================================
@@ -312,32 +312,32 @@ CREATE POLICY "customers_select_policy" ON public.customers
   FOR SELECT
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
   );
 
 CREATE POLICY "customers_insert_policy" ON public.customers
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
   );
 
 CREATE POLICY "customers_update_policy" ON public.customers
   FOR UPDATE
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
   )
   WITH CHECK (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
   );
 
 CREATE POLICY "customers_delete_policy" ON public.customers
   FOR DELETE
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
-    AND auth.is_admin()
+    tenant_id = public.get_user_tenant_id()
+    AND public.is_admin()
   );
 
 -- ============================================================================
@@ -348,32 +348,32 @@ CREATE POLICY "equipments_select_policy" ON public.equipments
   FOR SELECT
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
   );
 
 CREATE POLICY "equipments_insert_policy" ON public.equipments
   FOR INSERT
   TO authenticated
   WITH CHECK (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
   );
 
 CREATE POLICY "equipments_update_policy" ON public.equipments
   FOR UPDATE
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
   )
   WITH CHECK (
-    tenant_id = auth.get_user_tenant_id()
+    tenant_id = public.get_user_tenant_id()
   );
 
 CREATE POLICY "equipments_delete_policy" ON public.equipments
   FOR DELETE
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
-    AND auth.is_admin()
+    tenant_id = public.get_user_tenant_id()
+    AND public.is_admin()
   );
 
 -- ============================================================================
@@ -385,7 +385,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'stock_items') THEN
     EXECUTE 'DROP POLICY IF EXISTS "stock_items_tenant_policy" ON public.stock_items';
-    EXECUTE 'CREATE POLICY "stock_items_tenant_policy" ON public.stock_items FOR ALL TO authenticated USING (tenant_id = auth.get_user_tenant_id()) WITH CHECK (tenant_id = auth.get_user_tenant_id())';
+    EXECUTE 'CREATE POLICY "stock_items_tenant_policy" ON public.stock_items FOR ALL TO authenticated USING (tenant_id = public.get_user_tenant_id()) WITH CHECK (tenant_id = public.get_user_tenant_id())';
   END IF;
 END $$;
 
@@ -394,7 +394,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'stock_categories') THEN
     EXECUTE 'DROP POLICY IF EXISTS "stock_categories_tenant_policy" ON public.stock_categories';
-    EXECUTE 'CREATE POLICY "stock_categories_tenant_policy" ON public.stock_categories FOR ALL TO authenticated USING (tenant_id = auth.get_user_tenant_id()) WITH CHECK (tenant_id = auth.get_user_tenant_id())';
+    EXECUTE 'CREATE POLICY "stock_categories_tenant_policy" ON public.stock_categories FOR ALL TO authenticated USING (tenant_id = public.get_user_tenant_id()) WITH CHECK (tenant_id = public.get_user_tenant_id())';
   END IF;
 END $$;
 
@@ -403,7 +403,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'stock_movements') THEN
     EXECUTE 'DROP POLICY IF EXISTS "stock_movements_tenant_policy" ON public.stock_movements';
-    EXECUTE 'CREATE POLICY "stock_movements_tenant_policy" ON public.stock_movements FOR ALL TO authenticated USING (tenant_id = auth.get_user_tenant_id()) WITH CHECK (tenant_id = auth.get_user_tenant_id())';
+    EXECUTE 'CREATE POLICY "stock_movements_tenant_policy" ON public.stock_movements FOR ALL TO authenticated USING (tenant_id = public.get_user_tenant_id()) WITH CHECK (tenant_id = public.get_user_tenant_id())';
   END IF;
 END $$;
 
@@ -412,7 +412,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'quotes') THEN
     EXECUTE 'DROP POLICY IF EXISTS "quotes_tenant_policy" ON public.quotes';
-    EXECUTE 'CREATE POLICY "quotes_tenant_policy" ON public.quotes FOR ALL TO authenticated USING (tenant_id = auth.get_user_tenant_id()) WITH CHECK (tenant_id = auth.get_user_tenant_id())';
+    EXECUTE 'CREATE POLICY "quotes_tenant_policy" ON public.quotes FOR ALL TO authenticated USING (tenant_id = public.get_user_tenant_id()) WITH CHECK (tenant_id = public.get_user_tenant_id())';
   END IF;
 END $$;
 
@@ -421,7 +421,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'contracts') THEN
     EXECUTE 'DROP POLICY IF EXISTS "contracts_tenant_policy" ON public.contracts';
-    EXECUTE 'CREATE POLICY "contracts_tenant_policy" ON public.contracts FOR ALL TO authenticated USING (tenant_id = auth.get_user_tenant_id()) WITH CHECK (tenant_id = auth.get_user_tenant_id())';
+    EXECUTE 'CREATE POLICY "contracts_tenant_policy" ON public.contracts FOR ALL TO authenticated USING (tenant_id = public.get_user_tenant_id()) WITH CHECK (tenant_id = public.get_user_tenant_id())';
   END IF;
 END $$;
 
@@ -430,7 +430,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'service_types') THEN
     EXECUTE 'DROP POLICY IF EXISTS "service_types_tenant_policy" ON public.service_types';
-    EXECUTE 'CREATE POLICY "service_types_tenant_policy" ON public.service_types FOR ALL TO authenticated USING (tenant_id = auth.get_user_tenant_id()) WITH CHECK (tenant_id = auth.get_user_tenant_id())';
+    EXECUTE 'CREATE POLICY "service_types_tenant_policy" ON public.service_types FOR ALL TO authenticated USING (tenant_id = public.get_user_tenant_id()) WITH CHECK (tenant_id = public.get_user_tenant_id())';
   END IF;
 END $$;
 
@@ -439,7 +439,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'form_templates') THEN
     EXECUTE 'DROP POLICY IF EXISTS "form_templates_tenant_policy" ON public.form_templates';
-    EXECUTE 'CREATE POLICY "form_templates_tenant_policy" ON public.form_templates FOR ALL TO authenticated USING (tenant_id = auth.get_user_tenant_id()) WITH CHECK (tenant_id = auth.get_user_tenant_id())';
+    EXECUTE 'CREATE POLICY "form_templates_tenant_policy" ON public.form_templates FOR ALL TO authenticated USING (tenant_id = public.get_user_tenant_id()) WITH CHECK (tenant_id = public.get_user_tenant_id())';
   END IF;
 END $$;
 
@@ -448,7 +448,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_groups') THEN
     EXECUTE 'DROP POLICY IF EXISTS "user_groups_tenant_policy" ON public.user_groups';
-    EXECUTE 'CREATE POLICY "user_groups_tenant_policy" ON public.user_groups FOR ALL TO authenticated USING (tenant_id = auth.get_user_tenant_id()) WITH CHECK (tenant_id = auth.get_user_tenant_id())';
+    EXECUTE 'CREATE POLICY "user_groups_tenant_policy" ON public.user_groups FOR ALL TO authenticated USING (tenant_id = public.get_user_tenant_id()) WITH CHECK (tenant_id = public.get_user_tenant_id())';
   END IF;
 END $$;
 
@@ -457,7 +457,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'checklists') THEN
     EXECUTE 'DROP POLICY IF EXISTS "checklists_tenant_policy" ON public.checklists';
-    EXECUTE 'CREATE POLICY "checklists_tenant_policy" ON public.checklists FOR ALL TO authenticated USING (tenant_id = auth.get_user_tenant_id()) WITH CHECK (tenant_id = auth.get_user_tenant_id())';
+    EXECUTE 'CREATE POLICY "checklists_tenant_policy" ON public.checklists FOR ALL TO authenticated USING (tenant_id = public.get_user_tenant_id()) WITH CHECK (tenant_id = public.get_user_tenant_id())';
   END IF;
 END $$;
 
@@ -532,8 +532,8 @@ CREATE POLICY "audit_logs_admin_only" ON public.audit_logs
   FOR SELECT
   TO authenticated
   USING (
-    tenant_id = auth.get_user_tenant_id()
-    AND auth.is_admin()
+    tenant_id = public.get_user_tenant_id()
+    AND public.is_admin()
   );
 
 -- Index for audit logs
