@@ -134,6 +134,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const watchIdRef = useRef<number | null>(null);
     const mountedRef = useRef(true);
     const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const logoutRef = useRef<(() => Promise<void>) | null>(null);
 
     // 📍 MOTOR GPS 2.0 (Resiliente)
     const startGPS = useCallback(() => {
@@ -230,7 +231,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (e?.message?.includes('JWT') || e?.code === 'PGRST301' || e?.status === 401 || e?.status === 403) {
                 console.warn("🔐 Sessão expirada detectada. Forçando logout...");
                 setConnectivity(prev => ({ ...prev, isSessionValid: false }));
-                logout();
+                logoutRef.current?.();
             } else if (!navigator.onLine) {
                 console.warn("📡 Sem conexão. Usando dados em cache.");
                 setConnectivity(prev => ({ ...prev, isOnline: false }));
@@ -276,7 +277,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     // Se o erro for apenas "sessão ausente", fazemos logout silencioso
                     if (refreshError?.message?.includes('session missing') || refreshError?.name === 'AuthSessionMissingError' || refreshError?.message?.includes('refresh_token_not_found')) {
                         console.log('[TechContext] 💤 Sessão expirada ou ausente. Limpando ambiente.');
-                        logout();
+                        logoutRef.current?.();
                         return;
                     }
 
@@ -297,7 +298,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (e) {
             console.error('[TechContext] ❌ Erro ao revalidar sessão:', e);
         }
-    }, [auth.user?.id, auth.user?.tenantId, refreshData, logout]);
+    }, [auth.user?.id, auth.user?.tenantId, refreshData]);
 
     // 🔥 LIFECYCLE MANAGEMENT (visibilitychange + Focus)
     useEffect(() => {
@@ -375,6 +376,7 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const logout = useCallback(async () => {
+        // Store in ref for use in other callbacks without circular dependency
         try {
             await DataService.logout();
         } catch (e) {
@@ -395,6 +397,11 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setConnectivity({ isOnline: navigator.onLine, isSessionValid: false, lastSync: null });
     }, [stopGPS]);
+
+    // Update ref whenever logout changes
+    useEffect(() => {
+        logoutRef.current = logout;
+    }, [logout]);
 
     // 🔐 SUPABASE AUTH SYNC (onAuthStateChange)
     useEffect(() => {
