@@ -275,7 +275,7 @@ CREATE POLICY "orders_select_policy" ON public.orders
   TO authenticated
   USING (
     tenant_id = public.get_user_tenant_id()
-    OR technician_id = auth.uid()
+    OR assigned_to::text = auth.uid()::text
   );
 
 CREATE POLICY "orders_insert_policy" ON public.orders
@@ -290,7 +290,7 @@ CREATE POLICY "orders_update_policy" ON public.orders
   TO authenticated
   USING (
     tenant_id = public.get_user_tenant_id()
-    OR technician_id = auth.uid()
+    OR assigned_to::text = auth.uid()::text
   )
   WITH CHECK (
     tenant_id = public.get_user_tenant_id()
@@ -473,8 +473,8 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
 
 -- Orders table indexes
 CREATE INDEX IF NOT EXISTS idx_orders_tenant_id ON public.orders(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_orders_technician_id ON public.orders(technician_id);
-CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_assigned_to ON public.orders(assigned_to);
+-- Note: orders table uses customer_name/address directly in this schema version
 CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
 
@@ -500,8 +500,8 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'quotes') THEN
     EXECUTE 'CREATE INDEX IF NOT EXISTS idx_quotes_tenant_id ON public.quotes(tenant_id)';
-    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_quotes_customer_id ON public.quotes(customer_id)';
     EXECUTE 'CREATE INDEX IF NOT EXISTS idx_quotes_status ON public.quotes(status)';
+    -- Note: quotes table uses customer_name directly in this schema version
   END IF;
 END $$;
 
