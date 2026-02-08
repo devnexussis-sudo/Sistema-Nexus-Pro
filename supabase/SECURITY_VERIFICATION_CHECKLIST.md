@@ -83,7 +83,7 @@ SELECT
   END as security_type
 FROM pg_proc p
 JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE n.nspname = 'auth'
+WHERE n.nspname = 'public'
   AND p.proname IN ('get_user_tenant_id', 'is_admin', 'get_user_organization_id')
 ORDER BY p.proname;
 ```
@@ -162,8 +162,8 @@ curl -X GET 'https://gbwkfumodaqbmmiwayhf.supabase.co/rest/v1/orders?tenant_id=e
 
 ```sql
 -- Test helper function with your JWT
-SELECT auth.get_user_tenant_id();
-SELECT auth.is_admin();
+SELECT public.get_user_tenant_id();
+SELECT public.is_admin();
 ```
 
 **Expected Result:**
@@ -221,7 +221,7 @@ SELECT id, email, tenant_id FROM public.users WHERE id = auth.uid();
 SELECT COUNT(*) FROM public.orders WHERE tenant_id = (SELECT tenant_id FROM public.users WHERE id = auth.uid());
 
 -- Verify JWT claim
-SELECT auth.get_user_tenant_id();
+SELECT public.get_user_tenant_id();
 ```
 
 ---
@@ -236,7 +236,7 @@ SELECT auth.get_user_tenant_id();
 SELECT * FROM pg_policies WHERE schemaname = 'public' AND policyname LIKE '%error%';
 
 -- Verify function exists and is accessible
-SELECT auth.get_user_tenant_id(); -- Should not error
+SELECT public.get_user_tenant_id(); -- Should not error
 ```
 
 ---
@@ -246,7 +246,7 @@ SELECT auth.get_user_tenant_id(); -- Should not error
 - [ ] ✅ RLS enabled on all public tables
 - [ ] ✅ Helper functions use `SECURITY DEFINER`
 - [ ] ✅ `anon` and `authenticated` roles cannot execute helper functions directly
-- [ ] ✅ Policies use `auth.uid()` and `auth.get_user_tenant_id()`
+- [ ] ✅ Policies use `auth.uid()` and `public.get_user_tenant_id()`
 - [ ] ✅ Indexes created on `tenant_id`, `user_id`, and frequently queried columns
 - [ ] ✅ Audit logging infrastructure in place (optional but recommended)
 - [ ] ✅ No service_role key exposed to frontend
@@ -310,9 +310,9 @@ DROP POLICY IF EXISTS "orders_select_policy" ON public.orders;
 -- ... (drop all policies)
 
 -- Drop helper functions
-DROP FUNCTION IF EXISTS auth.get_user_tenant_id();
-DROP FUNCTION IF EXISTS auth.is_admin();
-DROP FUNCTION IF EXISTS auth.get_user_organization_id();
+DROP FUNCTION IF EXISTS public.get_user_tenant_id();
+DROP FUNCTION IF EXISTS public.is_admin();
+DROP FUNCTION IF EXISTS public.get_user_organization_id();
 ```
 
 **⚠️ WARNING:** Only use rollback in development. In production, fix the specific issue instead.
@@ -333,7 +333,7 @@ DROP FUNCTION IF EXISTS auth.get_user_organization_id();
    - If your JWT uses `app_metadata.tenant` instead of `metaTenant`:
    ```sql
    -- Update helper function
-   CREATE OR REPLACE FUNCTION auth.get_user_tenant_id()
+   CREATE OR REPLACE FUNCTION public.get_user_tenant_id()
    RETURNS uuid AS $$
    BEGIN
      RETURN (current_setting('request.jwt.claims', true)::json->'app_metadata'->>'tenant')::uuid;
@@ -367,7 +367,7 @@ WHERE schemaname = 'public' AND indexname LIKE 'idx_%';
 SELECT COUNT(*) as helper_functions 
 FROM pg_proc p
 JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE n.nspname = 'auth' 
+WHERE n.nspname = 'public' 
   AND p.proname IN ('get_user_tenant_id', 'is_admin');
 ```
 
