@@ -38,56 +38,67 @@ export function useQuery<T>(
     const [isError, setIsError] = useState(false);
     const [error, setError] = useState<Error | null>(null);
 
-    const executeFetch = useCallback(async (attempt = 0) => {
-        if (!enabled) return;
+    // 🛡️ Previne vazamento de memória e race conditions
+    useEffect(() => {
+        let isMounted = true;
+        const abortController = new AbortController();
 
-        try {
+        const fetchData = async (attempt = 0) => {
+            if (!enabled) return;
+
             if (attempt === 0) setIsLoading(true);
-            setIsError(false);
 
-            const result = await queryFn();
+            try {
+                // Se abortado, para imediatamente
+                if (abortController.signal.aborted) return;
 
-            setData(result);
-            if (onSuccess) onSuccess(result);
-            setIsLoading(false);
-        } catch (err: any) {
-            console.error(`[useQuery] Falha ao carregar ${queryKey} (Tentativa ${attempt + 1}/${retry + 1}):`, err);
+                const result = await queryFn();
 
-            // 🗝️ Enterprise Recovery: Se o erro for de autenticação, tenta re-hidratar a sessão antes do retry
-            const isAuthError = err?.status === 401 || err?.code === 'PGRST301' || err?.message?.includes('JWT');
-            if (isAuthError && attempt < retry) {
-                console.warn('[useQuery] 🛡️ Erro de Autenticação detectado. Iniciando Re-hidratação de Sessão...');
-                const { DataService } = await import('../services/dataService');
-                const recovered = await DataService.refreshUser().catch(() => null);
-                if (recovered) {
-                    console.log('[useQuery] ✅ Sessão recuperada. Tentando nova busca imediata...');
-                    executeFetch(attempt + 1);
+                if (isMounted) {
+                    setData(result);
+                    setIsLoading(false);
+                    if (onSuccess && typeof onSuccess === 'function') onSuccess(result);
+                }
+            } catch (err: any) {
+                if (abortController.signal.aborted) return;
+
+                // Retry Logic (Exponential Backoff)
+                if (attempt < (retry || 3)) {
+                    const delay = Math.pow(2, attempt) * 1000;
+                    setTimeout(() => {
+                        if (isMounted) fetchData(attempt + 1);
+                    }, delay);
                     return;
                 }
-            }
 
-            if (attempt < retry) {
-                // Exponential backoff
-                const delay = Math.pow(2, attempt) * 1000;
-                setTimeout(() => executeFetch(attempt + 1), delay);
-            } else {
-                setIsError(true);
-                setError(err instanceof Error ? err : new Error(String(err)));
-                if (onError) onError(err);
-                setIsLoading(false);
+                if (isMounted) {
+                    setIsError(true);
+                    setError(err);
+                    setIsLoading(false);
+                    if (onError && typeof onError === 'function') onError(err);
+                }
             }
+        };
+
+        fetchData();
+
+        return () => {
+            isMounted = false;
+            abortController.abort();
+        };
+    }, [queryKey, enabled]); // Re-run when key or enabled changes
+
+    const refetch = async () => {
+        setIsLoading(true);
+        try {
+            const result = await queryFn();
+            setData(result);
+            setIsLoading(false);
+        } catch (err) {
+            setIsError(true);
+            setIsLoading(false);
         }
-    }, [queryFn, enabled, retry, queryKey, onSuccess, onError]);
-
-    useEffect(() => {
-        executeFetch();
-    }, [queryKey]); // Refetch se a chave mudar
-
-    return {
-        data,
-        isLoading,
-        isError,
-        error,
-        refetch: () => executeFetch(0)
     };
+
+    return { data, isLoading, isError, error, refetch };
 }
