@@ -1355,6 +1355,7 @@ export const DataService = {
     // Mapeamento extra-resiliente para garantir que nada se perca entre Snake e Camel
     return {
       id: data.id,
+      displayId: data.display_id || data.displayId,
       publicToken: data.public_token,
       tenantId: data.tenant_id || data.tenantId,
       title: data.title,
