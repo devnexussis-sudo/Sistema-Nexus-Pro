@@ -141,12 +141,12 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
   const filteredItems = activeTab === 'list'
     ? equipments.filter(e => {
-      const matchesSearch = e.model.toLowerCase().includes(searchTerm.toLowerCase()) || e.serialNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (e.model || '').toLowerCase().includes(searchTerm.toLowerCase()) || (e.serialNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'ALL' || (statusFilter === 'ACTIVE' ? e.active : !e.active);
       return matchesSearch && matchesStatus;
     })
     : families.filter(f => {
-      const matchesSearch = f.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (f.name || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'ALL' || (statusFilter === 'ACTIVE' ? f.active : !f.active);
       return matchesSearch && matchesStatus;
     });
