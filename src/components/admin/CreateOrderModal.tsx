@@ -327,7 +327,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                {initialData ? `Editar Protocolo #${initialData.id}` : 'Novo Atendimento'}
+                {initialData ? `Editar Protocolo #${initialData.displayId || initialData.id}` : 'Novo Atendimento'}
               </h2>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                 Nexus Operacional • Registro Técnico

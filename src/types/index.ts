@@ -163,6 +163,7 @@ export interface OrderItem {
 
 export interface ServiceOrder {
   id: string;
+  displayId?: string; // ID amigável (ex: OS-1234)
   publicToken?: string; // Token único para compartilhamento público
   tenantId?: string; // Multi-tenancy
   title: string;

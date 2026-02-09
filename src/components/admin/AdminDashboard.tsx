@@ -485,7 +485,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         readOnly
                       />
                     </td>
-                    <td className="px-3 py-4 font-bold text-slate-900 text-xs tracking-tight uppercase italic whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{order.id}</td>
+                    <td className="px-3 py-4 font-bold text-slate-900 text-xs tracking-tight uppercase italic whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{order.displayId || order.id}</td>
                     <td className="px-3 py-4 text-xs font-bold text-slate-700 whitespace-nowrap">
                       {formatDateDisplay(order.scheduledDate)}
                     </td>
