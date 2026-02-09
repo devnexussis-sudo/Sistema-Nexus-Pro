@@ -258,6 +258,17 @@ export const SettingsPage: React.FC = () => {
       };
 
       console.log("Saving Settings Payload:", payload);
+
+      // 🛡️ Nexus Storage: Se tiver logo nova em Base64, faz upload primeiro
+      if (company.logoUrl && company.logoUrl.startsWith('data:image')) {
+        console.log("Detectado nova logo, iniciando upload...");
+        const publicUrl = await DataService.uploadFile(company.logoUrl, `settings/logo_${tenantId}_${Date.now()}.webp`);
+        payload.logo_url = publicUrl;
+        console.log("Logo upload success:", publicUrl);
+      } else {
+        payload.logo_url = company.logoUrl || null;
+      }
+
       const result = await DataService.updateTenant(payload);
       console.log("Save Success - DB Response:", result);
 
