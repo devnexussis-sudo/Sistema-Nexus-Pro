@@ -337,6 +337,17 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                 {activeTab === 'list' ? (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                      <div className="md:col-span-2">
+                        <Input
+                          label="Nome do Ativo"
+                          required
+                          placeholder="Ex: Gerador Principal - Bloco A"
+                          icon={<Tag size={16} />}
+                          className="rounded-2xl py-4 font-bold border-slate-200"
+                          value={eqFormData.name || ''}
+                          onChange={e => setEqFormData({ ...eqFormData, name: e.target.value })}
+                        />
+                      </div>
                       <Input label="Modelo do Ativo" required icon={<Laptop size={16} />} className="rounded-2xl py-4 font-bold border-slate-200" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
                       <Input label="Número de Série (Serial)" required icon={<Hash size={16} />} className="rounded-2xl py-4 font-bold border-slate-200" value={eqFormData.serialNumber || ''} onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })} />
                       <div className="w-full">
