@@ -178,18 +178,47 @@ export const AdminApp: React.FC<AdminAppProps> = ({
         }
     }, [systemNotifications]);
 
+    // 📡 Nexus Pulse: Realtime Connection (Big-Tech Pattern)
+    useEffect(() => {
+        if (!auth.isAuthenticated) return;
+
+        console.log('[AdminApp] 🟢 Ativando Nexus Pulse (Realtime)...');
+        const subscription = DataService.subscribeToOrders(() => {
+            console.log('[UI] ⚡ Atualizando atividades em tempo real...');
+            oRefetch(); // Atualiza Ordens imediatamente (High Priority)
+
+            // Atualiza contadores e dashboard em background (Low Priority)
+            setTimeout(() => {
+                Promise.all([cRefetch(), qRefetch(), tRefetch()]).catch(console.error);
+            }, 1500);
+        });
+
+        return () => {
+            subscription?.unsubscribe();
+        }
+    }, [auth.isAuthenticated]);
+
     const handleManualRefresh = async () => {
         if (isRefreshing) return;
         setIsRefreshing(true);
-        console.log('[AdminApp] 🔄 Atualizando dados manualmente...');
+        console.log('[AdminApp] 🔄 Sincronização Manual Iniciada...');
+
+        // 🛡️ Fail-Safe: Garante que o loading pare em 5s mesmo se a rede travar
+        const safetyTimer = setTimeout(() => {
+            if (isRefreshing) {
+                console.warn('[AdminApp] ⚠️ Sincronização demorou muito. Forçando parada do spinner.');
+                setIsRefreshing(false);
+            }
+        }, 5000);
 
         try {
             await fetchGlobalData();
+            console.log('[AdminApp] ✅ Sincronização concluída com sucesso.');
         } catch (e) {
-            console.error('[AdminApp] Erro no refresh manual:', e);
+            console.error('[AdminApp] ❌ Erro na sincronização:', e);
         } finally {
-            // Garante feedback visual mínimo e desliga o spinner SEMPRE
-            setTimeout(() => setIsRefreshing(false), 1000);
+            clearTimeout(safetyTimer);
+            setTimeout(() => setIsRefreshing(false), 500);
         }
     };
 

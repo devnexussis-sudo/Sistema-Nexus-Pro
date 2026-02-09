@@ -1389,34 +1389,84 @@ export const DataService = {
 
   getOrders: async (): Promise<ServiceOrder[]> => {
     if (isCloudEnabled) {
-      let tenantId = DataService.getCurrentTenantId();
+      // 🛡️ Nexus Timeout Protection (10s)
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_10S')), 10000));
 
-      if (!tenantId) {
-        console.warn("⚠️ [DataSync] Tenant ID não encontrado localmente. Tentando recuperação de emergência...");
-        const recovered = await DataService.refreshUser().catch(() => null);
-        tenantId = recovered?.tenantId;
-      }
+      try {
+        const fetchPromise = (async () => {
+          let tenantId = DataService.getCurrentTenantId();
 
-      if (!tenantId) {
-        console.error("❌ [DataSync] Falha crítica: Tenant ID não localizado após recuperação.");
+          if (!tenantId) {
+            console.warn("⚠️ [DataSync] Tenant ID não encontrado localmente. Tentando recuperação de emergência...");
+            const recovered = await DataService.refreshUser().catch(() => null);
+            tenantId = recovered?.tenantId;
+          }
+
+          if (!tenantId) {
+            console.error("❌ [DataSync] Falha crítica: Tenant ID não localizado após recuperação.");
+            return [];
+          }
+
+          console.log("📡 Nexus DataSync: Buscando Atividades no Supabase para tenant:", tenantId);
+          const { data, error } = await DataService.getServiceClient().from('orders')
+            .select('*')
+            .eq('tenant_id', tenantId);
+
+          if (error) throw error;
+
+          const mapped = (data || []).map(d => DataService._mapOrderFromDB(d));
+          console.log(`✅ Nexus DataSync: ${mapped.length} atividades localizadas.`);
+          return mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        })();
+
+        return await Promise.race([fetchPromise, timeoutPromise]) as ServiceOrder[];
+
+      } catch (err: any) {
+        if (err.message === 'TIMEOUT_10S') {
+          console.error("❌ Erro CRÍTICO: Timeout ao buscar ordens (10s).");
+          return []; // Fail-safe: Retorna vazio em vez de crashar/travar
+        }
+        console.error("❌ Erro ao buscar ordens:", err.message);
         return [];
       }
-
-      console.log("📡 Nexus DataSync: Buscando Atividades no Supabase para tenant:", tenantId);
-      const { data, error } = await DataService.getServiceClient().from('orders')
-        .select('*')
-        .eq('tenant_id', tenantId);
-
-      if (error) {
-        console.error("❌ Erro ao buscar ordens:", error.message);
-        return [];
-      }
-
-      const mapped = (data || []).map(d => DataService._mapOrderFromDB(d));
-      console.log(`✅ Nexus DataSync: ${mapped.length} atividades localizadas para tenant ${tenantId}.`);
-      return mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
     return getStorage<ServiceOrder[]>(STORAGE_KEYS.ORDERS, MOCK_ORDERS);
+  },
+
+  /**
+   * 📡 Nexus Pulse: Realtime Engine (Big-Tech Pattern)
+   * Escuta mudanças no banco e atualiza a tela instantaneamente (Push-based)
+   */
+  subscribeToOrders: (onUpdate: () => void) => {
+    if (!isCloudEnabled) return { unsubscribe: () => { } };
+
+    // Pequeno delay para garantir que tenhamos o tenantId
+    const tenantId = DataService.getCurrentTenantId();
+    if (!tenantId) return { unsubscribe: () => { } };
+
+    console.log(`[Nexus Pulse] 🟢 Iniciando monitoramento Realtime para tenant: ${tenantId}`);
+
+    const channel = supabase
+      .channel(`orders-live-${tenantId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders', filter: `tenant_id=eq.${tenantId}` },
+        (payload) => {
+          console.log('[Nexus Pulse] ⚡ MUDANÇA DETECTADA NO BANCO:', payload.eventType);
+          onUpdate();
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') console.log('[Nexus Pulse] ✅ Conectado ao stream de dados.');
+        if (status === 'CHANNEL_ERROR') console.error('[Nexus Pulse] ❌ Erro na conexão realtime.');
+      });
+
+    return {
+      unsubscribe: () => {
+        console.log('[Nexus Pulse] 🔴 Desconectando stream...');
+        supabase.removeChannel(channel);
+      }
+    };
   },
 
   /**
