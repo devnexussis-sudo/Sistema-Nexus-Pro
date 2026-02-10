@@ -1564,43 +1564,78 @@ export const DataService = {
   subscribeToOrders: (onUpdate: () => void) => {
     if (!isCloudEnabled) return { unsubscribe: () => { } };
 
-    // Pequeno delay para garantir que tenhamos o tenantId
-    const tenantId = DataService.getCurrentTenantId();
-    if (!tenantId) return { unsubscribe: () => { } };
-
-    console.log(`[Nexus Pulse] 🟢 Iniciando monitoramento Realtime para tenant: ${tenantId}`);
-
+    let channel: any = null;
     let isActive = true;
-    const channel = supabase
-      .channel(`orders-live-${tenantId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `tenant_id=eq.${tenantId}` },
-        (payload) => {
-          if (!isActive) return; // Ignore if unsubscribed
-          console.log('[Nexus Pulse] ⚡ MUDANÇA DETECTADA NO BANCO:', payload.eventType);
-          onUpdate();
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') console.log('[Nexus Pulse] ✅ Conectado ao stream de dados.');
-        if (status === 'CHANNEL_ERROR') {
-          console.error('[Nexus Pulse] ❌ Erro na conexão realtime.');
-          // Auto-reconnect will be handled by Supabase client
-        }
-        if (status === 'CLOSED') {
-          console.log('[Nexus Pulse] 🔴 Canal fechado.');
-          isActive = false;
-        }
-      });
+    let reconnectAttempts = 0;
+    let reconnectTimer: any = null;
+
+    const connect = async () => {
+      if (!isActive) return;
+
+      const tenantId = DataService.getCurrentTenantId();
+      if (!tenantId) return;
+
+      console.log(`[Nexus Pulse] 🟢 Iniciando monitoramento Realtime para tenant: ${tenantId}`);
+
+      // 🛡️ Ensure valid session before connecting
+      await ensureValidSession();
+
+      channel = supabase
+        .channel(`orders-live-${tenantId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders', filter: `tenant_id=eq.${tenantId}` },
+          (payload) => {
+            if (!isActive) return;
+            console.log('[Nexus Pulse] ⚡ MUDANÇA DETECTADA NO BANCO:', payload.eventType);
+            onUpdate();
+          }
+        )
+        .subscribe(async (status) => {
+          if (!isActive) return;
+
+          if (status === 'SUBSCRIBED') {
+            console.log('[Nexus Pulse] ✅ Conectado ao stream de dados.');
+            reconnectAttempts = 0; // Reset counter on success
+          }
+
+          if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
+            console.error(`[Nexus Pulse] ❌ Erro na conexão realtime (${status}). Tentando reconectar...`);
+
+            if (reconnectAttempts < 5) {
+              const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+              reconnectAttempts++;
+              console.log(`[Nexus Pulse] ⏳ Reconectando em ${delay}ms...`);
+
+              reconnectTimer = setTimeout(async () => {
+                // Remove old channel
+                if (channel) {
+                  await supabase.removeChannel(channel).catch(() => { });
+                }
+                // Force token refresh before reconnecting
+                await supabase.auth.refreshSession().catch(() => { });
+                connect();
+              }, delay);
+            } else {
+              console.error('[Nexus Pulse] ❌ Falha persistente na conexão realtime. Desistindo.');
+            }
+          }
+        });
+    };
+
+    // Initial connection
+    connect();
 
     return {
       unsubscribe: () => {
         console.log('[Nexus Pulse] 🔴 Desconectando stream...');
         isActive = false;
-        supabase.removeChannel(channel).catch(err => {
-          console.warn('[Nexus Pulse] ⚠️ Erro ao remover canal:', err);
-        });
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        if (channel) {
+          supabase.removeChannel(channel).catch(err => {
+            console.warn('[Nexus Pulse] ⚠️ Erro ao remover canal:', err);
+          });
+        }
       }
     };
   },
