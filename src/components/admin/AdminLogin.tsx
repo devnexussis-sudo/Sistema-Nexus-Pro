@@ -55,15 +55,17 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent" />
 
-                <div className="absolute bottom-20 left-20 right-20 z-10">
-                    <h2 className="text-6xl font-black text-white italic uppercase tracking-tighter leading-none mb-6 drop-shadow-2xl">
-                        Bem vindo ao <br />
-                        <span className="text-primary-400">Nexus Line</span>
-                    </h2>
-                    <p className="text-white/80 text-xl font-medium leading-relaxed max-w-xl drop-shadow-lg">
-                        Uma plataforma com tecnologia de ponta para gerenciar suas equipes de campo,
-                        otimizar processos e obter máxima produtividade em tempo real.
-                    </p>
+                <div className="absolute inset-0 flex flex-col justify-center px-20 z-10">
+                    <div className="max-w-xl -mt-20">
+                        <h2 className="text-6xl font-black text-white italic uppercase tracking-tighter leading-none mb-6 drop-shadow-2xl">
+                            Bem vindo ao <br />
+                            <span className="text-primary-400">Nexus Line</span>
+                        </h2>
+                        <p className="text-white/80 text-xl font-medium leading-relaxed drop-shadow-lg">
+                            Uma plataforma com tecnologia de ponta para gerenciar suas equipes de campo,
+                            otimizar processos e obter máxima produtividade em tempo real.
+                        </p>
+                    </div>
                 </div>
 
                 <div className="absolute top-10 left-10">
