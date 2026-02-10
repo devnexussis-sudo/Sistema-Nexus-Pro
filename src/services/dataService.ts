@@ -3060,14 +3060,14 @@ export const DataService = {
           return data;
         } else {
           // Criação explícita
-          // 🛡️ O banco não gera ID automático para texto, então geramos um ID único aqui
-          // Formato: st- + timestamp base36 (ex: st-l8x9z3)
-          const newId = `st-${Date.now().toString(36)}`;
+          // 🛡️ LET DATABASE GENERATE UUID AUTOMATICALLY
+          // Do NOT send custom ID - PostgreSQL will auto-generate valid UUID
 
           const payload = {
-            id: newId,
             name: type.name,
-            tenant_id: tid
+            tenant_id: tid,
+            description: type.description || null,
+            active: type.active !== undefined ? type.active : true
           };
 
           const { data, error } = await DataService.getServiceClient().from('service_types')
