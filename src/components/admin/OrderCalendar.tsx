@@ -29,6 +29,7 @@ import {
   Calendar as CalendarIcon
 } from 'lucide-react';
 import { ServiceOrder, User as TechUser, Customer, OrderStatus } from '../../types';
+import { getStatusCalendarStyle, getStatusLabel } from '../../lib/statusColors';
 
 interface OrderCalendarProps {
   orders: ServiceOrder[];
@@ -89,17 +90,8 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
     });
   };
 
-  const getStatusStyle = (status: OrderStatus) => {
-    switch (status) {
-      case OrderStatus.COMPLETED: return 'bg-emerald-500 text-white border-emerald-600';
-      case OrderStatus.IN_PROGRESS: return 'bg-primary-500 text-white border-primary-600';
-      case OrderStatus.ASSIGNED: return 'bg-primary-500 text-white border-primary-600';
-      case OrderStatus.PENDING: return 'bg-amber-500 text-white border-amber-600';
-      case OrderStatus.CANCELED: return 'bg-rose-500 text-white border-rose-600';
-      case OrderStatus.BLOCKED: return 'bg-slate-500 text-white border-slate-600';
-      default: return 'bg-primary-500 text-white border-primary-600';
-    }
-  };
+  // ✅ Usando cores vibrantes do Design System para boa visibilidade no calendário
+  const getStatusStyle = getStatusCalendarStyle;
 
   return (
     <div className="flex flex-col h-full bg-[#f8fafc] overflow-hidden">
@@ -204,7 +196,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                         e.stopPropagation();
                         handleOrderClick(order);
                       }}
-                      className={`group/item flex flex-col p-1 rounded border transition-all hover:scale-[1.02] active:scale-95 cursor-pointer shadow-sm ${getStatusStyle(order.status)}`}
+                      className={`group/item flex flex-col p-1 rounded border transition-all hover:scale-[1.03] hover:shadow-lg active:scale-95 cursor-pointer shadow-md ${getStatusStyle(order.status)}`}
                     >
                       <div className="flex justify-between items-center gap-1 leading-none">
                         <span className="text-[7.5px] font-black tracking-tighter uppercase truncate flex-1">
