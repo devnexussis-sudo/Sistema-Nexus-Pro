@@ -29,7 +29,7 @@ interface Technician {
 interface LocationHistory {
     latitude: number;
     longitude: number;
-    created_at: string;
+    recorded_at: string;
 }
 
 const createTechIcon = (avatarUrl: string, isMoving: boolean = true) => {
@@ -159,12 +159,12 @@ export const TechnicianMap: React.FC = () => {
             endDateObj.setHours(23, 59, 59, 999);
 
             const { data, error } = await DataService.getServiceClient()
-                .from('technician_locations')
-                .select('latitude, longitude, created_at')
-                .eq('user_id', techId)
-                .gte('created_at', startDateObj.toISOString())
-                .lte('created_at', endDateObj.toISOString())
-                .order('created_at', { ascending: true });
+                .from('technician_location_history')
+                .select('latitude, longitude, recorded_at')
+                .eq('technician_id', techId)
+                .gte('recorded_at', startDateObj.toISOString())
+                .lte('recorded_at', endDateObj.toISOString())
+                .order('recorded_at', { ascending: true });
 
             if (error) throw error;
             setHistoryPath(data || []);
@@ -439,7 +439,7 @@ export const TechnicianMap: React.FC = () => {
                                         <div className="p-2 min-w-[150px]">
                                             <p className="font-black text-[10px] text-slate-900 uppercase">Ping #{idx + 1}</p>
                                             <p className="text-[9px] text-slate-500 font-bold mt-1">
-                                                {format(new Date(point.created_at), "HH:mm:ss 'em' dd/MM", { locale: ptBR })}
+                                                {format(new Date(point.recorded_at), "HH:mm:ss 'em' dd/MM", { locale: ptBR })}
                                             </p>
                                             <div className="mt-2 flex items-center justify-between gap-4 border-t border-slate-100 pt-2">
                                                 <span className="text-[8px] font-black text-slate-400">STATUS</span>
