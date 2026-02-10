@@ -2967,20 +2967,15 @@ export const DataService = {
           name: t.name || (t as any).title
         }));
 
+        // 🛡️ REMOVED RPC CALL TO PREVENT 400 ERRORS
+        // If no service types exist, return empty array
+        // User can create them manually via UI
+        // This prevents blocking 400 Bad Request errors
+
         if (types.length === 0) {
-          try {
-            await DataService.getServiceClient().rpc('rpc_ensure_service_types', {});
-            // Busca novamente
-            const retry = await DataService.getServiceClient().from('service_types')
-              .select('*').eq('tenant_id', tenantId);
-            types = (retry.data || []).map(t => ({
-              ...t,
-              name: t.name || (t as any).title
-            }));
-          } catch (e) {
-            console.warn('Falha ao inicializar tipos padrão:', e);
-          }
+          console.warn('[getServiceTypes] ⚠️ No service types found. User should create them via UI.');
         }
+
         return types;
       })();
 
