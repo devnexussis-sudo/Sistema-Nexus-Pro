@@ -34,6 +34,9 @@ const App: React.FC = () => {
   // 🔒 Track if connection was actually lost
   const wasOfflineRef = useRef(false);
 
+  // ⏰ Auto-logout after 2 hours of inactivity
+  const lastActivityRef = useRef(Date.now());
+
   const handleHashChange = () => {
     const hash = window.location.hash;
     const pathname = window.location.pathname;
@@ -221,6 +224,23 @@ const App: React.FC = () => {
     window.addEventListener('focus', handleFocus);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // ⏰ Auto-logout after 2 hours of inactivity
+    const updateActivity = () => { lastActivityRef.current = Date.now(); };
+    const checkInactivity = setInterval(() => {
+      const TWO_HOURS = 2 * 60 * 60 * 1000;
+      if (auth.isAuthenticated && Date.now() - lastActivityRef.current > TWO_HOURS) {
+        logger.warn('Auto-logout: 2+ horas de inatividade');
+        SessionStorage.clear();
+        localStorage.removeItem('nexus_tech_session_v2');
+        window.location.reload();
+      }
+    }, 60000); // Check every minute
+
+    // Track activity
+    const autoLogoutEvents = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    autoLogoutEvents.forEach(e => window.addEventListener(e, updateActivity, { passive: true }));
+
     initApp();
 
     return () => {
@@ -230,6 +250,10 @@ const App: React.FC = () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+
+      // Clean up auto-logout
+      if (checkInactivity) clearInterval(checkInactivity);
+      autoLogoutEvents.forEach(e => window.removeEventListener(e, updateActivity));
 
       // ✅ CLEANUP AUTH LISTENER TO PREVENT MEMORY LEAKS
       if (authSubscriptionRef.current) {

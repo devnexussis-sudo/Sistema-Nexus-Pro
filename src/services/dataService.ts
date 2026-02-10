@@ -1421,8 +1421,8 @@ export const DataService = {
 
   getOrders: async (): Promise<ServiceOrder[]> => {
     if (isCloudEnabled) {
-      // 🛡️ Nexus Timeout Protection (10s)
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_10S')), 10000));
+      // 🛡️ Nexus Timeout Protection (15s - increased for slow connections)
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_15S')), 15000));
 
       try {
         const fetchPromise = (async () => {
@@ -1436,10 +1436,12 @@ export const DataService = {
 
           if (!tenantId) {
             console.error("❌ [DataSync] Falha crítica: Tenant ID não localizado após recuperação.");
-            return [];
+            // ⚠️ Session likely expired - trigger error that will force logout
+            throw new Error('SESSION_EXPIRED_NO_TENANT');
           }
 
           console.log("📡 Nexus DataSync: Buscando Atividades no Supabase para tenant:", tenantId);
+
           const { data, error } = await DataService.getServiceClient().from('orders')
             .select('*')
             .eq('tenant_id', tenantId)
@@ -1447,6 +1449,15 @@ export const DataService = {
             .limit(200); // 🚀 Performance Boost: Limita às 200 últimas OS para não travar o load inicial
 
           if (error) {
+            // 🔒 Check if error is due to expired session or auth issues
+            if (error.message?.includes('JWT') ||
+              error.message?.includes('expired') ||
+              error.message?.includes('auth') ||
+              error.code === 'PGRST301') {
+              console.error("❌ Sessão expirada detectada. Forçando logout...");
+              throw new Error('SESSION_EXPIRED_AUTH');
+            }
+
             // Se erro de conexão, tenta recuperar do cache local para não mostrar tela branca
             console.warn("⚠️ Falha ao buscar ordens online. Tentando cache local...", error);
             const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
@@ -1465,11 +1476,38 @@ export const DataService = {
         return await Promise.race([fetchPromise, timeoutPromise]) as ServiceOrder[];
 
       } catch (err: any) {
-        if (err.message === 'TIMEOUT_10S') {
-          console.error("❌ Erro CRÍTICO: Timeout ao buscar ordens (10s).");
+        // 🚨 CRITICAL: Handle expired session by forcing logout
+        if (err.message === 'SESSION_EXPIRED_NO_TENANT' || err.message === 'SESSION_EXPIRED_AUTH') {
+          console.error("❌ SESSÃO EXPIRADA: Fazendo logout automático...");
+          // Clear all storage
+          SessionStorage.clear();
+          localStorage.removeItem('nexus_tech_session_v2');
+          localStorage.removeItem('nexus_tech_cache_v2');
+          // Force page reload to go to login
+          setTimeout(() => window.location.reload(), 500);
+          return [];
+        }
+
+        if (err.message === 'TIMEOUT_15S') {
+          console.error("❌ Erro CRÍTICO: Timeout ao buscar ordens (15s).");
+          // Try to return cached data instead of empty
+          const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
+          if (cached) {
+            console.warn("⚠️ Usando dados em cache devido a timeout");
+            return JSON.parse(cached);
+          }
           return []; // Fail-safe: Retorna vazio em vez de crashar/travar
         }
+
         console.error("❌ Erro ao buscar ordens:", err.message);
+
+        // Try cache before giving up
+        const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
+        if (cached) {
+          console.warn("⚠️ Usando dados em cache devido a erro");
+          return JSON.parse(cached);
+        }
+
         return [];
       }
     }
