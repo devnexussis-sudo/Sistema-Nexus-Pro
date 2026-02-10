@@ -61,9 +61,9 @@ WITH CHECK (tenant_id = public.get_user_tenant_id());
 
 
 -- >>> ACTIVATION RULES
-DROP POLICY IF EXISTS "tenant_activation_rules" ON public.form_activation_rules;
+DROP POLICY IF EXISTS "tenant_activation_rules" ON public.activation_rules;
 
-CREATE POLICY "activation_rules_isolation_policy" ON public.form_activation_rules FOR ALL TO authenticated
+CREATE POLICY "activation_rules_isolation_policy" ON public.activation_rules FOR ALL TO authenticated
 USING (tenant_id = public.get_user_tenant_id())
 WITH CHECK (tenant_id = public.get_user_tenant_id());
 
