@@ -2,9 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Configuração do Cliente Admin (Backend Seguro)
-// A URL pode ser pública, mas a CHAVE DE SERVIÇO deve vir de var de ambiente SEGURA (sem VITE_)
-const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''; // Chave backend-only
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''; // Chave backend-only
 
 if (!serviceKey) {
     console.error('❌ Falha Crítica: SUPABASE_SERVICE_ROLE_KEY não encontrada no ambiente do servidor.');
