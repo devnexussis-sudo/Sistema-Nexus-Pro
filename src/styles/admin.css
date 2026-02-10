@@ -18,6 +18,8 @@ body {
     font-family: 'Inter', sans-serif;
 }
 
+
+
 /* Admin Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
     width: 5px;
@@ -76,4 +78,25 @@ body {
         position: relative !important;
         width: 100% !important;
     }
+}
+
+/* 🛡️ NEXUS GLOBAL SELECTION FORCE */
+*::selection {
+    background-color: #1c2d4f !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+*::-moz-selection {
+    background-color: #1c2d4f !important;
+    color: #ffffff !important;
+}
+
+/* Specific target for inputs to bypass browser defaults */
+input::selection,
+textarea::selection,
+[contenteditable="true"]::selection {
+    background-color: #1c2d4f !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
 }
