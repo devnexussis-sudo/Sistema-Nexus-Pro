@@ -2969,7 +2969,7 @@ export const DataService = {
 
         if (types.length === 0) {
           try {
-            await DataService.getServiceClient().rpc('ensure_default_service_types', {});
+            await DataService.getServiceClient().rpc('rpc_ensure_service_types', {});
             // Busca novamente
             const retry = await DataService.getServiceClient().from('service_types')
               .select('*').eq('tenant_id', tenantId);
