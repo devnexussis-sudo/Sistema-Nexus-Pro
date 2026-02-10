@@ -352,39 +352,39 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
             {/* Stats Bar */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-2 px-2">
-                <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm">
-                        <DollarSign size={24} />
+                <div className="bg-white border border-slate-100 p-4 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm">
+                        <DollarSign size={20} />
                     </div>
                     <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Recebido</p>
-                        <h3 className="text-xl font-black text-emerald-600 leading-none">{formatCurrency(stats.totalFaturado)}</h3>
+                        <h3 className="text-lg font-black text-emerald-600 leading-none">{formatCurrency(stats.totalFaturado)}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-sm">
-                        <Clock size={24} />
+                <div className="bg-white border border-slate-100 p-4 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-sm">
+                        <Clock size={20} />
                     </div>
                     <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Pendente</p>
-                        <h3 className="text-xl font-black text-slate-800 leading-none">{formatCurrency(stats.totalPendente)}</h3>
+                        <h3 className="text-lg font-black text-slate-800 leading-none">{formatCurrency(stats.totalPendente)}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
-                    <div className="w-12 h-12 rounded-2xl bg-primary-50 text-primary-600 flex items-center justify-center shadow-sm">
-                        <TrendingUp size={24} />
+                <div className="bg-white border border-slate-100 p-4 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
+                    <div className="w-10 h-10 rounded-2xl bg-primary-50 text-primary-600 flex items-center justify-center shadow-sm">
+                        <TrendingUp size={20} />
                     </div>
                     <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Ticket Médio</p>
-                        <h3 className="text-xl font-black text-slate-800 leading-none">{formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0)}</h3>
+                        <h3 className="text-lg font-black text-slate-800 leading-none">{formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0)}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm">
-                        <UserCheck size={24} />
+                <div className="bg-white border border-slate-100 p-4 rounded-[2rem] shadow-sm flex items-center gap-4 transition-all hover:shadow-md">
+                    <div className="w-10 h-10 rounded-2xl bg-slate-50 text-slate-600 flex items-center justify-center shadow-sm">
+                        <UserCheck size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Top Faturamento</p>

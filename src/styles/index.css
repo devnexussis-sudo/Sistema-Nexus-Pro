@@ -13,6 +13,17 @@ body {
   background-color: #f8fafc;
 }
 
+::selection {
+  background-color: #1c2d4f;
+  /* Blue Nexus */
+  color: white;
+}
+
+::-moz-selection {
+  background-color: #1c2d4f;
+  color: white;
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
