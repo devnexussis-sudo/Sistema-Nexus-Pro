@@ -12,15 +12,82 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const safeUrl = supabaseUrl || 'https://placeholder.supabase.co';
 const safeKey = supabaseAnonKey || 'placeholder';
 
-// Cliente Padrão (Anon Key)
+// Cliente Padrão (Anon Key) com resiliência avançada
 export const supabase = createClient(safeUrl, safeKey, {
     auth: {
         storageKey: 'nexus_shared_auth',
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true
+    },
+    global: {
+        fetch: (url: RequestInfo | URL, init?: RequestInit) => {
+            // Custom fetch with timeout to prevent hanging requests
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s hard timeout
+            return fetch(url, {
+                ...init,
+                signal: controller.signal,
+            }).finally(() => clearTimeout(timeoutId));
+        }
+    },
+    realtime: {
+        params: {
+            eventsPerSecond: 2
+        },
+        heartbeatIntervalMs: 15000,        // Heartbeat every 15s (default 30s)
+        reconnectAfterMs: (tries: number) => // Exponential backoff: 1s, 2s, 4s, 8s... max 30s
+            Math.min(1000 * Math.pow(2, tries), 30000)
     }
 });
+
+/**
+ * 🛡️ Nexus Session Guard: Ensures a valid session exists before DB calls.
+ * Checks the current token expiry and proactively refreshes if needed.
+ * Returns true if session is valid, false if not (user should be logged out).
+ */
+let _lastSessionCheck = 0;
+const SESSION_CHECK_COOLDOWN = 30000; // Don't check more than once per 30s
+
+export async function ensureValidSession(): Promise<boolean> {
+    const now = Date.now();
+    if (now - _lastSessionCheck < SESSION_CHECK_COOLDOWN) return true; // Skip if checked recently
+    _lastSessionCheck = now;
+
+    try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error || !session) {
+            console.warn('[SessionGuard] ⚠️ No active session found, attempting refresh...');
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError || !refreshData.session) {
+                console.error('[SessionGuard] ❌ Session refresh failed:', refreshError?.message);
+                return false;
+            }
+            console.log('[SessionGuard] ✅ Session refreshed successfully.');
+            return true;
+        }
+
+        // Check if token will expire within the next 2 minutes
+        const expiresAt = session.expires_at;
+        if (expiresAt) {
+            const expiresInMs = expiresAt * 1000 - now;
+            if (expiresInMs < 120000) { // Less than 2 minutes until expiration
+                console.log('[SessionGuard] 🔄 Token expiring soon, proactive refresh...');
+                const { error: refreshError } = await supabase.auth.refreshSession();
+                if (refreshError) {
+                    console.error('[SessionGuard] ❌ Proactive refresh failed:', refreshError.message);
+                    return false;
+                }
+                console.log('[SessionGuard] ✅ Proactive refresh successful.');
+            }
+        }
+
+        return true;
+    } catch (err) {
+        console.error('[SessionGuard] ❌ Exception during session check:', err);
+        return false;
+    }
+}
 
 // 🛡️ Secure Admin Proxy
 // Redireciona chamadas AUTH sensíveis para o Backend (/api/admin-users)

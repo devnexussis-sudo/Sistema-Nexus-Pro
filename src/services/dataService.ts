@@ -5,7 +5,7 @@ import {
   CashFlowEntry, TechStockItem, StockMovement, OrderItem
 } from '../types';
 import { MOCK_USERS, MOCK_ORDERS } from '../constants';
-import { supabase, adminSupabase, publicSupabase } from '../lib/supabase';
+import { supabase, adminSupabase, publicSupabase, ensureValidSession } from '../lib/supabase';
 import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
 import { CacheManager } from '../lib/cache';
 
@@ -1421,47 +1421,86 @@ export const DataService = {
 
   getOrders: async (): Promise<ServiceOrder[]> => {
     if (isCloudEnabled) {
-      // 🛡️ Nexus Timeout Protection (15s - increased for slow connections)
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_15S')), 15000));
+      const MAX_RETRIES = 2;
 
-      try {
-        const fetchPromise = (async () => {
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          // 🛡️ Session Guard: Validate/refresh token BEFORE the query
+          const sessionOk = await ensureValidSession();
+          if (!sessionOk) {
+            console.error(`❌ [getOrders] Attempt ${attempt + 1}: Session inválida.`);
+            if (attempt < MAX_RETRIES - 1) {
+              await new Promise(r => setTimeout(r, 1500));
+              continue;
+            }
+            // Last attempt failed - check if session truly expired
+            console.error("❌ SESSÃO EXPIRADA: Fazendo logout automático...");
+            SessionStorage.clear();
+            localStorage.removeItem('nexus_tech_session_v2');
+            localStorage.removeItem('nexus_tech_cache_v2');
+            setTimeout(() => window.location.reload(), 500);
+            return [];
+          }
+
           let tenantId = DataService.getCurrentTenantId();
 
           if (!tenantId) {
-            console.warn("⚠️ [DataSync] Tenant ID não encontrado localmente. Tentando recuperação de emergência...");
+            console.warn("⚠️ [DataSync] Tenant ID não encontrado. Tentando recuperação...");
             const recovered = await DataService.refreshUser().catch(() => null);
             tenantId = recovered?.tenantId;
           }
 
           if (!tenantId) {
-            console.error("❌ [DataSync] Falha crítica: Tenant ID não localizado após recuperação.");
-            // ⚠️ Session likely expired - trigger error that will force logout
+            console.error("❌ [DataSync] Falha: Tenant ID não localizado após recuperação.");
+            if (attempt < MAX_RETRIES - 1) {
+              await new Promise(r => setTimeout(r, 1500));
+              continue;
+            }
             throw new Error('SESSION_EXPIRED_NO_TENANT');
           }
 
-          console.log("📡 Nexus DataSync: Buscando Atividades no Supabase para tenant:", tenantId);
+          console.log(`📡 Nexus DataSync: Buscando Atividades (tentativa ${attempt + 1})...`);
+
+          // 🛡️ Timeout Protection: 20s (increased from 15s for slow connections)
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 20000);
 
           const { data, error } = await DataService.getServiceClient().from('orders')
             .select('*')
             .eq('tenant_id', tenantId)
             .order('created_at', { ascending: false })
-            .limit(200); // 🚀 Performance Boost: Limita às 200 últimas OS para não travar o load inicial
+            .limit(200)
+            .abortSignal(controller.signal);
+
+          clearTimeout(timeoutId);
 
           if (error) {
-            // 🔒 Check if error is due to expired session or auth issues
+            // 🔒 Check for auth/session errors
             if (error.message?.includes('JWT') ||
               error.message?.includes('expired') ||
               error.message?.includes('auth') ||
               error.code === 'PGRST301') {
-              console.error("❌ Sessão expirada detectada. Forçando logout...");
+              console.error(`❌ Sessão expirada detectada (attempt ${attempt + 1}).`);
+              if (attempt < MAX_RETRIES - 1) {
+                // Force token refresh and retry
+                await supabase.auth.refreshSession();
+                await new Promise(r => setTimeout(r, 1000));
+                continue;
+              }
               throw new Error('SESSION_EXPIRED_AUTH');
             }
 
-            // Se erro de conexão, tenta recuperar do cache local para não mostrar tela branca
-            console.warn("⚠️ Falha ao buscar ordens online. Tentando cache local...", error);
+            // Network/connection error - try cache
+            console.warn("⚠️ Falha ao buscar ordens online:", error.message);
+            if (attempt < MAX_RETRIES - 1) {
+              await new Promise(r => setTimeout(r, 2000));
+              continue;
+            }
             const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
-            if (cached) return JSON.parse(cached);
+            if (cached) {
+              console.warn("⚠️ Usando dados em cache após falha de conexão.");
+              return JSON.parse(cached);
+            }
             throw error;
           }
 
@@ -1471,45 +1510,49 @@ export const DataService = {
           localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(mapped));
 
           return mapped;
-        })();
 
-        return await Promise.race([fetchPromise, timeoutPromise]) as ServiceOrder[];
-
-      } catch (err: any) {
-        // 🚨 CRITICAL: Handle expired session by forcing logout
-        if (err.message === 'SESSION_EXPIRED_NO_TENANT' || err.message === 'SESSION_EXPIRED_AUTH') {
-          console.error("❌ SESSÃO EXPIRADA: Fazendo logout automático...");
-          // Clear all storage
-          SessionStorage.clear();
-          localStorage.removeItem('nexus_tech_session_v2');
-          localStorage.removeItem('nexus_tech_cache_v2');
-          // Force page reload to go to login
-          setTimeout(() => window.location.reload(), 500);
-          return [];
-        }
-
-        if (err.message === 'TIMEOUT_15S') {
-          console.error("❌ Erro CRÍTICO: Timeout ao buscar ordens (15s).");
-          // Try to return cached data instead of empty
-          const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
-          if (cached) {
-            console.warn("⚠️ Usando dados em cache devido a timeout");
-            return JSON.parse(cached);
+        } catch (err: any) {
+          // Handle abort (timeout) - retry on first attempt
+          if (err?.name === 'AbortError') {
+            console.error(`❌ Timeout ao buscar ordens (attempt ${attempt + 1}).`);
+            if (attempt < MAX_RETRIES - 1) {
+              // Force session refresh before retry
+              await supabase.auth.refreshSession().catch(() => null);
+              continue;
+            }
+            console.error("❌ Erro CRÍTICO: Timeout persistente ao buscar ordens.");
+            const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
+            if (cached) {
+              console.warn("⚠️ Usando dados em cache devido a timeout persistente.");
+              return JSON.parse(cached);
+            }
+            return [];
           }
-          return []; // Fail-safe: Retorna vazio em vez de crashar/travar
+
+          // 🚨 CRITICAL: Handle expired session
+          if (err.message === 'SESSION_EXPIRED_NO_TENANT' || err.message === 'SESSION_EXPIRED_AUTH') {
+            console.error("❌ SESSÃO EXPIRADA: Fazendo logout automático...");
+            SessionStorage.clear();
+            localStorage.removeItem('nexus_tech_session_v2');
+            localStorage.removeItem('nexus_tech_cache_v2');
+            setTimeout(() => window.location.reload(), 500);
+            return [];
+          }
+
+          // Generic error on last attempt
+          if (attempt >= MAX_RETRIES - 1) {
+            console.error("❌ Erro ao buscar ordens:", err.message);
+            const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
+            if (cached) {
+              console.warn("⚠️ Usando dados em cache devido a erro.");
+              return JSON.parse(cached);
+            }
+            return [];
+          }
         }
-
-        console.error("❌ Erro ao buscar ordens:", err.message);
-
-        // Try cache before giving up
-        const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
-        if (cached) {
-          console.warn("⚠️ Usando dados em cache devido a erro");
-          return JSON.parse(cached);
-        }
-
-        return [];
       }
+
+      return []; // Fallback safety
     }
     return getStorage<ServiceOrder[]>(STORAGE_KEYS.ORDERS, MOCK_ORDERS);
   },

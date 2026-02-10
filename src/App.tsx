@@ -152,10 +152,21 @@ const App: React.FC = () => {
       }
     };
 
-    const handleFocus = () => {
+    const handleFocus = async () => {
       if (auth.isAuthenticated) {
         logger.debug('Janela focada - Verificando integridade da sessão');
-        validateAndRestoreSession(true); // Silent - don't show toast on every focus
+        try {
+          // 🛡️ CRITICAL: Refresh session FIRST, then invalidate caches
+          // Without this, stale tokens cause 403s on cache-busted queries
+          const { supabase } = await import('./lib/supabase');
+          const { data, error } = await supabase.auth.refreshSession();
+          if (error) {
+            logger.warn('Token refresh on focus failed, attempting full session restore...');
+          }
+        } catch (e) {
+          // Non-blocking - continue even if refresh fails
+        }
+        await validateAndRestoreSession(true); // Silent - don't show toast on every focus
         DataService.forceGlobalRefresh(); // 🌪️ Invalida caches locais
       }
     };
@@ -224,10 +235,24 @@ const App: React.FC = () => {
       }
     };
 
+    // 🛡️ Visibility change: Refresh session when tab becomes visible after being hidden
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && auth.isAuthenticated) {
+        logger.debug('Tab visible again - refreshing session...');
+        try {
+          const { supabase } = await import('./lib/supabase');
+          await supabase.auth.refreshSession();
+        } catch (e) {
+          // Non-blocking
+        }
+      }
+    };
+
     window.addEventListener('hashchange', handleHashChange);
     window.addEventListener('focus', handleFocus);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // ⏰ Auto-logout after 1.5 hours of inactivity (BEFORE Supabase expires)
     // Supabase access token expires at 1h, but auto-refreshes
@@ -268,7 +293,7 @@ const App: React.FC = () => {
           logger.error('Erro na renovação proativa de token:', err);
         }
       }
-    }, 50 * 60 * 1000); // Every 50 minutes
+    }, 20 * 60 * 1000); // Every 20 minutes (proactive, well before 1h expiry)
 
     // Track activity
     const autoLogoutEvents = ['mousedown', 'keydown', 'touchstart', 'scroll'];
@@ -283,6 +308,7 @@ const App: React.FC = () => {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
 
       // Clean up auto-logout and token refresh
       if (checkInactivity) clearInterval(checkInactivity);
