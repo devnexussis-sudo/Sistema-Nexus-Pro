@@ -1410,13 +1410,24 @@ export const DataService = {
           console.log("📡 Nexus DataSync: Buscando Atividades no Supabase para tenant:", tenantId);
           const { data, error } = await DataService.getServiceClient().from('orders')
             .select('*')
-            .eq('tenant_id', tenantId);
+            .eq('tenant_id', tenantId)
+            .order('created_at', { ascending: false })
+            .limit(200); // 🚀 Performance Boost: Limita às 200 últimas OS para não travar o load inicial
 
-          if (error) throw error;
+          if (error) {
+            // Se erro de conexão, tenta recuperar do cache local para não mostrar tela branca
+            console.warn("⚠️ Falha ao buscar ordens online. Tentando cache local...", error);
+            const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
+            if (cached) return JSON.parse(cached);
+            throw error;
+          }
 
           const mapped = (data || []).map(d => DataService._mapOrderFromDB(d));
-          console.log(`✅ Nexus DataSync: ${mapped.length} atividades localizadas.`);
-          return mapped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+          // Atualiza cache local silenciosamente
+          localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(mapped));
+
+          return mapped;
         })();
 
         return await Promise.race([fetchPromise, timeoutPromise]) as ServiceOrder[];
@@ -2812,17 +2823,18 @@ export const DataService = {
 
   // 🛡️ Nexus Timeout Guard
   _withTimeout: async <T>(promise: Promise<T>, ms = 8000, fallbackValue: T): Promise<T> => {
-    const timeout = new Promise<T>((_, reject) => setTimeout(() => resolve(fallbackValue), ms)); // Soft timeout (resolve com fallback)
-    // Na verdade, queremos rejeitar ou resolver com fallback. Vamos resolver com fallback para não quebrar a UI
-    const timeoutPromise = new Promise<T>((resolve) => setTimeout(() => {
-      console.warn(`[DataService] ⚠️ Timeout de ${ms}ms atingido. Usando fallback.`);
-      resolve(fallbackValue);
-    }, ms));
+    // Timeout Promise correto:
+    const timeoutPromise = new Promise<T>((resolve) => {
+      setTimeout(() => {
+        console.warn(`[DataService] ⚠️ Timeout de ${ms}ms atingido. Usando fallback.`);
+        resolve(fallbackValue);
+      }, ms);
+    });
 
     try {
       return await Promise.race([promise, timeoutPromise]);
     } catch (e) {
-      console.error("[DataService] Erro na requisição:", e);
+      console.error("[DataService] Erro na requisição (catch):", e);
       return fallbackValue;
     }
   },
