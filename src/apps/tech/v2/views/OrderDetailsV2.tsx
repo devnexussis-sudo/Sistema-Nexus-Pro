@@ -19,6 +19,7 @@ import {
 import { ChecklistRenderer } from '../components/ChecklistRenderer';
 import { SignatureCanvas } from '../components/ui/SignatureCanvas';
 import { DataService } from '../../../../services/dataService';
+import { getStatusBadge, getStatusLabel } from '../../../../lib/statusColors';
 
 interface OrderDetailsV2Props {
     order: ServiceOrder;
@@ -182,14 +183,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
         }
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case OrderStatus.COMPLETED: return 'bg-success-50 text-success-600 border-success-100';
-            case OrderStatus.IN_PROGRESS: return 'bg-amber-50 text-amber-600 border-amber-100';
-            case OrderStatus.BLOCKED: return 'bg-rose-50 text-rose-600 border-rose-100';
-            default: return 'bg-slate-100 text-slate-600 border-slate-200';
-        }
-    };
+
 
     return (
         <div className="fixed inset-0 z-[100] bg-slate-50 flex flex-col animate-in slide-in-from-bottom-4 duration-300 font-sans text-slate-900">
@@ -207,10 +201,8 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                     <h2 className="text-sm font-bold text-slate-900 leading-none">#{order.id.slice(0, 8)}</h2>
                 </div>
 
-                <div className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border ${getStatusColor(order.status)}`}>
-                    {order.status === OrderStatus.IN_PROGRESS ? 'Executando' :
-                        order.status === OrderStatus.COMPLETED ? 'Concluída' :
-                            order.status === OrderStatus.BLOCKED ? 'Bloqueada' : 'Pendente'}
+                <div className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border ${getStatusBadge(order.status)}`}>
+                    {getStatusLabel(order.status)}
                 </div>
             </div>
 

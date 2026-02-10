@@ -18,6 +18,7 @@ import {
 import { OrderDetailsV2 } from './OrderDetailsV2';
 import { OrderStatus, OrderPriority, ServiceOrder } from '../../../../types';
 import { DataService } from '../../../../services/dataService';
+import { getStatusBadge, getStatusLabel } from '../../../../lib/statusColors';
 
 export const TechDashboardV2: React.FC = () => {
     const { auth, orders, isSyncing, refreshData, logout, updateOrderStatus, pagination, filters } = useTech();
@@ -220,14 +221,8 @@ export const TechDashboardV2: React.FC = () => {
                                                         {order.customerName}
                                                     </h3>
                                                 </div>
-                                                <div className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wide ${order.status === OrderStatus.COMPLETED ? 'bg-emerald-50 text-emerald-600' :
-                                                    order.status === OrderStatus.IN_PROGRESS ? 'bg-amber-50 text-amber-600' :
-                                                        order.status === OrderStatus.BLOCKED ? 'bg-red-50 text-red-600' :
-                                                            'bg-slate-100 text-slate-600'
-                                                    }`}>
-                                                    {order.status === OrderStatus.IN_PROGRESS ? 'Executando' :
-                                                        order.status === OrderStatus.COMPLETED ? 'Concluída' :
-                                                            order.status === OrderStatus.BLOCKED ? 'Impedida' : 'Pendente'}
+                                                <div className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wide ${getStatusBadge(order.status)}`}>
+                                                    {getStatusLabel(order.status)}
                                                 </div>
                                             </div>
 
