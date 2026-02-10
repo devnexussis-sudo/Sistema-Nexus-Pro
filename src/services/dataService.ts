@@ -1111,7 +1111,6 @@ export const DataService = {
     CacheManager.invalidate(`techs_${tenantId}`);
 
     if (isCloudEnabled) {
-      // ... (rest of implementation)
       console.log("=== CRIANDO TÉCNICO OFICIAL SUPABASE AUTH ===");
 
       // 🔒 Validação de email único global
@@ -1119,7 +1118,6 @@ export const DataService = {
       if (emailCheck.exists) {
         throw new Error(`Este email já está sendo usado em outra empresa e não pode ser usado aqui.`);
       }
-
 
       const { data, error } = await adminSupabase.auth.admin.createUser({
         email: tech.email.toLowerCase(),
@@ -1136,7 +1134,24 @@ export const DataService = {
 
       if (error) throw error;
 
-      // Sincronizar com a tabela public.technicians para legibilidade e OSs
+      // 1. Sincronizar com a tabela public.users (Necessário para a FK da tabela technicians)
+      const dbUser = {
+        id: data.user.id,
+        name: tech.name,
+        email: tech.email.toLowerCase(),
+        role: UserRole.TECHNICIAN,
+        active: tech.active ?? true,
+        tenant_id: tenantId,
+        avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`
+      };
+
+      const { error: userError } = await DataService.getServiceClient().from('users').upsert([dbUser]);
+      if (userError) {
+        console.error("Erro ao sincronizar tabela users:", userError);
+        throw userError;
+      }
+
+      // 2. Sincronizar com a tabela public.technicians para legibilidade e OSs
       const dbTech = {
         id: data.user.id,
         name: tech.name,
@@ -1147,7 +1162,11 @@ export const DataService = {
         tenant_id: tenantId
       };
 
-      await DataService.getServiceClient().from('technicians').upsert([dbTech]);
+      const { error: techError } = await DataService.getServiceClient().from('technicians').upsert([dbTech]);
+      if (techError) {
+        console.error("Erro ao sincronizar tabela technicians:", techError);
+        throw techError;
+      }
 
       return { ...dbTech, tenantId };
     }
@@ -1210,18 +1229,22 @@ export const DataService = {
         console.log("✅ Técnico reabilitado no sistema de autenticação");
       }
 
-      // 2. Sincroniza com a tabela visual
-      const dbTech = {
+      // 2. Sincroniza com as tabelas físicas
+      const dbData = {
         name: tech.name,
-        email: tech.email,
+        email: tech.email?.toLowerCase(),
         active: tech.active ?? true,
         phone: tech.phone || '',
         avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`,
         tenant_id: tenantId
       };
 
+      // Atualiza tabela users (base)
+      await DataService.getServiceClient().from('users').update(dbData).eq('id', tech.id).eq('tenant_id', tenantId);
+
+      // Atualiza tabela technicians (específica)
       const { data, error } = await DataService.getServiceClient().from('technicians')
-        .update(dbTech)
+        .update(dbData)
         .eq('id', tech.id)
         .eq('tenant_id', tenantId)
         .select()
@@ -3026,47 +3049,6 @@ export const DataService = {
     }
   },
 
-  getFormTemplates: async (): Promise<FormTemplate[]> => {
-    const tenantId = DataService.getCurrentTenantId();
-    if (isCloudEnabled) {
-      if (!tenantId) {
-        console.warn('⚠️ Tenant ID não encontrado. Retornando lista vazia de formulários.');
-        return [];
-      }
-      const { data, error } = await DataService.getServiceClient().from('form_templates')
-        .select('*')
-        .eq('tenant_id', tenantId);
-      if (error) {
-        console.warn('⚠️ Erro ao buscar templates (tabela inexistente?). Usando MOCK.', error);
-      }
-      const templates = (data || []).map(f => ({
-        ...f,
-        title: f.title || (f as any).name,
-        // Schema do usuário usa targetType, mas frontend espera serviceTypes[]. Fazemos o Adapter:
-        serviceTypes: f.targetType ? [f.targetType] : [],
-        fields: f.fields || []
-      }));
-
-      // 🚨 MOCK FALLBACK
-      if (templates.length === 0) {
-        templates.push({
-          id: 'mock-001',
-          title: 'Protocolo Padrão V2',
-          active: true,
-          // @ts-ignore
-          serviceTypes: ['Visita Técnica', 'Manutenção Corretiva'],
-          fields: [
-            { id: 'f1', type: FormFieldType.SELECT, label: 'Condição Inicial', required: true, options: ['Operacional', 'Parado', 'Ruído Anormal'] },
-            { id: 'f2', type: FormFieldType.PHOTO, label: 'Foto da Placa / Serial', required: true },
-            { id: 'f3', type: FormFieldType.LONG_TEXT, label: 'O que foi feito?', required: true },
-            { id: 'f4', type: FormFieldType.PHOTO, label: 'Foto Finalizada', required: false }
-          ]
-        });
-      }
-      return templates;
-    }
-    return getStorage<FormTemplate[]>(STORAGE_KEYS.TEMPLATES, []);
-  },
 
   saveFormTemplate: async (template: FormTemplate): Promise<FormTemplate> => {
     const tid = DataService.getCurrentTenantId();
@@ -3118,34 +3100,6 @@ export const DataService = {
     }
   },
 
-  getActivationRules: async (): Promise<any[]> => {
-    if (isCloudEnabled) {
-      const tenantId = DataService.getCurrentTenantId();
-      if (!tenantId) return [];
-
-      const { data, error } = await DataService.getServiceClient().from('activation_rules')
-        .select('*')
-        .eq('tenant_id', tenantId);
-
-      if (error) {
-        console.error("Erro ao buscar regras de ativação:", error);
-        return [];
-      }
-      // Schema do usuário: service_type_id, equipment_family (not null), form_id
-      return (data || []).map(r => ({
-        ...r,
-        // Propriedades Novas (Clean Architecture)
-        serviceType: r.service_type_id,
-        formTemplateId: r.form_id,
-        equipmentFamily: r.equipment_family,
-
-        // Propriedades Legadas (Compatibilidade com FormManagement.tsx)
-        serviceTypeId: r.service_type_id,
-        formId: r.form_id
-      }));
-    }
-    return getStorage<any[]>('nexus_rules_db', []);
-  },
 
   saveActivationRule: async (rule: any): Promise<any> => {
     const tid = DataService.getCurrentTenantId();
