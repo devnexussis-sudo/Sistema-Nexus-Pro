@@ -67,15 +67,27 @@ export class CacheManager {
      */
     static async deduplicate<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
         if (this.inflightRequests.has(key)) {
-            // console.log(`🔄 Deduplicando Requisição: ${key}`); // Debug
+            // Se já existe uma requisição em voo, retorna ela (Deduplicação)
             return this.inflightRequests.get(key) as Promise<T>;
         }
 
-        const promise = fetcher().finally(() => {
+        // Cria a promise com timeout de segurança
+        // Se a requisição demorar muito (20s), remove do mapa para não travar futuras chamadas
+        const safetyTimeout = setTimeout(() => {
+            console.warn(`⚠️ [CacheManager] Safety Timeout (20s) - Limpando requisição travada: ${key}`);
             this.inflightRequests.delete(key);
-        });
+        }, 20000);
+
+        const promise = fetcher()
+            .finally(() => {
+                clearTimeout(safetyTimeout); // Limpa o timeout se completou a tempo
+                this.inflightRequests.delete(key);
+            });
 
         this.inflightRequests.set(key, promise);
+
+        // Retorna a promise original (que pode falhar ou ter sucesso)
+        // O chamador deve tratar o erro
         return promise;
     }
 
