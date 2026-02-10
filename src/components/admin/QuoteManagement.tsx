@@ -463,7 +463,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         <ListPlus size={16} className="text-primary-600" />
                                         <label className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] italic">Composição de Preços (Serviços / Peças)</label>
                                     </div>
-                                    <button onClick={handleAddItem} className="px-4 py-2 bg-primary-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-primary-600/20 hover:scale-105 transition-all">
+                                    <button onClick={handleAddItem} className="px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-[#1c2d4f]/20 hover:scale-105 transition-all">
                                         + Adicionar Item
                                     </button>
                                 </div>

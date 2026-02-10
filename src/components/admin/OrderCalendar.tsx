@@ -114,7 +114,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
           <button onClick={nextMonth} className="p-1.5 hover:bg-white rounded-lg text-slate-600 transition-all active:scale-95"><ChevronRight size={16} /></button>
         </div>
 
-        <button onClick={goToToday} className="px-4 py-2 bg-primary-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary-700 transition-all active:scale-95 shadow-lg shadow-primary-100 shrink-0">Hoje</button>
+        <button onClick={goToToday} className="px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#253a66] transition-all active:scale-95 shadow-lg shadow-primary-100 shrink-0">Hoje</button>
 
         <div className="h-6 w-px bg-slate-200 mx-1"></div>
 
