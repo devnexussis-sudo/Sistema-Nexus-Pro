@@ -302,7 +302,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-400 rounded-xl text-[10px] font-black uppercase hover:text-primary-600 transition-all shadow-sm">
+                    <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-700 text-white rounded-xl text-[10px] font-black uppercase hover:bg-black transition-all shadow-lg active:scale-95">
                         <Printer size={16} /> <span className="hidden xs:inline">Imprimir PDF</span>
                     </button>
                 </div>

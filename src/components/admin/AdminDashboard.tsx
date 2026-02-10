@@ -432,105 +432,109 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       </div>
 
-      {/* Main Table Container */}
-      <div className="bg-white border border-slate-100 rounded-[2rem] shadow-sm flex flex-col overflow-hidden flex-1">
+      {/* Main Table Container - Premium Look */}
+      <div className="bg-white border border-slate-200/60 rounded-xl shadow-sm flex flex-col overflow-hidden flex-1 ring-1 ring-slate-100">
         <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-slate-50/80 backdrop-blur-md border-b border-slate-100 z-10">
-              <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-left">
-                <th className="px-8 py-5 w-12 text-center text-slate-300">
+            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 shadow-sm">
+              <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                <th className="px-6 py-4 w-12 text-center text-slate-400">
                   <input
                     type="checkbox"
-                    className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 cursor-pointer"
+                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                     checked={filteredOrders.length > 0 && selectedOrderIds.length === filteredOrders.length}
                     onChange={toggleSelectAll}
                   />
                 </th>
-                <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('id')}>
-                  <div className="flex items-center">Protocolo {getSortIcon('id')}</div>
+                <th className="px-6 py-4 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
+                  <div className="flex items-center gap-1">Protocolo {getSortIcon('id')}</div>
                 </th>
-                <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('scheduledDate')}>
-                  <div className="flex items-center">Agendamento {getSortIcon('scheduledDate')}</div>
+                <th className="px-6 py-4 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
+                  <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
                 </th>
-                <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('createdAt')}>
-                  <div className="flex items-center">Abertura {getSortIcon('createdAt')}</div>
+                <th className="px-6 py-4 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
+                  <div className="flex items-center gap-1">Abertura {getSortIcon('createdAt')}</div>
                 </th>
-                <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('customerName')}>
-                  <div className="flex items-center">Cliente {getSortIcon('customerName')}</div>
+                <th className="px-6 py-4 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
+                  <div className="flex items-center gap-1">Cliente {getSortIcon('customerName')}</div>
                 </th>
-                <th className="px-6 py-5 text-center cursor-pointer group" onClick={() => requestSort('assignedTo')}>
-                  <div className="flex items-center justify-center">Técnico {getSortIcon('assignedTo')}</div>
+                <th className="px-6 py-4 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('assignedTo')}>
+                  <div className="flex items-center justify-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
                 </th>
-                <th className="px-6 py-5 cursor-pointer group" onClick={() => requestSort('status')}>
-                  <div className="flex items-center">Status {getSortIcon('status')}</div>
+                <th className="px-6 py-4 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
+                  <div className="flex items-center gap-1">Status {getSortIcon('status')}</div>
                 </th>
-                <th className="px-3 py-5 text-right pr-6">Ações</th>
+                <th className="px-6 py-4 text-right pr-8">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {paginatedOrders.length > 0 ? paginatedOrders.map(order => {
                 const isSelected = selectedOrderIds.includes(order.id);
                 const assignedTech = techs.find(t => t.id === order.assignedTo);
                 return (
                   <tr
                     key={order.id}
-                    className={`transition-all border-b border-slate-50 group cursor-pointer ${isSelected ? 'bg-primary-50/30' : 'bg-white hover:bg-slate-50/50'}`}
+                    className={`transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer ${isSelected ? 'bg-indigo-50/40' : 'bg-white hover:bg-slate-50'}`}
                     onClick={() => setSelectedOrder(order)}
                   >
-                    <td className="px-3 py-4 text-center shrink-0 w-12" onClick={(e) => toggleSelection(order.id, e)}>
+                    <td className="px-6 py-5 text-center shrink-0 w-12" onClick={(e) => toggleSelection(order.id, e)}>
                       <input
                         type="checkbox"
-                        className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 cursor-pointer"
+                        className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                         checked={isSelected}
                         readOnly
                       />
                     </td>
-                    <td className="px-3 py-4 font-bold text-slate-900 text-xs tracking-tight uppercase italic whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{order.displayId || order.id}</td>
-                    <td className="px-3 py-4 text-xs font-bold text-slate-700 whitespace-nowrap">
+                    <td className="px-6 py-5">
+                      <span className="font-bold text-slate-700 text-xs bg-slate-100 px-2 py-1 rounded-md border border-slate-200 group-hover:bg-white group-hover:border-slate-300 transition-colors">
+                        {order.displayId || order.id}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5 text-sm font-semibold text-slate-700 whitespace-nowrap">
                       {formatDateDisplay(order.scheduledDate)}
                     </td>
-                    <td className="px-3 py-4 text-xs text-slate-400 font-bold uppercase tracking-tighter whitespace-nowrap">
+                    <td className="px-6 py-5 text-xs text-slate-500 font-medium uppercase tracking-wide whitespace-nowrap">
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-3 py-4 font-black text-xs text-slate-800 uppercase italic truncate max-w-[160px]">
+                    <td className="px-6 py-5 font-bold text-sm text-slate-800 tracking-tight truncate max-w-[200px]">
                       {customers.find(c => c.name === order.customerName || c.document === order.customerName)?.name || order.customerName}
                     </td>
 
-                    <td className="px-3 py-4">
+                    <td className="px-6 py-5">
                       <div className="flex justify-center">
                         {assignedTech ? (
-                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-slate-100 shadow-sm group-hover:bg-primary-50/50 transition-all shrink-0">
-                            <img src={assignedTech.avatar} className="w-4 h-4 rounded object-cover shadow-sm" />
-                            <span className="text-[9px] font-black text-slate-700 uppercase italic truncate max-w-[60px]">{assignedTech?.name?.split(' ')[0]}</span>
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-sm transition-all shrink-0">
+                            <img src={assignedTech.avatar} className="w-5 h-5 rounded-full object-cover shadow-sm" />
+                            <span className="text-[10px] font-bold text-slate-600 uppercase truncate max-w-[80px]">{assignedTech?.name?.split(' ')[0]}</span>
                           </div>
                         ) : <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">-</span>}
                       </div>
                     </td>
-                    <td className="px-3 py-4 whitespace-nowrap"><StatusBadge status={order.status} /></td>
-                    <td className="px-3 py-4 text-right pr-3">
-                      <div className="flex items-center justify-end gap-1.5 transition-all opacity-80 group-hover:opacity-100 scale-95 group-hover:scale-100 origin-right">
+                    <td className="px-6 py-5 whitespace-nowrap"><StatusBadge status={order.status} /></td>
+                    <td className="px-6 py-5 text-right pr-6">
+                      <div className="flex items-center justify-end gap-2 transition-opacity opacity-90 group-hover:opacity-100">
                         <button
                           onClick={(e) => handleOpenPublicView(order, e)}
-                          className="p-2.5 text-slate-400 bg-slate-50 hover:text-slate-900 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-slate-100 transition-all active:scale-90"
-                          title="Compartilhar"
+                          className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 hover:border-primary-600 transition-all shadow-sm"
+                          title="Compartilhar Link Público"
                         >
-                          <Share2 size={14} />
+                          <Share2 size={16} />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className="p-2.5 text-primary-400 bg-primary-50/50 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all disabled:opacity-30 active:scale-90"
+                          className="p-2 text-slate-600 bg-white hover:bg-emerald-500 hover:text-white rounded-lg border border-slate-200 hover:border-emerald-500 transition-all shadow-sm disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600"
                           title="Editar"
                         >
-                          <Edit3 size={14} />
+                          <Edit3 size={16} />
                         </button>
                         <button
                           onClick={(e) => handleCancelOrder(order, e)}
                           disabled={order.status === OrderStatus.CANCELED}
-                          className="p-2.5 text-rose-400 bg-rose-50/50 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all disabled:opacity-30 active:scale-90"
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all disabled:opacity-0"
                           title="Cancelar"
                         >
-                          <Ban size={14} />
+                          <Ban size={16} />
                         </button>
                       </div>
                     </td>
@@ -538,12 +542,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 );
               }) : (
                 <tr>
-                  <td colSpan={8} className="py-24 text-center bg-white">
-                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                      <Search size={20} className="text-slate-300" />
+                  <td colSpan={8} className="py-32 text-center bg-slate-50/30">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
+                      <Search size={24} className="text-slate-300" />
                     </div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nenhuma atividade localizada</p>
-                    <p className="text-[11px] text-slate-300 font-medium mt-1">Ajuste os filtros para encontrar o que procura</p>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Nenhuma atividade localizada</p>
+                    <p className="text-xs text-slate-400 font-medium mt-1">Ajuste os filtros para encontrar o que procura</p>
                   </td>
                 </tr>
               )}
