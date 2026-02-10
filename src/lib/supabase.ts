@@ -24,7 +24,19 @@ export const supabase = createClient(safeUrl, safeKey, {
         fetch: (url: RequestInfo | URL, init?: RequestInit) => {
             // Custom fetch with timeout to prevent hanging requests
             const controller = new AbortController();
+            const originalSignal = init?.signal;
+
+            // 🛡️ Chain the abort signal if one was provided by Supabase
+            if (originalSignal) {
+                if (originalSignal.aborted) {
+                    controller.abort();
+                } else {
+                    originalSignal.addEventListener('abort', () => controller.abort());
+                }
+            }
+
             const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s hard timeout
+
             return fetch(url, {
                 ...init,
                 signal: controller.signal,
@@ -83,7 +95,11 @@ export async function ensureValidSession(): Promise<boolean> {
         }
 
         return true;
-    } catch (err) {
+    } catch (err: any) {
+        // 🛡️ Ignora erros de aborto (normal em cancelamentos rápidos)
+        if (err.name === 'AbortError' || err?.message?.includes('aborted')) {
+            return false;
+        }
         console.error('[SessionGuard] ❌ Exception during session check:', err);
         return false;
     }
