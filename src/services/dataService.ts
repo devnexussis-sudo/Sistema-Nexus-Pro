@@ -2968,13 +2968,18 @@ export const DataService = {
         }));
 
         if (types.length === 0) {
-          types = [
-            { id: 'st-001', name: 'Visita Técnica', active: true },
-            { id: 'st-002', name: 'Manutenção Preventiva', active: true },
-            { id: 'st-003', name: 'Manutenção Corretiva', active: true },
-            { id: 'st-004', name: 'Instalação', active: true },
-            { id: 'st-005', name: 'Garantia', active: true }
-          ];
+          try {
+            await DataService.getServiceClient().rpc('ensure_default_service_types');
+            // Busca novamente
+            const retry = await DataService.getServiceClient().from('service_types')
+              .select('*').eq('tenant_id', tenantId);
+            types = (retry.data || []).map(t => ({
+              ...t,
+              name: t.name || (t as any).title
+            }));
+          } catch (e) {
+            console.warn('Falha ao inicializar tipos padrão:', e);
+          }
         }
         return types;
       })();
@@ -3004,21 +3009,10 @@ export const DataService = {
           fields: f.fields || []
         }));
 
-        if (templates.length === 0) {
-          templates.push({
-            id: 'mock-001',
-            title: 'Protocolo Padrão V2',
-            active: true,
-            // @ts-ignore
-            serviceTypes: ['Visita Técnica', 'Manutenção Corretiva'],
-            fields: [
-              { id: 'f1', type: FormFieldType.SELECT, label: 'Condição Inicial', required: true, options: ['Operacional', 'Parado', 'Ruído Anormal'] },
-              { id: 'f2', type: FormFieldType.PHOTO, label: 'Foto da Placa / Serial', required: true },
-              { id: 'f3', type: FormFieldType.LONG_TEXT, label: 'O que foi feito?', required: true },
-              { id: 'f4', type: FormFieldType.PHOTO, label: 'Foto Finalizada', required: false }
-            ]
-          });
-        }
+        // 🛡️ NO MOCKS ALLOWED
+        // Mocks with invalid IDs (mock-001) cause 400 errors when used in DB queries
+        // Better to return empty list and let UI prompt for creation
+
         return templates;
       })();
 
