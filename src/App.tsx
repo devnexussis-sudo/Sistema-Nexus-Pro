@@ -155,9 +155,16 @@ const App: React.FC = () => {
     const handleFocus = async () => {
       if (auth.isAuthenticated) {
         logger.debug('Janela focada - Verificando integridade da sessão');
+
+        // 🛡️ Zombie Check: Autenticado mas sem Tenant ID?
+        const currentTenant = DataService.getCurrentTenantId();
+        if (!currentTenant) {
+          logger.warn('Estado Zumbi detectado (Auth OK, Tenant Missing). Forçando restauração...');
+          await validateAndRestoreSession(false);
+        }
+
         try {
           // 🛡️ CRITICAL: Refresh session FIRST, then invalidate caches
-          // Without this, stale tokens cause 403s on cache-busted queries
           const { supabase } = await import('./lib/supabase');
           const { data, error } = await supabase.auth.refreshSession();
           if (error) {
@@ -166,7 +173,7 @@ const App: React.FC = () => {
         } catch (e) {
           // Non-blocking - continue even if refresh fails
         }
-        await validateAndRestoreSession(true); // Silent - don't show toast on every focus
+        await validateAndRestoreSession(true); // Silent
         DataService.forceGlobalRefresh(); // 🌪️ Invalida caches locais
       }
     };
