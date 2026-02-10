@@ -7,7 +7,7 @@ import {
   Plus, Printer, X, FileText, CheckCircle2, ShieldCheck,
   Edit3, ExternalLink, Search, Filter, Calendar, Share2,
   Users, UserCheck, Clock, FileSpreadsheet, Download, Camera, ClipboardList, Ban, MapPin, Box,
-  DollarSign, Eye, EyeOff, LayoutDashboard, User, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight
+  DollarSign, Eye, EyeOff, LayoutDashboard, User as UserIcon, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { CreateOrderModal } from './CreateOrderModal';
@@ -641,7 +641,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {/* Info Card Grid */}
                     <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
                       <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
-                        <User size={18} className="text-slate-400" /> Informações do Cliente
+                        <UserIcon size={18} className="text-slate-400" /> Informações do Cliente
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
                         <div className="space-y-1">
