@@ -69,6 +69,9 @@ export const FormManagement: React.FC = () => {
           }
         }, 10000);
 
+        // 🛡️ Ensure valid session before fetching
+        await import('../../lib/supabase').then(m => m.ensureValidSession());
+
         const [st, f, r] = await Promise.all([
           DataService.getServiceTypes(),
           DataService.getFormTemplates(),
@@ -115,8 +118,10 @@ export const FormManagement: React.FC = () => {
       if (!tenantId) {
         console.error("[FormManagement] ❌ No tenant ID found. Session may be expired. Skipping refresh.");
         // Don't throw error - keep existing data visible
-        return;
       }
+
+      // 🛡️ CRITICAL FIX: Validate session before attempting refresh
+      await import('../../lib/supabase').then(m => m.ensureValidSession());
 
       // 🛡️ RESILIENT RETRY LOGIC (BigTech pattern)
       const attemptRefresh = async (attemptNumber: number = 0): Promise<void> => {
