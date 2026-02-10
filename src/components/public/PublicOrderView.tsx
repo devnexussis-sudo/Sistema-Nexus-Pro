@@ -101,8 +101,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 <NexusBranding size="sm" className="opacity-40 ml-2 mt-1 md:hidden" />
               </div>
             </div>
-            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-primary-600 text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-primary-700 transition-all shadow-lg active:scale-95">
-              <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Imprimir</span>
+            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-lg active:scale-95 border border-[#3e5b99]">
+              <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Imprimir PDF</span>
             </button>
           </div>
         </header>
