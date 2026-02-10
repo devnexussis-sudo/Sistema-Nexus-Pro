@@ -88,12 +88,19 @@ const App: React.FC = () => {
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
 
           if (refreshError || !refreshData.session) {
-            // Se o erro for apenas "sessão ausente", limpamos o estado local silenciosamente
-            if (refreshError?.message?.includes('session missing') || refreshError?.name === 'AuthSessionMissingError') {
-              console.log('[App] 💤 Nenhuma sessão ativa encontrada. Limpando estado local.');
+            // Se o erro for "sessão ausente" ou "token inválido", limpamos tudo silenciosamente
+            const isCriticalAuthError =
+              refreshError?.message?.includes('session missing') ||
+              refreshError?.name === 'AuthSessionMissingError' ||
+              refreshError?.message?.includes('Invalid Refresh Token') || // 🛡️ Correção para Token Not Found
+              refreshError?.message?.includes('Refresh Token Not Found');
+
+            if (isCriticalAuthError) {
+              console.log('[App] 💤 Sessão inválida ou expirada. Limpando estado local para novo login.');
               if (isMounted) {
                 setAuth({ user: null, isAuthenticated: false });
                 SessionStorage.clear();
+                // Opcional: window.location.reload() para garantir limpeza total se necessário
               }
               return;
             }
