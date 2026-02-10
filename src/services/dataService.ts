@@ -1145,25 +1145,29 @@ export const DataService = {
         avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`
       };
 
-      const { error: userError } = await DataService.getServiceClient().from('users').upsert([dbUser]);
+      // Usamos adminSupabase para garantir que o bypass do RLS funcione durante a criação
+      const { error: userError } = await adminSupabase.from('users').upsert([dbUser]);
       if (userError) {
         console.error("Erro ao sincronizar tabela users:", userError);
         throw userError;
       }
 
-      // 2. Sincronizar com a tabela public.technicians para legibilidade e OSs
-      const dbTech = {
+      // 2. Sincronizar com a tabela public.technicians
+      const dbTech: any = {
         id: data.user.id,
         name: tech.name,
-        email: tech.email.toLowerCase(),
+        email: tech.email.toLowerCase(), // Pode falhar se não rodou a migração
         active: tech.active ?? true,
         phone: tech.phone || '',
         avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`,
         tenant_id: tenantId
       };
 
-      const { error: techError } = await DataService.getServiceClient().from('technicians').upsert([dbTech]);
+      const { error: techError } = await adminSupabase.from('technicians').upsert([dbTech]);
       if (techError) {
+        if (techError.code === '42703') { // Undefined column
+          throw new Error("Colunas faltantes na tabela 'technicians'. Por favor, execute a migração SQL mais recente no painel do Supabase.");
+        }
         console.error("Erro ao sincronizar tabela technicians:", techError);
         throw techError;
       }
@@ -1240,17 +1244,22 @@ export const DataService = {
       };
 
       // Atualiza tabela users (base)
-      await DataService.getServiceClient().from('users').update(dbData).eq('id', tech.id).eq('tenant_id', tenantId);
+      await adminSupabase.from('users').update(dbData).eq('id', tech.id).eq('tenant_id', tenantId);
 
       // Atualiza tabela technicians (específica)
-      const { data, error } = await DataService.getServiceClient().from('technicians')
+      const { data, error } = await adminSupabase.from('technicians')
         .update(dbData)
         .eq('id', tech.id)
         .eq('tenant_id', tenantId)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === '42703') {
+          throw new Error("Colunas faltantes na tabela 'technicians'. Execute a migração SQL.");
+        }
+        throw error;
+      }
 
       console.log("✅ Técnico atualizado com sucesso!");
       return { ...data, tenantId: data.tenant_id };
