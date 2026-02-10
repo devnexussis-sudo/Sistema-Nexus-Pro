@@ -1547,116 +1547,144 @@ export const DataService = {
 
 
   createOrder: async (order: Omit<ServiceOrder, 'id' | 'createdAt' | 'updatedAt'>): Promise<ServiceOrder> => {
-    const tid = DataService.getCurrentTenantId();
+    // 🛡️ Nexus Timeout Protection (20s para fluxo complexo de criação)
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_20S')), 20000));
 
-    if (!tid) {
-      throw new Error("Tenant ID não encontrado. Por favor, faça login novamente.");
-    }
+    try {
+      const createFlow = (async () => {
+        const tid = DataService.getCurrentTenantId();
 
-    if (isCloudEnabled) {
-      try {
-        console.log("🚀 DEBUG_V3_DIRECT_DB: Iniciando criação de OS...");
-
-        // 1. OBTER TENANTED
-        const tenantId = tid;
-        console.log("📍 Tenant ID:", tenantId);
-
-        // 2. GERAR ID SEQUENCIAL (RPC)
-        console.log("🔢 Gerando sequência para tenant:", tenantId);
-        const { data: seqNum, error: seqError } = await DataService.getServiceClient().rpc('get_next_order_id', {
-          p_tenant_id: tenantId
-        });
-
-        if (seqError) {
-          console.error("❌ Erro RPC get_next_order_id:", seqError);
-          throw new Error(`Falha ao gerar número da OS (RPC): ${seqError.message}`);
+        if (!tid) {
+          throw new Error("Tenant ID não encontrado. Por favor, faça login novamente.");
         }
 
-        // 3. OBTER PREFIXO DO TENANT
-        console.log("🔍 Buscando prefixo do tenant...");
-        const { data: tenantData, error: tenantError } = await DataService.getServiceClient()
-          .from('tenants')
-          .select('os_prefix')
-          .eq('id', tenantId)
-          .single();
+        if (isCloudEnabled) {
+          try {
+            console.log("🚀 DEBUG_V3_DIRECT_DB: Iniciando criação de OS...");
 
-        if (tenantError) {
-          console.warn("⚠️ Não foi possível obter prefixo do tenant:", tenantError.message);
+            // 1. OBTER TENANTED
+            const tenantId = tid;
+            console.log("📍 Tenant ID:", tenantId);
+
+            // 2. GERAR ID SEQUENCIAL (RPC)
+            console.log("🔢 Gerando sequência para tenant:", tenantId);
+            const { data: seqNum, error: seqError } = await DataService.getServiceClient().rpc('get_next_order_id', {
+              p_tenant_id: tenantId
+            });
+
+            if (seqError) {
+              console.error("❌ Erro RPC get_next_order_id:", seqError);
+              throw new Error(`Falha ao gerar número da OS (RPC): ${seqError.message}`);
+            }
+
+            // 3. OBTER PREFIXO DO TENANT
+            console.log("🔍 Buscando prefixo do tenant...");
+            const { data: tenantData, error: tenantError } = await DataService.getServiceClient()
+              .from('tenants')
+              .select('os_prefix')
+              .eq('id', tenantId)
+              .single();
+
+            if (tenantError) {
+              console.warn("⚠️ Não foi possível obter prefixo do tenant:", tenantError.message);
+            }
+
+            const prefix = tenantData?.os_prefix || 'OS-';
+            const finalId = `${prefix}${seqNum}`;
+            console.log("🔢 ID Final Gerado:", finalId);
+
+            // 4. PREPARAR PAYLOAD (Mapeamento snake_case)
+            const dbPayload = {
+              ...DataService._mapOrderToDB(order),
+              id: finalId,
+              tenant_id: tenantId,
+              created_at: new Date().toISOString()
+            };
+
+            console.log("💾 Payload final para inserção:", JSON.stringify(dbPayload, null, 2));
+
+            // 5. INSERIR NO BANCO
+            const { data: insertedData, error: insertError } = await DataService.getServiceClient()
+              .from('orders')
+              .insert(dbPayload)
+              .select()
+              .single();
+
+            if (insertError) {
+              console.error("❌ Erro ao inserir OS:", insertError);
+              throw new Error(`Falha no banco de dados: ${insertError.message}`);
+            }
+
+            console.log('✅ OS criada com sucesso (Direct DB):', insertedData.id);
+            return DataService._mapOrderFromDB(insertedData);
+
+          } catch (err: any) {
+            console.error("❌ [FATAL] Erro na criação da OS (Direct):", err);
+            throw err;
+          }
         }
 
-        const prefix = tenantData?.os_prefix || 'OS-';
-        const finalId = `${prefix}${seqNum}`;
-        console.log("🔢 ID Final Gerado:", finalId);
+        const newOrderLocal = {
+          ...order,
+          id: `ord-${Date.now()}`,
+          tenantId: tid,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        } as ServiceOrder;
 
-        // 4. PREPARAR PAYLOAD (Mapeamento snake_case)
-        const dbPayload = {
-          ...DataService._mapOrderToDB(order),
-          id: finalId,
-          tenant_id: tenantId,
-          created_at: new Date().toISOString()
-        };
+        return newOrderLocal;
+      })();
 
-        console.log("💾 Payload final para inserção:", JSON.stringify(dbPayload, null, 2));
+      return await Promise.race([createFlow, timeoutPromise]) as ServiceOrder;
 
-        // 5. INSERIR NO BANCO
-        const { data: insertedData, error: insertError } = await DataService.getServiceClient()
-          .from('orders')
-          .insert(dbPayload)
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error("❌ Erro ao inserir OS:", insertError);
-          throw new Error(`Falha no banco de dados: ${insertError.message}`);
-        }
-
-        console.log('✅ OS criada com sucesso (Direct DB):', insertedData.id);
-        return DataService._mapOrderFromDB(insertedData);
-
-      } catch (err: any) {
-        console.error("❌ [FATAL] Erro na criação da OS (Direct):", err);
-        console.error("❌ ERRO COMPLETO:", err);
-        console.log("Tipo do erro:", typeof err);
-        if (err.message) console.log("Error.message:", err.message);
-        if (err.stack) console.log("Error.stack:", err.stack);
-        try {
-          console.log("Error completo (JSON):", JSON.stringify(err));
-        } catch (e) { }
-        throw err;
+    } catch (err: any) {
+      if (err.message === 'TIMEOUT_20S') {
+        console.error("❌ Erro CRÍTICO: Timeout ao criar OS (20s). Destravando UI.");
+        throw new Error("O servidor demorou muito para processar a criação. Verifique sua conexão e tente novamente.");
       }
+      throw err;
     }
-
-    const newOrderLocal = {
-      ...order,
-      id: `ord-${Date.now()}`,
-      tenantId: tid,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    } as ServiceOrder;
-
-    return newOrderLocal;
   },
 
   updateOrder: async (updatedOrder: ServiceOrder): Promise<ServiceOrder> => {
     if (isCloudEnabled) {
-      const dbPayload = DataService._mapOrderToDB(updatedOrder);
+      // 🛡️ Nexus Timeout Protection (15s)
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_15S')), 15000));
 
-      const tid = DataService.getCurrentTenantId();
-      if (!tid) throw new Error("Tenant não identificado.");
+      try {
+        const updatePromise = (async () => {
+          const dbPayload = DataService._mapOrderToDB(updatedOrder);
 
-      const { data, error } = await DataService.getServiceClient().from('orders')
-        .update(dbPayload)
-        .eq('id', updatedOrder.id)
-        .eq('tenant_id', tid)
-        .select()
-        .single();
+          const tid = DataService.getCurrentTenantId();
+          if (!tid) throw new Error("Tenant não identificado.");
 
-      if (error) {
-        console.error('❌ Erro Supabase Update:', error);
-        throw error;
+          console.log(`📡 Nexus Sync: Atualizando OS #${updatedOrder.id}...`);
+
+          const { data, error } = await DataService.getServiceClient().from('orders')
+            .update(dbPayload)
+            .eq('id', updatedOrder.id)
+            .eq('tenant_id', tid)
+            .select()
+            .single();
+
+          if (error) {
+            console.error('❌ Erro Supabase Update:', error);
+            throw error;
+          }
+
+          console.log(`✅ Nexus Sync: OS #${updatedOrder.id} atualizada com sucesso!`);
+          return DataService._mapOrderFromDB(data);
+        })();
+
+        return await Promise.race([updatePromise, timeoutPromise]) as ServiceOrder;
+
+      } catch (err: any) {
+        if (err.message === 'TIMEOUT_15S') {
+          console.error("❌ Erro CRÍTICO: Timeout ao atualizar OS (15s). Destravando UI.");
+          throw new Error("O sistema demorou muito para responder. Verifique sua conexão e tente novamente.");
+        }
+        throw err;
       }
-
-      return DataService._mapOrderFromDB(data);
     }
     return updatedOrder;
   },
