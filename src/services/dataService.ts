@@ -2810,39 +2810,126 @@ export const DataService = {
 
   // --- PROCESSES & CHECKLISTS MANAGEMENT (CENTRAL DE INTELIGÊNCIA) ---
 
+  // 🛡️ Nexus Timeout Guard
+  _withTimeout: async <T>(promise: Promise<T>, ms = 8000, fallbackValue: T): Promise<T> => {
+    const timeout = new Promise<T>((_, reject) => setTimeout(() => resolve(fallbackValue), ms)); // Soft timeout (resolve com fallback)
+    // Na verdade, queremos rejeitar ou resolver com fallback. Vamos resolver com fallback para não quebrar a UI
+    const timeoutPromise = new Promise<T>((resolve) => setTimeout(() => {
+      console.warn(`[DataService] ⚠️ Timeout de ${ms}ms atingido. Usando fallback.`);
+      resolve(fallbackValue);
+    }, ms));
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } catch (e) {
+      console.error("[DataService] Erro na requisição:", e);
+      return fallbackValue;
+    }
+  },
+
   getServiceTypes: async (): Promise<any[]> => {
     const tenantId = DataService.getCurrentTenantId();
     if (isCloudEnabled) {
-      if (!tenantId) {
-        console.warn('⚠️ Tenant ID não encontrado. Retornando lista vazia de processos.');
-        return [];
-      }
-      const { data, error } = await DataService.getServiceClient().from('service_types')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .order('name');
-      if (error) {
-        console.warn('⚠️ Erro ao buscar service_types. Usando Mock.', error);
-      }
+      if (!tenantId) return [];
 
-      const types = (data || []).map(t => ({
-        ...t,
-        name: t.name || (t as any).title
-      }));
+      const fetchPromise = (async () => {
+        const { data, error } = await DataService.getServiceClient().from('service_types')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('name');
 
-      // Mock Fallback se vazio
-      if (types.length === 0) {
-        types.push(
-          { id: 'st-001', name: 'Visita Técnica', active: true },
-          { id: 'st-002', name: 'Manutenção Preventiva', active: true },
-          { id: 'st-003', name: 'Manutenção Corretiva', active: true },
-          { id: 'st-004', name: 'Instalação', active: true },
-          { id: 'st-005', name: 'Garantia', active: true }
-        );
-      }
-      return types;
+        if (error) throw error;
+
+        let types = (data || []).map(t => ({
+          ...t,
+          name: t.name || (t as any).title
+        }));
+
+        if (types.length === 0) {
+          types = [
+            { id: 'st-001', name: 'Visita Técnica', active: true },
+            { id: 'st-002', name: 'Manutenção Preventiva', active: true },
+            { id: 'st-003', name: 'Manutenção Corretiva', active: true },
+            { id: 'st-004', name: 'Instalação', active: true },
+            { id: 'st-005', name: 'Garantia', active: true }
+          ];
+        }
+        return types;
+      })();
+
+      // 🛡️ Proteção de 8s
+      return DataService._withTimeout(fetchPromise, 8000, []);
     }
     return getStorage<any[]>('nexus_service_types_db', []);
+  },
+
+  getFormTemplates: async (): Promise<FormTemplate[]> => {
+    const tenantId = DataService.getCurrentTenantId();
+    if (isCloudEnabled) {
+      if (!tenantId) return [];
+
+      const fetchPromise = (async () => {
+        const { data, error } = await DataService.getServiceClient().from('form_templates')
+          .select('*')
+          .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+
+        const templates = (data || []).map(f => ({
+          ...f,
+          title: f.title || (f as any).name,
+          serviceTypes: f.targetType ? [f.targetType] : [],
+          fields: f.fields || []
+        }));
+
+        if (templates.length === 0) {
+          templates.push({
+            id: 'mock-001',
+            title: 'Protocolo Padrão V2',
+            active: true,
+            // @ts-ignore
+            serviceTypes: ['Visita Técnica', 'Manutenção Corretiva'],
+            fields: [
+              { id: 'f1', type: FormFieldType.SELECT, label: 'Condição Inicial', required: true, options: ['Operacional', 'Parado', 'Ruído Anormal'] },
+              { id: 'f2', type: FormFieldType.PHOTO, label: 'Foto da Placa / Serial', required: true },
+              { id: 'f3', type: FormFieldType.LONG_TEXT, label: 'O que foi feito?', required: true },
+              { id: 'f4', type: FormFieldType.PHOTO, label: 'Foto Finalizada', required: false }
+            ]
+          });
+        }
+        return templates;
+      })();
+
+      return DataService._withTimeout(fetchPromise, 8000, []);
+    }
+    return getStorage<FormTemplate[]>(STORAGE_KEYS.TEMPLATES, []);
+  },
+
+  getActivationRules: async (): Promise<any[]> => {
+    if (isCloudEnabled) {
+      const tenantId = DataService.getCurrentTenantId();
+      if (!tenantId) return [];
+
+      const fetchPromise = (async () => {
+        const { data, error } = await DataService.getServiceClient().from('activation_rules')
+          .select('*')
+          .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+
+        return (data || []).map(r => ({
+          ...r,
+          serviceType: r.service_type_id,
+          formTemplateId: r.form_id,
+          equipmentFamily: r.equipment_family,
+          serviceTypeId: r.service_type_id,
+          formId: r.form_id
+        }));
+      })();
+
+      return DataService._withTimeout(fetchPromise, 8000, []);
+    }
+    return getStorage<any[]>('nexus_rules_db', []);
   },
 
   saveServiceType: async (type: any): Promise<any> => {

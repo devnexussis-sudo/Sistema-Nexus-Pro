@@ -55,24 +55,58 @@ export const FormManagement: React.FC = () => {
 
   // Carregamento Inicial via Cloud
   useEffect(() => {
+    let isMounted = true;
+
     const loadAllProcessData = async () => {
       try {
-        setLoading(true);
+        if (isMounted) setLoading(true);
+
+        // 🛡️ Fail-Safe: Se demorar mais de 10s, destrava a UI
+        const safetyTimer = setTimeout(() => {
+          if (isMounted) {
+            console.warn("[FormManagement] ⚠️ Safety Timer ativado: destravando UI.");
+            setLoading(false);
+          }
+        }, 10000);
+
         const [st, f, r] = await Promise.all([
           DataService.getServiceTypes(),
           DataService.getFormTemplates(),
           DataService.getActivationRules()
         ]);
-        setServiceTypes(st);
-        setForms(f);
-        setRules(r);
+
+        clearTimeout(safetyTimer);
+
+        if (isMounted) {
+          setServiceTypes(st);
+          setForms(f);
+          setRules(r);
+        }
       } catch (err) {
         console.error("Nexus Sync Error:", err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
+
     loadAllProcessData();
+
+    // 📡 Auto-Wake: Recarrega se o usuário voltar para a aba após inatividade
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        console.log("[FormManagement] 👁️ Aba focada - Verificando frescor dos dados...");
+        loadAllProcessData();
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleFocus);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('visibilitychange', handleFocus);
+      window.removeEventListener('focus', handleFocus);
+    }
   }, []);
 
   // Handlers para Tipos (Cloud)
