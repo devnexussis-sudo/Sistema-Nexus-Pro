@@ -9,6 +9,7 @@ import { PublicApp } from './apps/public/PublicApp';
 import { MasterLogin } from './components/admin/MasterLogin';
 import { SuperAdminPage } from './components/admin/SuperAdminPage';
 import { Hexagon, Phone } from 'lucide-react';
+import { logger } from './lib/logger';
 
 const App: React.FC = () => {
   const [auth, setAuth] = useState<AuthState>(() => {
@@ -153,7 +154,7 @@ const App: React.FC = () => {
       const isPublic = hash.startsWith('#/view/') || hash.startsWith('#/view-quote/');
 
       if (isPublic) {
-        console.log('[App] 🌐 Rota Pública detectada. Ignorando Heartbeat de sessão.');
+        logger.info('Rota Pública detectada. Ignorando Heartbeat de sessão.');
         setIsInitializing(false);
         return;
       }
@@ -170,7 +171,7 @@ const App: React.FC = () => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
           if (!isMounted) return;
 
-          console.log(`[App] 🔐 Auth Event: ${event}`, session ? 'Session Active' : 'No Session');
+          logger.debug(`Auth Event: ${event}`, session ? 'Session Active' : 'No Session');
 
           if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !isSuperMode) {
             const refreshedUser = await DataService.refreshUser().catch(() => null);
@@ -178,12 +179,12 @@ const App: React.FC = () => {
               setAuth({ user: refreshedUser, isAuthenticated: true });
             }
           } else if (event === 'SIGNED_OUT') {
-            console.log('[App] 👋 Signed out event - Clearing session');
+            logger.info('Signed out event - Clearing session');
             setAuth({ user: null, isAuthenticated: false });
             SessionStorage.clear();
           } else if (event === 'TOKEN_REFRESHED' && !session) {
             // Token refresh failed - force logout
-            console.error('[App] ❌ Token refresh failed - Forcing logout');
+            logger.error('Token refresh failed - Forcing logout');
             setAuth({ user: null, isAuthenticated: false });
             SessionStorage.clear();
             window.location.reload();
@@ -194,7 +195,7 @@ const App: React.FC = () => {
         // ✅ CRITICAL: Store subscription for cleanup
         authSubscriptionRef.current = subscription;
       } catch (err) {
-        console.error("Init Error:", err);
+        logger.error('Init Error:', err);
         if (isMounted) setIsInitializing(false);
       }
     };
@@ -211,7 +212,7 @@ const App: React.FC = () => {
 
       // ✅ CLEANUP AUTH LISTENER TO PREVENT MEMORY LEAKS
       if (authSubscriptionRef.current) {
-        console.log('[App] 🧹 Cleaning up auth subscription');
+        logger.debug('Cleaning up auth subscription');
         authSubscriptionRef.current.unsubscribe();
         authSubscriptionRef.current = null;
       }
@@ -276,12 +277,12 @@ const App: React.FC = () => {
         auth={auth}
         onLogin={(user) => { SessionStorage.set('user', user); setAuth({ user, isAuthenticated: true }); }}
         onLogout={async () => {
-          console.log('[App] 🔥 Logout iniciado...');
+          logger.info('Logout iniciado');
 
           try {
             // 1. Cleanup auth listener FIRST
             if (authSubscriptionRef.current) {
-              console.log('[App] 🧹 Removendo listener de autenticação');
+              logger.debug('Removendo listener de autenticação');
               authSubscriptionRef.current.unsubscribe();
               authSubscriptionRef.current = null;
             }
@@ -299,10 +300,10 @@ const App: React.FC = () => {
             setAuth({ user: null, isAuthenticated: false });
 
             // 5. Force reload to clear any remaining subscriptions
-            console.log('[App] ✅ Logout completo - Recarregando página');
+            logger.info('Logout completo - Recarregando página');
             window.location.reload();
           } catch (error) {
-            console.error('[App] ❌ Erro durante logout:', error);
+            logger.error('Erro durante logout:', error);
             // Force reload anyway to ensure clean state
             window.location.reload();
           }
