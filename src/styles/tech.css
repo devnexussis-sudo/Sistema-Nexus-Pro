@@ -70,3 +70,24 @@ body {
         padding-right: env(safe-area-inset-right);
     }
 }
+
+/* 🛡️ NEXUS GLOBAL SELECTION FORCE */
+*::selection {
+    background-color: #1c2d4f !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+*::-moz-selection {
+    background-color: #1c2d4f !important;
+    color: #ffffff !important;
+}
+
+/* Specific target for inputs to bypass browser defaults */
+input::selection,
+textarea::selection,
+[contenteditable="true"]::selection {
+    background-color: #1c2d4f !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
