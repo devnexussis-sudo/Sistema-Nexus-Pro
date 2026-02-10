@@ -3152,10 +3152,33 @@ export const DataService = {
   deleteFormTemplate: async (id: string) => {
     if (isCloudEnabled) {
       const tid = DataService.getCurrentTenantId();
-      await DataService.getServiceClient().from('form_templates')
+
+      if (!tid) {
+        throw new Error('Tenant ID não encontrado. Faça login novamente.');
+      }
+
+      console.log(`[deleteFormTemplate] Deletando formulário ID: ${id} para tenant: ${tid}`);
+
+      const { data, error } = await DataService.getServiceClient()
+        .from('form_templates')
         .delete()
         .eq('id', id)
-        .eq('tenant_id', tid);
+        .eq('tenant_id', tid)
+        .select(); // Request deleted row to confirm operation
+
+      if (error) {
+        console.error('[deleteFormTemplate] Erro ao deletar:', error);
+        throw new Error(`Falha ao excluir formulário: ${error.message}`);
+      }
+
+      // Check if any row was actually deleted
+      if (!data || data.length === 0) {
+        console.warn('[deleteFormTemplate] Nenhum formulário foi deletado. Possíveis causas: ID inválido ou permissões RLS.');
+        throw new Error('Formulário não encontrado ou você não tem permissão para excluí-lo.');
+      }
+
+      console.log('[deleteFormTemplate] ✅ Formulário deletado com sucesso:', data);
+      return data;
     }
   },
 

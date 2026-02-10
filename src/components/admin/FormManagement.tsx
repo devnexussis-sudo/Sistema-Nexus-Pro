@@ -155,10 +155,17 @@ export const FormManagement: React.FC = () => {
   const handleDeleteForm = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("Isso apagará o modelo permanentemente. Confirmar?")) return;
+
     try {
+      console.log('[FormManagement] Tentando deletar formulário:', id);
       await DataService.deleteFormTemplate(id);
+      console.log('[FormManagement] ✅ Formulário deletado com sucesso');
       setForms(forms.filter(f => f.id !== id));
-    } catch (e) { alert("Erro ao deletar."); }
+      alert('Formulário excluído com sucesso!');
+    } catch (e: any) {
+      console.error('[FormManagement] ❌ Erro ao deletar formulário:', e);
+      alert(`Erro ao deletar: ${e.message || 'Erro desconhecido'}`);
+    }
   };
 
   const addField = () => {
