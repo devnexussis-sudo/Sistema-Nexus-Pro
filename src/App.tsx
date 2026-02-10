@@ -225,17 +225,46 @@ const App: React.FC = () => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // ⏰ Auto-logout after 2 hours of inactivity
+    // ⏰ Auto-logout after 1.5 hours of inactivity (BEFORE Supabase expires)
+    // Supabase access token expires at 1h, but auto-refreshes
+    // We set 1.5h to be safe and give time for any refresh failures
     const updateActivity = () => { lastActivityRef.current = Date.now(); };
     const checkInactivity = setInterval(() => {
-      const TWO_HOURS = 2 * 60 * 60 * 1000;
-      if (auth.isAuthenticated && Date.now() - lastActivityRef.current > TWO_HOURS) {
-        logger.warn('Auto-logout: 2+ horas de inatividade');
-        SessionStorage.clear();
-        localStorage.removeItem('nexus_tech_session_v2');
-        window.location.reload();
+      const ONE_HOUR_THIRTY = 1.5 * 60 * 60 * 1000; // 1h30min = 90 minutes
+      if (auth.isAuthenticated && Date.now() - lastActivityRef.current > ONE_HOUR_THIRTY) {
+        logger.warn('Auto-logout: 1.5h de inatividade (preventivo antes de expiração do Supabase)');
+        setToast({
+          message: 'Sessão expirada por inatividade. Redirecionando...',
+          type: 'info'
+        });
+        setTimeout(() => {
+          SessionStorage.clear();
+          localStorage.removeItem('nexus_tech_session_v2');
+          window.location.reload();
+        }, 2000);
       }
     }, 60000); // Check every minute
+
+    // 🔄 Proactive token refresh every 50 minutes (BEFORE 1h expiration)
+    // This ensures we never hit the expiration wall
+    const tokenRefreshInterval = setInterval(async () => {
+      if (auth.isAuthenticated) {
+        try {
+          const { supabase } = await import('./lib/supabase');
+          const { data, error } = await supabase.auth.refreshSession();
+          if (error) {
+            logger.error('Falha ao renovar token proativamente:', error);
+            // If refresh fails, force logout to prevent stuck state
+            SessionStorage.clear();
+            window.location.reload();
+          } else {
+            logger.debug('Token renovado proativamente com sucesso');
+          }
+        } catch (err) {
+          logger.error('Erro na renovação proativa de token:', err);
+        }
+      }
+    }, 50 * 60 * 1000); // Every 50 minutes
 
     // Track activity
     const autoLogoutEvents = ['mousedown', 'keydown', 'touchstart', 'scroll'];
@@ -251,8 +280,9 @@ const App: React.FC = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
 
-      // Clean up auto-logout
+      // Clean up auto-logout and token refresh
       if (checkInactivity) clearInterval(checkInactivity);
+      if (tokenRefreshInterval) clearInterval(tokenRefreshInterval);
       autoLogoutEvents.forEach(e => window.removeEventListener(e, updateActivity));
 
       // ✅ CLEANUP AUTH LISTENER TO PREVENT MEMORY LEAKS
