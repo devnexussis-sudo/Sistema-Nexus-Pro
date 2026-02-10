@@ -65,12 +65,19 @@ export const StockManagement: React.FC = () => {
     // --- Loaders ---
     const loadItems = async () => {
         setLoading(true);
+        const timeoutId = setTimeout(() => {
+            setLoading(false);
+            console.warn('[Stock] ⚠️ Load timeout - forcing spinner stop');
+        }, 15000);
+
         try {
+            await import('../../lib/supabase').then(m => m.ensureValidSession());
             const data = await DataService.getStockItems();
             setItems(data);
         } catch (error) {
             console.error('Erro ao carregar estoque:', error);
         } finally {
+            clearTimeout(timeoutId);
             setLoading(false);
         }
     };
