@@ -1,12 +1,14 @@
--- FIX SERVICE TYPES DATA AND UUID COMPATIBILITY
+-- FIX SERVICE TYPES DATA AND UUID COMPATIBILITY (V2)
 -- Date: 2026-02-10
+-- Improved: Added SECURITY DEFINER and schema reload
 -- Issue: Frontend is using 'st-001' strings which crash Supabase requests (expecting UUID)
--- Solution: Ensure valid service types exist with valid UUIDs
 
 -- 1. Function to ensure service types exist for a tenant
 CREATE OR REPLACE FUNCTION public.ensure_default_service_types()
 RETURNS void
 LANGUAGE plpgsql
+SECURITY DEFINER  -- Allows function to run with creator permissions (bypass RLS if needed inside)
+SET search_path = public -- Secure search path
 AS $$
 DECLARE
     v_tenant_id uuid;
@@ -14,6 +16,11 @@ BEGIN
     -- Get current user's tenant
     v_tenant_id := public.get_user_tenant_id();
     
+    IF v_tenant_id IS NULL THEN
+        -- Try to get from auth.uid() directly as fallback
+        SELECT tenant_id INTO v_tenant_id FROM public.users WHERE id = auth.uid();
+    END IF;
+
     IF v_tenant_id IS NULL THEN
         RAISE WARNING 'No tenant found for current user';
         RETURN;
@@ -43,8 +50,11 @@ BEGIN
 END;
 $$;
 
--- 2. Clean up any invalid data provided it doesn't break integrity
--- (Supabase checks UUID validity on input, so 'st-001' cannot be in the DB id column)
+-- 2. Grant execute permission strictly
+GRANT EXECUTE ON FUNCTION public.ensure_default_service_types() TO authenticated;
 
--- 3. Execute for current session user (if run from SQL editor)
+-- 3. Reload schema cache (CRITICAL for RPC to be visible)
+NOTIFY pgrst, 'reload schema';
+
+-- 4. Initial run
 SELECT public.ensure_default_service_types();
