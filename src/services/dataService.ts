@@ -3032,11 +3032,10 @@ export const DataService = {
 
         return (data || []).map(r => ({
           ...r,
-          serviceType: r.service_type_id,
-          formTemplateId: r.form_id,
-          equipmentFamily: r.equipment_family,
+          id: r.id,
           serviceTypeId: r.service_type_id,
-          formId: r.form_id
+          formId: r.form_template_id,
+          equipmentFamily: (r.conditions as any)?.equipment_family || 'Todos'
         }));
       })();
 
@@ -3193,9 +3192,11 @@ export const DataService = {
       try {
         const dbRule: any = {
           tenant_id: tid,
-          service_type_id: rule.serviceTypeId || rule.serviceType, // Adapter
-          equipment_family: rule.equipmentFamily || 'Todos',
-          form_id: rule.formId || rule.formTemplateId
+          service_type_id: rule.serviceTypeId || rule.serviceType,
+          form_template_id: rule.formId || rule.formTemplateId,
+          conditions: {
+            equipment_family: rule.equipmentFamily || 'Todos'
+          }
         };
 
         if (rule.id && !rule.id.toString().startsWith('r-')) {
@@ -3209,11 +3210,19 @@ export const DataService = {
             dbRule.id = crypto.randomUUID();
             const retry = await DataService.getServiceClient().from('activation_rules').upsert([dbRule]).select().single();
             if (retry.error) throw retry.error;
-            return retry.data;
+            data = retry.data;
+          } else {
+            throw error;
           }
-          throw error;
         }
-        return data;
+
+        // Map back to frontend format
+        return {
+          id: data.id,
+          serviceTypeId: data.service_type_id,
+          formId: data.form_template_id,
+          equipmentFamily: (data.conditions as any)?.equipment_family || 'Todos'
+        };
       } catch (err) {
         console.error("Erro ao salvar regra cloud:", err);
         throw err;
