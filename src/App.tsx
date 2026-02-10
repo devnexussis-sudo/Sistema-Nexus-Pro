@@ -62,12 +62,16 @@ const App: React.FC = () => {
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
 
-    // Safety timeout: destrava o carregamento após 8 segundos
+    // Safety timeout: destrava o carregamento após 8 segundos (apenas se ainda estiver carregando)
     const timeoutId = setTimeout(() => {
-      if (isMounted) {
-        console.warn('[App] Init Timeout - Forçando carregamento');
-        setIsInitializing(false);
-      }
+      // Usamos o setter funcional para garantir que verificamos o valor mais recente
+      setIsInitializing(prev => {
+        if (prev) {
+          console.warn('[App] ⚠️ Init Timeout - O sistema demorou a responder, liberando interface.');
+          return false;
+        }
+        return prev;
+      });
     }, 8000);
 
     const validateAndRestoreSession = async (silent = true) => {
