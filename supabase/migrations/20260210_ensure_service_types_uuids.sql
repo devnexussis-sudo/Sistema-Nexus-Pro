@@ -1,14 +1,17 @@
--- FIX SERVICE TYPES DATA AND UUID COMPATIBILITY (V2)
+-- FIX SERVICE TYPES DATA AND UUID COMPATIBILITY (V3 - ROBUST RPC)
 -- Date: 2026-02-10
--- Improved: Added SECURITY DEFINER and schema reload
--- Issue: Frontend is using 'st-001' strings which crash Supabase requests (expecting UUID)
+-- Improved: Accepts optional JSON parameter to prevent 400 Bad Request
+-- Issue: Some client versions send empty body, others send {}, causing 400 errors for void functions
 
--- 1. Function to ensure service types exist for a tenant
-CREATE OR REPLACE FUNCTION public.ensure_default_service_types()
+-- 1. DROP previous function sig just in case
+DROP FUNCTION IF EXISTS public.ensure_default_service_types();
+
+-- 2. CREATE robust function that accepts ANY payload (even if ignored)
+CREATE OR REPLACE FUNCTION public.ensure_default_service_types(payload json DEFAULT '{}'::json)
 RETURNS void
 LANGUAGE plpgsql
-SECURITY DEFINER  -- Allows function to run with creator permissions (bypass RLS if needed inside)
-SET search_path = public -- Secure search path
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
     v_tenant_id uuid;
@@ -36,8 +39,6 @@ BEGIN
         (v_tenant_id, 'Garantia', 'Atendimento em garantia', true)
     ON CONFLICT DO NOTHING;
     
-    -- Note: We can't easily rely on name uniqueness unless there's a unique constraint on (tenant_id, name)
-    -- So we just insert common ones if the table is empty for this tenant
     IF NOT EXISTS (SELECT 1 FROM public.service_types WHERE tenant_id = v_tenant_id) THEN
          INSERT INTO public.service_types (tenant_id, name, description, active)
         VALUES 
@@ -50,11 +51,11 @@ BEGIN
 END;
 $$;
 
--- 2. Grant execute permission strictly
-GRANT EXECUTE ON FUNCTION public.ensure_default_service_types() TO authenticated;
+-- 3. Grant execute permission
+GRANT EXECUTE ON FUNCTION public.ensure_default_service_types(json) TO authenticated;
 
--- 3. Reload schema cache (CRITICAL for RPC to be visible)
+-- 4. Reload schema cache (CRITICAL)
 NOTIFY pgrst, 'reload schema';
 
--- 4. Initial run
-SELECT public.ensure_default_service_types();
+-- 5. Initial run (simulating call with empty object)
+SELECT public.ensure_default_service_types('{}'::json);
