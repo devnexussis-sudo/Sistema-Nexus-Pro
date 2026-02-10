@@ -127,6 +127,37 @@ export function getStatusHex(status: OrderStatus): string {
 }
 
 /**
+ * 📅 CALENDAR-SPECIFIC STYLES
+ * Retorna estilos vibrantes e de alto contraste para visualização no calendário
+ * Cores mais saturadas e visíveis para se destacarem no layout do calendário
+ */
+export function getStatusCalendarStyle(status: OrderStatus): string {
+    switch (status) {
+        case OrderStatus.COMPLETED:
+            return 'bg-emerald-600 text-white border-2 border-emerald-700 shadow-emerald-500/30';
+
+        case OrderStatus.IN_PROGRESS:
+            return 'bg-amber-500 text-white border-2 border-amber-600 shadow-amber-500/30';
+
+        case OrderStatus.ASSIGNED:
+            // CHANGED: Azul vibrante em vez de primary (que se funde com o calendário)
+            return 'bg-sky-500 text-white border-2 border-sky-600 shadow-sky-500/30';
+
+        case OrderStatus.PENDING:
+            return 'bg-slate-400 text-white border-2 border-slate-500 shadow-slate-500/30';
+
+        case OrderStatus.CANCELED:
+            return 'bg-gray-500 text-white border-2 border-gray-600 shadow-gray-500/30';
+
+        case OrderStatus.BLOCKED:
+            return 'bg-rose-600 text-white border-2 border-rose-700 shadow-rose-500/30';
+
+        default:
+            return 'bg-sky-500 text-white border-2 border-sky-600 shadow-sky-500/30';
+    }
+}
+
+/**
  * Componente React pronto para uso
  * @example <StatusBadge status={OrderStatus.COMPLETED} />
  */
@@ -144,3 +175,4 @@ export const StatusBadge: React.FC<{
         </span>
     );
 };
+
