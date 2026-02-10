@@ -4,6 +4,7 @@
 
 -- 1. Add missing columns used by the frontend
 ALTER TABLE public.technicians ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE public.technicians ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE public.technicians ADD COLUMN IF NOT EXISTS avatar text;
 
 -- 2. Ensure RLS is active and correct
