@@ -3063,11 +3063,11 @@ export const DataService = {
           // 🛡️ LET DATABASE GENERATE UUID AUTOMATICALLY
           // Do NOT send custom ID - PostgreSQL will auto-generate valid UUID
 
+
           const payload = {
             name: type.name,
-            tenant_id: tid,
-            description: type.description || null,
-            active: type.active !== undefined ? type.active : true
+            tenant_id: tid
+            // Only send fields that exist in ALL schema versions
           };
 
           const { data, error } = await DataService.getServiceClient().from('service_types')
