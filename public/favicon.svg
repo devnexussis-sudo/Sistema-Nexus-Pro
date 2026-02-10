@@ -1,5 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <rect width="100" height="100" rx="20" fill="#0f172a" />
-  <path d="M50 20 L76 35 V65 L50 80 L24 65 V35 L50 20Z" stroke="#6366f1" stroke-width="8" stroke-linejoin="round" />
-  <path d="M50 35 L63 42.5 V57.5 L50 65 L37 57.5 V42.5 L50 35Z" fill="#6366f1" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1c2d4f"/>
+      <stop offset="50%" stop-color="#2a4a7a"/>
+      <stop offset="100%" stop-color="#3b6cb5"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3b6cb5"/>
+      <stop offset="50%" stop-color="#2a4a7a"/>
+      <stop offset="100%" stop-color="#1c2d4f"/>
+    </linearGradient>
+  </defs>
+  <!-- Outer crescent (top-left opening) -->
+  <path d="M256 40 C376 40 472 136 472 256 C472 376 376 472 256 472 C196 472 142 445 105 402 C142 450 200 480 264 480 C388 480 488 380 488 256 C488 132 388 32 264 32 C220 32 180 46 146 70 C178 50 216 40 256 40Z" fill="url(#g1)"/>
+  <!-- Inner crescent (bottom-right opening) -->
+  <path d="M256 472 C136 472 40 376 40 256 C40 136 136 40 256 40 C316 40 370 67 407 110 C370 62 312 32 248 32 C124 32 24 132 24 256 C24 380 124 480 248 480 C292 480 332 466 366 442 C334 462 296 472 256 472Z" fill="url(#g2)"/>
+  <!-- Center swirl detail - upper -->
+  <path d="M256 120 C330 120 392 175 400 245 C395 185 340 140 275 140 C200 140 140 200 140 275 C140 300 148 323 162 342 C135 315 118 278 118 237 C118 172 175 120 256 120Z" fill="url(#g1)"/>
+  <!-- Center swirl detail - lower -->
+  <path d="M256 392 C182 392 120 337 112 267 C117 327 172 372 237 372 C312 372 372 312 372 237 C372 212 364 189 350 170 C377 197 394 234 394 275 C394 340 337 392 256 392Z" fill="url(#g2)"/>
 </svg>

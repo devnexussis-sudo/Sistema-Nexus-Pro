@@ -15,6 +15,62 @@
     body {
       font-family: 'Inter', sans-serif;
     }
+
+    /* ===== Nexus Loading Screen ===== */
+    #nexus-loading-screen {
+      position: fixed;
+      inset: 0;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      transition: opacity 0.5s ease-out;
+    }
+
+    .nexus-loader-ring {
+      width: 56px;
+      height: 56px;
+      border: 3px solid rgba(28, 45, 79, 0.12);
+      border-top-color: #1c2d4f;
+      border-radius: 50%;
+      animation: nexus-spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      box-shadow: 0 0 24px rgba(28, 45, 79, 0.10);
+    }
+
+    .nexus-loader-text {
+      margin-top: 20px;
+      color: #1c2d4f;
+      font-weight: 900;
+      letter-spacing: 0.3em;
+      font-size: 10px;
+      text-transform: uppercase;
+      animation: nexus-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes nexus-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes nexus-pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    #nexus-loading-screen.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
   </style>
 
   <script>
@@ -30,8 +86,38 @@
 </head>
 
 <body class="bg-gray-50 text-gray-900 antialiased overflow-hidden selection:bg-primary-500 selection:text-white">
+  <!-- 🔄 Nexus Loading Screen (shows while React loads) -->
+  <div id="nexus-loading-screen">
+    <div class="nexus-loader-ring"></div>
+    <div class="nexus-loader-text">NEXUS LINE</div>
+  </div>
+
   <div id="root"></div>
   <script type="module" src="/src/index.tsx"></script>
+
+  <script>
+    // Remove loading screen when React app is ready
+    window.addEventListener('nexus-ready', function () {
+      var splash = document.getElementById('nexus-loading-screen');
+      if (splash) {
+        splash.classList.add('fade-out');
+        setTimeout(function () {
+          splash.style.display = 'none';
+        }, 500);
+      }
+    });
+
+    // Safety: remove loading screen after 10s even if event never fires
+    setTimeout(function () {
+      var splash = document.getElementById('nexus-loading-screen');
+      if (splash && splash.style.display !== 'none') {
+        splash.classList.add('fade-out');
+        setTimeout(function () {
+          splash.style.display = 'none';
+        }, 500);
+      }
+    }, 10000);
+  </script>
 </body>
 
 </html>

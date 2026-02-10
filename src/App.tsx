@@ -12,6 +12,10 @@ import { Hexagon, Phone } from 'lucide-react';
 import { logger } from './lib/logger';
 
 const App: React.FC = () => {
+  // 🔔 Signal to HTML that React has mounted
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('nexus-ready'));
+  }, []);
   const [auth, setAuth] = useState<AuthState>(() => {
     const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
     return stored ? { user: stored, isAuthenticated: true } : { user: null, isAuthenticated: false };
@@ -304,8 +308,9 @@ const App: React.FC = () => {
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center">
+        <div className="w-14 h-14 rounded-full border-[3px] border-white/10 border-t-white animate-spin" style={{ animationDuration: '0.9s', animationTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
+        <p className="mt-5 text-white/70 text-[10px] font-black uppercase tracking-[0.3em]" style={{ animation: 'pulse 2s ease-in-out infinite' }}>Carregando...</p>
       </div>
     );
   }
