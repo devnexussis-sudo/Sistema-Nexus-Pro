@@ -112,16 +112,28 @@ export const TechnicianMap: React.FC = () => {
 
     const loadTechnicians = async () => {
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s max
             const techs = await DataService.getAllTechnicians();
+            clearTimeout(timeoutId);
             setTechnicians(techs);
-        } catch (error) {
-            console.error('[Map] Erro ao carregar técnicos:', error);
+        } catch (error: any) {
+            if (error?.name !== 'AbortError') {
+                console.error('[Map] Erro ao carregar técnicos:', error);
+            }
         }
     };
 
     // 🔄 Força atualização com invalidação de cache
     const handleRefresh = async () => {
         setIsRefreshing(true);
+
+        // 🛡️ Safety timeout: Garante que o spinner para em no máximo 15s
+        const safetyTimeout = setTimeout(() => {
+            setIsRefreshing(false);
+            console.warn('[Map] ⚠️ Refresh safety timeout (15s) - liberando botão.');
+        }, 15000);
+
         try {
             // Invalida o cache antes de recarregar
             const tenantId = DataService.getCurrentTenantId();
@@ -133,6 +145,7 @@ export const TechnicianMap: React.FC = () => {
         } catch (error) {
             console.error('[Map] Erro ao atualizar:', error);
         } finally {
+            clearTimeout(safetyTimeout);
             setIsRefreshing(false);
         }
     };
