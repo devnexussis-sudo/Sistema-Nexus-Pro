@@ -31,6 +31,9 @@ const App: React.FC = () => {
   // ✅ Track auth subscription for cleanup
   const authSubscriptionRef = useRef<any>(null);
 
+  // 🔒 Track if connection was actually lost
+  const wasOfflineRef = useRef(false);
+
   const handleHashChange = () => {
     const hash = window.location.hash;
     const pathname = window.location.pathname;
@@ -124,9 +127,11 @@ const App: React.FC = () => {
         if (refreshedUser && isMounted) {
           setAuth({ user: refreshedUser, isAuthenticated: true });
 
-          if (!silent) {
+          // ✅ Only show "restored" message if we were actually offline
+          if (!silent && wasOfflineRef.current) {
             setToast({ message: 'Conexão restaurada', type: 'success' });
             setTimeout(() => setToast(null), 3000);
+            wasOfflineRef.current = false; // Reset flag
           }
         }
       } catch (err: any) {
@@ -142,10 +147,22 @@ const App: React.FC = () => {
 
     const handleFocus = () => {
       if (auth.isAuthenticated) {
-        console.log('[App] 🔋 Janela focada - Verificando integridade da sessão...');
-        validateAndRestoreSession(false);
+        logger.debug('Janela focada - Verificando integridade da sessão');
+        validateAndRestoreSession(true); // Silent - don't show toast on every focus
         DataService.forceGlobalRefresh(); // 🌪️ Invalida caches locais
       }
+    };
+
+    const handleOnline = () => {
+      logger.info('Conexão de rede restaurada');
+      if (auth.isAuthenticated) {
+        validateAndRestoreSession(false); // Show toast if wasOfflineRef is true
+      }
+    };
+
+    const handleOffline = () => {
+      logger.warn('Conexão de rede perdida');
+      wasOfflineRef.current = true; // Mark that we went offline
     };
 
     const initApp = async () => {
@@ -202,6 +219,8 @@ const App: React.FC = () => {
 
     window.addEventListener('hashchange', handleHashChange);
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
     initApp();
 
     return () => {
@@ -209,6 +228,8 @@ const App: React.FC = () => {
       clearTimeout(timeoutId);
       window.removeEventListener('hashchange', handleHashChange);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
 
       // ✅ CLEANUP AUTH LISTENER TO PREVENT MEMORY LEAKS
       if (authSubscriptionRef.current) {

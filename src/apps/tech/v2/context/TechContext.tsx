@@ -114,6 +114,9 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastSync: localStorage.getItem(STORAGE_KEYS.LAST_SYNC)
     });
 
+    // 🔒 Track if connection was actually lost (to avoid fake "restored" messages)
+    const wasOfflineRef = useRef(false);
+
     // Estado local de paginação e filtros
     const [pagination, setPagination] = useState<PaginationState>(() => {
         try {
@@ -290,9 +293,11 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log('[TechContext] ✅ Sessão OK, sincronizando...');
             await refreshData({ silent: true });
 
-            if (!silent) {
+            // ✅ Only show "restored" message if we were actually offline
+            if (!silent && wasOfflineRef.current) {
                 setToast({ message: 'Conexão restaurada', type: 'success' });
                 setTimeout(() => setToast(null), 3000);
+                wasOfflineRef.current = false; // Reset flag
             }
 
         } catch (e) {
@@ -324,14 +329,17 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const handleOnline = () => {
             console.log('[TechContext] 📡 Conexão restaurada');
             setConnectivity(prev => ({ ...prev, isOnline: true }));
-            if (auth.isAuthenticated) {
-                revalidateSession();
+
+            // Only trigger revalidation if we were actually offline
+            if (wasOfflineRef.current && auth.isAuthenticated) {
+                revalidateSession(false); // Show toast because wasOfflineRef is true
             }
         };
 
         const handleOffline = () => {
             console.log('[TechContext] 📡 Sem conexão (modo offline)');
             setConnectivity(prev => ({ ...prev, isOnline: false }));
+            wasOfflineRef.current = true; // Mark that we went offline
         };
 
         // Listeners múltiplos para garantir captura (iOS/Android behaviors)
