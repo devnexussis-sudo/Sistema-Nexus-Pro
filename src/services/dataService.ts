@@ -3000,8 +3000,10 @@ export const DataService = {
         const templates = (data || []).map(f => ({
           ...f,
           title: f.title || (f as any).name,
-          serviceTypes: f.targetType ? [f.targetType] : [],
-          fields: f.fields || []
+          active: f.is_active ?? true,
+          serviceTypes: (f.schema as any)?.serviceTypes || [],
+          targetFamily: (f.schema as any)?.targetFamily || 'Todos',
+          fields: (f.schema as any)?.fields || []
         }));
 
         // 🛡️ NO MOCKS ALLOWED
@@ -3104,11 +3106,14 @@ export const DataService = {
       try {
         const dbPayload: any = {
           title: template.title,
-          fields: template.fields || [],
-          active: template.active ?? true,
           tenant_id: tid,
-          targetType: template.serviceTypes?.[0] || 'Geral', // Adapter para o schema existente
-          targetFamily: template.targetFamily || 'Todos'
+          schema: {
+            fields: template.fields || [],
+            serviceTypes: template.serviceTypes || [],
+            targetFamily: template.targetFamily || 'Todos'
+          },
+          is_active: template.active ?? true
+          // description can be added if needed
         };
 
         if (template.id && !template.id.startsWith('f-') && !template.id.startsWith('mock-')) {
