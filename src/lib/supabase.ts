@@ -25,47 +25,70 @@ export const supabase = createClient(safeUrl, safeKey, {
 // 🛡️ Secure Admin Proxy
 // Redireciona chamadas AUTH sensíveis para o Backend (/api/admin-users)
 // Usa o cliente normal para DADOS (.from), respeitando RLS.
+// 🛡️ Secure Admin Proxy
+// Redireciona chamadas AUTH sensíveis para o Backend da Vercel
+const ADMIN_API_URL = import.meta.env.DEV ? 'https://app.nexusline.com.br/api/admin-users' : '/api/admin-users';
+
 const adminAuthProxy = {
     admin: {
         createUser: async (attributes: any) => {
             console.log('🛡️ Secure Proxy: Creating User via Backend API...');
-            const response = await fetch('/api/admin-users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'create_user', payload: attributes })
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Falha na criação de usuário');
-            return data;
+            try {
+                const response = await fetch(ADMIN_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'create_user', payload: attributes })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Falha na criação de usuário (API Error)');
+                return data; // { data: { user: ... }, error: null }
+            } catch (e: any) {
+                console.error("Proxy Create Error:", e);
+                return { data: null, error: e };
+            }
         },
         deleteUser: async (userId: string) => {
-            console.log('🛡️ Secure Proxy: Deleting User via Backend API...');
-            const response = await fetch('/api/admin-users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'delete_user', payload: { userId } })
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Falha ao deletar usuário');
-            return data;
+            try {
+                const response = await fetch(ADMIN_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'delete_user', payload: { userId } })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Falha ao deletar usuário');
+                return data;
+            } catch (e: any) {
+                return { data: null, error: e };
+            }
         },
         listUsers: async () => {
-            const response = await fetch('/api/admin-users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'list_users' })
-            });
-            const data = await response.json();
-            return data; // Supabase retorna { data: [], error: null }
+            try {
+                const response = await fetch(ADMIN_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'list_users' })
+                });
+                const data = await response.json();
+                if (!response.ok) return { data: { users: [] }, error: data.error || 'API Error' };
+                return data; // Supabase retorna { data: { users: [] }, error: null }
+            } catch (e: any) {
+                console.error("Proxy List Error:", e);
+                return { data: { users: [] }, error: e };
+            }
         },
         updateUserById: async (userId: string, updates: any) => {
-            const response = await fetch('/api/admin-users', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'update_user', payload: { userId, updates } })
-            });
-            const data = await response.json();
-            return data;
+            try {
+                const response = await fetch(ADMIN_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'update_user', payload: { userId, updates } })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Falha ao atualizar usuário');
+                return data;
+            } catch (e: any) {
+                return { data: null, error: e };
+            }
         }
     }
 };
