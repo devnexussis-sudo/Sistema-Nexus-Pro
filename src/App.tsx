@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { AuthState, User, UserRole, ServiceOrder } from './types';
 import { DataService } from './services/dataService';
 import SessionStorage, { GlobalStorage } from './lib/sessionStorage';
@@ -25,6 +26,9 @@ const App: React.FC = () => {
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [systemNotifications, setSystemNotifications] = useState<any[]>([]);
+
+  // ✅ Track auth subscription for cleanup
+  const authSubscriptionRef = useRef<any>(null);
 
   const handleHashChange = () => {
     const hash = window.location.hash;
@@ -162,9 +166,11 @@ const App: React.FC = () => {
 
         if (isMounted) setIsInitializing(false);
 
-        // 2. Listen for changes
-        supabase.auth.onAuthStateChange(async (event, session) => {
+        // 2. Listen for auth changes with proper cleanup
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
           if (!isMounted) return;
+
+          console.log(`[App] 🔐 Auth Event: ${event}`, session ? 'Session Active' : 'No Session');
 
           if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !isSuperMode) {
             const refreshedUser = await DataService.refreshUser().catch(() => null);
@@ -172,11 +178,21 @@ const App: React.FC = () => {
               setAuth({ user: refreshedUser, isAuthenticated: true });
             }
           } else if (event === 'SIGNED_OUT') {
+            console.log('[App] 👋 Signed out event - Clearing session');
             setAuth({ user: null, isAuthenticated: false });
             SessionStorage.clear();
+          } else if (event === 'TOKEN_REFRESHED' && !session) {
+            // Token refresh failed - force logout
+            console.error('[App] ❌ Token refresh failed - Forcing logout');
+            setAuth({ user: null, isAuthenticated: false });
+            SessionStorage.clear();
+            window.location.reload();
           }
           setIsInitializing(false);
         });
+
+        // ✅ CRITICAL: Store subscription for cleanup
+        authSubscriptionRef.current = subscription;
       } catch (err) {
         console.error("Init Error:", err);
         if (isMounted) setIsInitializing(false);
@@ -192,6 +208,13 @@ const App: React.FC = () => {
       clearTimeout(timeoutId);
       window.removeEventListener('hashchange', handleHashChange);
       window.removeEventListener('focus', handleFocus);
+
+      // ✅ CLEANUP AUTH LISTENER TO PREVENT MEMORY LEAKS
+      if (authSubscriptionRef.current) {
+        console.log('[App] 🧹 Cleaning up auth subscription');
+        authSubscriptionRef.current.unsubscribe();
+        authSubscriptionRef.current = null;
+      }
     };
   }, [publicOrderId, publicQuoteId, auth.isAuthenticated]);
 
@@ -253,11 +276,36 @@ const App: React.FC = () => {
         auth={auth}
         onLogin={(user) => { SessionStorage.set('user', user); setAuth({ user, isAuthenticated: true }); }}
         onLogout={async () => {
-          const { supabase } = await import('./lib/supabase');
-          await supabase.auth.signOut();
-          SessionStorage.clear();
-          setAuth({ user: null, isAuthenticated: false });
-          window.location.reload();
+          console.log('[App] 🔥 Logout iniciado...');
+
+          try {
+            // 1. Cleanup auth listener FIRST
+            if (authSubscriptionRef.current) {
+              console.log('[App] 🧹 Removendo listener de autenticação');
+              authSubscriptionRef.current.unsubscribe();
+              authSubscriptionRef.current = null;
+            }
+
+            // 2. Sign out from Supabase
+            const { supabase } = await import('./lib/supabase');
+            await supabase.auth.signOut();
+
+            // 3. Clear all storage
+            SessionStorage.clear();
+            localStorage.removeItem('nexus_tech_session_v2');
+            localStorage.removeItem('nexus_tech_cache_v2');
+
+            // 4. Update state
+            setAuth({ user: null, isAuthenticated: false });
+
+            // 5. Force reload to clear any remaining subscriptions
+            console.log('[App] ✅ Logout completo - Recarregando página');
+            window.location.reload();
+          } catch (error) {
+            console.error('[App] ❌ Erro durante logout:', error);
+            // Force reload anyway to ensure clean state
+            window.location.reload();
+          }
         }}
         isImpersonating={isImpersonating}
         onToggleMaster={() => { window.location.href = window.location.origin + '/master'; }}

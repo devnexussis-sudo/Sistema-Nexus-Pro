@@ -1489,25 +1489,37 @@ export const DataService = {
 
     console.log(`[Nexus Pulse] 🟢 Iniciando monitoramento Realtime para tenant: ${tenantId}`);
 
+    let isActive = true;
     const channel = supabase
       .channel(`orders-live-${tenantId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `tenant_id=eq.${tenantId}` },
         (payload) => {
+          if (!isActive) return; // Ignore if unsubscribed
           console.log('[Nexus Pulse] ⚡ MUDANÇA DETECTADA NO BANCO:', payload.eventType);
           onUpdate();
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') console.log('[Nexus Pulse] ✅ Conectado ao stream de dados.');
-        if (status === 'CHANNEL_ERROR') console.error('[Nexus Pulse] ❌ Erro na conexão realtime.');
+        if (status === 'CHANNEL_ERROR') {
+          console.error('[Nexus Pulse] ❌ Erro na conexão realtime.');
+          // Auto-reconnect will be handled by Supabase client
+        }
+        if (status === 'CLOSED') {
+          console.log('[Nexus Pulse] 🔴 Canal fechado.');
+          isActive = false;
+        }
       });
 
     return {
       unsubscribe: () => {
         console.log('[Nexus Pulse] 🔴 Desconectando stream...');
-        supabase.removeChannel(channel);
+        isActive = false;
+        supabase.removeChannel(channel).catch(err => {
+          console.warn('[Nexus Pulse] ⚠️ Erro ao remover canal:', err);
+        });
       }
     };
   },

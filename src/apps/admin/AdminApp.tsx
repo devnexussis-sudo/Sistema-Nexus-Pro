@@ -194,7 +194,10 @@ export const AdminApp: React.FC<AdminAppProps> = ({
         });
 
         return () => {
-            subscription?.unsubscribe();
+            console.log('[AdminApp] 🧹 Limpando subscription do Realtime...');
+            if (subscription?.unsubscribe) {
+                subscription.unsubscribe();
+            }
         }
     }, [auth.isAuthenticated]);
 
