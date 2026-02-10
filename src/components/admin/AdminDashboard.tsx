@@ -14,6 +14,7 @@ import { CreateOrderModal } from './CreateOrderModal';
 import { PublicOrderView } from '../public/PublicOrderView';
 import { createPortal } from 'react-dom';
 import XLSX from 'xlsx-js-style';
+import { DataService } from '../../services/dataService';
 
 
 
@@ -59,7 +60,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       : <ChevronDown size={14} className="ml-2 text-primary-600 animate-in fade-in zoom-in-50 duration-300" />;
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     // Se tiver seleção, usa a seleção. Se não, usa o que está filtrado na tela.
     const ordersToExport = selectedOrderIds.length > 0
       ? orders.filter(o => selectedOrderIds.includes(o.id))
@@ -69,6 +70,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       alert("Nenhuma ordem encontrada para exportar.");
       return;
     }
+
+    // 🔄 Buscar técnicos frescos para garantir que os nomes estejam disponíveis
+    let techList = techs;
+    try {
+      const freshTechs = await DataService.getAllTechnicians();
+      if (freshTechs && freshTechs.length > 0) {
+        techList = freshTechs;
+      }
+    } catch (e) {
+      console.warn("⚠️ Falha ao buscar técnicos atualizados, usando dados em memória.");
+    }
+
+    // Criar mapa de ID → Nome para lookup rápido
+    const techNameMap = new Map<string, string>();
+    techList.forEach(t => {
+      if (t.id && t.name) techNameMap.set(t.id, t.name);
+    });
 
     // 1. Definir colunas do cabeçalho
     const headers = [
@@ -104,7 +122,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const rows = ordersToExport.map(o => {
       const itemsValue = o.items?.reduce((acc, i) => acc + i.total, 0) || 0;
       const value = itemsValue || (o.formData as any)?.totalValue || (o.formData as any)?.price || 0;
-      const techObj = techs.find(t => t.id === o.assignedTo);
+      const techName = techNameMap.get(o.assignedTo || '') || 'N/A';
 
       return [
         o.displayId || o.id,
@@ -113,7 +131,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         o.title,
         o.description,
         o.operationType || 'Não informado',
-        techObj?.name || o.assignedTo || 'N/A',
+        techName,
         o.status,
         o.priority,
         value,
