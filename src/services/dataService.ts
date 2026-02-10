@@ -3130,11 +3130,21 @@ export const DataService = {
             dbPayload.id = crypto.randomUUID();
             const retry = await DataService.getServiceClient().from('form_templates').upsert([dbPayload]).select().single();
             if (retry.error) throw retry.error;
-            return retry.data;
+            data = retry.data;
+          } else {
+            throw error;
           }
-          throw error;
         }
-        return data;
+
+        // Map DB response back to frontend structure
+        return {
+          ...data,
+          title: data.title,
+          active: data.is_active ?? true,
+          serviceTypes: (data.schema as any)?.serviceTypes || [],
+          targetFamily: (data.schema as any)?.targetFamily || 'Todos',
+          fields: (data.schema as any)?.fields || []
+        };
       } catch (err) {
         console.error("Erro crítico ao salvar checklist:", err);
         throw err;
