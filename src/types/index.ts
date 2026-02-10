@@ -114,6 +114,7 @@ export interface FormTemplate {
   title: string;
   targetType?: string;
   targetFamily?: string;
+  serviceTypes?: string[];
   fields: FormField[];
   active: boolean;
 }
