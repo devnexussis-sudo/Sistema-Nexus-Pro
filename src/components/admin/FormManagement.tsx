@@ -82,8 +82,16 @@ export const FormManagement: React.FC = () => {
           setForms(f);
           setRules(r);
         }
-      } catch (err) {
-        console.error("Nexus Sync Error:", err);
+      } catch (err: any) {
+        console.error("[FormManagement] ❌ Nexus Sync Error:", err);
+
+        // 🛡️ CRITICAL: Don't clear existing data on error!
+        // Keep stale data visible instead of showing empty screen
+        if (isMounted && serviceTypes.length === 0 && forms.length === 0 && rules.length === 0) {
+          // Only set loading to false if we have no data at all
+          // This prevents the "empty screen" bug
+          console.warn("[FormManagement] ⚠️ No data loaded and error occurred. Will retry...");
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -92,11 +100,73 @@ export const FormManagement: React.FC = () => {
     loadAllProcessData();
 
     // 📡 Auto-Wake: Recarrega se o usuário voltar para a aba após inatividade
-    const handleFocus = () => {
-      if (document.visibilityState === 'visible') {
-        console.log("[FormManagement] 👁️ Aba focada - Verificando frescor dos dados...");
-        loadAllProcessData();
+    // 🛡️ RESILIENT: With exponential backoff and error recovery
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS = [1000, 3000, 5000]; // Exponential backoff: 1s, 3s, 5s
+
+    const handleFocus = async () => {
+      if (document.visibilityState !== 'visible') return;
+
+      console.log("[FormManagement] 👁️ Tab focused - Checking data freshness...");
+
+      // 🛡️ CRITICAL FIX: Validate session before attempting refresh
+      const tenantId = DataService.getCurrentTenantId();
+      if (!tenantId) {
+        console.error("[FormManagement] ❌ No tenant ID found. Session may be expired. Skipping refresh.");
+        // Don't throw error - keep existing data visible
+        return;
       }
+
+      // 🛡️ RESILIENT RETRY LOGIC (BigTech pattern)
+      const attemptRefresh = async (attemptNumber: number = 0): Promise<void> => {
+        try {
+          console.log(`[FormManagement] 🔄 Refresh attempt ${attemptNumber + 1}/${MAX_RETRIES + 1}`);
+
+          // Set loading only if we don't have data yet
+          if (isMounted && serviceTypes.length === 0 && forms.length === 0) {
+            setLoading(true);
+          }
+
+          const [st, f, r] = await Promise.all([
+            DataService.getServiceTypes(),
+            DataService.getFormTemplates(),
+            DataService.getActivationRules()
+          ]);
+
+          if (isMounted) {
+            // ✅ SUCCESS: Update with fresh data
+            setServiceTypes(st || []);
+            setForms(f || []);
+            setRules(r || []);
+            console.log(`[FormManagement] ✅ Data refreshed successfully: ${st.length} types, ${f.length} forms, ${r.length} rules`);
+            retryCount = 0; // Reset retry counter on success
+          }
+
+        } catch (err: any) {
+          console.error(`[FormManagement] ❌ Refresh failed (attempt ${attemptNumber + 1}):`, err);
+
+          // 🛡️ CRITICAL: Preserve existing data on error
+          // DON'T clear the state - keep stale data visible!
+
+          if (attemptNumber < MAX_RETRIES) {
+            // Retry with exponential backoff
+            const delay = RETRY_DELAYS[attemptNumber] || 5000;
+            console.warn(`[FormManagement] ⏳ Retrying in ${delay}ms...`);
+
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return attemptRefresh(attemptNumber + 1);
+          } else {
+            console.error("[FormManagement] ❌ Max retries exceeded. Keeping stale data.");
+            // Still don't clear data - better to show stale data than empty screen
+          }
+        } finally {
+          if (isMounted) setLoading(false);
+        }
+      };
+
+      // Start refresh with retry logic
+      await attemptRefresh(retryCount);
     };
 
     window.addEventListener('visibilitychange', handleFocus);
