@@ -13,7 +13,7 @@ import { Pagination } from '../ui/Pagination';
 import { CreateOrderModal } from './CreateOrderModal';
 import { PublicOrderView } from '../public/PublicOrderView';
 import { createPortal } from 'react-dom';
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 
 
 
@@ -70,52 +70,100 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
-    // 1. Preparar os dados para exportação com colunas solicitadas
-    const exportData = ordersToExport.map(o => {
+    // 1. Definir colunas do cabeçalho
+    const headers = [
+      'ID O.S.',
+      'Data Agendada',
+      'Cliente',
+      'Título',
+      'Descrição',
+      'Tipo de Atendimento',
+      'Técnico',
+      'Status',
+      'Prioridade',
+      'Valor Total',
+      'Status Financeiro',
+      'Data de Abertura',
+      'Data de Conclusão'
+    ];
+
+    // 2. Estilo do cabeçalho: fundo azul (#1c2d4f), texto branco e negrito
+    const headerStyle = {
+      font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+      fill: { fgColor: { rgb: '1C2D4F' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: {
+        top: { style: 'thin', color: { rgb: 'FFFFFF' } },
+        bottom: { style: 'thin', color: { rgb: 'FFFFFF' } },
+        left: { style: 'thin', color: { rgb: 'FFFFFF' } },
+        right: { style: 'thin', color: { rgb: 'FFFFFF' } }
+      }
+    };
+
+    // 3. Preparar os dados para exportação
+    const rows = ordersToExport.map(o => {
       const itemsValue = o.items?.reduce((acc, i) => acc + i.total, 0) || 0;
       const value = itemsValue || (o.formData as any)?.totalValue || (o.formData as any)?.price || 0;
-
       const techObj = techs.find(t => t.id === o.assignedTo);
 
-      return {
-        'ID O.S.': o.id,
-        'Data Agendada': o.scheduledDate,
-        'Cliente': o.customerName,
-        'Título': o.title,
-        'Descrição': o.description,
-        'Técnico': techObj?.name || o.assignedTo || 'N/A',
-        'Status': o.status,
-        'Prioridade': o.priority,
-        'Valor Total': value,
-        'Status Financeiro': o.billingStatus || 'PENDENTE',
-        'Data de Abertura': o.createdAt,
-        'Data de Conclusão': o.endDate || 'N/A'
-      };
+      return [
+        o.displayId || o.id,
+        o.scheduledDate,
+        o.customerName,
+        o.title,
+        o.description,
+        o.operationType || 'Não informado',
+        techObj?.name || o.assignedTo || 'N/A',
+        o.status,
+        o.priority,
+        value,
+        o.billingStatus || 'PENDENTE',
+        o.createdAt,
+        o.endDate || 'N/A'
+      ];
     });
 
-    // 2. Criar a planilha a partir dos dados
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    // 4. Criar a planilha manualmente (cabeçalho + dados)
+    const wsData = [headers, ...rows];
+    const worksheet = XLSX.utils.aoa_to_sheet(wsData);
+
+    // 5. Aplicar estilo azul no cabeçalho (primeira linha)
+    headers.forEach((_h, colIdx) => {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c: colIdx });
+      if (worksheet[cellRef]) {
+        worksheet[cellRef].s = headerStyle;
+      }
+    });
+
+    // 6. Aplicar filtros automáticos no cabeçalho
+    worksheet['!autofilter'] = {
+      ref: XLSX.utils.encode_range({
+        s: { r: 0, c: 0 },
+        e: { r: rows.length, c: headers.length - 1 }
+      })
+    };
+
+    // 7. Ajustar largura das colunas
+    worksheet['!cols'] = [
+      { wch: 15 }, // ID O.S.
+      { wch: 15 }, // Data Agendada
+      { wch: 30 }, // Cliente
+      { wch: 30 }, // Título
+      { wch: 50 }, // Descrição
+      { wch: 22 }, // Tipo de Atendimento
+      { wch: 20 }, // Técnico
+      { wch: 15 }, // Status
+      { wch: 12 }, // Prioridade
+      { wch: 15 }, // Valor Total
+      { wch: 18 }, // Status Financeiro
+      { wch: 20 }, // Data de Abertura
+      { wch: 20 }, // Data de Conclusão
+    ];
+
+    // 8. Gerar arquivo e disparar download
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Atividades Nexus");
 
-    // 3. Ajustar largura das colunas
-    const wscols = [
-      { wch: 15 }, // id
-      { wch: 15 }, // date
-      { wch: 30 }, // client
-      { wch: 30 }, // title
-      { wch: 50 }, // desc
-      { wch: 20 }, // tech
-      { wch: 15 }, // status
-      { wch: 12 }, // priority
-      { wch: 15 }, // value
-      { wch: 15 }, // billing
-      { wch: 20 }, // created
-      { wch: 20 }, // closed
-    ];
-    worksheet['!cols'] = wscols;
-
-    // 4. Gerar arquivo e disparar download
     try {
       XLSX.writeFile(workbook, `atividades_nexus_${new Date().toISOString().split('T')[0]}.xlsx`);
       console.log("✅ Exportação finalizada.");
