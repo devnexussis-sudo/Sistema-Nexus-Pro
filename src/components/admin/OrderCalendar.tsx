@@ -244,7 +244,9 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   </div>
                   <span className="text-[8px] font-black text-primary-600 uppercase tracking-widest">Detalhes da O.S.</span>
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter leading-none">#{selectedOrder.id}</h3>
+                <h3 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter leading-none">
+                  #{selectedOrder.displayId || selectedOrder.id}
+                </h3>
               </div>
               <button
                 onClick={() => setSelectedOrder(null)}
