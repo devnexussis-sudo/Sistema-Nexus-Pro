@@ -13,6 +13,19 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
+import * as Notifications from 'expo-notifications';
+import * as Location from 'expo-location';
+import { Alert, Platform } from 'react-native';
+
+// Configure Notification Handler
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
@@ -21,10 +34,19 @@ export default function RootLayout() {
     // Enable system-wide log capture immediately
     logger.enableGlobalCapture();
 
-    // Start tracking on app mount if desired, or maybe only after login? 
-    // Keeping it here for now as per previous logic, but ideally should be after login.
+    const setupPermissionsAndNotifications = async () => {
+      // 1. Request Permissions
+      const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+      if (locationStatus !== 'granted') {
+        Alert.alert('Permissão necessária', 'Precisamos de acesso à sua localização para o funcionamento correto do app.');
+      }
 
-    const checkAuth = async () => {
+      const { status: notifStatus } = await Notifications.requestPermissionsAsync();
+      if (notifStatus !== 'granted') {
+        // Optional: Alert user or handled silently
+      }
+
+      // 2. Auth Check
       const isAuthenticated = await authService.checkAuthStatus();
       if (!isAuthenticated) {
         router.replace('/login');
@@ -33,14 +55,21 @@ export default function RootLayout() {
       }
     };
 
-    // Check auth after a brief delay to ensure navigation is ready or just run it
-    checkAuth();
-
+    setupPermissionsAndNotifications();
     startBackgroundLocation();
 
     // Force status bar to be white with dark icons on Android
     setStatusBarBackgroundColor('#ffffff', false);
     setStatusBarStyle('dark');
+
+    // Notification Listeners
+    const subscription = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification received:', notification);
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   return (

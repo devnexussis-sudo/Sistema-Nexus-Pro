@@ -1,5 +1,5 @@
 import { useRouter, useFocusEffect } from 'expo-router';
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { StyleSheet, FlatList, Pressable, View, Text, Platform, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -7,6 +7,7 @@ import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { OrderStatus, STATUS_CONFIG } from '@/constants/mock-data';
 import { OrderService } from '@/services/order-service';
+import * as Notifications from 'expo-notifications';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -43,9 +44,23 @@ export default function HomeScreen() {
     fetchOrders();
   }, []);
 
-  // Refresh orders when screen comes into focus
+  // ✅ Auto-refresh on Notification & Initial Mount
+  useEffect(() => {
+    console.log('[Index] Component Mounted - Fetching Orders');
+    fetchOrders();
+
+    const subscription = Notifications.addNotificationReceivedListener(() => {
+      console.log('[Index] 🔔 New Notification! Refreshing data...');
+      fetchOrders();
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  // ✅ Refresh when returning to screen
   useFocusEffect(
     useCallback(() => {
+      console.log('[Index] Focus Triggered - Fetching Orders');
       fetchOrders();
     }, [])
   );

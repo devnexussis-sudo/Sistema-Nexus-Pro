@@ -184,12 +184,24 @@ export default function ExecuteOSScreen() {
             const updatedDynamicData = { ...dynamicData };
             for (const key in updatedDynamicData) {
                 const val = updatedDynamicData[key];
-                if (typeof val === 'string' && (val.startsWith('file://') || val.startsWith('content://'))) {
-                    // It's a local photo URI
-                    const uploadedUrl = await OrderService.uploadFile(val, `orders/${id}/form_photos`);
-                    if (uploadedUrl) {
-                        updatedDynamicData[key] = uploadedUrl;
+
+                // Handle Array of Photos (New Pattern)
+                if (Array.isArray(val)) {
+                    const uploadedUrls = [];
+                    for (const item of val) {
+                        if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('content://'))) {
+                            const url = await OrderService.uploadFile(item, `orders/${id}/form_photos`);
+                            if (url) uploadedUrls.push(url);
+                        } else {
+                            uploadedUrls.push(item); // Already valid URL
+                        }
                     }
+                    updatedDynamicData[key] = uploadedUrls;
+                }
+                // Handle Single Photo (Legacy/Fallback)
+                else if (typeof val === 'string' && (val.startsWith('file://') || val.startsWith('content://'))) {
+                    const uploadedUrl = await OrderService.uploadFile(val, `orders/${id}/form_photos`);
+                    if (uploadedUrl) updatedDynamicData[key] = uploadedUrl;
                 }
             }
 
@@ -222,7 +234,14 @@ export default function ExecuteOSScreen() {
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 const compressedUri = await ImageService.compressImage(result.assets[0].uri);
-                setDynamicData(prev => ({ ...prev, [fieldId]: compressedUri }));
+                setDynamicData(prev => {
+                    const current = Array.isArray(prev[fieldId]) ? prev[fieldId] : (prev[fieldId] ? [prev[fieldId]] : []);
+                    if (current.length >= 3) {
+                        Alert.alert('Limite atingido', 'Máximo de 3 fotos por campo.');
+                        return prev;
+                    }
+                    return { ...prev, [fieldId]: [...current, compressedUri] };
+                });
             }
         } catch (error) {
             Alert.alert('Erro', 'Não foi possível capturar a foto.');
@@ -264,26 +283,38 @@ export default function ExecuteOSScreen() {
                     </View>
                 );
             case 'PHOTO':
+                const photos = Array.isArray(dynamicData[field.id]) ? dynamicData[field.id] : (dynamicData[field.id] ? [dynamicData[field.id]] : []);
                 return (
                     <View key={field.id} style={styles.section}>
-                        <ThemedText type="subtitle">{field.label}</ThemedText>
-                        {dynamicData[field.id] ? (
-                            <View style={styles.photoFieldContainer}>
-                                <Image source={{ uri: dynamicData[field.id] }} style={styles.photoFieldPreview} />
+                        <ThemedText type="subtitle">{field.label} ({photos.length}/3)</ThemedText>
+
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+                            {photos.map((photoUri: string, index: number) => (
+                                <View key={index} style={{ position: 'relative', width: 100, height: 100, borderRadius: 8, overflow: 'hidden' }}>
+                                    <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} />
+                                    <Pressable
+                                        style={{ position: 'absolute', bottom: 0, width: '100%', backgroundColor: 'rgba(255,0,0,0.7)', alignItems: 'center', padding: 4 }}
+                                        onPress={() => {
+                                            const newPhotos = [...photos];
+                                            newPhotos.splice(index, 1);
+                                            setDynamicData(prev => ({ ...prev, [field.id]: newPhotos }));
+                                        }}
+                                    >
+                                        <Ionicons name="trash" size={16} color="#fff" />
+                                    </Pressable>
+                                </View>
+                            ))}
+
+                            {photos.length < 3 && (
                                 <Pressable
-                                    onPress={() => setDynamicData(prev => ({ ...prev, [field.id]: undefined }))}
-                                    style={styles.removePhotoBtn}
+                                    style={[styles.photoFieldPlaceholder, { width: 100, height: 100, margin: 0 }]}
+                                    onPress={() => handleTakeFieldPhoto(field.id)}
                                 >
-                                    <Ionicons name="trash" size={16} color="#fff" />
-                                    <Text style={styles.removePhotoText}>Remover</Text>
+                                    <Ionicons name="camera" size={24} color="#666" />
+                                    <Text style={[styles.photoFieldPlaceholderText, { fontSize: 10 }]}>Adicionar</Text>
                                 </Pressable>
-                            </View>
-                        ) : (
-                            <Pressable style={styles.photoFieldPlaceholder} onPress={() => handleTakeFieldPhoto(field.id)}>
-                                <Ionicons name="camera" size={24} color="#666" />
-                                <Text style={styles.photoFieldPlaceholderText}>Tirar Foto</Text>
-                            </Pressable>
-                        )}
+                            )}
+                        </View>
                     </View>
                 );
             case 'SIGNATURE':
