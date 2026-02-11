@@ -164,14 +164,11 @@ const App: React.FC = () => {
         }
 
         try {
-          // 🛡️ CRITICAL: Refresh session FIRST, then invalidate caches
+          // 🛡️ CRITICAL: Verify session existence but rely on autoRefreshToken
           const { supabase } = await import('./lib/supabase');
-          const { data, error } = await supabase.auth.refreshSession();
-          if (error) {
-            logger.warn('Token refresh on focus failed, attempting full session restore...');
-          }
+          // Just verifying existence through validateAndRestoreSession logic below
         } catch (e) {
-          // Non-blocking - continue even if refresh fails
+          // Non-blocking
         }
         await validateAndRestoreSession(true); // Silent
         DataService.forceGlobalRefresh(); // 🌪️ Invalida caches locais
@@ -281,26 +278,7 @@ const App: React.FC = () => {
       }
     }, 60000); // Check every minute
 
-    // 🔄 Proactive token refresh every 50 minutes (BEFORE 1h expiration)
-    // This ensures we never hit the expiration wall
-    const tokenRefreshInterval = setInterval(async () => {
-      if (auth.isAuthenticated) {
-        try {
-          const { supabase } = await import('./lib/supabase');
-          const { data, error } = await supabase.auth.refreshSession();
-          if (error) {
-            logger.error('Falha ao renovar token proativamente:', error);
-            // If refresh fails, force logout to prevent stuck state
-            SessionStorage.clear();
-            window.location.reload();
-          } else {
-            logger.debug('Token renovado proativamente com sucesso');
-          }
-        } catch (err) {
-          logger.error('Erro na renovação proativa de token:', err);
-        }
-      }
-    }, 20 * 60 * 1000); // Every 20 minutes (proactive, well before 1h expiry)
+    // ⏰ Auto-logout logic (removed conflicting proactive refresh)
 
     // Track activity
     const autoLogoutEvents = ['mousedown', 'keydown', 'touchstart', 'scroll'];
@@ -317,9 +295,8 @@ const App: React.FC = () => {
       window.removeEventListener('offline', handleOffline);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
 
-      // Clean up auto-logout and token refresh
+      // Clean up auto-logout
       if (checkInactivity) clearInterval(checkInactivity);
-      if (tokenRefreshInterval) clearInterval(tokenRefreshInterval);
       autoLogoutEvents.forEach(e => window.removeEventListener(e, updateActivity));
 
       // ✅ CLEANUP AUTH LISTENER TO PREVENT MEMORY LEAKS
