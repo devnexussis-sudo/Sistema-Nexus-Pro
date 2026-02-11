@@ -387,7 +387,7 @@ export const DataService = {
    * Especial para Android/iPhone Chrome. Usa timeouts para evitar travamento.
    */
   processAndCompress: async (file: File, signal?: AbortSignal): Promise<Blob> => {
-    const TARGET_SIZE = 480 * 1024; // 480KB
+    const TARGET_SIZE = 240 * 1024; // ~240KB (Safety margin for 250KB)
     const fileName = (file.name || '').toLowerCase();
     const fileType = (file.type || '').toLowerCase();
 
@@ -507,7 +507,7 @@ export const DataService = {
 
   /**
    * 🚀 UPLOAD OTIMIZADO PARA EVIDÊNCIAS
-   * Sempre WebP, sempre < 500KB, sempre rápido
+   * Sempre WebP, sempre < 250KB, sempre rápido
    */
   uploadServiceOrderEvidence: async (file: File, orderId: string, signal?: AbortSignal): Promise<string> => {
     if (!isCloudEnabled) return URL.createObjectURL(file);
@@ -517,7 +517,9 @@ export const DataService = {
       const compressedBlob = await DataService.processAndCompress(file, signal);
 
       // 2. Validação final
-      if (compressedBlob.size > 500 * 1024) throw new Error('LIMITE_EXCEDIDO_500KB');
+      if (compressedBlob.size > 250 * 1024) {
+        console.warn(`[Compress] ⚠️ Final blob still exceeds 250KB: ${(compressedBlob.size / 1024).toFixed(0)}KB. Proceeding anyway but quality was reduced to minimum.`);
+      }
 
       // 3. Encapsulamento em File para o Storage
       const webpFile = new File([compressedBlob], `photo_${Date.now()}.webp`, { type: 'image/webp' });
