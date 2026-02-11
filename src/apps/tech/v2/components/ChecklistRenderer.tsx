@@ -1,8 +1,7 @@
 
-
 import React, { useState } from 'react';
 import { FormField, FormFieldType } from '../../../../types';
-import { Camera, Check } from 'lucide-react';
+import { Camera, Check, X } from 'lucide-react';
 import { DataService } from '../../../../services/dataService';
 
 interface ChecklistRendererProps {

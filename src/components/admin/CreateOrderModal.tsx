@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
-import { OrderPriority, OrderStatus, ServiceOrder, User as UserType, OrderItem, StockItem } from '../../types';
+import { OrderPriority, OrderStatus, ServiceOrder, User as UserType, OrderItem, StockItem, FormTemplate } from '../../types';
 import { DataService } from '../../services/dataService';
 
 interface CreateOrderModalProps {
@@ -40,6 +40,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
   const [selectedClientId, setSelectedClientId] = useState(initialData ? 'initial' : '');
   const [selectedEquipIds, setSelectedEquipIds] = useState<string[]>([]);
+  const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
+  const [activationRules, setActivationRules] = useState<any[]>([]);
 
   const getLocalDate = () => {
     const now = new Date();
@@ -74,17 +76,21 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [techs, loadedClients, loadedEquipments, loadedStock] = await Promise.all([
+        const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules] = await Promise.all([
           DataService.getAllTechnicians(),
           DataService.getCustomers(),
           DataService.getEquipments(),
-          DataService.getStockItems()
+          DataService.getStockItems(),
+          DataService.getFormTemplates(),
+          DataService.getActivationRules()
         ]);
 
         setTechnicians(techs);
         setClients(loadedClients);
         setEquipments(loadedEquipments);
         setStock(loadedStock);
+        setFormTemplates(loadedFormTemplates);
+        setActivationRules(loadedRules);
 
         // Se estiver editando, tentar encontrar o ID do cliente e equipamentos
         if (initialData) {
@@ -161,6 +167,36 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
+
+  // Logic to auto-select form template based on rules
+  useEffect(() => {
+    if (!formData.operationType) return;
+
+    let targetFamily = '';
+    if (selectedEquipIds.length > 0) {
+      const equip = equipments.find(e => e.id === selectedEquipIds[0]);
+      if (equip) targetFamily = equip.familyName;
+    }
+
+    // Find a matching rule
+    const matchingRule = activationRules.find(r =>
+      (r.service_type_id === formData.operationType || r.serviceType === formData.operationType) &&
+      (!r.equipmentFamily || r.equipmentFamily === targetFamily)
+    );
+
+    if (matchingRule) {
+      setFormData(prev => ({ ...prev, formId: matchingRule.formId || matchingRule.form_id }));
+    } else {
+      // Fallback: search for a form that matches the service type in its metadata or title
+      const fallbackForm = formTemplates.find(f =>
+        f.title.toLowerCase().includes(formData.operationType.toLowerCase()) ||
+        f.serviceTypes?.includes(formData.operationType)
+      );
+      if (fallbackForm) {
+        setFormData(prev => ({ ...prev, formId: fallbackForm.id }));
+      }
+    }
+  }, [formData.operationType, selectedEquipIds, activationRules, formTemplates]);
 
   const goToStep2 = () => {
     if (!selectedClientId && !initialData) {
@@ -536,6 +572,21 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                             <option key={p} value={p}>{p === OrderPriority.LOW ? 'Baixa' : p === OrderPriority.MEDIUM ? 'Média' : 'Alta / Crítica'}</option>
                           ))}
                         </select>
+                      </div>
+
+                      <div className="space-y-2 pt-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Modelo de Checklist / Formulário</label>
+                        <select
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
+                          value={formData.formId}
+                          onChange={e => setFormData({ ...formData, formId: e.target.value })}
+                        >
+                          <option value="f-padrao">Formulário Padrão (Fallback)</option>
+                          {formTemplates.map(f => (
+                            <option key={f.id} value={f.id}>{f.title}</option>
+                          ))}
+                        </select>
+                        <p className="text-[9px] text-slate-400 italic px-1">O checklist selecionado será exibido para o técnico no aplicativo.</p>
                       </div>
                     </div>
                   </div>
