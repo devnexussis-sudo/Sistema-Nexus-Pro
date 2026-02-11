@@ -18,7 +18,13 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
-} as IconMapping;
+  'line.3.horizontal': 'menu',
+  'calendar': 'calendar-today',
+  'gear': 'settings',
+  'iphone': 'phone-iphone',
+  'arrow.clockwise.icloud': 'sync',
+  'xmark': 'close',
+} as Partial<Record<string, ComponentProps<typeof MaterialIcons>['name']>>;
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
