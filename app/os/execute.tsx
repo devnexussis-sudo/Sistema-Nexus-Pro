@@ -390,7 +390,7 @@ export default function ExecuteOSScreen() {
                     </View>
                 )}
 
-                {/* COMMON SECTIONS (PHOTOS & SIGNATURE) */}
+                {/* COMMON SECTIONS (SIGNATURE) */}
                 <View style={styles.section}>
                     <ThemedText type="subtitle">Validação do Cliente</ThemedText>
 
