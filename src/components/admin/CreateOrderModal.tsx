@@ -591,20 +591,6 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         </select>
                       </div>
 
-                      <div className="space-y-2 pt-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Modelo de Checklist / Formulário</label>
-                        <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
-                          value={formData.formId}
-                          onChange={e => setFormData({ ...formData, formId: e.target.value })}
-                        >
-                          <option value="f-padrao">Formulário Padrão (Fallback)</option>
-                          {formTemplates.map(f => (
-                            <option key={f.id} value={f.id}>{f.title}</option>
-                          ))}
-                        </select>
-                        <p className="text-[9px] text-slate-400 italic px-1">O checklist selecionado será exibido para o técnico no aplicativo.</p>
-                      </div>
                     </div>
                   </div>
                 </div>
