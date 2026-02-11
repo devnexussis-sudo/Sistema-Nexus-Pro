@@ -43,6 +43,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
   const [activationRules, setActivationRules] = useState<any[]>([]);
 
+  const [serviceTypes, setServiceTypes] = useState<any[]>(OS_TYPES.map(t => ({ id: t, name: t }))); // Default to hardcoded
+
   const getLocalDate = () => {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
@@ -76,13 +78,14 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules] = await Promise.all([
+        const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules, loadedServiceTypes] = await Promise.all([
           DataService.getAllTechnicians(),
           DataService.getCustomers(),
           DataService.getEquipments(),
           DataService.getStockItems(),
           DataService.getFormTemplates(),
-          DataService.getActivationRules()
+          DataService.getActivationRules(),
+          DataService.getServiceTypes()
         ]);
 
         setTechnicians(techs);
@@ -91,6 +94,14 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         setStock(loadedStock);
         setFormTemplates(loadedFormTemplates);
         setActivationRules(loadedRules);
+
+        if (loadedServiceTypes && loadedServiceTypes.length > 0) {
+          setServiceTypes(loadedServiceTypes);
+          // If creating new order, set default to first available type
+          if (!initialData) {
+            setFormData(prev => ({ ...prev, operationType: loadedServiceTypes[0].name }));
+          }
+        }
 
         // Se estiver editando, tentar encontrar o ID do cliente e equipamentos
         if (initialData) {
@@ -172,6 +183,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   useEffect(() => {
     if (!formData.operationType) return;
 
+    // Resolve Service Type ID because operationType stores Name
+    const matchedService = serviceTypes.find(s => s.name === formData.operationType);
+    const serviceTypeId = matchedService?.id || formData.operationType; // ID or Name
+
     let targetFamily = '';
     if (selectedEquipIds.length > 0) {
       const equip = equipments.find(e => e.id === selectedEquipIds[0]);
@@ -180,14 +195,14 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
     // Find a matching rule
     const matchingRule = activationRules.find(r =>
-      (r.service_type_id === formData.operationType || r.serviceType === formData.operationType) &&
+      (r.service_type_id === serviceTypeId || r.serviceTypeId === serviceTypeId) &&
       (!r.equipmentFamily || r.equipmentFamily === targetFamily)
     );
 
     if (matchingRule) {
       setFormData(prev => ({ ...prev, formId: matchingRule.formId || matchingRule.form_id }));
     } else {
-      // Fallback: search for a form that matches the service type in its metadata or title
+      // Fallback: search for a form that matches the service type in its metadata or title (Name based)
       const fallbackForm = formTemplates.find(f =>
         f.title.toLowerCase().includes(formData.operationType.toLowerCase()) ||
         f.serviceTypes?.includes(formData.operationType)
@@ -196,7 +211,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         setFormData(prev => ({ ...prev, formId: fallbackForm.id }));
       }
     }
-  }, [formData.operationType, selectedEquipIds, activationRules, formTemplates]);
+  }, [formData.operationType, selectedEquipIds, activationRules, formTemplates, serviceTypes]);
 
   const goToStep2 = () => {
     if (!selectedClientId && !initialData) {
@@ -558,7 +573,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                           value={formData.operationType}
                           onChange={e => setFormData({ ...formData, operationType: e.target.value })}
                         >
-                          {OS_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+                          {serviceTypes.map(type => (
+                            <option key={type.id || type.name} value={type.name}>{type.name}</option>
+                          ))}
                         </select>
                       </div>
                       <div className="space-y-2">
