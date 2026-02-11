@@ -56,6 +56,7 @@ export default function ExecuteOSScreen() {
 
                         // 2. Advanced Resolution: Search by Activation Rules (Type + Family)
                         if (!template) {
+                            let availableTypeNames = '';
                             try {
                                 console.log(`[ExecuteOS] Resolving form via Activation Rules...`);
                                 const [rules, serviceTypes, equipment] = await Promise.all([
@@ -63,6 +64,8 @@ export default function ExecuteOSScreen() {
                                     OrderService.getServiceTypes(),
                                     orderData.equipmentSerial ? OrderService.getEquipmentBySerial(orderData.equipmentSerial) : Promise.resolve(null)
                                 ]);
+
+                                availableTypeNames = serviceTypes.map(s => s.name).join(', ');
 
                                 // Update Order Data with resolved family for debug/UI
                                 if (equipment?.familyName) {
@@ -76,7 +79,8 @@ export default function ExecuteOSScreen() {
                                 const matchedServiceType = serviceTypes.find(st =>
                                     st.id === typeValue ||
                                     st.name?.trim() === typeValue?.trim() ||
-                                    st.name?.toLowerCase().trim() === String(typeValue).toLowerCase().trim()
+                                    st.name?.toLowerCase().trim() === String(typeValue).toLowerCase().trim() ||
+                                    st.name?.toLowerCase().includes(String(typeValue).toLowerCase())
                                 );
 
                                 const family = equipment?.familyName || 'Todos';
@@ -124,9 +128,13 @@ export default function ExecuteOSScreen() {
                                     : '';
                             });
                             setDynamicData(initialData);
+                            setDynamicData(initialData);
                         } else {
                             console.log(`[ExecuteOS] ⚠️ No dynamic form found. Using legacy format.`);
-                            setDynamicData(orderData.formData || {});
+                            setDynamicData({
+                                ...(orderData.formData || {}),
+                                debugTypes: availableTypeNames // Pass debug info to UI
+                            });
                         }
                     }
                 } catch (error) {
@@ -380,7 +388,8 @@ export default function ExecuteOSScreen() {
                             OS ID: {order?.displayId || id}{'\n'}
                             Form ID (DB): {order?.formId || 'null'}{'\n'}
                             Tipo (DB): {order?.operationType || order?.type || 'null'}{'\n'}
-                            Família (Calc): {order?.equipmentFamily || 'N/D'}
+                            Família (Calc): {order?.equipmentFamily || 'N/D'}{'\n'}
+                            Available Types: {dynamicData?.debugTypes || 'Loading...'}
                         </Text>
                         <Pressable
                             style={styles.retryButton}
