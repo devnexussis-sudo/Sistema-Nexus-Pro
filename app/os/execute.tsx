@@ -23,8 +23,8 @@ export default function ExecuteOSScreen() {
 
     // Form State (Dynamic & Legacy)
     const [dynamicData, setDynamicData] = useState<Record<string, any>>({});
-    const [photos, setPhotos] = useState<string[]>([]); // Centralized photos
     const [signature, setSignature] = useState<string | null>(null); // Centralized signature
+    const [clientName, setClientName] = useState(''); // Client Name for validation
 
     // UI State
     const [isSignatureModalVisible, setSignatureModalVisible] = useState(false);
@@ -149,25 +149,6 @@ export default function ExecuteOSScreen() {
         }, [id])
     );
 
-    const handleTakePhoto = async () => {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') return Alert.alert('Permissão necessária', 'Acesso à câmera negado.');
-
-        const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: false,
-            quality: 1,
-        });
-
-        if (!result.canceled && result.assets[0].uri) {
-            try {
-                const compressedUri = await ImageService.compressImage(result.assets[0].uri);
-                setPhotos([...photos, compressedUri]);
-            } catch (error) {
-                Alert.alert('Erro', 'Falha ao processar a imagem.');
-            }
-        }
-    };
 
     const handleSignature = (signatureData: string) => {
         setSignature(signatureData);
@@ -178,6 +159,11 @@ export default function ExecuteOSScreen() {
         if (!signature && !formTemplate) {
             // Legacy check
             Alert.alert('Atenção', 'A assinatura é obrigatória.');
+            return;
+        }
+
+        if (!clientName.trim()) {
+            Alert.alert('Atenção', 'O nome do cliente/responsável é obrigatório.');
             return;
         }
 
@@ -210,8 +196,9 @@ export default function ExecuteOSScreen() {
             await OrderService.completeOrder(id as string, {
                 technicalReport: dynamicData['technical_report'] || '',
                 partsUsed: dynamicData['parts_used'] || '',
-                photos: photos,
+                photos: [], // Legacy photos removed
                 signature: signature,
+                clientName: clientName, // Pass client name
                 formData: updatedDynamicData
             });
 
@@ -405,35 +392,26 @@ export default function ExecuteOSScreen() {
 
                 {/* COMMON SECTIONS (PHOTOS & SIGNATURE) */}
                 <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <ThemedText type="subtitle">Fotos</ThemedText>
-                        <Pressable style={styles.addButton} onPress={handleTakePhoto}>
-                            <Ionicons name="camera" size={20} color="#fff" />
-                            <Text style={styles.addButtonText}>Adicionar</Text>
-                        </Pressable>
-                    </View>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
-                        {photos.map((uri, index) => (
-                            <View key={index} style={styles.photoWrapper}>
-                                <Pressable onPress={() => { setSelectedImage(uri); setViewerVisible(true); }}>
-                                    <Image source={{ uri }} style={styles.photoThumbnail} />
-                                </Pressable>
-                            </View>
-                        ))}
-                    </ScrollView>
-                </View>
+                    <ThemedText type="subtitle">Validação do Cliente</ThemedText>
 
-                <View style={styles.section}>
-                    <ThemedText type="subtitle">Assinatura</ThemedText>
+                    <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4, fontWeight: '600', color: '#666' }]}>Nome do Responsável / Cliente</Text>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Nome de quem acompanhou o serviço"
+                        value={clientName}
+                        onChangeText={setClientName}
+                    />
+
+                    <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 8, fontWeight: '600', color: '#666' }]}>Assinatura Digital</Text>
                     {signature ? (
                         <Pressable onPress={() => setSignature(null)} style={styles.signaturePreviewContainer}>
                             <Image source={{ uri: signature }} style={styles.signaturePreview} resizeMode="contain" />
-                            <Text style={styles.clearSignatureText}>Toque para apagar</Text>
+                            <Text style={styles.clearSignatureText}>Toque para apagar e assinar novamente</Text>
                         </Pressable>
                     ) : (
                         <Pressable style={styles.signaturePlaceholder} onPress={() => setSignatureModalVisible(true)}>
                             <Ionicons name="pencil" size={32} color="#666" />
-                            <Text style={styles.signaturePlaceholderText}>Assinar</Text>
+                            <Text style={styles.signaturePlaceholderText}>Coletar Assinatura do Cliente</Text>
                         </Pressable>
                     )}
                 </View>

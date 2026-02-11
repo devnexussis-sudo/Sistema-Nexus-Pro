@@ -276,6 +276,7 @@ export class OrderService {
         photos: string[];
         signature: string | null;
         formData?: any;
+        clientName?: string;
     }): Promise<void> {
         try {
             // 1. Upload Photos
@@ -292,14 +293,12 @@ export class OrderService {
             // 2. Upload Signature
             let signatureUrl = null;
             if (details.signature) {
-                // Signature from pad is usually base64 data URI "data:image/png;base64,..."
-                // We need to saving it. 
-                // Our generic upload uses fetch(uri).blob() which works for data URIs too!
-                signatureUrl = await this.uploadFile(details.signature, `orders/${id}/signatures`);
+                const url = await this.uploadFile(details.signature, `orders/${id}/signatures`);
+                if (url) signatureUrl = url;
             }
 
             // 3. Update DB
-            const updateData = {
+            const updateData: any = {
                 status: 'CONCLUÍDO',
                 end_date: new Date().toISOString(),
                 form_data: {
@@ -307,10 +306,14 @@ export class OrderService {
                     partsUsed: details.partsUsed,
                     photos: uploadedPhotos,
                     completedAt: new Date().toISOString(),
-                    ...details.formData // Include dynamic form data
+                    clientName: details.clientName, // Save Client Name
+                    ...(details.formData || {}) // Include dynamic form data
                 },
                 signature_url: signatureUrl
             };
+
+            // If the schema supports client_signature_name, we can save it directly too
+            // updateData.client_signature_name = details.clientName; 
 
             const { error } = await supabase
                 .from('orders')
