@@ -68,7 +68,7 @@ export const StockManagement: React.FC = () => {
         const timeoutId = setTimeout(() => {
             setLoading(false);
             console.warn('[Stock] ⚠️ Load timeout - forcing spinner stop');
-        }, 15000);
+        }, 30000);
 
         try {
             await import('../../lib/supabase').then(m => m.ensureValidSession());

@@ -35,7 +35,7 @@ export const supabase = createClient(safeUrl, safeKey, {
                 }
             }
 
-            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s hard timeout
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout for better stability
 
             return fetch(url, {
                 ...init,
@@ -59,7 +59,7 @@ export const supabase = createClient(safeUrl, safeKey, {
  * Returns true if session is valid, false if not (user should be logged out).
  */
 let _lastSessionCheck = 0;
-const SESSION_CHECK_COOLDOWN = 30000; // Don't check more than once per 30s
+const SESSION_CHECK_COOLDOWN = 10000; // Check more frequently (10s) but trust auto-refresh
 
 export async function ensureValidSession(): Promise<boolean> {
     const now = Date.now();
@@ -67,31 +67,21 @@ export async function ensureValidSession(): Promise<boolean> {
     _lastSessionCheck = now;
 
     try {
+        // Just verify if session exists. Do NOT manually refresh if autoRefreshToken is on.
+        // Manual refresh creates race conditions with the auto-refresh mechanism.
         const { data: { session }, error } = await supabase.auth.getSession();
+
         if (error || !session) {
-            console.warn('[SessionGuard] ⚠️ No active session found, attempting refresh...');
+            console.warn('[SessionGuard] ⚠️ No active session found during check.');
+            // Only try to recover if strictly necessary.
+            // If auto-refresh failed, this might help, but it's a fallback.
             const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
             if (refreshError || !refreshData.session) {
-                console.error('[SessionGuard] ❌ Session refresh failed:', refreshError?.message);
+                console.error('[SessionGuard] ❌ Session recovery failed:', refreshError?.message);
                 return false;
             }
-            console.log('[SessionGuard] ✅ Session refreshed successfully.');
+            console.log('[SessionGuard] ✅ Session recovered manually.');
             return true;
-        }
-
-        // Check if token will expire within the next 2 minutes
-        const expiresAt = session.expires_at;
-        if (expiresAt) {
-            const expiresInMs = expiresAt * 1000 - now;
-            if (expiresInMs < 120000) { // Less than 2 minutes until expiration
-                console.log('[SessionGuard] 🔄 Token expiring soon, proactive refresh...');
-                const { error: refreshError } = await supabase.auth.refreshSession();
-                if (refreshError) {
-                    console.error('[SessionGuard] ❌ Proactive refresh failed:', refreshError.message);
-                    return false;
-                }
-                console.log('[SessionGuard] ✅ Proactive refresh successful.');
-            }
         }
 
         return true;
