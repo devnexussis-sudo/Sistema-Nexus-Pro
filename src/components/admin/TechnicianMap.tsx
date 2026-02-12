@@ -218,12 +218,12 @@ export const TechnicianMap: React.FC = () => {
         return `${Math.floor(hours / 24)}d atrás`;
     };
 
-    // Verifica se o técnico está em movimento (ping nos últimos 5 minutos)
+    // Verifica se o técnico está em movimento (ping nos últimos 20 minutos)
     const isTechMoving = (lastSeen?: string): boolean => {
         if (!lastSeen) return false;
         const diff = Date.now() - new Date(lastSeen).getTime();
         const minutes = Math.floor(diff / 60000);
-        return minutes < 5; // Considera "em movimento" se ping foi há menos de 5 min
+        return minutes < 20; // Aumentado para 20 min para compensar delays de background
     };
 
     // Separa técnicos em movimento dos parados
@@ -421,7 +421,11 @@ export const TechnicianMap: React.FC = () => {
                                                     />
                                                     <div className="absolute -right-0.5 top-0.5 w-0.5 h-1 bg-current rounded-e-sm" />
                                                 </div>
-                                                <span>{t.battery_level !== null && t.battery_level !== undefined ? `${t.battery_level}%` : '--'}</span>
+                                                <span>
+                                                    {(t.battery_level !== undefined && t.battery_level !== null)
+                                                        ? `${Math.round(t.battery_level)}%`
+                                                        : '--'}
+                                                </span>
                                             </div>
                                         </div>
 
