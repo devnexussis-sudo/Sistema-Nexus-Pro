@@ -218,12 +218,12 @@ export const TechnicianMap: React.FC = () => {
         return `${Math.floor(hours / 24)}d atrás`;
     };
 
-    // Verifica se o técnico está em movimento (ping nos últimos 20 minutos)
+    // Verifica se o técnico está em movimento (ping nos últimos 30 minutos)
     const isTechMoving = (lastSeen?: string): boolean => {
         if (!lastSeen) return false;
         const diff = Date.now() - new Date(lastSeen).getTime();
         const minutes = Math.floor(diff / 60000);
-        return minutes < 20; // Aumentado para 20 min para compensar delays de background
+        return minutes < 30;
     };
 
     // Separa técnicos em movimento dos parados
@@ -392,10 +392,6 @@ export const TechnicianMap: React.FC = () => {
                             >
                                 <Popup>
                                     <div className="p-2">
-                                        {/* DEBUG BANNER - REMOVE AFTER TEST */}
-                                        <div className="bg-red-500 text-white text-[8px] font-black text-center mb-2 rounded-sm uppercase tracking-widest">
-                                            DEBUG MODE V3
-                                        </div>
 
                                         <div className="flex items-center gap-2 mb-2">
                                             <img src={t.avatar} className="w-10 h-10 rounded-lg object-cover shadow" alt={t.name} />
@@ -405,8 +401,9 @@ export const TechnicianMap: React.FC = () => {
                                             </div>
                                         </div>
                                         <div className="mb-2">
-                                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase ${isMoving ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                                                {isMoving ? '🟢 Em Movimento' : '🔴 Parado'}
+                                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase ${isMoving ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                                                }`}>
+                                                {isMoving ? '🟢 Online (< 30m)' : '🔴 Offline (> 30m)'}
                                             </span>
                                         </div>
 
