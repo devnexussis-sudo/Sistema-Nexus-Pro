@@ -2159,6 +2159,23 @@ export const DataService = {
     return false;
   },
 
+  getAllTechnicians: async (): Promise<any[]> => {
+    const tenantId = DataService.getCurrentTenantId();
+    if (isCloudEnabled && tenantId) {
+      const { data, error } = await DataService.getServiceClient()
+        .from('technicians')
+        .select('*')
+        .eq('tenant_id', tenantId);
+
+      if (error) {
+        console.error("Erro ao buscar técnicos:", error);
+        return [];
+      }
+      return data || [];
+    }
+    return [];
+  },
+
   rejectQuote: async (id: string, rejectionData: { document: string, birthDate: string, signature: string, name: string, reason: string, metadata?: any, lat?: number, lng?: number }): Promise<boolean> => {
     if (isCloudEnabled) {
       console.log(`[🚫 Nexus Reject] Iniciando recusa do orçamento ${id}...`);

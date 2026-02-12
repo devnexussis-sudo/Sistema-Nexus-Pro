@@ -24,6 +24,8 @@ interface Technician {
     last_longitude?: number;
     last_seen?: string;
     active?: boolean;
+    speed?: number;
+    battery_level?: number;
 }
 
 interface LocationHistory {
@@ -115,6 +117,14 @@ export const TechnicianMap: React.FC = () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s max
             const techs = await DataService.getAllTechnicians();
+
+            // 🐛 DEBUG NEXUS: Check Battery Levels
+            console.log('[Map] 🔍 Techs loaded:', techs.map(t => ({
+                name: t.name,
+                battery: t.battery_level,
+                raw: t
+            })));
+
             clearTimeout(timeoutId);
             setTechnicians(techs);
         } catch (error: any) {
@@ -382,6 +392,11 @@ export const TechnicianMap: React.FC = () => {
                             >
                                 <Popup>
                                     <div className="p-2">
+                                        {/* DEBUG BANNER - REMOVE AFTER TEST */}
+                                        <div className="bg-red-500 text-white text-[8px] font-black text-center mb-2 rounded-sm uppercase tracking-widest">
+                                            DEBUG MODE V3
+                                        </div>
+
                                         <div className="flex items-center gap-2 mb-2">
                                             <img src={t.avatar} className="w-10 h-10 rounded-lg object-cover shadow" alt={t.name} />
                                             <div>
@@ -394,6 +409,22 @@ export const TechnicianMap: React.FC = () => {
                                                 {isMoving ? '🟢 Em Movimento' : '🔴 Parado'}
                                             </span>
                                         </div>
+
+                                        {/* 🔋 Battery Indicator (Moved Up for Visibility) */}
+                                        <div className="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border border-slate-100 mb-2">
+                                            <span className="text-[10px] text-slate-500 font-bold">Bateria:</span>
+                                            <div className={`flex items-center gap-1 font-black text-[10px] ${(t.battery_level ?? 0) > 20 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                <div className="relative w-4 h-2 border border-current rounded-sm flex items-center p-px">
+                                                    <div
+                                                        className="h-full bg-current rounded-[0.5px]"
+                                                        style={{ width: `${Math.min(t.battery_level ?? 0, 100)}%` }}
+                                                    />
+                                                    <div className="absolute -right-0.5 top-0.5 w-0.5 h-1 bg-current rounded-e-sm" />
+                                                </div>
+                                                <span>{t.battery_level !== null && t.battery_level !== undefined ? `${t.battery_level}%` : '--'}</span>
+                                            </div>
+                                        </div>
+
                                         <div className="flex items-center gap-1 text-[10px] text-slate-600">
                                             <Clock size={10} />
                                             <span>{formatLastSeen(t.last_seen)}</span>
@@ -404,6 +435,12 @@ export const TechnicianMap: React.FC = () => {
                                                 {t.last_latitude?.toFixed(4)}, {t.last_longitude?.toFixed(4)}
                                             </span>
                                         </div>
+                                        {t.speed !== undefined && (
+                                            <div className="flex items-center gap-1 text-[10px] text-slate-600 mt-1">
+                                                <Navigation size={10} />
+                                                <span>{Math.round(t.speed * 3.6)} km/h</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </Popup>
                             </Marker>
@@ -471,6 +508,6 @@ export const TechnicianMap: React.FC = () => {
                     background: rgba(100, 116, 139, 0.5);
                 }
             `}</style>
-        </div>
+        </div >
     );
 };
