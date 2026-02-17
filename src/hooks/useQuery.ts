@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 // 🧠 Global Query Cache (Singleton)
-const queryCache = new Map<string, { data: any; timestamp: number; promise?: Promise<any> }>();
+const queryCache = new Map<string, { data: any; timestamp: number; promise?: Promise<any>; promiseTimestamp?: number }>();
 
 // ⚙️ Default Options
 const DEFAULT_STALE_TIME = 1000 * 60 * 5; // 5 minutes
@@ -97,8 +97,11 @@ export function useQuery<T>(
             return;
         }
 
-        // 🛡️ Request Deduplication
-        if (cached?.promise) {
+        // 🛡️ Request Deduplication (com anti-deadlock)
+        const isPromiseStale = cached?.promiseTimestamp && (Date.now() - cached.promiseTimestamp > 15000); // 15s timeout
+
+        if (cached?.promise && !isPromiseStale) {
+            console.log(`[NexusQuery] ♻️ Reusing request: ${key}`);
             setState(prev => ({ ...prev, isFetching: true }));
             try {
                 const data = await cached.promise;
@@ -106,15 +109,22 @@ export function useQuery<T>(
                     setState(prev => ({ ...prev, data, isLoading: false, isFetching: false, status: 'success', error: null }));
                 }
             } catch (err) {
-                // Ignore error from deduplication, let the original request handle it or retry
+                // Ignore error from deduplication
             }
             return;
         }
 
+        // Se promessa era velha (zumbi), ignoramos e iniciamos nova
+        if (isPromiseStale && cached?.promise) {
+            console.warn(`[NexusQuery] 🧟 Zumbi Promise detectada em ${key}. Ignorando e refetching...`);
+            cached.promise = undefined;
+        }
+
         // Start Fetch
+        console.log(`[NexusQuery] 🟢 Fetching: ${key}`);
         setState(prev => ({
             ...prev,
-            isLoading: !prev.data, // Only show loading if no data (even stale)
+            isLoading: !prev.data,
             isFetching: true,
             status: 'loading'
         }));
@@ -122,14 +132,16 @@ export function useQuery<T>(
         try {
             const promise = queryFn();
 
-            // Store promise in cache for deduplication
+            // Store promise in cache
             if (cached) {
                 cached.promise = promise;
+                cached.promiseTimestamp = Date.now();
             } else {
-                queryCache.set(key, { data: undefined as any, timestamp: 0, promise });
+                queryCache.set(key, { data: undefined as any, timestamp: 0, promise, promiseTimestamp: Date.now() });
             }
 
             const data = await promise;
+            console.log(`[NexusQuery] ✅ Success: ${key}`);
 
             // Update Cache
             queryCache.set(key, { data, timestamp: Date.now(), promise: undefined });
