@@ -49,6 +49,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return;
             }
 
+            // 🧠 Check Token Freshness (Fix para inatividade)
+            if (session?.expires_at) {
+                const expiresAtMs = session.expires_at * 1000;
+                const now = Date.now();
+                // Se faltar menos de 60s ou já tiver passado
+                if (expiresAtMs - now < 60000) {
+                    console.log('[AuthProvider] ⏳ Detectado token expirado/próximo. Renovando sessão...');
+                    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+                    if (refreshError || !refreshData.session) {
+                        console.error('[AuthProvider] ❌ Falha ao renovar token expirado:', refreshError?.message);
+                        if (isMountedRef.current) {
+                            setAuth({ user: null, isAuthenticated: false });
+                            SessionStorage.clear();
+                        }
+                        return;
+                    }
+                    console.log('[AuthProvider] ✅ Sessão renovada com sucesso.');
+                }
+            }
+
             // Restore/Refresh User Data
             const refreshedUser = await DataService.refreshUser().catch(() => null);
             if (refreshedUser && isMountedRef.current) {
