@@ -81,6 +81,19 @@
           .catch(err => console.log('Erro ao registrar Service Worker:', err));
       });
     }
+
+    // 🔄 Nexus SPA Redirect (Fix para Rota /master)
+    // Detecta acesso direto a rotas sem hash e converte para estrutura HashRouter
+    (function() {
+      var path = window.location.pathname;
+      if (path && path !== '/' && path !== '/index.html' && !path.includes('.')) {
+        var hash = window.location.hash;
+        var query = window.location.search;
+        var newUrl = '/#' + path + query + (hash ? hash : '');
+        console.log('🔄 [Nexus Router] Redirecionando legado: ' + path + ' -> ' + newUrl);
+        window.history.replaceState(null, null, newUrl);
+      }
+    })();
   </script>
 
 </head>
