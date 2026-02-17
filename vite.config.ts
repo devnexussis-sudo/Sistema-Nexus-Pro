@@ -82,7 +82,7 @@ export default defineConfig({
           'form-vendor': ['zod'],
 
           // Utilities
-          'utils-vendor': ['dompurify', 'browser-image-compression'],
+          'utils-vendor': ['dompurify'],
         },
 
         // Nomes de arquivo com hash para cache busting
