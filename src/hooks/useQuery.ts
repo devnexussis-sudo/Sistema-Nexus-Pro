@@ -175,7 +175,21 @@ export function useQuery<T>(
     useEffect(() => {
         isMounted.current = true;
         fetchData();
-        return () => { isMounted.current = false; };
+
+        // 👂 Global Invalidation Listener
+        const handleInvalidation = (e: any) => {
+            const targetKey = e.detail?.key;
+            if (!targetKey || key.startsWith(targetKey) || targetKey === '*') {
+                fetchData(true);
+            }
+        };
+
+        window.addEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
+
+        return () => {
+            isMounted.current = false;
+            window.removeEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
+        };
     }, [key, enabled]); // Re-run when key or enabled changes
 
     const refetch = async () => {

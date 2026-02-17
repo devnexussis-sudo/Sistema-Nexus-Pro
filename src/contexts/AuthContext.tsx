@@ -137,6 +137,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (!currentTenant) await validateAndRestoreSession(false);
                 await validateAndRestoreSession(true);
                 DataService.forceGlobalRefresh();
+
+                // 🔄 Force Refetch Global (Acorda o useQuery)
+                window.dispatchEvent(new CustomEvent('NEXUS_QUERY_INVALIDATE', { detail: { key: '*' } }));
             }
         };
 
