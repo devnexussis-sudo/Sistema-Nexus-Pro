@@ -54,7 +54,8 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
       const term = searchTerm.toLowerCase();
       const matchesSearch = (order.title || '').toLowerCase().includes(term) ||
         (order.customerName || '').toLowerCase().includes(term) ||
-        (order.id || '').toLowerCase().includes(term);
+        (order.id || '').toLowerCase().includes(term) ||
+        (order.displayId || '').toLowerCase().includes(term);
 
       const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
 
@@ -146,7 +147,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
       </header>
 
       {/* GRID DO CALENDÁRIO - SEM SCROLL NO CONTAINER PAI */}
-      <main className="flex-1 overflow-hidden flex flex-col bg-slate-100/50">
+      <main className="flex-1 overflow-hidden flex flex-col bg-slate-100/50 min-h-0">
         {/* DIAS DA SEMANA */}
         <div className="grid grid-cols-7 bg-white shrink-0">
           {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
@@ -157,7 +158,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
         </div>
 
         {/* GRID DE DIAS - FLEX-1 PARA PREENCHER TELA */}
-        <div className="flex-1 grid grid-cols-7 grid-rows-6 gap-px bg-slate-200">
+        <div className="flex-1 grid grid-cols-7 auto-rows-fr gap-px bg-slate-200 min-h-0">
           {days.map((day, idx) => {
             const dayOrders = getOrdersForDay(day);
             const isToday = isSameDay(day, new Date());
@@ -166,13 +167,13 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             return (
               <div
                 key={idx}
-                className={`flex flex-col overflow-hidden relative transition-all group
+                className={`flex flex-col overflow-hidden relative transition-all group min-h-0
                   ${isCurrentMonth ? 'bg-white' : 'bg-slate-50 opacity-40'} 
                   ${isToday ? 'bg-primary-50/20' : ''}
                 `}
               >
                 {/* Indicador de Dia Compacto */}
-                <div className="px-2 py-1 flex justify-between items-center relative z-10">
+                <div className="px-2 py-1 flex justify-between items-center relative z-10 shrink-0">
                   <span className={`text-lg font-black italic tracking-tighter transition-all shrink-0
                     ${isToday ? 'text-primary-600 scale-110 drop-shadow-sm' : 'text-slate-200 group-hover:text-slate-900'}
                   `}>
@@ -188,7 +189,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                 </div>
 
                 {/* LISTA DE O.S. - SCROLL APENAS DENTRO DA CÉLULA SE NECESSÁRIO */}
-                <div className="flex-1 px-1.5 pb-2 space-y-1 overflow-y-auto custom-scrollbar-thin relative z-10">
+                <div className="flex-1 px-1.5 pb-2 space-y-1 overflow-y-auto custom-scrollbar-thin relative z-10 min-h-0">
                   {dayOrders.map(order => (
                     <div
                       key={order.id}

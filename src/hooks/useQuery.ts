@@ -1,104 +1,222 @@
-import { useState, useEffect, useCallback } from 'react';
+
+import { useState, useEffect, useRef } from 'react';
+
+// 🧠 Global Query Cache (Singleton)
+const queryCache = new Map<string, { data: any; timestamp: number; promise?: Promise<any> }>();
+
+// ⚙️ Default Options
+const DEFAULT_STALE_TIME = 1000 * 60 * 5; // 5 minutes
+const DEFAULT_CACHE_TIME = 1000 * 60 * 30; // 30 minutes
 
 interface QueryOptions<T> {
     enabled?: boolean;
     retry?: number;
-    staleTime?: number;
+    staleTime?: number; // Time in ms before data is considered stale
+    cacheTime?: number; // Time in ms before data is garbage collected
     onSuccess?: (data: T) => void;
     onError?: (error: Error) => void;
+    refetchOnWindowFocus?: boolean; // TODO: Implement focus refetching
 }
 
 interface QueryResult<T> {
-    data: T | null;
+    data: T | undefined;
     isLoading: boolean;
+    isFetching: boolean;
     isError: boolean;
     error: Error | null;
     refetch: () => Promise<void>;
+    invalidate: () => void;
 }
 
 /**
- * 🛡️ Nexus Resilience Hook: Uma versão simplificada do TanStack Query
- * focada em estabilidade, retry automático e gerenciamento de estado "inquebrável".
+ * 🛡️ Nexus Query Engine (Lightweight React Query)
+ * Features:
+ * - Global Caching (Singleton)
+ * - Request Deduplication
+ * - Stale-While-Revalidate
+ * - Background Updates
+ * - Retry Logic with Exponential Backoff
  */
 export function useQuery<T>(
-    queryKey: string,
+    queryKey: string | string[],
     queryFn: () => Promise<T>,
     options: QueryOptions<T> = {}
 ): QueryResult<T> {
+    const key = Array.isArray(queryKey) ? queryKey.join(':') : queryKey;
+
     const {
         enabled = true,
-        retry = 3,
-        staleTime = 0,
+        retry = 2,
+        staleTime = DEFAULT_STALE_TIME,
         onSuccess,
         onError
     } = options;
 
-    const [data, setData] = useState<T | null>(null);
-    const [isLoading, setIsLoading] = useState(enabled);
-    const [isError, setIsError] = useState(false);
-    const [error, setError] = useState<Error | null>(null);
+    const [state, setState] = useState<{
+        data: T | undefined;
+        isLoading: boolean;
+        isFetching: boolean;
+        error: Error | null;
+        status: 'idle' | 'loading' | 'success' | 'error';
+    }>(() => {
+        // 🚀 Initial State: hydration from cache
+        const cached = queryCache.get(key);
+        if (cached && (Date.now() - cached.timestamp < staleTime)) {
+            return {
+                data: cached.data as T,
+                isLoading: false,
+                isFetching: false,
+                error: null,
+                status: 'success'
+            };
+        }
+        return {
+            data: cached?.data as T, // Return cached data even if stale (stale-while-revalidate)
+            isLoading: !cached?.data && enabled,
+            isFetching: enabled,
+            error: null,
+            status: 'idle'
+        };
+    });
 
-    // 🛡️ Previne vazamento de memória e race conditions
-    useEffect(() => {
-        let isMounted = true;
-        const abortController = new AbortController();
+    const isMounted = useRef(true);
+    const retryCount = useRef(0);
 
-        const fetchData = async (attempt = 0) => {
-            if (!enabled) return;
+    // 🔄 Fetch Logic
+    const fetchData = async (forceRefetch = false) => {
+        if (!enabled && !forceRefetch) return;
 
-            if (attempt === 0) setIsLoading(true);
+        const cached = queryCache.get(key);
+        const isStale = !cached || (Date.now() - cached.timestamp > staleTime);
 
-            try {
-                // Se abortado, para imediatamente
-                if (abortController.signal.aborted) return;
-
-                const result = await queryFn();
-
-                if (isMounted) {
-                    setData(result);
-                    setIsLoading(false);
-                    if (onSuccess && typeof onSuccess === 'function') onSuccess(result);
-                }
-            } catch (err: any) {
-                if (abortController.signal.aborted) return;
-
-                // Retry Logic (Exponential Backoff)
-                if (attempt < (retry || 3)) {
-                    const delay = Math.pow(2, attempt) * 1000;
-                    setTimeout(() => {
-                        if (isMounted) fetchData(attempt + 1);
-                    }, delay);
-                    return;
-                }
-
-                if (isMounted) {
-                    setIsError(true);
-                    setError(err);
-                    setIsLoading(false);
-                    if (onError && typeof onError === 'function') onError(err);
-                }
+        // Se tiver dados em cache e não estiver stale, e não for forçado, retorna
+        if (cached && !isStale && !forceRefetch) {
+            if (state.data !== cached.data) {
+                setState(prev => ({ ...prev, data: cached.data, isLoading: false, isFetching: false, status: 'success' }));
             }
-        };
+            return;
+        }
 
-        fetchData();
+        // 🛡️ Request Deduplication
+        if (cached?.promise) {
+            setState(prev => ({ ...prev, isFetching: true }));
+            try {
+                const data = await cached.promise;
+                if (isMounted.current) {
+                    setState(prev => ({ ...prev, data, isLoading: false, isFetching: false, status: 'success', error: null }));
+                }
+            } catch (err) {
+                // Ignore error from deduplication, let the original request handle it or retry
+            }
+            return;
+        }
 
-        return () => {
-            isMounted = false;
-            abortController.abort();
-        };
-    }, [queryKey, enabled]); // Re-run when key or enabled changes
+        // Start Fetch
+        setState(prev => ({
+            ...prev,
+            isLoading: !prev.data, // Only show loading if no data (even stale)
+            isFetching: true,
+            status: 'loading'
+        }));
 
-    const refetch = async () => {
-        setIsLoading(true);
         try {
-            const result = await queryFn();
-            setData(result);
-            setIsLoading(false);
-        } catch (err) {
-            setIsError(true);
-            setIsLoading(false);
+            const promise = queryFn();
+
+            // Store promise in cache for deduplication
+            if (cached) {
+                cached.promise = promise;
+            } else {
+                queryCache.set(key, { data: undefined as any, timestamp: 0, promise });
+            }
+
+            const data = await promise;
+
+            // Update Cache
+            queryCache.set(key, { data, timestamp: Date.now(), promise: undefined });
+
+            if (isMounted.current) {
+                setState({
+                    data,
+                    isLoading: false,
+                    isFetching: false,
+                    error: null,
+                    status: 'success'
+                });
+                retryCount.current = 0;
+                onSuccess?.(data);
+            }
+        } catch (err: any) {
+            // Remove promise from cache to allow retry
+            const currentCache = queryCache.get(key);
+            if (currentCache) currentCache.promise = undefined;
+
+            if (retryCount.current < retry) {
+                retryCount.current++;
+                const delay = Math.min(1000 * Math.pow(2, retryCount.current), 30000);
+                setTimeout(() => {
+                    if (isMounted.current) fetchData(true);
+                }, delay);
+                return;
+            }
+
+            if (isMounted.current) {
+                setState(prev => ({
+                    ...prev,
+                    isLoading: false,
+                    isFetching: false,
+                    error: err,
+                    status: 'error'
+                }));
+                onError?.(err);
+            }
         }
     };
 
-    return { data, isLoading, isError, error, refetch };
+    useEffect(() => {
+        isMounted.current = true;
+        fetchData();
+        return () => { isMounted.current = false; };
+    }, [key, enabled]); // Re-run when key or enabled changes
+
+    const refetch = async () => {
+        await fetchData(true);
+    };
+
+    const invalidate = () => {
+        const cached = queryCache.get(key);
+        if (cached) cached.timestamp = 0; // Mark as stale immediately
+        fetchData(true);
+    };
+
+    return {
+        data: state.data,
+        isLoading: state.isLoading,
+        isFetching: state.isFetching,
+        isError: !!state.error,
+        error: state.error,
+        refetch,
+        invalidate
+    };
 }
+
+// 🧹 Cache Helper
+export const queryClient = {
+    invalidateQueries: (keyPrefix: string) => {
+        // Iterate over keys and invalidate matching ones
+        for (const key of queryCache.keys()) {
+            if (key.startsWith(keyPrefix)) {
+                const cached = queryCache.get(key);
+                if (cached) cached.timestamp = 0;
+            }
+        }
+    },
+    setQueryData: (key: string, data: any) => {
+        queryCache.set(key, { data, timestamp: Date.now() });
+    },
+    getQueryData: (key: string) => {
+        return queryCache.get(key)?.data;
+    },
+    clear: () => {
+        queryCache.clear();
+    }
+};

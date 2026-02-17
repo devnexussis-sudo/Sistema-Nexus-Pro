@@ -145,7 +145,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="text-right flex flex-col items-end justify-center">
               <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
                 <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nº da Ordem de Serviço</div>
-                <div className="text-2xl font-black text-slate-900 tracking-tighter">#{order.id.toUpperCase()}</div>
+                <div className="text-2xl font-black text-slate-900 tracking-tighter">#{order.displayId || order.id.toUpperCase()}</div>
               </div>
               <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
                 Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -422,7 +422,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               <div className="space-y-2 w-full">
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 text-slate-500 rounded-lg">
                   <span className="text-[10px] font-black uppercase tracking-wider">Protocolo:</span>
-                  <span className="text-xs font-black text-slate-900">#{order.id.toUpperCase()}</span>
+                  <span className="text-xs font-black text-slate-900">#{order.displayId || order.id.toUpperCase()}</span>
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-tighter leading-tight italic">{order.title}</h2>
                 <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest">

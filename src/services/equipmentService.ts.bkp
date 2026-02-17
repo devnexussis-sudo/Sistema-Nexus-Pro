@@ -1,0 +1,153 @@
+
+import { adminSupabase } from '../lib/supabase';
+import { Equipment } from '../types';
+import { CacheManager } from '../lib/cache';
+import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+
+const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+// Helper para obter tenant ID (precisa ser extraído para um Context ou Helper comum ser DRY)
+const getCurrentTenantId = (): string | undefined => {
+    try {
+        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
+        if (techSession) {
+            const user = JSON.parse(techSession);
+            const tid = user.tenantId || user.tenant_id;
+            if (tid) return tid;
+        }
+
+        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
+        if (userStr) {
+            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
+            const tid = user.tenantId || user.tenant_id;
+            if (tid) return tid;
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
+        if (urlTid) return urlTid;
+
+        return undefined;
+    } catch (e) {
+        return undefined;
+    }
+};
+
+export const EquipmentService = {
+
+    _mapEquipmentFromDB: (data: any): Equipment => {
+        return {
+            ...data,
+            tenantId: data.tenant_id,
+            serialNumber: data.serial_number || data.serialNumber,
+            familyId: data.family_id || data.familyId,
+            familyName: data.family_name || data.familyName,
+            customerId: data.customer_id || data.customerId,
+            customerName: data.customer_name || data.customerName,
+            createdAt: data.created_at || data.createdAt
+        };
+    },
+
+    getEquipments: async (): Promise<Equipment[]> => {
+        if (isCloudEnabled) {
+            const tenantId = getCurrentTenantId();
+            if (!tenantId) return [];
+
+            const cacheKey = `equipments_${tenantId}`;
+            const cached = CacheManager.get<Equipment[]>(cacheKey);
+            if (cached) return cached;
+
+            return CacheManager.deduplicate(cacheKey, async () => {
+                const { data, error } = await adminSupabase.from('equipments')
+                    .select('*')
+                    .eq('tenant_id', tenantId)
+                    .order('model');
+
+                if (error) {
+                    console.error("Erro ao buscar equipamentos:", error);
+                    return [];
+                }
+                const mapped = (data || []).map(d => EquipmentService._mapEquipmentFromDB(d));
+                CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min
+                return mapped;
+            });
+        }
+        return [];
+    },
+
+    createEquipment: async (equipment: Equipment): Promise<Equipment> => {
+        const tid = getCurrentTenantId();
+        if (isCloudEnabled) {
+            const { id, tenantId, ...rest } = equipment as any;
+
+            // 🛡️ Nexus ID Gen: Gera ID se o banco não for auto-increment
+            const newId = `eq-${Date.now().toString(36)}`;
+
+            const dbPayload = {
+                id: newId,
+                serial_number: equipment.serialNumber,
+                model: equipment.model,
+                family_id: equipment.familyId,
+                family_name: equipment.familyName,
+                description: equipment.description,
+                customer_id: equipment.customerId,
+                customer_name: equipment.customerName,
+                active: equipment.active,
+                tenant_id: tid,
+                updated_at: new Date().toISOString()
+            };
+
+            const { data: res, error } = await adminSupabase.from('equipments').insert([dbPayload]).select().single();
+            if (error) throw error;
+            CacheManager.invalidate(`equipments_${tid}`);
+
+            return EquipmentService._mapEquipmentFromDB(res);
+        }
+        return equipment;
+    },
+
+    updateEquipment: async (equipment: Equipment): Promise<Equipment> => {
+        if (isCloudEnabled) {
+            const tid = getCurrentTenantId();
+            if (!tid) throw new Error("Tenant não identificado.");
+
+            const dbPayload = {
+                serial_number: equipment.serialNumber,
+                model: equipment.model,
+                family_id: equipment.familyId,
+                family_name: equipment.familyName,
+                description: equipment.description,
+                customer_id: equipment.customerId,
+                customer_name: equipment.customerName,
+                active: equipment.active,
+                updated_at: new Date().toISOString()
+            };
+
+            const { data, error } = await adminSupabase.from('equipments')
+                .update(dbPayload)
+                .eq('id', equipment.id)
+                .eq('tenant_id', tid) // 🛡️ Nexus Security: Garante que só altera o próprio tenant
+                .select()
+                .single();
+
+            if (error) throw error;
+            CacheManager.invalidate(`equipments_${tid}`);
+
+            return EquipmentService._mapEquipmentFromDB(data);
+        }
+        return equipment;
+    },
+
+    deleteEquipment: async (id: string): Promise<void> => {
+        const tid = getCurrentTenantId();
+        if (isCloudEnabled && tid) {
+            const { error } = await adminSupabase.from('equipments')
+                .delete()
+                .eq('id', id)
+                .eq('tenant_id', tid);
+
+            if (error) throw error;
+            CacheManager.invalidate(`equipments_${tid}`);
+        }
+    }
+};

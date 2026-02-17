@@ -97,70 +97,127 @@ export async function ensureValidSession(): Promise<boolean> {
 
 // 🛡️ Secure Admin Proxy
 // Redireciona chamadas AUTH sensíveis para o Backend (/api/admin-users)
-// Usa o cliente normal para DADOS (.from), respeitando RLS.
 // 🛡️ Secure Admin Proxy
-// Redireciona chamadas AUTH sensíveis para o Backend da Vercel
-const ADMIN_API_URL = import.meta.env.DEV ? 'https://app.nexusline.com.br/api/admin-users' : '/api/admin-users';
+// Redireciona chamadas AUTH sensíveis para Edge Function segura
+const EDGE_FUNCTION_URL = import.meta.env.VITE_EDGE_FUNCTION_URL ||
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-operations`;
+
+/**
+ * Obtém token JWT do usuário autenticado
+ */
+async function getUserToken(): Promise<string | null> {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+}
 
 const adminAuthProxy = {
     admin: {
         createUser: async (attributes: any) => {
-            console.log('🛡️ Secure Proxy: Creating User via Backend API...');
             try {
-                const response = await fetch(ADMIN_API_URL, {
+                const token = await getUserToken();
+                if (!token) {
+                    throw new Error('User not authenticated');
+                }
+
+                const response = await fetch(EDGE_FUNCTION_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'create_user', payload: attributes })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        action: 'create_user',
+                        payload: attributes
+                    })
                 });
+
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Falha na criação de usuário (API Error)');
-                return data; // { data: { user: ... }, error: null }
+                if (!response.ok) throw new Error(data.error || 'Failed to create user');
+                return { data: { user: data.user }, error: null };
             } catch (e: any) {
-                console.error("Proxy Create Error:", e);
-                return { data: null, error: e };
+                console.error("Admin createUser error:", e);
+                return { data: { user: null }, error: e };
             }
         },
+
         deleteUser: async (userId: string) => {
             try {
-                const response = await fetch(ADMIN_API_URL, {
+                const token = await getUserToken();
+                if (!token) {
+                    throw new Error('User not authenticated');
+                }
+
+                const response = await fetch(EDGE_FUNCTION_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'delete_user', payload: { userId } })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        action: 'delete_user',
+                        payload: { userId }
+                    })
                 });
+
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Falha ao deletar usuário');
-                return data;
+                if (!response.ok) throw new Error(data.error || 'Failed to delete user');
+                return { data, error: null };
             } catch (e: any) {
                 return { data: null, error: e };
             }
         },
+
         listUsers: async () => {
             try {
-                const response = await fetch(ADMIN_API_URL, {
+                const token = await getUserToken();
+                if (!token) {
+                    throw new Error('User not authenticated');
+                }
+
+                const response = await fetch(EDGE_FUNCTION_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'list_users' })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        action: 'list_users'
+                    })
                 });
+
                 const data = await response.json();
                 if (!response.ok) return { data: { users: [] }, error: data.error || 'API Error' };
-                return data; // Supabase retorna { data: { users: [] }, error: null }
+                return { data: { users: data.users || [] }, error: null };
             } catch (e: any) {
-                console.error("Proxy List Error:", e);
+                console.error("Admin listUsers error:", e);
                 return { data: { users: [] }, error: e };
             }
         },
+
         updateUserById: async (userId: string, updates: any) => {
             try {
-                const response = await fetch(ADMIN_API_URL, {
+                const token = await getUserToken();
+                if (!token) {
+                    throw new Error('User not authenticated');
+                }
+
+                const response = await fetch(EDGE_FUNCTION_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'update_user', payload: { userId, updates } })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        action: 'update_user',
+                        payload: { userId, updates }
+                    })
                 });
+
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Falha ao atualizar usuário');
-                return data;
+                if (!response.ok) throw new Error(data.error || 'Failed to update user');
+                return { data: { user: data.user }, error: null };
             } catch (e: any) {
-                return { data: null, error: e };
+                return { data: { user: null }, error: e };
             }
         }
     }

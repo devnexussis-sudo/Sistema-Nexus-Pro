@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Navigation, MapPin, Clock, RefreshCw, History, Calendar, ChevronLeft, Search, User } from 'lucide-react';
 import { DataService } from '../../services/dataService';
+import { CacheManager } from '../../lib/cache';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -98,7 +99,7 @@ export const TechnicianMap: React.FC = () => {
                 console.log('[Map] 🌙 Novo dia detectado! Limpando cache do mapa...');
                 const tenantId = DataService.getCurrentTenantId();
                 if (tenantId) {
-                    DataService.invalidateCache(`techs_${tenantId}`);
+                    CacheManager.invalidate(`techs_${tenantId}`);
                 }
                 sessionStorage.setItem('last_map_reset_date', today);
                 loadTechnicians();
@@ -148,7 +149,7 @@ export const TechnicianMap: React.FC = () => {
             // Invalida o cache antes de recarregar
             const tenantId = DataService.getCurrentTenantId();
             if (tenantId) {
-                DataService.invalidateCache(`techs_${tenantId}`);
+                CacheManager.invalidate(`techs_${tenantId}`);
             }
             // Recarrega dados frescos
             await loadTechnicians();
