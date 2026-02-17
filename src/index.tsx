@@ -4,6 +4,7 @@ import './styles/admin.css';
 import 'leaflet/dist/leaflet.css';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import './lib/telemetry'; // 📡 Initialize global logging system
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

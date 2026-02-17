@@ -236,7 +236,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             <pre className="text-xs bg-slate-100 p-4 rounded text-slate-600 mb-4 overflow-auto max-h-40">{JSON.stringify(healthReport, null, 2)}</pre>
                             <div className="flex gap-3">
                                 <Button onClick={async () => setHealthReport(await DataService.checkSystemHealth())} className="flex-1 h-11">Recarregar Status</Button>
-                                <Button variant="secondary" onClick={() => window.location.reload()} className="px-8 h-11">Reload App</Button>
+                                <Button variant="secondary" onClick={() => (window as any).NexusTelemetry?.downloadLogs()} className="px-6 h-11 text-slate-600 border border-slate-200">Baixar Logs</Button>
+                                <Button variant="secondary" onClick={() => window.location.reload()} className="px-6 h-11 bg-rose-50 text-rose-600 hover:bg-rose-100 border-rose-100">Reload App</Button>
                             </div>
                         </div>
                     </div>
