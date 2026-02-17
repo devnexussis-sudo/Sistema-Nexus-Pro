@@ -41,26 +41,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     return;
                 }
 
-                console.warn('[AuthProvider] 🗝️ Sessão expirada ou instável. Tentando refresh do Heartbeat...');
-                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-
-                if (refreshError || !refreshData.session) {
-                    const isCriticalAuthError =
-                        refreshError?.message?.includes('session missing') ||
-                        refreshError?.name === 'AuthSessionMissingError' ||
-                        refreshError?.message?.includes('Invalid Refresh Token') ||
-                        refreshError?.message?.includes('Refresh Token Not Found');
-
-                    if (isCriticalAuthError) {
-                        console.log('[AuthProvider] 💤 Sessão inválida ou expirada. Limpando estado local.');
-                        if (isMountedRef.current) {
-                            setAuth({ user: null, isAuthenticated: false });
-                            SessionStorage.clear();
-                        }
-                        return;
-                    }
-                    return;
+                console.warn('[AuthProvider] 🗝️ Sessão inválida ou expirada. Realizando limpeza de segurança.');
+                if (isMountedRef.current) {
+                    setAuth({ user: null, isAuthenticated: false });
+                    SessionStorage.clear();
                 }
+                return;
             }
 
             // Restore/Refresh User Data

@@ -72,16 +72,10 @@ export async function ensureValidSession(): Promise<boolean> {
         const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error || !session) {
-            console.warn('[SessionGuard] ⚠️ No active session found during check.');
-            // Only try to recover if strictly necessary.
-            // If auto-refresh failed, this might help, but it's a fallback.
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-            if (refreshError || !refreshData.session) {
-                console.error('[SessionGuard] ❌ Session recovery failed:', refreshError?.message);
-                return false;
-            }
-            console.log('[SessionGuard] ✅ Session recovered manually.');
-            return true;
+            console.warn('[SessionGuard] ⚠️ Nenhuma sessão ativa detectada.');
+            // Não forçamos refresh manual aqui para evitar conflito com autoRefreshToken do cliente.
+            // Se o token estiver expirado, o cliente Supabase já deve estar tentando renovar.
+            return false;
         }
 
         return true;
