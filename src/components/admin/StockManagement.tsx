@@ -4,6 +4,7 @@ import { Package, Search, Plus, Edit3, Trash2, X, Save, AlertTriangle, TrendingU
 import { Pagination } from '../ui/Pagination';
 import { StockItem, Category } from '../../types';
 import { DataService } from '../../services/dataService';
+import { TenantService } from '../../services/tenantService';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 
@@ -94,8 +95,10 @@ export const StockManagement: React.FC = () => {
 
     const loadTechs = async () => {
         try {
-            const data = await DataService.getAllUsers();
-            setTechs(data.filter(u => u.role === 'TECHNICIAN' || u.role === 'ADMIN'));
+            const tenantId = DataService.getCurrentTenantId();
+            if (!tenantId) return;
+            const data = await TenantService.getTenantUsers(tenantId);
+            setTechs(data.filter((u: any) => u.role === 'TECHNICIAN' || u.role === 'ADMIN'));
         } catch (error) {
             console.error('Erro ao carregar técnicos:', error);
         }

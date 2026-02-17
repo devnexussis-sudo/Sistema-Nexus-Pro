@@ -13,8 +13,8 @@ import { Pagination } from '../ui/Pagination';
 import { CreateOrderModal } from './CreateOrderModal';
 import { PublicOrderView } from '../public/PublicOrderView';
 import { createPortal } from 'react-dom';
-import XLSX from 'xlsx-js-style';
 import { DataService } from '../../services/dataService';
+import { useOrderExport } from '../../hooks/useOrderExport';
 
 
 
@@ -60,135 +60,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       : <ChevronDown size={14} className="ml-2 text-primary-600 animate-in fade-in zoom-in-50 duration-300" />;
   };
 
-  const handleExportExcel = async () => {
-    // Se tiver seleção, usa a seleção. Se não, usa o que está filtrado na tela.
-    const ordersToExport = selectedOrderIds.length > 0
-      ? orders.filter(o => selectedOrderIds.includes(o.id))
-      : filteredOrders;
+  // Hook de Exportação (Refatorado - Big Tech Standard)
+  const { handleExportExcel: exportToExcel } = useOrderExport();
 
-    if (ordersToExport.length === 0) {
-      alert("Nenhuma ordem encontrada para exportar.");
-      return;
-    }
-
-    // 🔄 Buscar técnicos frescos para garantir que os nomes estejam disponíveis
-    let techList = techs;
-    try {
-      const freshTechs = await DataService.getAllTechnicians();
-      if (freshTechs && freshTechs.length > 0) {
-        techList = freshTechs;
-      }
-    } catch (e) {
-      console.warn("⚠️ Falha ao buscar técnicos atualizados, usando dados em memória.");
-    }
-
-    // Criar mapa de ID → Nome para lookup rápido
-    const techNameMap = new Map<string, string>();
-    techList.forEach(t => {
-      if (t.id && t.name) techNameMap.set(t.id, t.name);
+  const handleExportExcel = () => {
+    exportToExcel({
+      orders,
+      filteredOrders,
+      selectedOrderIds,
+      techs
     });
-
-    // 1. Definir colunas do cabeçalho
-    const headers = [
-      'ID O.S.',
-      'Data Agendada',
-      'Cliente',
-      'Título',
-      'Descrição',
-      'Tipo de Atendimento',
-      'Técnico',
-      'Status',
-      'Prioridade',
-      'Valor Total',
-      'Status Financeiro',
-      'Data de Abertura',
-      'Data de Conclusão'
-    ];
-
-    // 2. Estilo do cabeçalho: fundo azul (#1c2d4f), texto branco e negrito
-    const headerStyle = {
-      font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
-      fill: { fgColor: { rgb: '1C2D4F' } },
-      alignment: { horizontal: 'center', vertical: 'center' },
-      border: {
-        top: { style: 'thin', color: { rgb: 'FFFFFF' } },
-        bottom: { style: 'thin', color: { rgb: 'FFFFFF' } },
-        left: { style: 'thin', color: { rgb: 'FFFFFF' } },
-        right: { style: 'thin', color: { rgb: 'FFFFFF' } }
-      }
-    };
-
-    // 3. Preparar os dados para exportação
-    const rows = ordersToExport.map(o => {
-      const itemsValue = o.items?.reduce((acc, i) => acc + i.total, 0) || 0;
-      const value = itemsValue || (o.formData as any)?.totalValue || (o.formData as any)?.price || 0;
-      const techName = techNameMap.get(o.assignedTo || '') || 'N/A';
-
-      return [
-        o.displayId || o.id,
-        o.scheduledDate,
-        o.customerName,
-        o.title,
-        o.description,
-        o.operationType || 'Não informado',
-        techName,
-        o.status,
-        o.priority,
-        value,
-        o.billingStatus || 'PENDENTE',
-        o.createdAt,
-        o.endDate || 'N/A'
-      ];
-    });
-
-    // 4. Criar a planilha manualmente (cabeçalho + dados)
-    const wsData = [headers, ...rows];
-    const worksheet = XLSX.utils.aoa_to_sheet(wsData);
-
-    // 5. Aplicar estilo azul no cabeçalho (primeira linha)
-    headers.forEach((_h, colIdx) => {
-      const cellRef = XLSX.utils.encode_cell({ r: 0, c: colIdx });
-      if (worksheet[cellRef]) {
-        worksheet[cellRef].s = headerStyle;
-      }
-    });
-
-    // 6. Aplicar filtros automáticos no cabeçalho
-    worksheet['!autofilter'] = {
-      ref: XLSX.utils.encode_range({
-        s: { r: 0, c: 0 },
-        e: { r: rows.length, c: headers.length - 1 }
-      })
-    };
-
-    // 7. Ajustar largura das colunas
-    worksheet['!cols'] = [
-      { wch: 15 }, // ID O.S.
-      { wch: 15 }, // Data Agendada
-      { wch: 30 }, // Cliente
-      { wch: 30 }, // Título
-      { wch: 50 }, // Descrição
-      { wch: 22 }, // Tipo de Atendimento
-      { wch: 20 }, // Técnico
-      { wch: 15 }, // Status
-      { wch: 12 }, // Prioridade
-      { wch: 15 }, // Valor Total
-      { wch: 18 }, // Status Financeiro
-      { wch: 20 }, // Data de Abertura
-      { wch: 20 }, // Data de Conclusão
-    ];
-
-    // 8. Gerar arquivo e disparar download
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Atividades Nexus");
-
-    try {
-      XLSX.writeFile(workbook, `atividades_nexus_${new Date().toISOString().split('T')[0]}.xlsx`);
-      console.log("✅ Exportação finalizada.");
-    } catch (err) {
-      console.error("❌ Falha na exportação:", err);
-      alert("Erro ao gerar o arquivo Excel.");
-    }
   };
 
   const handleBatchPrint = () => {
@@ -251,7 +132,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleOpenPublicView = (order: ServiceOrder, e: React.MouseEvent) => {
     e.stopPropagation();
-    const publicUrl = `${window.location.origin}${window.location.pathname}#/view/${order.publicToken || order.id}`;
+    const publicUrl = `${window.location.origin}/#/view/${order.publicToken || order.id}`;
+    console.log('[AdminDashboard] Abrindo viewer público:', publicUrl);
     window.open(publicUrl, '_blank');
   };
 
@@ -274,7 +156,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const term = searchTerm.toLowerCase();
       const matchesSearch = (order.title || '').toLowerCase().includes(term) ||
         (order.customerName || '').toLowerCase().includes(term) ||
-        (order.id || '').toLowerCase().includes(term);
+        (order.id || '').toLowerCase().includes(term) ||
+        (order.displayId || '').toLowerCase().includes(term);
 
       const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
 
@@ -513,7 +396,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   />
                 </th>
                 <th className="px-6 py-4 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
-                  <div className="flex items-center gap-1">Protocolo {getSortIcon('id')}</div>
+                  <div className="flex items-center gap-1">Protocolo {getSortIcon('displayId')}</div>
                 </th>
                 <th className="px-6 py-4 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
                   <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
@@ -652,7 +535,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-3">
-                    <h2 className="text-base font-bold text-slate-900">Ordem de Serviço #{selectedOrder.id}</h2>
+                    <h2 className="text-base font-bold text-slate-900">Ordem de Serviço #{selectedOrder.displayId || selectedOrder.id}</h2>
                     <StatusBadge status={selectedOrder.status} />
                   </div>
                   <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -971,7 +854,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="w-full pt-8 border-t border-slate-100">
                       <div className="text-base font-bold text-slate-800">{techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Técnico Não Identificado'}</div>
                       <div className="text-[10px] text-slate-400 font-mono mt-2 break-all bg-slate-50 p-2 rounded border border-slate-100 select-all">
-                        {selectedOrder.id}-VALID-{new Date(selectedOrder.createdAt).getTime()}
+                        {selectedOrder.displayId || selectedOrder.id}-VALID-{new Date(selectedOrder.createdAt).getTime()}
                       </div>
                     </div>
                   </div>

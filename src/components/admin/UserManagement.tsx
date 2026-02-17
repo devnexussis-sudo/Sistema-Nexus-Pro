@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { DataService } from '../../services/dataService';
+import { AuthService } from '../../services/authService';
+import { TenantService } from '../../services/tenantService';
 import { User, UserRole, UserPermissions, UserGroup, DEFAULT_PERMISSIONS, ADMIN_PERMISSIONS } from '../../types';
 
 
@@ -54,18 +56,19 @@ export const UserManagement: React.FC = () => {
 
   const loadData = async () => {
     const [usersList, groupsList] = await Promise.all([
-      DataService.getAllUsers(),
-      DataService.getUserGroups()
+      TenantService.getTenantUsers(DataService.getCurrentTenantId() || ''),
+      TenantService.getUserGroups(DataService.getCurrentTenantId() || '')
     ]);
 
     // Se não houver grupos, garantir o grupo Admin
     if (groupsList.length === 0) {
-      const adminGroup = await DataService.createUserGroup({
+      const adminGroup = await TenantService.createUserGroup({
         name: 'Administrador',
         description: 'Acesso total ao sistema. Nível máximo de gestão.',
         permissions: ADMIN_PERMISSIONS,
         active: true,
-        isSystem: true
+        isSystem: true,
+        tenantId: DataService.getCurrentTenantId()
       });
       setGroups([adminGroup]);
     } else {
@@ -98,7 +101,7 @@ export const UserManagement: React.FC = () => {
 
   const handleDeleteUser = async (id: string) => {
     try {
-      await DataService.deleteUser(id);
+      await TenantService.deleteUser(id);
       await loadData();
       alert("✅ Administrador removido com sucesso!");
     } catch (error: any) {
@@ -118,15 +121,16 @@ export const UserManagement: React.FC = () => {
       }
 
       if (editingUser) {
-        await DataService.updateUser({ ...formData, permissions: userPermissions, id: editingUser.id } as User);
+        await TenantService.updateUser({ ...formData, permissions: userPermissions, id: editingUser.id } as User);
       } else {
         const newUser = {
           ...formData,
           role: UserRole.ADMIN,
           permissions: userPermissions,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name)}&backgroundColor=4f46e5`
-        } as Omit<User, 'id'>;
-        await DataService.createUser(newUser);
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name || 'user')}&backgroundColor=4f46e5`,
+          tenantId: DataService.getCurrentTenantId()
+        } as any;
+        await TenantService.createUser(newUser);
       }
 
       await loadData();
@@ -143,9 +147,9 @@ export const UserManagement: React.FC = () => {
     e.preventDefault();
     try {
       if (editingGroup) {
-        await DataService.updateUserGroup({ ...groupFormData, id: editingGroup.id } as UserGroup);
+        await TenantService.updateUserGroup({ ...groupFormData, id: editingGroup.id } as UserGroup);
       } else {
-        await DataService.createUserGroup(groupFormData as Omit<UserGroup, 'id'>);
+        await TenantService.createUserGroup({ ...groupFormData, tenantId: DataService.getCurrentTenantId() } as any);
       }
       await loadData();
       setIsGroupModalOpen(false);
@@ -161,7 +165,7 @@ export const UserManagement: React.FC = () => {
 
     try {
       setIsSaving(true);
-      await DataService.deleteUserGroup(groupToDelete.id);
+      await TenantService.deleteUserGroup(groupToDelete.id);
       await loadData();
       setGroupToDelete(null);
       alert("✅ Grupo removido com sucesso!");
@@ -178,7 +182,7 @@ export const UserManagement: React.FC = () => {
       if (!userToUpdate) return;
 
       const updatedUser = { ...userToUpdate, permissions: newPerms };
-      await DataService.updateUser(updatedUser);
+      await TenantService.updateUser(updatedUser);
 
       await loadData();
       if (selectedUser?.id === userId) {
@@ -196,7 +200,7 @@ export const UserManagement: React.FC = () => {
       const randomStyle = styles[Math.floor(Math.random() * styles.length)];
       const randomSeed = `${user.name}-${Date.now()}`;
       const newAvatar = `https://api.dicebear.com/7.x/${randomStyle}/svg?seed=${encodeURIComponent(randomSeed)}&backgroundColor=4f46e5`;
-      await DataService.updateUser({ ...user, avatar: newAvatar });
+      await TenantService.updateUser({ ...user, avatar: newAvatar });
       await loadData();
     } catch (error) {
       console.error("Erro ao randomizar avatar:", error);
@@ -368,7 +372,7 @@ export const UserManagement: React.FC = () => {
           perms={selectedGroup.permissions || DEFAULT_PERMISSIONS}
           onUpdate={async (p) => {
             const updated = { ...selectedGroup, permissions: p };
-            await DataService.updateUserGroup(updated);
+            await TenantService.updateUserGroup(updated);
             setSelectedGroup(updated);
             loadData();
           }}

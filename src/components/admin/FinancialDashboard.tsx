@@ -75,6 +75,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     // 1. Preparar Dados Unificados
     const allItems = useMemo(() => {
+        console.log('[FinancialDashboard] 🔄 Processando itens...');
+        console.log(`Total de orders: ${orders.length}`);
+        console.log(`Total de quotes: ${quotes.length}`);
+
         // IDs de orçamentos que já estão vinculados a alguma OS
         const linkedQuoteIds = new Set<string>();
         orders.forEach(o => o.linkedQuotes?.forEach(id => linkedQuoteIds.add(id)));
@@ -91,7 +95,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 description: q.description,
                 date: q.createdAt,
                 value: Number(q.totalValue) || 0,
-                status: q.billingStatus || 'PENDING',
+                status: (q.billingStatus || 'PENDING').toUpperCase(), // Normalizar para uppercase
                 original: q,
                 technician: 'Administrador'
             }));
@@ -121,15 +125,18 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 description: order.description,
                 date: order.updatedAt,
                 value: Number(value),
-                status: order.billingStatus || 'PENDING',
+                status: (order.billingStatus || 'PENDING').toUpperCase(), // Normalizar para uppercase
                 original: order,
                 technician: techObj?.name || order.assignedTo || 'N/A'
             };
         });
 
-        return [...approvedQuotes, ...completedOrders].sort((a, b) =>
+        const allItems = [...approvedQuotes, ...completedOrders].sort((a, b) =>
             new Date(b.date).getTime() - new Date(a.date).getTime()
         );
+
+        console.log(`Total de itens processados: ${allItems.length}`);
+        return allItems;
     }, [orders, quotes, techs]);
 
     // 2. Aplicar Filtros
@@ -164,8 +171,29 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     // 3. Cálculos do Dashboard
     const stats = useMemo(() => {
-        const totalFaturado = filteredItems.filter(i => i.status === 'PAID').reduce((acc, i) => acc + i.value, 0);
-        const totalPendente = filteredItems.filter(i => i.status === 'PENDING').reduce((acc, i) => acc + i.value, 0);
+        console.log('[FinancialDashboard] 📊 Calculando estatísticas...');
+        console.log(`Total de itens filtrados: ${filteredItems.length}`);
+
+        // Log de alguns exemplos de status
+        const statusExamples = filteredItems.slice(0, 5).map(i => ({
+            id: i.id.slice(0, 8),
+            status: i.status,
+            value: i.value
+        }));
+        console.log('Exemplos de status:', statusExamples);
+
+        const totalFaturado = filteredItems.filter(i => {
+            const isPaid = i.status === 'PAID' || i.status === 'paid' || i.status === 'Pago';
+            return isPaid;
+        }).reduce((acc, i) => acc + i.value, 0);
+
+        const totalPendente = filteredItems.filter(i => {
+            const isPending = i.status === 'PENDING' || i.status === 'pending' || i.status === 'Pendente' || !i.status;
+            return isPending;
+        }).reduce((acc, i) => acc + i.value, 0);
+
+        console.log(`💰 Total Faturado: R$ ${totalFaturado.toFixed(2)}`);
+        console.log(`⏳ Total Pendente: R$ ${totalPendente.toFixed(2)}`);
 
         // Faturamento por Técnico
         const techBilling: Record<string, number> = {};
@@ -232,7 +260,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 .update({
                                     billing_status: 'PAID',
                                     payment_method: paymentMethod,
-                                    billing_notes: `Faturado via O.S. #${item.id.slice(0, 8)}`,
+                                    billing_notes: `Faturado via O.S. #${item.displayId || item.id.slice(0, 8)}`,
                                     paid_at: new Date().toISOString()
                                 })
                                 .eq('id', qId);
@@ -264,7 +292,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         type: 'INCOME',
                         category: item.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
                         amount: item.value,
-                        description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${item.id.slice(0, 8)} - Cliente: ${item.customerName}`,
+                        description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} #${item.displayId || item.id.slice(0, 8)} - Cliente: ${item.customerName}`,
                         referenceId: item.id,
                         referenceType: item.type,
                         paymentMethod: paymentMethod,
@@ -660,7 +688,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         </h4>
                                         <div className="grid grid-cols-1 gap-4">
                                             <button
-                                                onClick={() => window.open(`${window.location.origin}${window.location.pathname}#/view-${selectedItem.type === 'QUOTE' ? 'quote' : 'order'}/${selectedItem.original.publicToken || selectedItem.id}`, '_blank')}
+                                                onClick={() => {
+                                                    // Rota correta: /view/:id para Orders, /view-quote/:id para Quotes
+                                                    const route = selectedItem.type === 'QUOTE' ? 'view-quote' : 'view';
+                                                    const token = selectedItem.original.publicToken || selectedItem.id;
+                                                    const publicUrl = `${window.location.origin}/#/${route}/${token}`;
+                                                    console.log('[FinancialDashboard] Abrindo viewer público:', publicUrl);
+                                                    window.open(publicUrl, '_blank');
+                                                }}
                                                 className="w-full py-5 bg-primary-50 border border-primary-100 rounded-[2rem] flex items-center justify-between px-8 text-primary-700 hover:bg-primary-600 hover:text-white transition-all shadow-sm"
                                             >
                                                 <span className="text-[10px] font-black uppercase tracking-widest italic">Visualizar Link Externo</span>

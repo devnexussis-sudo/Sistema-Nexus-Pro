@@ -33,7 +33,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       const term = searchTerm.toLowerCase();
       const matchesSearch = (order.title || '').toLowerCase().includes(term) ||
         (order.customerName || '').toLowerCase().includes(term) ||
-        (order.id || '').toLowerCase().includes(term);
+        (order.id || '').toLowerCase().includes(term) ||
+        (order.displayId || '').toLowerCase().includes(term);
 
       // 2. Filtro de Status
       const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;

@@ -52,13 +52,21 @@ export class CacheManager {
      * Remove itens do cache que correspondam a um padrão (ex: 'techs_*').
      * Útil para invalidar cache quando um novo registro é criado.
      */
+    /**
+     * Remove itens do cache que correspondam a um padrão (ex: 'techs_').
+     * Útil quando um registro é criado/atualizado.
+     */
     static invalidate(pattern: string): void {
+        const keysToDelete: string[] = [];
         for (const key of this.storage.keys()) {
             if (key.includes(pattern)) {
-                this.storage.delete(key);
-                console.log(`🧹 Cache Invalidado: ${key}`);
+                keysToDelete.push(key);
             }
         }
+        keysToDelete.forEach(k => {
+            this.storage.delete(k);
+            console.log(`🧹 CacheManager: Invalidado ${k}`); // Better logging
+        });
     }
 
     /**

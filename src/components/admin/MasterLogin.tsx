@@ -23,19 +23,29 @@ export const MasterLogin: React.FC<MasterLoginProps> = ({ onLogin, onCancel }) =
     setLoading(true);
     setError('');
 
-    const masterEmail = import.meta.env.VITE_MASTER_EMAIL || 'admin@nexus.global';
-    const masterPass = import.meta.env.VITE_MASTER_PASSWORD || 'admin';
+    try {
+      // 🛡️ Security: Enforce a minimum delay to prevent timing attacks and brute-force
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-    if (email.trim().toLowerCase() === masterEmail && password.trim() === masterPass) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      SessionStorage.set('master_session_v2', true);
-      SessionStorage.remove('force_master');
-      onLogin();
-    } else {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setError('Acesso negado. Credenciais do Núcleo Master inválidas.');
+      const masterEmail = import.meta.env.VITE_MASTER_EMAIL || 'admin@nexus.global';
+      const masterPass = import.meta.env.VITE_MASTER_PASSWORD;
+
+      if (!masterPass) {
+        throw new Error('Configuração de segurança incompleta (VITE_MASTER_PASSWORD).');
+      }
+
+      if (email.trim().toLowerCase() === masterEmail && password === masterPass) {
+        SessionStorage.set('master_session_v2', true);
+        SessionStorage.remove('force_master');
+        onLogin();
+      } else {
+        setError('Credenciais inválidas ou acesso não autorizado.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erro de autenticação.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

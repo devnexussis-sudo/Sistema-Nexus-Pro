@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AdminLogin } from '../../components/admin/AdminLogin';
 import { AdminDashboard } from '../../components/admin/AdminDashboard';
 import { AdminOverview } from '../../components/admin/AdminOverview';
@@ -17,15 +18,9 @@ import { PlannedMaintenance } from '../../components/admin/PlannedMaintenance';
 import { QuoteManagement } from '../../components/admin/QuoteManagement';
 import { DataService } from '../../services/dataService';
 import SessionStorage from '../../lib/sessionStorage';
-import { useQuery } from '../../hooks/useQuery';
-import {
-    Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
-    Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
-    Settings, LogOut, Bell, RefreshCw, Package, ArrowRight,
-    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone
-} from 'lucide-react';
-import { AuthState, User, UserRole, UserPermissions, ServiceOrder, OrderStatus, Customer, Equipment, StockItem } from '../../types';
-import { Button } from '../../components/ui/Button';
+import { useOrders, useOrdersStats, useContracts, useQuotes, useTechnicians, useCustomers, useEquipments, useStock, NexusQueryClient } from '../../hooks/nexusHooks';
+import { AuthState, User } from '../../types';
+import { AdminLayout } from '../../components/layout/AdminLayout';
 
 interface AdminAppProps {
     auth: AuthState;
@@ -39,184 +34,75 @@ interface AdminAppProps {
 
 const getInitialDateRange = () => ({ start: '', end: '' });
 
-import { NexusBranding } from '../../components/ui/NexusBranding';
-
 export const AdminApp: React.FC<AdminAppProps> = ({
     auth, onLogin, onLogout, isImpersonating, onToggleMaster,
     systemNotifications, onMarkNotificationRead
 }) => {
-    const [currentView, setCurrentView] = useState<any>('dashboard');
-    const [orders, setOrders] = useState<ServiceOrder[]>([]);
-    const [contracts, setContracts] = useState<any[]>([]);
-    const [quotes, setQuotes] = useState<any[]>([]);
-    const [techs, setTechs] = useState<User[]>([]);
-    const [customers, setCustomers] = useState<Customer[]>([]);
-    const [equipments, setEquipments] = useState<Equipment[]>([]);
-    const [stockItems, setStockItems] = useState<StockItem[]>([]);
-    const [isFetchingData, setIsFetchingData] = useState(false);
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    const location = useLocation();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-    const [notifications, setNotifications] = useState<any[]>([]);
-    const [showInbox, setShowInbox] = useState(false);
-    const [showUrgentPopup, setShowUrgentPopup] = useState<any>(null);
     const [overviewDateRange, setOverviewDateRange] = useState(getInitialDateRange());
     const [activitiesDateRange, setActivitiesDateRange] = useState(getInitialDateRange());
-    const [activeSystemNotification, setActiveSystemNotification] = useState<any>(null);
-    const [healthReport, setHealthReport] = useState<any>(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // 🛡️ Big-Tech Resilience Layer: Hooks de busca automática com Retry
-    const { data: oData, isLoading: oLoading, refetch: oRefetch, isError: oError } = useQuery('orders', DataService.getOrders, { enabled: !!auth.isAuthenticated });
-    const { data: cData, isLoading: cLoading, refetch: cRefetch } = useQuery('contracts', DataService.getContracts, { enabled: !!auth.isAuthenticated });
-    const { data: qData, isLoading: qLoading, refetch: qRefetch } = useQuery('quotes', DataService.getQuotes, { enabled: !!auth.isAuthenticated });
-    const { data: tData, isLoading: tLoading, refetch: tRefetch } = useQuery('techs', DataService.getAllTechnicians, { enabled: !!auth.isAuthenticated });
-    const { data: custData, isLoading: custLoading, refetch: custRefetch } = useQuery('customers', DataService.getCustomers, { enabled: !!auth.isAuthenticated });
-    const { data: eData, isLoading: eLoading, refetch: eRefetch } = useQuery('equipments', DataService.getEquipments, { enabled: !!auth.isAuthenticated });
-    const { data: sData, isLoading: sLoading, refetch: sRefetch } = useQuery('stock', DataService.getStockItems, { enabled: !!auth.isAuthenticated });
+    // 🧠 Route-Based Lazy Loading Logic
+    const isDashboard = location.pathname === '/admin' || location.pathname === '/admin/';
+    const isOrdersView = location.pathname.includes('/orders');
+    const isFinancial = location.pathname.includes('/financial');
+    const isCalendar = location.pathname.includes('/calendar');
+    const isMap = location.pathname.includes('/map');
+    const isQuotes = location.pathname.includes('/quotes');
+    const isContracts = location.pathname.includes('/contracts');
+    const isTechs = location.pathname.includes('/technicians');
+    const isCustomers = location.pathname.includes('/customers');
+    const isEquipments = location.pathname.includes('/equipments');
+    const isStock = location.pathname.includes('/stock');
 
-    // Sincronizar estados locais para compatibilidade com componentes filhos
-    useEffect(() => { if (oData) setOrders(oData); }, [oData]);
-    useEffect(() => { if (cData) setContracts(cData); }, [cData]);
-    useEffect(() => { if (qData) setQuotes(qData); }, [qData]);
-    useEffect(() => { if (tData) setTechs(tData); }, [tData]);
-    useEffect(() => { if (custData) setCustomers(custData); }, [custData]);
-    useEffect(() => { if (eData) setEquipments(eData); }, [eData]);
-    useEffect(() => { if (sData) setStockItems(sData); }, [sData]);
+    // 1. Dashboard Light Fetch (Stats only)
+    const { data: statsOrders = [], isLoading: statsLoading } = useOrdersStats(!!auth.isAuthenticated && isDashboard, overviewDateRange.start, overviewDateRange.end);
 
-    const isFetchingAny = oLoading || cLoading || qLoading || tLoading || custLoading || eLoading || sLoading;
+    // 2. Full Orders Fetch (Only when needed)
+    const needsFullOrders = isOrdersView || isCalendar || isFinancial || isQuotes;
+    const { data: fullOrders = [], isLoading: oLoading, refetch: oRefetch } = useOrders(!!auth.isAuthenticated && needsFullOrders);
 
-    useEffect(() => {
-        if (auth.user?.role !== UserRole.ADMIN) return;
+    // Other entities fetching logic
+    const needsContracts = isDashboard || isContracts;
+    const needsQuotes = isDashboard || isQuotes || isFinancial;
+    const needsTechs = isDashboard || isTechs || isOrdersView || isMap || isCalendar || isFinancial || isContracts;
+    const needsCustomers = isDashboard || isCustomers || isOrdersView || isQuotes || isContracts || isEquipments || isCalendar;
+    const needsEquipments = isEquipments || isContracts || isCustomers;
+    const needsStock = isStock || isQuotes;
 
-        const checkContracts = () => {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const newAlerts: any[] = [];
+    // 🛡️ Nexus Hooks (Enhanced with Global Cache)
+    const { data: contracts = [], isLoading: cLoading, refetch: cRefetch } = useContracts(!!auth.isAuthenticated && needsContracts);
+    const { data: quotes = [], isLoading: qLoading, refetch: qRefetch } = useQuotes(!!auth.isAuthenticated && needsQuotes);
+    const { data: techs = [], isLoading: tLoading, refetch: tRefetch } = useTechnicians(!!auth.isAuthenticated && needsTechs);
+    const { data: customers = [], isLoading: custLoading, refetch: custRefetch } = useCustomers(!!auth.isAuthenticated && needsCustomers);
+    const { data: equipments = [], isLoading: eLoading, refetch: eRefetch } = useEquipments(!!auth.isAuthenticated && needsEquipments);
+    const { data: stockItems = [], isLoading: sLoading, refetch: sRefetch } = useStock(!!auth.isAuthenticated && needsStock);
 
-            contracts.filter(c => c.status !== OrderStatus.CANCELED && c.alertSettings?.enabled).forEach(contract => {
-                const maintenanceDay = contract.maintenanceDay || 1;
-                const daysBefore = contract.alertSettings?.daysBefore || 5;
+    const isFetchingAny = oLoading || cLoading || qLoading || tLoading || custLoading || eLoading || sLoading || statsLoading;
 
-                let targetDate = new Date(today.getFullYear(), today.getMonth(), maintenanceDay);
-                if (today > targetDate) {
-                    targetDate = new Date(today.getFullYear(), today.getMonth() + 1, maintenanceDay);
-                }
-
-                const diffTime = targetDate.getTime() - today.getTime();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                if (diffDays <= daysBefore && diffDays > 0) {
-                    const alertId = `pmoc-alert-${contract.id}-${targetDate.getMonth() + 1}-${targetDate.getFullYear()}`;
-                    newAlerts.push({
-                        id: alertId,
-                        title: '⚠️ PMOC Recorrente',
-                        message: `Atenção: A manutenção do cliente "${contract.customerName}" está programada para daqui a ${diffDays} dias (Dia ${maintenanceDay}).`,
-                        date: new Date().toISOString(),
-                        status: 'unread'
-                    });
-                }
-            });
-
-            setNotifications(prev => {
-                const existingIds = prev.map(n => n.id);
-                const filteredNew = newAlerts.filter(a => !existingIds.includes(a.id));
-                return [...filteredNew, ...prev].slice(0, 50);
-            });
-
-            if (newAlerts.length > 0) {
-                const todayStr = today.toISOString().split('T')[0];
-                const key = `nexus_popups_${todayStr}`;
-                const count = Number(localStorage.getItem(key) || 0);
-
-                if (count < 2) {
-                    if (newAlerts.length > 1) {
-                        setShowUrgentPopup({
-                            id: `unified-alert-${todayStr}`,
-                            title: '📑 Múltiplos PMOCs Pendentes',
-                            message: `Atenção: Existem ${newAlerts.length} contratos aproximando-se da data de execução semanal/mensal. Verifique a central de contratos para detalhes.`,
-                            date: new Date().toISOString()
-                        });
-                    } else {
-                        setShowUrgentPopup(newAlerts[0]);
-                    }
-                    localStorage.setItem(key, String(count + 1));
-                }
-            }
-        };
-
-        checkContracts();
-        const interval = setInterval(checkContracts, 1000 * 60 * 60);
-        return () => clearInterval(interval);
-    }, [contracts, auth.user]);
-
-    const [isOnline, setIsOnline] = useState(navigator.onLine);
-
-    useEffect(() => {
-        const handleStatusChange = () => {
-            setIsOnline(navigator.onLine);
-        };
-        window.addEventListener('online', handleStatusChange);
-        window.addEventListener('offline', handleStatusChange);
-        return () => {
-            window.removeEventListener('online', handleStatusChange);
-            window.removeEventListener('offline', handleStatusChange);
-        };
-    }, []);
-
+    // 🔄 Force Refresh
     const fetchGlobalData = async () => {
-        await Promise.all([
-            oRefetch(), cRefetch(), qRefetch(), tRefetch(), custRefetch(), eRefetch(), sRefetch()
-        ]);
+        if (isDashboard) await NexusQueryClient.invalidateAll();
+        if (needsFullOrders) await oRefetch();
+        if (needsContracts) await cRefetch();
+        if (needsQuotes) await qRefetch();
+        if (needsTechs) await tRefetch();
+        if (needsCustomers) await custRefetch();
+        if (needsEquipments) await eRefetch();
+        if (needsStock) await sRefetch();
     };
-
-    useEffect(() => {
-        if (auth.isAuthenticated) fetchGlobalData();
-    }, [auth.isAuthenticated]);
-
-    useEffect(() => {
-        if (systemNotifications.length > 0 && !activeSystemNotification) {
-            setActiveSystemNotification(systemNotifications[0]);
-        }
-    }, [systemNotifications]);
-
-    // 📡 Nexus Pulse: Realtime Connection (Big-Tech Pattern)
-    useEffect(() => {
-        if (!auth.isAuthenticated) return;
-
-        console.log('[AdminApp] 🟢 Ativando Nexus Pulse (Realtime)...');
-        const subscription = DataService.subscribeToOrders(() => {
-            console.log('[UI] ⚡ Atualizando atividades em tempo real...');
-            oRefetch(); // Atualiza Ordens imediatamente (High Priority)
-
-            // Atualiza contadores e dashboard em background (Low Priority)
-            setTimeout(() => {
-                Promise.all([cRefetch(), qRefetch(), tRefetch()]).catch(console.error);
-            }, 1500);
-        });
-
-        return () => {
-            console.log('[AdminApp] 🧹 Limpando subscription do Realtime...');
-            if (subscription?.unsubscribe) {
-                subscription.unsubscribe();
-            }
-        }
-    }, [auth.isAuthenticated]);
 
     const handleManualRefresh = async () => {
         if (isRefreshing) return;
         setIsRefreshing(true);
         console.log('[AdminApp] 🔄 Sincronização Manual Iniciada...');
-
-        // 🛡️ Fail-Safe: Garante que o loading pare em 5s mesmo se a rede travar
-        const safetyTimer = setTimeout(() => {
-            if (isRefreshing) {
-                console.warn('[AdminApp] ⚠️ Sincronização demorou muito. Forçando parada do spinner.');
-                setIsRefreshing(false);
-            }
-        }, 5000);
-
+        const safetyTimer = setTimeout(() => setIsRefreshing(false), 5000);
         try {
+            await NexusQueryClient.invalidateAll(); // Clear all cache
             await fetchGlobalData();
-            console.log('[AdminApp] ✅ Sincronização concluída com sucesso.');
+            console.log('[AdminApp] ✅ Sincronização concluída.');
         } catch (e) {
             console.error('[AdminApp] ❌ Erro na sincronização:', e);
         } finally {
@@ -225,259 +111,40 @@ export const AdminApp: React.FC<AdminAppProps> = ({
         }
     };
 
-    const hasPermission = (module: keyof UserPermissions, action: 'read' | 'create' | 'update' | 'delete' | null = 'read'): boolean => {
-        if (isImpersonating) return true;
-        if (!auth.user) return false;
-
-        // Administradores têm acesso total por padrão
-        if (auth.user.role === UserRole.ADMIN) return true;
-        if (!auth.user.permissions) return false;
-
-        const perms = auth.user.permissions as any;
-        if (typeof perms[module] === 'boolean') {
-            return perms[module];
-        }
-        if (action && perms[module]?.[action] !== undefined) {
-            return perms[module][action];
-        }
-        return false;
-    };
-
-    const isModuleEnabled = (moduleId: string): boolean => {
-        if (isImpersonating) return true;
-        const user = auth.user as any;
-
-        // Administradores vêem tudo habilitado por padrão
-        if (user?.role === UserRole.ADMIN) return true;
-        if (!user || !user.enabledModules) return true;
-        return user.enabledModules[moduleId] !== false;
-    };
-
     if (!auth.isAuthenticated) {
         return <AdminLogin onLogin={onLogin} onToggleMaster={onToggleMaster} />;
     }
 
-    const menuItems = [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: true, enabled: isModuleEnabled('dashboard') },
-        { id: 'orders', label: 'Atividade', icon: ClipboardList, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-        { id: 'calendar', label: 'Calendário', icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-        { id: 'map', label: 'Mapa NX', icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
-        { id: 'financial', label: 'Financeiro', icon: DollarSign, visible: hasPermission('financial', 'read'), enabled: isModuleEnabled('financial') },
-        { id: 'quotes', label: 'Orçamentos', icon: DollarSign, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
-        { id: 'stock', label: 'Estoque', icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
-        { id: 'contracts', label: 'Contratos', icon: CalendarClock, visible: hasPermission('contracts', 'read'), enabled: isModuleEnabled('contracts') },
-        { id: 'clients', label: 'Cliente', icon: Users, visible: hasPermission('customers', 'read'), enabled: isModuleEnabled('clients') },
-        { id: 'equip', label: 'Ativos', icon: Box, visible: hasPermission('equipments', 'read'), enabled: isModuleEnabled('equip') },
-        { id: 'forms', label: 'Formulários', icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
-        { id: 'techs', label: 'Técnicos', icon: Wrench, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('techs') },
-        { id: 'users', label: 'Usuários', icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
-        { id: 'settings', label: 'Configurações', icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
-    ].filter(item => item.visible);
-
     return (
-        <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-sans">
-            {/* Header Global */}
-            <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm shrink-0 border-b border-slate-200">
-                <div className="flex items-center">
-                    {/* Logo Area - Alinhada com a largura da Sidebar */}
-                    {/* Logo Area - Alinhada com a largura da Sidebar */}
-                    <div className={`${isSidebarCollapsed ? 'w-16 justify-center' : 'w-52 justify-center'} transition-all duration-300 ease-in-out flex items-center overflow-hidden`}>
-                        <NexusBranding variant="dark" size="lg" className="h-12" />
-                    </div>
+        <AdminLayout
+            user={auth.user}
+            isImpersonating={isImpersonating}
+            onLogout={onLogout}
+            systemNotifications={systemNotifications}
+            onManualRefresh={handleManualRefresh}
+            isRefreshing={isRefreshing || isFetchingAny}
+            onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            isSidebarCollapsed={isSidebarCollapsed}
+        >
+            <Routes>
+                <Route path="/" element={<AdminOverview orders={statsOrders} contracts={contracts} techs={techs} customers={customers} startDate={overviewDateRange.start} endDate={overviewDateRange.end} onDateChange={(start, end) => setOverviewDateRange({ start, end })} onSwitchView={(v) => { /* Legacy Switch: Use navigate if needed */ }} />} />
+                <Route path="/orders" element={<AdminDashboard orders={fullOrders} techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => setActivitiesDateRange({ start, end })} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} />} />
+                <Route path="/contracts" element={<PlannedMaintenance orders={contracts} techs={techs} customers={customers} equipments={equipments} user={auth.user} onUpdateOrders={fetchGlobalData} onEditOrder={async (c) => { await DataService.updateContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} onCreateOrder={async (c) => { await DataService.createContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} />} />
+                <Route path="/quotes" element={<QuoteManagement quotes={quotes} customers={customers} orders={fullOrders} stockItems={stockItems} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} />} />
+                <Route path="/customers" element={<CustomerManagement customers={customers} equipments={equipments} onUpdateCustomers={fetchGlobalData} onSwitchView={(v, p) => { /* Legacy Switch */ }} />} />
+                <Route path="/equipments" element={<EquipmentManagement equipments={equipments} customers={customers} onUpdateEquipments={fetchGlobalData} />} />
+                <Route path="/stock" element={<StockManagement />} />
+                <Route path="/technicians" element={<TechnicianManagement />} />
+                <Route path="/map" element={<TechnicianMap />} />
+                <Route path="/forms" element={<FormManagement />} />
+                <Route path="/users" element={<UserManagement />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/financial" element={<FinancialDashboard orders={fullOrders} quotes={quotes} techs={techs} onRefresh={fetchGlobalData} />} />
+                <Route path="/calendar" element={<OrderCalendar orders={fullOrders} techs={techs} customers={customers} />} />
 
-                    {/* View Title */}
-                    <div className="flex items-center gap-6 border-l border-slate-100 pl-6 h-8 ml-4">
-                        <h2 className="text-sm font-semibold text-slate-900 capitalize tracking-tight">
-                            {menuItems.find(m => m.id === currentView)?.label || 'Dashboard'}
-                        </h2>
-                        {(isRefreshing || isFetchingAny) && (
-                            <div className="flex items-center gap-2 px-2 py-1 bg-slate-50 text-slate-400 rounded border border-slate-200">
-                                <RefreshCw size={12} className="animate-spin" />
-                                <span className="text-[10px] font-medium uppercase tracking-wider">Sincronizando</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-6 pr-4">
-                    <div className="flex flex-col items-end border-r border-slate-100 pr-6">
-                        <span className="text-sm font-semibold text-slate-900 tracking-tight">{auth.user?.name}</span>
-                        <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">Administrador</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {!isOnline && (
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/20 border border-rose-500/40 rounded-full text-rose-200">
-                                <WifiOff size={14} />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">Offline</span>
-                            </div>
-                        )}
-                        <button
-                            onClick={async () => setHealthReport(await DataService.checkSystemHealth())}
-                            className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all"
-                            title="Saúde do Sistema"
-                        >
-                            <ShieldCheck size={20} />
-                        </button>
-                        <button
-                            onClick={handleManualRefresh}
-                            disabled={isRefreshing}
-                            className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all"
-                            title="Atualizar Dados"
-                        >
-                            <RefreshCw size={20} className={isRefreshing || isFetchingAny ? 'animate-spin text-[#1c2d4f]' : ''} />
-                        </button>
-                        <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all relative">
-                            <Bell size={20} />
-                            {systemNotifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>}
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            <div className="flex flex-1 overflow-hidden">
-                {/* Sidebar */}
-                <aside className={`${isSidebarCollapsed ? 'w-16' : 'w-52'} bg-[#1c2d4f] h-full flex flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5`}>
-                    <button
-                        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                        className="absolute -right-3 top-6 w-6 h-6 bg-[#1c2d4f] text-white/50 border border-white/10 rounded-full flex items-center justify-center hover:text-white transition-all z-[60]"
-                    >
-                        {isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-                    </button>
-
-                    <div className={`flex-1 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
-                        <nav className="space-y-1">
-                            {menuItems.map(item => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => item.enabled && setCurrentView(item.id as any)}
-                                    disabled={!item.enabled}
-                                    className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${!item.enabled
-                                        ? 'opacity-20 grayscale cursor-not-allowed'
-                                        : currentView === item.id
-                                            ? 'bg-white/10 text-white shadow-sm'
-                                            : 'text-white/70 hover:text-white hover:bg-white/5'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <item.icon size={18} className={`${currentView === item.id ? 'text-white' : 'text-white/60'}`} />
-                                        {!isSidebarCollapsed && <span>{item.label}</span>}
-                                    </div>
-                                </button>
-                            ))}
-                        </nav>
-
-                        <div className="mt-6 pt-4 border-t border-white/5 mx-2">
-                            <a
-                                href="https://wa.me/553534227420"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3 justify-start'} py-2.5 rounded-lg transition-all duration-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 group`}
-                                title="Suporte Técnico"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="p-1.5 bg-emerald-500/20 rounded-md group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                                        <Phone size={14} className="text-emerald-400 group-hover:text-white" />
-                                    </div>
-                                    {!isSidebarCollapsed && (
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-100/90 group-hover:text-white">Suporte</span>
-                                            <span className="text-[8px] font-bold text-emerald-500/80 group-hover:text-emerald-400">Online Agora</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </a>
-                        </div>
-                    </div>
-
-                    <div className={`shrink-0 p-4 border-t border-white/5 flex flex-col gap-2 ${isSidebarCollapsed ? 'items-center' : ''}`}>
-                        {isImpersonating && (
-                            <button
-                                onClick={() => { SessionStorage.remove('is_impersonating'); onLogout(); }}
-                                className="w-full py-2.5 bg-primary-600/20 text-primary-100 rounded-md text-xs font-semibold hover:bg-primary-600/30 transition-all border border-primary-500/20"
-                            >
-                                <ShieldCheck size={16} className="inline mr-2" /> {!isSidebarCollapsed && "Finalizar Auditoria"}
-                            </button>
-                        )}
-                        <button
-                            onClick={onLogout}
-                            className="w-full py-2 text-white/40 hover:text-rose-400 hover:bg-rose-500/5 rounded-md text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
-                        >
-                            <LogOut size={14} /> {!isSidebarCollapsed && "Sair da Conta"}
-                        </button>
-                    </div>
-                </aside>
-
-                {/* Main Content Area */}
-                <main className="flex-1 overflow-hidden flex flex-col relative bg-slate-50/50">
-                    <div className="flex-1 overflow-hidden relative">
-                        {currentView === 'dashboard' && <AdminOverview orders={orders} contracts={contracts} techs={techs} customers={customers} startDate={overviewDateRange.start} endDate={overviewDateRange.end} onDateChange={(start, end) => setOverviewDateRange({ start, end })} onSwitchView={(v) => setCurrentView(v as any)} />}
-                        {currentView === 'orders' && <AdminDashboard orders={orders} techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => setActivitiesDateRange({ start, end })} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await fetchGlobalData(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await fetchGlobalData(); }} />}
-                        {currentView === 'contracts' && <PlannedMaintenance orders={contracts} techs={techs} customers={customers} equipments={equipments} user={auth.user} onUpdateOrders={fetchGlobalData} onEditOrder={async (c) => { await DataService.updateContract(c); await fetchGlobalData(); }} onCreateOrder={async (c) => { await DataService.createContract(c); await fetchGlobalData(); }} />}
-                        {currentView === 'quotes' && <QuoteManagement quotes={quotes} customers={customers} orders={orders} stockItems={stockItems} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await fetchGlobalData(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await fetchGlobalData(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await fetchGlobalData(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await fetchGlobalData(); }} />}
-                        {currentView === 'clients' && <CustomerManagement customers={customers} equipments={equipments} onUpdateCustomers={fetchGlobalData} onSwitchView={(v, p) => setCurrentView(v)} />}
-                        {currentView === 'equip' && <EquipmentManagement equipments={equipments} customers={customers} onUpdateEquipments={fetchGlobalData} />}
-                        {currentView === 'stock' && <StockManagement />}
-                        {currentView === 'techs' && <TechnicianManagement />}
-                        {currentView === 'map' && <TechnicianMap />}
-                        {currentView === 'forms' && <FormManagement />}
-                        {currentView === 'users' && <UserManagement />}
-                        {currentView === 'settings' && <SettingsPage />}
-                        {currentView === 'financial' && <FinancialDashboard orders={orders} quotes={quotes} techs={techs} onRefresh={fetchGlobalData} />}
-                        {currentView === 'calendar' && <OrderCalendar orders={orders} techs={techs} customers={customers} />}
-                    </div>
-                </main>
-            </div>
-
-            {/* Health Report Modal - SaaS Style */}
-            {healthReport && (
-                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-xl max-w-xl w-full border border-slate-200 overflow-hidden">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                            <div>
-                                <h3 className="text-lg font-bold text-slate-900">Status do Ecossistema</h3>
-                                <p className="text-xs text-slate-500">Diagnóstico de infraestrutura e performance.</p>
-                            </div>
-                            <button onClick={() => setHealthReport(null)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-all"><X size={20} /></button>
-                        </div>
-
-                        <div className="p-8">
-                            <div className="grid grid-cols-2 gap-4 mb-8">
-                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Conectividade</p>
-                                    <p className={`text-sm font-semibold ${healthReport.connectivity === 'Healthy' ? 'text-emerald-600' : 'text-rose-600'}`}>{healthReport.connectivity}</p>
-                                </div>
-                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Autenticação</p>
-                                    <p className="text-sm font-semibold text-slate-700">{healthReport.auth}</p>
-                                </div>
-                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Latência</p>
-                                    <p className="text-sm font-semibold text-primary-600">{healthReport.latency || 'N/D'}</p>
-                                </div>
-                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tenant Active</p>
-                                    <p className="text-xs font-mono text-slate-500 truncate">{healthReport.tenantId}</p>
-                                </div>
-                            </div>
-
-                            {healthReport.diagnosis && (
-                                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg mb-8">
-                                    <div className="flex items-center gap-2 text-amber-800 mb-2">
-                                        <AlertTriangle size={16} />
-                                        <p className="text-xs font-bold uppercase">Observação de falha</p>
-                                    </div>
-                                    <p className="text-xs font-medium text-amber-900 leading-relaxed">{healthReport.diagnosis}</p>
-                                </div>
-                            )}
-
-                            <div className="flex gap-3">
-                                <Button onClick={async () => setHealthReport(await DataService.checkSystemHealth())} className="flex-1 h-11">Recarregar Status</Button>
-                                <Button variant="secondary" onClick={() => window.location.reload()} className="px-8 h-11">Reload App</Button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+                {/* Fallback */}
+                <Route path="*" element={<Navigate to="/admin" replace />} />
+            </Routes>
+        </AdminLayout>
     );
 };

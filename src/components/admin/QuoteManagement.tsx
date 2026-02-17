@@ -287,7 +287,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             {/* Copiar URL */}
                                             <button
                                                 onClick={() => {
-                                                    const url = `${window.location.origin}${window.location.pathname}#/view-quote/${quote.publicToken || quote.id}`;
+                                                    const url = `${window.location.origin}/#/view-quote/${quote.publicToken || quote.id}`;
+                                                    console.log('[QuoteManagement] Copiando link público:', url);
                                                     navigator.clipboard.writeText(url);
                                                     alert('URL pública copiada para a área de transferência!');
                                                 }}
@@ -300,7 +301,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             {/* Abrir em Nova Aba */}
                                             <button
                                                 onClick={() => {
-                                                    const url = `${window.location.origin}${window.location.pathname}#/view-quote/${quote.publicToken || quote.id}`;
+                                                    const url = `${window.location.origin}/#/view-quote/${quote.publicToken || quote.id}`;
+                                                    console.log('[QuoteManagement] Abrindo link público:', url);
                                                     window.open(url, '_blank');
                                                 }}
                                                 className="p-3 bg-emerald-50/50 text-emerald-500 hover:text-emerald-700 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-emerald-100 active:scale-95"
@@ -571,7 +573,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-md"><FileText size={24} className="text-white" /></div>
                                 <div>
                                     <p className="text-[9px] font-black text-white/40 uppercase tracking-widest leading-none mb-2">Inspeção Sênior Nexus</p>
-                                    <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">O.S. Ref: {viewQuote.id}</h2>
+                                    <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">Orçamento Ref: {viewQuote.id}</h2>
                                 </div>
                             </div>
                             <button onClick={() => setIsViewModalOpen(false)} className="p-4 bg-white/5 text-white/40 hover:text-white hover:bg-white/10 rounded-2xl transition-all">
