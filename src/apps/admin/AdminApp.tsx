@@ -18,7 +18,7 @@ import { PlannedMaintenance } from '../../components/admin/PlannedMaintenance';
 import { QuoteManagement } from '../../components/admin/QuoteManagement';
 import { DataService } from '../../services/dataService';
 import SessionStorage from '../../lib/sessionStorage';
-import { useOrders, useOrdersStats, useContracts, useQuotes, useTechnicians, useCustomers, useEquipments, useStock, NexusQueryClient } from '../../hooks/nexusHooks';
+import { useOrders, useOrdersStats, useContracts, useQuotes, useTechnicians, useCustomers, useEquipments, useStock, useUsers, useUserGroups, useForms, useServiceTypes, useActivationRules, NexusQueryClient } from '../../hooks/nexusHooks';
 import { AuthState, User } from '../../types';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 
@@ -56,6 +56,8 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const isCustomers = location.pathname.includes('/customers');
     const isEquipments = location.pathname.includes('/equipments');
     const isStock = location.pathname.includes('/stock');
+    const isUsers = location.pathname.includes('/users');
+    const isForms = location.pathname.includes('/forms');
 
     // 1. Dashboard Light Fetch (Stats only)
     const { data: statsOrders = [], isLoading: statsLoading } = useOrdersStats(!!auth.isAuthenticated && isDashboard, overviewDateRange.start, overviewDateRange.end);
@@ -71,6 +73,8 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const needsCustomers = isDashboard || isCustomers || isOrdersView || isQuotes || isContracts || isEquipments || isCalendar;
     const needsEquipments = isEquipments || isContracts || isCustomers;
     const needsStock = isStock || isQuotes;
+    const needsUsers = isUsers;
+    const needsForms = isForms;
 
     // 🛡️ Nexus Hooks (Enhanced with Global Cache)
     const { data: contracts = [], isLoading: cLoading, refetch: cRefetch } = useContracts(!!auth.isAuthenticated && needsContracts);
@@ -80,7 +84,14 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const { data: equipments = [], isLoading: eLoading, refetch: eRefetch } = useEquipments(!!auth.isAuthenticated && needsEquipments);
     const { data: stockItems = [], isLoading: sLoading, refetch: sRefetch } = useStock(!!auth.isAuthenticated && needsStock);
 
-    const isFetchingAny = oLoading || cLoading || qLoading || tLoading || custLoading || eLoading || sLoading || statsLoading;
+    // 👥 Users & Forms Hooks
+    const { data: users = [], isLoading: usersLoading, refetch: usersRefetch } = useUsers(!!auth.isAuthenticated && needsUsers);
+    const { data: userGroups = [], isLoading: groupsLoading, refetch: groupsRefetch } = useUserGroups(!!auth.isAuthenticated && needsUsers);
+    const { data: forms = [], isLoading: formsLoading, refetch: formsRefetch } = useForms(!!auth.isAuthenticated && needsForms);
+    const { data: serviceTypes = [], isLoading: typesLoading, refetch: typesRefetch } = useServiceTypes(!!auth.isAuthenticated && needsForms);
+    const { data: activationRules = [], isLoading: rulesLoading, refetch: rulesRefetch } = useActivationRules(!!auth.isAuthenticated && needsForms);
+
+    const isFetchingAny = oLoading || cLoading || qLoading || tLoading || custLoading || eLoading || sLoading || statsLoading || usersLoading || groupsLoading || formsLoading || typesLoading || rulesLoading;
 
     // 🔄 Force Refresh
     const fetchGlobalData = async () => {
@@ -92,6 +103,15 @@ export const AdminApp: React.FC<AdminAppProps> = ({
         if (needsCustomers) await custRefetch();
         if (needsEquipments) await eRefetch();
         if (needsStock) await sRefetch();
+        if (needsUsers) {
+            await usersRefetch();
+            await groupsRefetch();
+        }
+        if (needsForms) {
+            await formsRefetch();
+            await typesRefetch();
+            await rulesRefetch();
+        }
     };
 
     const handleManualRefresh = async () => {

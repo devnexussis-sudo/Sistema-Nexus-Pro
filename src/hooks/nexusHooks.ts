@@ -10,6 +10,7 @@ import { QuoteService } from '../services/quoteService';
 import { EquipmentService } from '../services/equipmentService';
 import { FormService } from '../services/formService';
 import { TenantService } from '../services/tenantService';
+import { DataService } from '../services/dataService';
 import { OrderStatus } from '../types';
 
 // ------------------------------------------------------------------
@@ -53,8 +54,12 @@ export const usePaginatedOrders = (page: number, limit: number, filters?: any) =
 
 export const useUsers = (enabled = true) => {
     return useQuery('users', async () => {
-        const tid = (window as any).NexusTenantId || localStorage.getItem('nexus_tid'); // Fallback melhor
-        return TenantService.getTenantUsers(tid || '');
+        const tid = DataService.getCurrentTenantId();
+        if (!tid) {
+            console.warn('[useUsers] No tenant ID found');
+            return [];
+        }
+        return TenantService.getTenantUsers(tid);
     }, {
         enabled,
         staleTime: 1000 * 60 * 5
@@ -63,8 +68,12 @@ export const useUsers = (enabled = true) => {
 
 export const useUserGroups = (enabled = true) => {
     return useQuery('user_groups', async () => {
-        const tid = (window as any).NexusTenantId || localStorage.getItem('nexus_tid');
-        return TenantService.getUserGroups(tid || '');
+        const tid = DataService.getCurrentTenantId();
+        if (!tid) {
+            console.warn('[useUserGroups] No tenant ID found');
+            return [];
+        }
+        return TenantService.getUserGroups(tid);
     }, {
         enabled,
         staleTime: 1000 * 60 * 30
@@ -165,9 +174,16 @@ export const useForms = (enabled = true) => {
 };
 
 export const useServiceTypes = (enabled = true) => {
-    return useQuery('service_types', FormService.getServiceTypes, {
+    return useQuery('service_types', DataService.getServiceTypes, {
         enabled,
-        staleTime: 1000 * 60 * 60
+        staleTime: 1000 * 60 * 30
+    });
+};
+
+export const useActivationRules = (enabled = true) => {
+    return useQuery('activation_rules', DataService.getActivationRules, {
+        enabled,
+        staleTime: 1000 * 60 * 30
     });
 };
 
