@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus, Plus, Box,
-  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash
+  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
@@ -75,49 +75,59 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
   const isCompleted = initialData?.status === OrderStatus.COMPLETED;
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules, loadedServiceTypes] = await Promise.all([
-          DataService.getAllTechnicians(),
-          DataService.getCustomers(),
-          DataService.getEquipments(),
-          DataService.getStockItems(),
-          DataService.getFormTemplates(),
-          DataService.getActivationRules(),
-          DataService.getServiceTypes()
-        ]);
-
-        setTechnicians(techs);
-        setClients(loadedClients);
-        setEquipments(loadedEquipments);
-        setStock(loadedStock);
-        setFormTemplates(loadedFormTemplates);
-        setActivationRules(loadedRules);
-
-        if (loadedServiceTypes && loadedServiceTypes.length > 0) {
-          setServiceTypes(loadedServiceTypes);
-          // If creating new order, set default to first available type
-          if (!initialData) {
-            setFormData(prev => ({ ...prev, operationType: loadedServiceTypes[0].name }));
-          }
-        }
-
-        // Se estiver editando, tentar encontrar o ID do cliente e equipamentos
-        if (initialData) {
-          const client = loadedClients.find(c => c.name === initialData.customerName);
-          if (client) setSelectedClientId(client.id);
-
-          const equip = loadedEquipments.find(e => e.serialNumber === initialData.equipmentSerial);
-          if (equip) setSelectedEquipIds([equip.id]);
-        }
-      } catch (error) {
-        console.error('Erro ao carregar dados:', error);
+  const loadData = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      // 🛡️ Forçar verificação de sessão para renovar token se necessário
+      const currentUser = await DataService.getCurrentUser();
+      if (!currentUser) {
+        console.warn("⚠️ Sessão pode estar expirada. Tentando buscar dados mesmo assim...");
       }
-    };
 
-    loadData();
+      const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules, loadedServiceTypes] = await Promise.all([
+        DataService.getAllTechnicians(),
+        DataService.getCustomers(),
+        DataService.getEquipments(),
+        DataService.getStockItems(),
+        DataService.getFormTemplates(),
+        DataService.getActivationRules(),
+        DataService.getServiceTypes()
+      ]);
+
+      setTechnicians(techs);
+      setClients(loadedClients);
+      setEquipments(loadedEquipments);
+      setStock(loadedStock);
+      setFormTemplates(loadedFormTemplates);
+      setActivationRules(loadedRules);
+
+      if (loadedServiceTypes && loadedServiceTypes.length > 0) {
+        setServiceTypes(loadedServiceTypes);
+        // If creating new order, set default to first available type
+        if (!initialData) {
+          setFormData(prev => ({ ...prev, operationType: loadedServiceTypes[0].name }));
+        }
+      }
+
+      // Se estiver editando, tentar encontrar o ID do cliente e equipamentos
+      if (initialData) {
+        const client = loadedClients.find(c => c.name === initialData.customerName);
+        if (client) setSelectedClientId(client.id);
+
+        const equip = loadedEquipments.find(e => e.serialNumber === initialData.equipmentSerial);
+        if (equip) setSelectedEquipIds([equip.id]);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      // alert("Erro ao carregar dados. Verifique sua conexão ou recarregue a página.");
+    } finally {
+      setLoading(false);
+    }
   }, [initialData]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleSelectTechnician = async (techId: string) => {
     if (isCompleted) return;
@@ -400,6 +410,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 </div>
               ))}
             </div>
+            <button onClick={loadData} className="p-2 text-slate-400 hover:text-primary-600 transition-all rounded-lg hover:bg-primary-50" title="Recarregar Dados">
+              <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+            </button>
             <button onClick={onClose} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50">
               <X size={20} />
             </button>

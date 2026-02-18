@@ -162,7 +162,10 @@ export const TechDashboardV2: React.FC = () => {
                             {[
                                 { id: 'ALL', label: 'Tudo' },
                                 { id: OrderStatus.ASSIGNED, label: 'Pendentes' },
+                                { id: OrderStatus.TRAVELING, label: 'Deslocamento' },
+                                { id: OrderStatus.ARRIVED, label: 'Chegada' },
                                 { id: OrderStatus.IN_PROGRESS, label: 'Executando' },
+                                { id: OrderStatus.PAUSED, label: 'Pausa' },
                                 { id: OrderStatus.COMPLETED, label: 'Concluídas' },
                                 { id: OrderStatus.BLOCKED, label: 'Impedidas' }
                             ].map((st) => {

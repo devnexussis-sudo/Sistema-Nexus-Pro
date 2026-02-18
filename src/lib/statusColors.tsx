@@ -45,6 +45,22 @@ export const STATUS_COLORS: Record<OrderStatus, StatusColorConfig> = {
         label: 'Atribuído',
         hex: '#3b82f6'
     },
+    [OrderStatus.TRAVELING]: {
+        bg: 'bg-indigo-50',
+        text: 'text-indigo-700',
+        border: 'border-indigo-200',
+        icon: 'text-indigo-500',
+        label: 'Em Deslocamento',
+        hex: '#6366f1'
+    },
+    [OrderStatus.ARRIVED]: {
+        bg: 'bg-purple-50',
+        text: 'text-purple-700',
+        border: 'border-purple-200',
+        icon: 'text-purple-500',
+        label: 'No Local',
+        hex: '#a855f7'
+    },
     [OrderStatus.IN_PROGRESS]: {
         bg: 'bg-amber-50',
         text: 'text-amber-700',
@@ -52,6 +68,14 @@ export const STATUS_COLORS: Record<OrderStatus, StatusColorConfig> = {
         icon: 'text-amber-500',
         label: 'Em Andamento',
         hex: '#f59e0b'
+    },
+    [OrderStatus.PAUSED]: {
+        bg: 'bg-orange-50',
+        text: 'text-orange-700',
+        border: 'border-orange-200',
+        icon: 'text-orange-500',
+        label: 'Pausado',
+        hex: '#f97316'
     },
     [OrderStatus.COMPLETED]: {
         bg: 'bg-emerald-50',
@@ -142,6 +166,15 @@ export function getStatusCalendarStyle(status: OrderStatus): string {
         case OrderStatus.ASSIGNED:
             // CHANGED: Azul vibrante em vez de primary (que se funde com o calendário)
             return 'bg-sky-500 text-white border-2 border-sky-600 shadow-sky-500/30';
+
+        case OrderStatus.TRAVELING:
+            return 'bg-indigo-500 text-white border-2 border-indigo-600 shadow-indigo-500/30';
+
+        case OrderStatus.ARRIVED:
+            return 'bg-purple-500 text-white border-2 border-purple-600 shadow-purple-500/30';
+
+        case OrderStatus.PAUSED:
+            return 'bg-orange-500 text-white border-2 border-orange-600 shadow-orange-500/30';
 
         case OrderStatus.PENDING:
             return 'bg-slate-400 text-white border-2 border-slate-500 shadow-slate-500/30';

@@ -84,6 +84,10 @@ export const OrderService = {
             paid_at: order.paidAt,
             billing_notes: order.billingNotes,
             linked_quotes: order.linkedQuotes || [],
+            timeline: order.timeline,
+            checkin_location: order.checkinLocation,
+            checkout_location: order.checkoutLocation,
+            pause_reason: order.pauseReason,
             updated_at: new Date().toISOString()
         };
     },
@@ -121,7 +125,11 @@ export const OrderService = {
             billingStatus: data.billing_status || 'PENDING',
             paymentMethod: data.payment_method,
             paidAt: data.paid_at,
-            billingNotes: data.billing_notes
+            billingNotes: data.billing_notes,
+            timeline: data.timeline || {},
+            checkinLocation: data.checkin_location,
+            checkoutLocation: data.checkout_location,
+            pauseReason: data.pause_reason
         };
     },
 
@@ -530,6 +538,28 @@ export const OrderService = {
             updatePayload.start_date = new Date().toISOString();
         } else if (status === OrderStatus.COMPLETED || status === OrderStatus.BLOCKED) {
             updatePayload.end_date = new Date().toISOString();
+        }
+
+        // 📍 Tratamento Especial para Campos de Fluxo (Extrai de 'data' se vier misturado)
+        if (processedData) {
+            const specialFields = ['timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason'];
+
+            if (processedData.timeline) {
+                updatePayload.timeline = processedData.timeline;
+                delete processedData.timeline;
+            }
+            if (processedData.checkinLocation) {
+                updatePayload.checkin_location = processedData.checkinLocation;
+                delete processedData.checkinLocation;
+            }
+            if (processedData.checkoutLocation) {
+                updatePayload.checkout_location = processedData.checkoutLocation;
+                delete processedData.checkoutLocation;
+            }
+            if (processedData.pauseReason) {
+                updatePayload.pause_reason = processedData.pauseReason;
+                delete processedData.pauseReason;
+            }
         }
 
         // 3. Sync Database
