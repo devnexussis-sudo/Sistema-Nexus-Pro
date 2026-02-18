@@ -225,7 +225,12 @@ export const adminSupabase = {
         ...supabase.auth,
         admin: adminAuthProxy.admin
     },
-    from: supabase.from // Herda do cliente normal
+    from: supabase.from,   // Herda do cliente normal
+    rpc: supabase.rpc,     // 🟢 FIX: Adicionado método RPC
+    storage: supabase.storage,
+    channel: supabase.channel,
+    functions: supabase.functions,
+    realtime: supabase.realtime
 } as any;
 
 // Cliente Público
