@@ -73,7 +73,10 @@ export interface UserGroup {
 export enum OrderStatus {
   PENDING = 'PENDENTE',
   ASSIGNED = 'ATRIBUÍDO',
+  TRAVELING = 'EM DESLOCAMENTO',
+  ARRIVED = 'NO LOCAL',
   IN_PROGRESS = 'EM ANDAMENTO',
+  PAUSED = 'PAUSADO',
   COMPLETED = 'CONCLUÍDO',
   CANCELED = 'CANCELADO',
   BLOCKED = 'IMPEDIDO'
@@ -199,6 +202,33 @@ export interface ServiceOrder {
   paidAt?: string;
   billingNotes?: string;
   linkedQuotes?: string[];
+
+  // 📍 Fluxo de Atendimento (Check-in / Check-out / SLA)
+  timeline?: {
+    assignedAt?: string;      // Quando foi atribuída ao técnico
+    travelStartAt?: string;   // "Iniciar deslocamento" clicado
+    arrivedAt?: string;       // "Cheguei no local" clicado
+    serviceStartAt?: string;  // "Iniciar serviço" clicado
+    pausedAt?: string;        // Última pausa
+    resumedAt?: string;       // Último resume
+    completedAt?: string;     // Conclusão
+    totalPausedMs?: number;   // Tempo total pausado (ms)
+  };
+
+  // 📍 Geolocalização (LGPD: somente com consentimento)
+  checkinLocation?: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    timestamp: string;
+  };
+  checkoutLocation?: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    timestamp: string;
+  };
+  pauseReason?: string; // Motivo da pausa (ex: aguardando peça)
 }
 
 
