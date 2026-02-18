@@ -52,6 +52,21 @@ export function useQuery<T>(
         onError
     } = options;
 
+    // 💾 Persistência Local Helper
+    const loadFromStorage = () => {
+        try {
+            const item = localStorage.getItem(`NEXUS_CACHE_${key}`);
+            if (item) {
+                const parsed = JSON.parse(item);
+                // Validar se cache é muito antigo (ex: 24h) para forçar limpeza? 
+                // Por enquanto, confiamos no staleTime para refetch, mas usamos os dados antigos para display imediato.
+                return parsed;
+            }
+        } catch (e) {
+            return null;
+        }
+    };
+
     const [state, setState] = useState<{
         data: T | undefined;
         isLoading: boolean;
@@ -59,20 +74,43 @@ export function useQuery<T>(
         error: Error | null;
         status: 'idle' | 'loading' | 'success' | 'error';
     }>(() => {
-        // 🚀 Initial State: hydration from cache
+        // 1. Tentar Memória (Mais rápido e atualizado na sessão)
         const cached = queryCache.get(key);
-        if (cached && (Date.now() - cached.timestamp < staleTime)) {
+        if (cached) {
+            const isStale = (Date.now() - cached.timestamp > staleTime);
             return {
                 data: cached.data as T,
-                isLoading: false,
-                isFetching: false,
+                isLoading: false, // Temos dados!
+                isFetching: isStale, // Se for velho, vamos buscar background
                 error: null,
                 status: 'success'
             };
         }
+
+        // 2. Tentar Disco/Storage (Persistência entre F5)
+        const stored = loadFromStorage();
+        if (stored) {
+            // Hidratar memória com disco
+            queryCache.set(key, {
+                data: stored.data,
+                timestamp: stored.timestamp,
+                promise: undefined
+            });
+
+            const isStale = (Date.now() - stored.timestamp > staleTime);
+            return {
+                data: stored.data as T,
+                isLoading: false, // Temos dados instantâneos!
+                isFetching: true, // Sempre refetch do storage para garantir frescor
+                error: null,
+                status: 'success'
+            };
+        }
+
+        // 3. Sem dados
         return {
-            data: cached?.data as T, // Return cached data even if stale (stale-while-revalidate)
-            isLoading: !cached?.data && enabled,
+            data: undefined,
+            isLoading: enabled,
             isFetching: enabled,
             error: null,
             status: 'idle'
@@ -143,8 +181,14 @@ export function useQuery<T>(
             const data = await promise;
             console.log(`[NexusQuery] ✅ Success: ${key}`);
 
-            // Update Cache
-            queryCache.set(key, { data, timestamp: Date.now(), promise: undefined });
+            // Update Cache (Memory + Disk)
+            const timestamp = Date.now();
+            queryCache.set(key, { data, timestamp, promise: undefined });
+            try {
+                localStorage.setItem(`NEXUS_CACHE_${key}`, JSON.stringify({ data, timestamp }));
+            } catch (e) {
+                console.warn('[NexusQuery] Failed to persist cache', e);
+            }
 
             if (isMounted.current) {
                 setState({
