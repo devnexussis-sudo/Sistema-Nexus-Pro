@@ -7,7 +7,8 @@ import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { OrderStatus, STATUS_CONFIG } from '@/constants/mock-data';
 import { OrderService } from '@/services/order-service';
-import * as Notifications from 'expo-notifications';
+import { NotificationService } from '@/services/notification-service';
+// import * as Notifications from 'expo-notifications';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -31,6 +32,18 @@ export default function HomeScreen() {
     try {
       const result = await OrderService.getAllOrders();
       setOrders(result);
+
+      // 🚀 Agendar Lembretes de OS (30/60 min)
+      result.forEach(order => {
+        if ((order.status === 'pending' || order.status === 'assigned') && order.scheduledDate && order.scheduledTime) {
+          NotificationService.scheduleOrderReminders(
+            order.id,
+            order.scheduledDate,
+            order.scheduledTime,
+            order.displayId || 'S/N'
+          );
+        }
+      });
     } catch (e) {
       console.error(e);
     } finally {
@@ -49,12 +62,22 @@ export default function HomeScreen() {
     console.log('[Index] Component Mounted - Fetching Orders');
     fetchOrders();
 
-    const subscription = Notifications.addNotificationReceivedListener(() => {
-      console.log('[Index] 🔔 New Notification! Refreshing data...');
-      fetchOrders();
-    });
+    // WARNING: Notifications disabled temporarily for Expo Go SDK 53 compatibility
+    /*
+    let subscription: Notifications.Subscription | undefined;
+    try {
+      subscription = Notifications.addNotificationReceivedListener(() => {
+        console.log('[Index] 🔔 New Notification! Refreshing data...');
+        fetchOrders();
+      });
+    } catch (err) {
+      console.warn('[Index] Notifications not available:', err);
+    }
 
-    return () => subscription.remove();
+    return () => {
+      if (subscription) subscription.remove();
+    };
+    */
   }, []);
 
   // ✅ Refresh when returning to screen

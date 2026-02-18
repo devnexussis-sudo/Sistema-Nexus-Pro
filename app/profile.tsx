@@ -1,21 +1,72 @@
 
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, Image, Pressable, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, Image, Pressable, Alert, ActivityIndicator, Platform } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { authService } from '@/services/auth-service';
+import { supabase } from '@/services/supabase';
 
 export default function ProfileScreen() {
     const router = useRouter();
     const [profileImage, setProfileImage] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
     const [user, setUser] = useState({
-        name: 'Técnico Exemplo',
-        email: 'tecnico@nexus.com.br',
-        id: 'TEC-2026'
+        name: 'Carregando...',
+        email: '...',
+        id: '...',
+        role: '...'
     });
+
+    useEffect(() => {
+        fetchUserProfile();
+    }, []);
+
+    const fetchUserProfile = async () => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user) {
+                Alert.alert('Erro', 'Usuário não autenticado.');
+                return;
+            }
+
+            console.log('[Profile] Authenticated User ID:', session.user.id);
+
+            // 1. Try fetching from technicians table
+            const { data: techData, error: techError } = await supabase
+                .from('technicians')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+
+            if (techData) {
+                console.log('[Profile] Technician Record Found:', techData);
+                setUser({
+                    name: techData.name || session.user.email?.split('@')[0] || 'Técnico',
+                    email: session.user.email || '',
+                    id: session.user.id,
+                    role: 'Técnico de Campo (Confirmado)'
+                });
+                if (techData.avatar_url) setProfileImage(techData.avatar_url);
+            } else {
+                console.warn('[Profile] No technician record found for this ID:', session.user.id);
+                // Fallback to basic auth data
+                setUser({
+                    name: session.user.user_metadata?.name || 'Usuário',
+                    email: session.user.email || '',
+                    id: session.user.id, // SHOW THE REAL ID so user can debug
+                    role: 'Usuário (Sem perfil de técnico)'
+                });
+            }
+
+        } catch (error) {
+            console.error('[Profile] Error fetching profile:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const pickImage = async () => {
         // No permissions request is necessary for launching the image library
@@ -27,9 +78,20 @@ export default function ProfileScreen() {
         });
 
         if (!result.canceled) {
-            setProfileImage(result.assets[0].uri);
+            const uri = result.assets[0].uri;
+            setProfileImage(uri);
+            // Optional: Upload to Supabase Storage here
         }
     };
+
+    if (loading) {
+        return (
+            <ThemedView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color="#1c2d4f" />
+                <ThemedText>Carregando perfil...</ThemedText>
+            </ThemedView>
+        );
+    }
 
     return (
         <ThemedView style={styles.container}>
@@ -47,23 +109,25 @@ export default function ProfileScreen() {
                     </View>
                 </Pressable>
                 <ThemedText type="title">{user.name}</ThemedText>
-                <Text style={styles.idText}>ID: {user.id}</Text>
+                <Text style={styles.idText} selectable>ID: {user.id}</Text>
             </View>
 
             <View style={styles.infoSection}>
                 <View style={styles.infoRow}>
                     <Text style={styles.label}>Email</Text>
-                    <Text style={styles.value}>{user.email}</Text>
+                    <Text style={[styles.value, { fontSize: 14 }]}>{user.email}</Text>
                 </View>
                 <View style={styles.separator} />
                 <View style={styles.infoRow}>
-                    <Text style={styles.label}>Cargo</Text>
-                    <Text style={styles.value}>Técnico de Campo</Text>
+                    <Text style={styles.label}>Cargo / Status</Text>
+                    <Text style={styles.value}>{user.role}</Text>
                 </View>
                 <View style={styles.separator} />
                 <View style={styles.infoRow}>
-                    <Text style={styles.label}>Filial</Text>
-                    <Text style={styles.value}>São Paulo - SP</Text>
+                    <Text style={styles.label}>Status do GPS</Text>
+                    <Text style={styles.value} onPress={() => Alert.alert('ID para Debug', user.id)}>
+                        Ativo (Toque para ver ID)
+                    </Text>
                 </View>
             </View>
 
@@ -75,10 +139,9 @@ export default function ProfileScreen() {
                         {
                             text: 'Sair', style: 'destructive',
                             onPress: async () => {
-                                // TODO: Implement Auth Context to handle logout
-                                console.log('User logged out');
+                                console.log('User logging out...');
                                 await authService.logout();
-                                router.replace('/login'); // Just resets for now
+                                router.replace('/login');
                             }
                         }
                     ])
@@ -134,6 +197,8 @@ const styles = StyleSheet.create({
     idText: {
         color: '#666',
         marginTop: 4,
+        fontSize: 10,
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace'
     },
     infoSection: {
         backgroundColor: '#fff',

@@ -13,41 +13,65 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
-import * as Notifications from 'expo-notifications';
+// import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { Alert, Platform } from 'react-native';
-
-// Configure Notification Handler
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+import { NotificationService } from '@/services/notification-service';
+import { supabase } from '@/services/supabase';
+import { useEffect, useRef } from 'react';
+import * as Notifications from 'expo-notifications';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
 
+  const notificationListener = useRef<any>();
+  const responseListener = useRef<any>();
+
   useEffect(() => {
     // Enable system-wide log capture immediately
     logger.enableGlobalCapture();
 
-    const setupPermissionsAndNotifications = async () => {
-      // 1. Request Permissions
+    const initialize = async () => {
+      // 1. Request Permissions & Auth
       const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
       if (locationStatus !== 'granted') {
-        Alert.alert('Permissão necessária', 'Precisamos de acesso à sua localização para o funcionamento correto do app.');
+        Alert.alert('Permissão de Localização', 'Precisamos de acesso para registrar atendimento.');
       }
 
-      const { status: notifStatus } = await Notifications.requestPermissionsAsync();
-      if (notifStatus !== 'granted') {
-        // Optional: Alert user or handled silently
-      }
-
-      // 2. Auth Check
       const isAuthenticated = await authService.checkAuthStatus();
+
+      if (isAuthenticated) {
+        // Start Background Services
+        startBackgroundLocation().catch(err => console.error(err));
+
+        // 2. Setup Push Notifications & Realtime Listener
+        const token = await NotificationService.registerForPushNotificationsAsync();
+
+        // Setup Realtime Listener for Instant Notifications (In-App)
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          console.log("Setting up Realtime Notification Listener for:", user.id);
+          const channel = supabase
+            .channel(`notifications:user:${user.id}`)
+            .on(
+              'postgres_changes',
+              {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'notifications',
+                filter: `user_id=eq.${user.id}`
+              },
+              (payload: any) => {
+                console.log("🔔 Realtime Notification Received:", payload);
+                const notif = payload.new;
+                NotificationService.triggerLocalNotification(notif.title, notif.body, notif.data);
+              }
+            )
+            .subscribe();
+        }
+      }
+
       if (!isAuthenticated) {
         router.replace('/login');
       } else {
@@ -55,20 +79,25 @@ export default function RootLayout() {
       }
     };
 
-    setupPermissionsAndNotifications();
-    startBackgroundLocation();
+    initialize();
 
-    // Force status bar to be white with dark icons on Android
-    setStatusBarBackgroundColor('#ffffff', false);
-    setStatusBarStyle('dark');
+    // Listeners for foreground/background interaction
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      console.log("Notification Received in Foreground:", notification);
+    });
 
-    // Notification Listeners
-    const subscription = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log("User tapped notification:", response);
+      const data = response.notification.request.content.data;
+      if (data?.orderId) {
+        router.push(`/os/${data.orderId}`);
+      }
     });
 
     return () => {
-      subscription.remove();
+      Notifications.removeNotificationSubscription(notificationListener.current);
+      Notifications.removeNotificationSubscription(responseListener.current);
+      supabase.removeAllChannels();
     };
   }, []);
 

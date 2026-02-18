@@ -69,6 +69,8 @@ export interface ExtendedServiceOrder extends ServiceOrder {
     equipmentModel?: string;
     equipmentSerial?: string;
     equipmentFamily?: string;
+    scheduledDate?: string;
+    scheduledTime?: string;
 }
 
 export class OrderService {
@@ -185,7 +187,9 @@ export class OrderService {
             priority: dbOrder.priority,
             displayId: displayId,
             formId: dbOrder.form_id,
-            formData: dbOrder.form_data
+            formData: dbOrder.form_data,
+            scheduledDate: dbOrder.scheduled_date,
+            scheduledTime: dbOrder.scheduled_time
         };
     }
 
@@ -231,23 +235,28 @@ export class OrderService {
             console.log('[OrderService] Fetching orders for user:', userId);
 
             // Check User Role to determine visibility
-            const { data: userProfile } = await supabase
+            const { data: userProfile, error: profileError } = await supabase
                 .from('users')
                 .select('role')
                 .eq('id', userId)
                 .single();
 
-            const isAdmin = userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER';
-            console.log('[OrderService] User Role:', userProfile?.role, 'Is Admin?', isAdmin);
+            // Default to NOT admin for safety if profile can't be loaded
+            const isAdmin = !profileError && (userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER');
+
+            console.log(`[OrderService] User: ${userId} | Role: ${userProfile?.role || 'Unknown'} | IsAdmin: ${isAdmin}`);
 
             let query = supabase
                 .from('orders')
                 .select('*')
                 .order('created_at', { ascending: false });
 
-            // If not admin, only show assigned orders
+            // If not admin, strictly show only assigned orders
             if (!isAdmin) {
+                console.log('[OrderService] 🔒 Applying Technician Filter: assigned_to =', userId);
                 query = query.eq('assigned_to', userId);
+            } else {
+                console.log('[OrderService] 🔓 Admin access: showing all orders');
             }
 
             const { data, error } = await query;

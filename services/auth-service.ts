@@ -56,9 +56,22 @@ class AuthService {
             }
 
             if (data.session) {
+                // 🛑 Security Check: Verify if user is a registered Technician
+                const { data: techData, error: techError } = await supabase
+                    .from('technicians')
+                    .select('id')
+                    .eq('id', data.user.id)
+                    .single();
+
+                if (techError || !techData) {
+                    logger.log(`Login denied: User ${data.user.email} is not a registered technician.`, 'warn');
+                    await this.logout(); // Force logout
+                    return false;
+                }
+
                 this.isAuthenticated = true;
                 this.userId = data.user.id;
-                logger.log('Login successful via Supabase', 'info');
+                logger.log('Login successful via Supabase (Technician Verified)', 'info');
                 return true;
             }
 
