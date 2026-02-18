@@ -1,11 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
-import { Plus, FileText, Trash2, Edit2, X, Save, GripVertical, CheckCircle2, List, Settings, Settings2, Tag, Layers, ArrowRight, Info, Box, Cpu, Workflow, Search, Filter, Loader2, ChevronLeft } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, FileText, Trash2, Edit2, X, Save, GripVertical, CheckCircle2, List, Settings, Settings2, Tag, Layers, ArrowRight, Info, Box, Cpu, Workflow, Search, Filter, Loader2, ChevronLeft, RefreshCw } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { FormTemplate, FormField, FormFieldType } from '../../types';
 import { DataService } from '../../services/dataService';
+import { useForms, useServiceTypes, useActivationRules } from '../../hooks/nexusHooks';
 
 // Famílias vindas do EquipmentManagement para consistência
 export const EQUIPMENT_FAMILIES = [
@@ -38,151 +39,64 @@ export const FormManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
 
-  // 1. Estados para Tipos de Atendimento com Persistência
+  // ✅ React Query hooks — cache persistente, sem loop de loading
+  const {
+    data: serviceTypesRaw = [],
+    isLoading: typesLoading,
+    refetch: refetchTypes
+  } = useServiceTypes(true);
 
-  const [loading, setLoading] = useState(true);
+  const {
+    data: formsRaw = [],
+    isLoading: formsLoading,
+    refetch: refetchForms
+  } = useForms(true);
+
+  const {
+    data: rulesRaw = [],
+    isLoading: rulesLoading,
+    refetch: refetchRules
+  } = useActivationRules(true);
+
+  // Estado local apenas para edição (não afeta o cache)
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
-  const [editingType, setEditingType] = useState<Partial<ServiceType> | null>(null);
-
   const [forms, setForms] = useState<FormTemplate[]>([]);
-  const [editingForm, setEditingForm] = useState<Partial<FormTemplate> | null>(null);
-
   const [rules, setRules] = useState<ActivationRule[]>([]);
+
+  // Sincroniza dados do cache com estado local para edição otimista
+  useEffect(() => {
+    if (serviceTypesRaw.length > 0) setServiceTypes(serviceTypesRaw as ServiceType[]);
+  }, [serviceTypesRaw]);
+
+  useEffect(() => {
+    if (formsRaw.length > 0) setForms(formsRaw as FormTemplate[]);
+  }, [formsRaw]);
+
+  useEffect(() => {
+    if (rulesRaw.length > 0) {
+      // Normaliza snake_case → camelCase vindo do banco
+      const normalized = (rulesRaw as any[]).map(r => ({
+        ...r,
+        serviceTypeId: r.serviceTypeId ?? r.service_type_id,
+        equipmentFamily: r.equipmentFamily ?? r.equipment_family,
+        formId: r.formId ?? r.form_id,
+      }));
+      setRules(normalized);
+    }
+  }, [rulesRaw]);
+
+  const loading = typesLoading || formsLoading || rulesLoading;
+
+  const handleManualRefresh = useCallback(async () => {
+    await Promise.all([refetchTypes(), refetchForms(), refetchRules()]);
+  }, [refetchTypes, refetchForms, refetchRules]);
+
+  const [editingType, setEditingType] = useState<Partial<ServiceType> | null>(null);
+  const [editingForm, setEditingForm] = useState<Partial<FormTemplate> | null>(null);
   const [editingRule, setEditingRule] = useState<Partial<ActivationRule> | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-
-  // Carregamento Inicial via Cloud
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadAllProcessData = async () => {
-      try {
-        if (isMounted) setLoading(true);
-
-        // 🛡️ Fail-Safe: Se demorar mais de 10s, destrava a UI
-        const safetyTimer = setTimeout(() => {
-          if (isMounted) {
-            console.warn("[FormManagement] ⚠️ Safety Timer ativado: destravando UI.");
-            setLoading(false);
-          }
-        }, 10000);
-
-        // 🛡️ Ensure valid session before fetching
-        await import('../../lib/supabase').then(m => m.ensureValidSession());
-
-        const [st, f, r] = await Promise.all([
-          DataService.getServiceTypes(),
-          DataService.getFormTemplates(),
-          DataService.getActivationRules()
-        ]);
-
-        clearTimeout(safetyTimer);
-
-        if (isMounted) {
-          setServiceTypes(st);
-          setForms(f);
-          setRules(r);
-        }
-      } catch (err: any) {
-        console.error("[FormManagement] ❌ Nexus Sync Error:", err);
-
-        // 🛡️ CRITICAL: Don't clear existing data on error!
-        // Keep stale data visible instead of showing empty screen
-        if (isMounted && serviceTypes.length === 0 && forms.length === 0 && rules.length === 0) {
-          // Only set loading to false if we have no data at all
-          // This prevents the "empty screen" bug
-          console.warn("[FormManagement] ⚠️ No data loaded and error occurred. Will retry...");
-        }
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    loadAllProcessData();
-
-    // 📡 Auto-Wake: Recarrega se o usuário voltar para a aba após inatividade
-    // 🛡️ RESILIENT: With exponential backoff and error recovery
-    let retryCount = 0;
-    const MAX_RETRIES = 3;
-    const RETRY_DELAYS = [1000, 3000, 5000]; // Exponential backoff: 1s, 3s, 5s
-
-    const handleFocus = async () => {
-      if (document.visibilityState !== 'visible') return;
-
-      console.log("[FormManagement] 👁️ Tab focused - Checking data freshness...");
-
-      // 🛡️ CRITICAL FIX: Validate session before attempting refresh
-      const tenantId = DataService.getCurrentTenantId();
-      if (!tenantId) {
-        console.error("[FormManagement] ❌ No tenant ID found. Session may be expired. Skipping refresh.");
-        // Don't throw error - keep existing data visible
-      }
-
-      // 🛡️ CRITICAL FIX: Validate session before attempting refresh
-      await import('../../lib/supabase').then(m => m.ensureValidSession());
-
-      // 🛡️ RESILIENT RETRY LOGIC (BigTech pattern)
-      const attemptRefresh = async (attemptNumber: number = 0): Promise<void> => {
-        try {
-          console.log(`[FormManagement] 🔄 Refresh attempt ${attemptNumber + 1}/${MAX_RETRIES + 1}`);
-
-          // Set loading only if we don't have data yet
-          if (isMounted && serviceTypes.length === 0 && forms.length === 0) {
-            setLoading(true);
-          }
-
-          const [st, f, r] = await Promise.all([
-            DataService.getServiceTypes(),
-            DataService.getFormTemplates(),
-            DataService.getActivationRules()
-          ]);
-
-          if (isMounted) {
-            // ✅ SUCCESS: Update with fresh data
-            setServiceTypes(st || []);
-            setForms(f || []);
-            setRules(r || []);
-            console.log(`[FormManagement] ✅ Data refreshed successfully: ${st.length} types, ${f.length} forms, ${r.length} rules`);
-            retryCount = 0; // Reset retry counter on success
-          }
-
-        } catch (err: any) {
-          console.error(`[FormManagement] ❌ Refresh failed (attempt ${attemptNumber + 1}):`, err);
-
-          // 🛡️ CRITICAL: Preserve existing data on error
-          // DON'T clear the state - keep stale data visible!
-
-          if (attemptNumber < MAX_RETRIES) {
-            // Retry with exponential backoff
-            const delay = RETRY_DELAYS[attemptNumber] || 5000;
-            console.warn(`[FormManagement] ⏳ Retrying in ${delay}ms...`);
-
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return attemptRefresh(attemptNumber + 1);
-          } else {
-            console.error("[FormManagement] ❌ Max retries exceeded. Keeping stale data.");
-            // Still don't clear data - better to show stale data than empty screen
-          }
-        } finally {
-          if (isMounted) setLoading(false);
-        }
-      };
-
-      // Start refresh with retry logic
-      await attemptRefresh(retryCount);
-    };
-
-    window.addEventListener('visibilitychange', handleFocus);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      isMounted = false;
-      window.removeEventListener('visibilitychange', handleFocus);
-      window.removeEventListener('focus', handleFocus);
-    }
-  }, []);
 
   // Handlers para Tipos (Cloud)
   const handleSaveType = async () => {
@@ -340,7 +254,10 @@ export const FormManagement: React.FC = () => {
         <div className="relative flex-1 w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
+            id="form-search"
+            name="form-search"
             type="text"
+            autoComplete="off"
             placeholder="Pesquisar..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
@@ -366,6 +283,15 @@ export const FormManagement: React.FC = () => {
             </div>
           )}
 
+          <button
+            onClick={handleManualRefresh}
+            disabled={loading}
+            title="Atualizar dados"
+            className="flex items-center justify-center w-[42px] h-[42px] rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-primary-600 hover:border-primary-300 transition-all shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+
           <Button
             onClick={() => {
               if (activeTab === 'types') { setEditingType({ name: '' }); setIsTypeModalOpen(true); }
@@ -382,7 +308,8 @@ export const FormManagement: React.FC = () => {
 
       <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="overflow-auto flex-1 p-6 custom-scrollbar">
-          {loading ? (
+          {/* Só mostra spinner se estiver carregando E não tiver dados ainda */}
+          {loading && serviceTypes.length === 0 && forms.length === 0 ? (
             <div className="py-20 flex flex-col items-center justify-center gap-4 text-primary-600">
               <Loader2 size={48} className="animate-spin" />
               <p className="text-xs font-black uppercase tracking-widest italic">Sincronizando com a Cloud Nexus...</p>
