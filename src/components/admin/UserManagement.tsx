@@ -13,6 +13,7 @@ import { Pagination } from '../ui/Pagination';
 import { DataService } from '../../services/dataService';
 import { AuthService } from '../../services/authService';
 import { TenantService } from '../../services/tenantService';
+import { useUsers, useUserGroups } from '../../hooks/nexusHooks';
 import { User, UserRole, UserPermissions, UserGroup, DEFAULT_PERMISSIONS, ADMIN_PERMISSIONS } from '../../types';
 
 
@@ -54,33 +55,28 @@ export const UserManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
 
-  const loadData = async () => {
-    const [usersList, groupsList] = await Promise.all([
-      TenantService.getTenantUsers(DataService.getCurrentTenantId() || ''),
-      TenantService.getUserGroups(DataService.getCurrentTenantId() || '')
-    ]);
-
-    // Se não houver grupos, garantir o grupo Admin
-    if (groupsList.length === 0) {
-      const adminGroup = await TenantService.createUserGroup({
-        name: 'Administrador',
-        description: 'Acesso total ao sistema. Nível máximo de gestão.',
-        permissions: ADMIN_PERMISSIONS,
-        active: true,
-        isSystem: true,
-        tenantId: DataService.getCurrentTenantId()
-      });
-      setGroups([adminGroup]);
-    } else {
-      setGroups(groupsList);
-    }
-
-    setUsers(usersList.filter(u => u.role === UserRole.ADMIN));
-  };
+  // 🔄 Migração para React Query (Cache + Resiliência)
+  const { data: usersData, isLoading: isUsersLoading, refetch: refetchUsers } = useUsers();
+  const { data: groupsData, isLoading: isGroupsLoading, refetch: refetchGroups } = useUserGroups();
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (usersData) {
+      // Filtra para mostrar apenas ADMINS nesta tela por segurança, se necessário
+      const admins = usersData.filter(u => u.role === UserRole.ADMIN || u.role === 'SUPER_ADMIN' as any);
+      setUsers(admins.length > 0 ? admins : usersData);
+    }
+  }, [usersData]);
+
+  useEffect(() => {
+    if (groupsData) {
+      setGroups(groupsData);
+    }
+  }, [groupsData]);
+
+  // Função legado de refresh mantida para compatibilidade com botões de ação
+  const loadData = async () => {
+    await Promise.all([refetchUsers(), refetchGroups()]);
+  };
 
   useEffect(() => {
     if (isModalOpen && !editingUser) {

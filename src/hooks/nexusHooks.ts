@@ -9,6 +9,7 @@ import { ContractService } from '../services/contractService';
 import { QuoteService } from '../services/quoteService';
 import { EquipmentService } from '../services/equipmentService';
 import { FormService } from '../services/formService';
+import { TenantService } from '../services/tenantService';
 import { OrderStatus } from '../types';
 
 // ------------------------------------------------------------------
@@ -43,6 +44,30 @@ export const usePaginatedOrders = (page: number, limit: number, filters?: any) =
     return useQuery(key, () => OrderService.getOrdersPaginated(page, limit, undefined, filters), {
         staleTime: 1000 * 60 * 5,
         // keepPreviousData: true // TODO: Implement in useQuery
+    });
+};
+
+// ------------------------------------------------------------------
+// 👥 USERS & GROUPS HOOKS
+// ------------------------------------------------------------------
+
+export const useUsers = (enabled = true) => {
+    return useQuery('users', async () => {
+        const tid = (window as any).NexusTenantId || localStorage.getItem('nexus_tid'); // Fallback melhor
+        return TenantService.getTenantUsers(tid || '');
+    }, {
+        enabled,
+        staleTime: 1000 * 60 * 5
+    });
+};
+
+export const useUserGroups = (enabled = true) => {
+    return useQuery('user_groups', async () => {
+        const tid = (window as any).NexusTenantId || localStorage.getItem('nexus_tid');
+        return TenantService.getUserGroups(tid || '');
+    }, {
+        enabled,
+        staleTime: 1000 * 60 * 30
     });
 };
 
