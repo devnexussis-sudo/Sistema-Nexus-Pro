@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
@@ -10,8 +10,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { NexusBranding } from '../ui/NexusBranding';
 import { User, UserRole, UserPermissions } from '../../types';
 import SessionStorage from '../../lib/sessionStorage';
-import { DataService } from '../../services/dataService';
-import { Button } from '../ui/Button'; // Fixed invalid import
+import { supabase } from '../../lib/supabase';
+import { Button } from '../ui/Button';
 
 interface AdminLayoutProps {
     children: React.ReactNode;
@@ -32,6 +32,35 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     const [showInbox, setShowInbox] = useState(false);
     const [healthReport, setHealthReport] = useState<any>(null);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+
+    // ✅ Health check local — sem depender de DataService.checkSystemHealth
+    const checkSystemHealth = useCallback(async () => {
+        setIsCheckingHealth(true);
+        const start = Date.now();
+        try {
+            const { error } = await supabase.from('tenants').select('id').limit(1);
+            const latency = Date.now() - start;
+            const report = {
+                status: error ? '❌ Erro' : '✅ Online',
+                latencia_ms: latency,
+                banco_de_dados: error ? `Erro: ${error.message}` : 'Conectado',
+                internet: navigator.onLine ? 'Online' : 'Offline',
+                cache_local: `${Object.keys(localStorage).filter(k => k.startsWith('NEXUS_CACHE_')).length} entradas`,
+                timestamp: new Date().toLocaleString('pt-BR'),
+            };
+            setHealthReport(report);
+        } catch (e: any) {
+            setHealthReport({
+                status: '❌ Falha',
+                erro: e.message,
+                internet: navigator.onLine ? 'Online' : 'Offline',
+                timestamp: new Date().toLocaleString('pt-BR'),
+            });
+        } finally {
+            setIsCheckingHealth(false);
+        }
+    }, []);
 
     React.useEffect(() => {
         const handleStatusChange = () => setIsOnline(navigator.onLine);
@@ -117,11 +146,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             </div>
                         )}
                         <button
-                            onClick={async () => setHealthReport(await DataService.checkSystemHealth())}
-                            className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all"
+                            onClick={checkSystemHealth}
+                            disabled={isCheckingHealth}
+                            className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all disabled:opacity-50"
                             title="Saúde do Sistema"
                         >
-                            <ShieldCheck size={20} />
+                            {isCheckingHealth
+                                ? <RefreshCw size={20} className="animate-spin" />
+                                : <ShieldCheck size={20} />}
                         </button>
                         <button
                             onClick={onManualRefresh}
@@ -235,7 +267,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             {/* ... Status Body ... */}
                             <pre className="text-xs bg-slate-100 p-4 rounded text-slate-600 mb-4 overflow-auto max-h-40">{JSON.stringify(healthReport, null, 2)}</pre>
                             <div className="flex gap-3">
-                                <Button onClick={async () => setHealthReport(await DataService.checkSystemHealth())} className="flex-1 h-11">Recarregar Status</Button>
+                                <Button onClick={checkSystemHealth} disabled={isCheckingHealth} className="flex-1 h-11">
+                                    {isCheckingHealth ? 'Verificando...' : 'Recarregar Status'}
+                                </Button>
                                 <Button variant="secondary" onClick={() => (window as any).NexusTelemetry?.downloadLogs()} className="px-6 h-11 text-slate-600 border border-slate-200">Baixar Logs</Button>
                                 <Button variant="secondary" onClick={() => window.location.reload()} className="px-6 h-11 bg-rose-50 text-rose-600 hover:bg-rose-100 border-rose-100">Reload App</Button>
                             </div>
