@@ -1,37 +1,17 @@
 
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase, adminAuthProxy } from '../lib/supabase';
 import { User, UserRole, UserWithPassword } from '../types';
 import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
 import { logger } from '../lib/logger';
+import { getCurrentTenantId as _getTenantId } from '../lib/tenantContext';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const MOCK_USERS_POOL = []; // Removing mock data dependency for clean separation, assuming cloud first
 
 export const AuthService = {
 
-    // Retrieve current tenant ID from storage
-    getCurrentTenantId: (): string | undefined => {
-        try {
-            const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-            if (techSession) {
-                const user = JSON.parse(techSession);
-                const tid = user.tenantId || user.tenant_id;
-                if (tid) return tid;
-            }
-            const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-            if (userStr) {
-                const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-                const tid = user.tenantId || user.tenant_id;
-                if (tid) return tid;
-            }
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-            if (urlTid) return urlTid;
-            return undefined;
-        } catch (e) {
-            return undefined;
-        }
-    },
+    // Retrieve current tenant ID — delegado ao singleton centralizado
+    getCurrentTenantId: (): string | undefined => _getTenantId(),
 
     getCurrentUser: async (): Promise<User | undefined> => {
         if (isCloudEnabled) {
@@ -105,13 +85,15 @@ export const AuthService = {
     checkEmailExists: async (email: string): Promise<{ exists: boolean, tenantName?: string }> => {
         if (!isCloudEnabled) return { exists: false };
         try {
-            const { data: authData } = await adminSupabase.auth.admin.listUsers();
+            // Usa adminAuthProxy (Edge Function) para listar users no Auth — operação legítima de admin
+            const { data: authData } = await adminAuthProxy.admin.listUsers();
             const existingUser = (authData.users || []).find(u => u.email?.toLowerCase() === email.toLowerCase());
 
             if (existingUser) {
                 const tenantId = existingUser.user_metadata?.tenantId;
                 if (tenantId) {
-                    const { data: tenant } = await adminSupabase
+                    // Busca nome do tenant via supabase (anon) — RLS permite leitura do próprio tenant
+                    const { data: tenant } = await supabase
                         .from('tenants')
                         .select('name')
                         .eq('id', tenantId)
@@ -131,8 +113,8 @@ export const AuthService = {
 
     // Busca dados enriquecidos do usuário (Role, Permissions, Tenant)
     _fetchFullUser: async (authId: string, email: string, metadata: any): Promise<User | undefined> => {
-        // 1. Tenta buscar na tabela 'users'
-        const { data: dbUser, error } = await adminSupabase
+        // 1. Busca na tabela 'users' — RLS garante que só retorna dados do próprio usuário
+        const { data: dbUser, error } = await supabase
             .from('users')
             .select('*')
             .eq('id', authId)
@@ -160,7 +142,7 @@ export const AuthService = {
         let groupName = '';
 
         if (dbUser.group_id) {
-            const { data: group } = await adminSupabase
+            const { data: group } = await supabase
                 .from('user_groups')
                 .select('permissions, name')
                 .eq('id', dbUser.group_id)

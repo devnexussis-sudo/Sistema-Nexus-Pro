@@ -1,65 +1,41 @@
 
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { CacheManager } from '../lib/cache';
-import { StockItem } from '../types';
+import { StockItem, Category, TechStockItem } from '../types';
+import type { DbStockItem } from '../types/database';
 import { AuthService } from './authService';
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { getCurrentTenantId } from '../lib/tenantContext';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const STORAGE_KEYS = { STOCK: 'nexus_stock_v2', CATEGORIES: 'nexus_categories_v2' };
 
-// Helper para obter tenant ID (DRY)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
 
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-        if (urlTid) return urlTid;
-
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
 
 export const StockService = {
 
-    _mapStockItemFromDB: (data: any): StockItem => {
+    _mapStockItemFromDB: (data: DbStockItem): StockItem => {
         return {
             id: data.id,
             tenantId: data.tenant_id,
             code: data.code,
-            externalCode: data.external_code || data.externalCode || '',
+            externalCode: data.external_code ?? '',
             description: data.description,
             category: data.category,
             location: data.location,
-            quantity: data.quantity || 0,
-            minQuantity: data.min_quantity || data.minQuantity || 0,
-            costPrice: data.cost_price || data.costPrice || 0,
-            sellPrice: data.sell_price || data.sellPrice || 0,
-            freightCost: data.freight_cost || data.freightCost || 0,
-            taxCost: data.tax_cost || data.taxCost || 0,
-            unit: data.unit_measure || data.unit || 'UN',
-            lastRestockDate: data.last_restock_date || data.lastRestockDate,
+            quantity: data.quantity ?? 0,
+            minQuantity: data.min_quantity ?? 0,
+            costPrice: data.cost_price ?? 0,
+            sellPrice: data.sell_price ?? 0,
+            freightCost: data.freight_cost ?? 0,
+            taxCost: data.tax_cost ?? 0,
+            unit: (data.unit as StockItem['unit']) ?? 'UN',
+            lastRestockDate: data.last_restock_date,
             active: data.active
         };
     },
 
     // --- Categorias de Estoque ---
-    getCategories: async (): Promise<any[]> => {
+    getCategories: async (): Promise<Category[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled) {
             const { data, error } = await supabase.from('stock_categories')
@@ -77,7 +53,7 @@ export const StockService = {
         return [];
     },
 
-    createCategory: async (category: any): Promise<void> => {
+    createCategory: async (category: Omit<Category, 'id'>): Promise<void> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
             const { error } = await supabase.from('stock_categories').insert([{
@@ -108,7 +84,8 @@ export const StockService = {
             const { data, error } = await supabase.from('stock_items')
                 .select('*')
                 .eq('tenant_id', tenantId)
-                .order('description');
+                .order('description')
+                .limit(100);
 
             if (!error && data) {
                 return data.map(item => ({
@@ -203,7 +180,7 @@ export const StockService = {
     transferToTech: async (techId: string, itemId: string, quantity: number): Promise<void> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            const client = adminSupabase;
+            const client = supabase; // RLS garante isolamento por tenant
 
             // 1. Reduz estoque geral
             const { data: item } = await client.from('stock_items').select('quantity').eq('id', itemId).single();
@@ -246,10 +223,10 @@ export const StockService = {
         }
     },
 
-    getTechStock: async (techId: string): Promise<any[]> => {
+    getTechStock: async (techId: string): Promise<{ id: string; stockItemId: string; quantity: number; item: { description: string; code: string; sellPrice: number } | null }[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            const { data, error } = await adminSupabase
+            const { data, error } = await supabase
                 .from('tech_stock')
                 .select('*, stock_items(*)')
                 .eq('user_id', techId)
@@ -257,13 +234,13 @@ export const StockService = {
 
             if (error) throw error;
 
-            return data.map((ts: any) => ({
-                id: ts.id,
-                stockItemId: ts.stock_item_id,
+            return (data || []).map((ts: Record<string, unknown> & { stock_items?: Record<string, unknown> }) => ({
+                id: ts.id as string,
+                stockItemId: ts.stock_item_id as string,
                 quantity: Number(ts.quantity),
                 item: ts.stock_items ? {
-                    description: ts.stock_items.description,
-                    code: ts.stock_items.code,
+                    description: ts.stock_items.description as string,
+                    code: ts.stock_items.code as string,
                     sellPrice: Number(ts.stock_items.sell_price)
                 } : null
             }));
@@ -275,7 +252,7 @@ export const StockService = {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
             // 1. Verificar se o técnico tem o item e em quantidade suficiente
-            const { data: techItems, error: fetchError } = await adminSupabase
+            const { data: techItems, error: fetchError } = await supabase
                 .from('tech_stock')
                 .select('*')
                 .eq('user_id', techId)
@@ -290,7 +267,7 @@ export const StockService = {
             const currentTechQty = Number(techItems[0].quantity);
 
             // 2. Deduzir do estoque do técnico
-            const { error: updateError } = await adminSupabase
+            const { error: updateError } = await supabase
                 .from('tech_stock')
                 .update({
                     quantity: currentTechQty - quantity,
@@ -301,7 +278,7 @@ export const StockService = {
             if (updateError) throw updateError;
 
             // 3. Registrar a movimentação consumida
-            const { error: moveError } = await adminSupabase
+            const { error: moveError } = await supabase
                 .from('stock_movements')
                 .insert([{
                     tenant_id: tenantId,

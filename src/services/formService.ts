@@ -1,38 +1,13 @@
 
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { FormTemplate } from '../types';
 import { CacheManager } from '../lib/cache';
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { getCurrentTenantId } from '../lib/tenantContext';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const STORAGE_KEYS = { TEMPLATES: 'nexus_templates_v2' };
 
-// Helper para obter tenant ID (DRY)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
 
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-        if (urlTid) return urlTid;
-
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
 
 export const FormService = {
 
@@ -64,7 +39,8 @@ export const FormService = {
                     .from('service_types')
                     .select('*')
                     .eq('tenant_id', tenantId)
-                    .order('name');
+                    .order('name')
+                    .limit(100);
 
                 if (error) {
                     console.error('[FormService] Erro ao buscar service_types:', error);
@@ -95,10 +71,24 @@ export const FormService = {
             if (!tenantId) return [];
 
             try {
-                const { data, error } = await supabase
+                let result = await supabase
                     .from('form_templates')
                     .select('*')
-                    .eq('tenant_id', tenantId);
+                    .eq('tenant_id', tenantId)
+                    .order('created_at', { ascending: false })
+                    .limit(100);
+
+                // Se falhou por falta de coluna created_at, tenta novamente sem ordenar
+                if (result.error && (result.error.message.includes('created_at') || result.error.code === '42703')) {
+                    console.warn('[FormService] Coluna created_at ausente em form_templates, tentando sem ordenação.');
+                    result = await supabase
+                        .from('form_templates')
+                        .select('*')
+                        .eq('tenant_id', tenantId)
+                        .limit(100);
+                }
+
+                const { data, error } = result;
 
                 if (error) {
                     console.warn('[FormService] form_templates não encontrado:', error.message);
@@ -251,10 +241,24 @@ export const FormService = {
             if (!tenantId) return [];
 
             try {
-                const { data, error } = await supabase
+                let result = await supabase
                     .from('activation_rules')
                     .select('*')
-                    .eq('tenant_id', tenantId);
+                    .eq('tenant_id', tenantId)
+                    .order('created_at', { ascending: false })
+                    .limit(100);
+
+                // Se falhou por falta de coluna created_at, tenta novamente sem ordenar
+                if (result.error && (result.error.message.includes('created_at') || result.error.code === '42703')) {
+                    console.warn('[FormService] Coluna created_at ausente em activation_rules, tentando sem ordenação.');
+                    result = await supabase
+                        .from('activation_rules')
+                        .select('*')
+                        .eq('tenant_id', tenantId)
+                        .limit(100);
+                }
+
+                const { data, error } = result;
 
                 if (error) {
                     console.warn('[FormService] activation_rules não encontrado:', error.message);

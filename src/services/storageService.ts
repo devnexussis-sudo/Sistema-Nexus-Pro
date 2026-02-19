@@ -1,37 +1,12 @@
 
 import { supabase } from '../lib/supabase';
 import { DataService } from './dataService'; // Temporarily needed for tenant ID access helper if not moved yet, but ideally we move logic here.
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { getCurrentTenantId } from '../lib/tenantContext';
 import { logger } from '../lib/logger';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-// Helper para obter tenant ID (dup de DataService por enquanto para desacoplar)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
 
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-        if (urlTid) return urlTid;
-
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
 
 export interface UploadedFile {
     id: string;

@@ -1,38 +1,14 @@
 
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { CashFlowEntry } from '../types';
 import { AuthService } from './authService';
 import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
 import { logger } from '../lib/logger';
+import { getCurrentTenantId } from '../lib/tenantContext';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-// Helper para obter tenant ID (DRY)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
 
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-        if (urlTid) return urlTid;
-
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
 
 export const FinancialService = {
 
@@ -88,7 +64,7 @@ export const FinancialService = {
             if (filters?.start) query = query.gte('entry_date', filters.start);
             if (filters?.end) query = query.lte('entry_date', filters.end);
 
-            const { data, error } = await query.order('entry_date', { ascending: false });
+            const { data, error } = await query.order('entry_date', { ascending: false }).limit(100);
             if (error) throw error;
             return data.map(d => ({
                 id: d.id,

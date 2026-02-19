@@ -17,8 +17,8 @@
  * - StorageService
  */
 
-import { supabase, adminSupabase } from '../lib/supabase';
-import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
+import { supabase } from '../lib/supabase';
+import { getCurrentTenantId } from '../lib/tenantContext';
 
 // Import Specific Services which are now the "Real" Services
 import { AuthService } from './authService';
@@ -47,7 +47,7 @@ export const STORAGE_KEYS = {
   USER_GROUPS: 'nexus_user_groups_db'
 };
 
-const getTenantKey = (key: string) => `tenant_${AuthService.getCurrentTenantId() || 'default'}_${key}`;
+const getTenantKey = (key: string) => `tenant_${getCurrentTenantId() || 'default'}_${key}`;
 
 // Helper methods that were in DataService
 const getStorage = <T>(key: string, defaultValue: T): T => {
@@ -76,31 +76,13 @@ export const DataService = {
   setStorage,
 
   // 🛡️ Nexus Client Resolver (Legacy Accessor)
+  // ⛔ adminSupabase REMOVIDO: impersonation não deve bypassar RLS.
+  // O isolamento de tenant é garantido pelo RLS no banco.
   getServiceClient: () => {
-    const isImpersonating = SessionStorage.get('is_impersonating') === true;
-    if (isImpersonating) return adminSupabase;
     return supabase;
   },
 
-  getCurrentTenantId: (): string | undefined => {
-    // 1. Tentar AuthService (Fonte da verdade)
-    const authTid = AuthService.getCurrentTenantId();
-    if (authTid) return authTid;
-
-    // 2. Fallback: SessionStorage / GlobalStorage (Resiliência)
-    try {
-      const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-      if (userStr) {
-        const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-        const tid = user.tenantId || user.tenant_id;
-        if (tid) return tid;
-      }
-    } catch (e) {
-      console.warn('DataService: Error reading storage during tenant check', e);
-    }
-
-    return undefined;
-  },
+  getCurrentTenantId: (): string | undefined => getCurrentTenantId(),
 
   forceGlobalRefresh: () => {
     console.log('🌪️ Forcing Global Refresh (Legacy)...');

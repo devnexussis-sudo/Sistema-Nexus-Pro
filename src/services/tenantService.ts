@@ -1,58 +1,36 @@
 
-import { adminSupabase, supabase } from '../lib/supabase';
+import { supabase, adminAuthProxy } from '../lib/supabase';
 import { CacheManager } from '../lib/cache';
-import { UserRole } from '../types';
+import { UserRole, User, UserGroup } from '../types';
+import type { DbTenant, DbTenantStats, DbTenantInsert, DbUser, DbUserInsert, DbUserGroup, DbUserGroupInsert } from '../types/database';
 import { StorageService } from './storageService';
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { getCurrentTenantId } from '../lib/tenantContext';
 import { logger } from '../lib/logger';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-// Helper para obter tenant ID (DRY)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
 
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-        if (urlTid) return urlTid;
-
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
 
 export const TenantService = {
 
     // --- TENANT MANAGEMENT (SUPER ADMIN / MASTER) ---
 
-    getTenants: async (): Promise<any[]> => {
+    getTenants: async (): Promise<DbTenantStats[]> => {
         if (isCloudEnabled) {
             try {
                 const cacheKey = 'master_tenants_list';
-                const cached = CacheManager.get<any[]>(cacheKey);
+                const cached = CacheManager.get<DbTenantStats[]>(cacheKey);
                 if (cached) return cached;
 
                 return CacheManager.deduplicate(cacheKey, async () => {
-                    // 1. Tenta buscar da View (Alta Performance)
-                    const { data: viewData, error: viewError } = await adminSupabase.from('vw_tenant_stats').select('*').order('name');
+                    const { data: viewData, error: viewError } = await supabase
+                        .from('vw_tenant_stats')
+                        .select('*')
+                        .order('name');
 
                     if (!viewError && viewData) {
                         CacheManager.set(cacheKey, viewData, CacheManager.TTL.SHORT);
-                        return viewData;
+                        return viewData as DbTenantStats[];
                     }
                     return [];
                 });
@@ -65,7 +43,7 @@ export const TenantService = {
         return [];
     },
 
-    getTenantById: async (id?: string | null): Promise<any> => {
+    getTenantById: async (id?: string | null): Promise<DbTenant | null> => {
         if (isCloudEnabled) {
             const tid = id || getCurrentTenantId();
 
@@ -113,21 +91,21 @@ export const TenantService = {
         return null;
     },
 
-    createTenant: async (tenant: any): Promise<any> => {
+    createTenant: async (tenant: Partial<DbTenantInsert> & { initialPassword?: string; adminEmail?: string; adminName?: string }): Promise<DbTenant> => {
         if (isCloudEnabled) {
             const { initialPassword, ...tenantData } = tenant;
             const initialPass = initialPassword || 'Nexus2025!';
 
             // 🛠️ Nexus Schema Cleaner: Remove campos camelCase
-            const processedTenant: any = {};
+            const processedTenant: Partial<DbTenantInsert> & Record<string, unknown> = {};
             Object.keys(tenantData).forEach(key => {
                 const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-                if (key !== snakeKey && tenantData[snakeKey] !== undefined) return;
-                processedTenant[snakeKey] = tenantData[key];
+                if (key !== snakeKey && (tenantData as Record<string, unknown>)[snakeKey] !== undefined) return;
+                processedTenant[snakeKey] = (tenantData as Record<string, unknown>)[key];
             });
 
             if (processedTenant.company_name && !processedTenant.name) {
-                processedTenant.name = processedTenant.company_name;
+                processedTenant.name = processedTenant.company_name as string;
             }
 
             if (processedTenant.logo_url && processedTenant.logo_url.startsWith('data:image')) {
@@ -136,8 +114,8 @@ export const TenantService = {
 
             console.log("🚀 Provisionando Nexus Tenant:", processedTenant);
 
-            // 1. Criar a empresa no Banco
-            const { data, error } = await adminSupabase.from('tenants').insert([processedTenant]).select().single();
+            // 1. Criar a empresa no Banco — supabase (anon) com RLS
+            const { data, error } = await supabase.from('tenants').insert([processedTenant]).select().single();
 
             if (error) {
                 console.error("❌ Nexus Tenant Create Error:", error);
@@ -180,7 +158,7 @@ export const TenantService = {
                 }
             };
 
-            const { data: groupData } = await adminSupabase.from('user_groups').insert([adminGroupData]).select().single();
+            const { data: groupData } = await supabase.from('user_groups').insert([adminGroupData]).select().single();
             if (groupData) adminGroupId = groupData.id;
 
             // Operadores
@@ -204,17 +182,17 @@ export const TenantService = {
                     financial: { read: true, update: false }
                 }
             };
-            await adminSupabase.from('user_groups').insert([opGroup]);
+            await supabase.from('user_groups').insert([opGroup]);
         } catch (e) {
             console.warn("Groups provision error:", e);
         }
 
         // Criar usuário ADMIN inicial
-        const adminEmail = processedTenant.admin_email || (processedTenant as any).adminEmail;
+        const adminEmail = (processedTenant.admin_email || processedTenant.adminEmail) as string | undefined;
         if (adminEmail) {
             try {
-                // Create Auth user
-                const { data: authUser } = await adminSupabase.auth.admin.createUser({
+                // Cria usuário Auth via adminAuthProxy (Edge Function)
+                const { data: authUser } = await adminAuthProxy.admin.createUser({
                     email: adminEmail.toLowerCase(),
                     password: initialPass,
                     user_metadata: {
@@ -238,7 +216,7 @@ export const TenantService = {
                         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(adminEmail || 'Admin')}&backgroundColor=4f46e5`,
                         permissions: {}
                     };
-                    await adminSupabase.from('users').upsert([dbUser]);
+                    await supabase.from('users').upsert([dbUser]);
                 }
             } catch (err) {
                 console.error("Failed to create initial admin user:", err);
@@ -246,25 +224,25 @@ export const TenantService = {
         }
     },
 
-    updateTenant: async (tenant: any): Promise<any> => {
+    updateTenant: async (tenant: Partial<DbTenant> & { id: string; logoUrl?: string }): Promise<DbTenant> => {
         let { id, ...rest } = tenant;
         if (isCloudEnabled) {
             if (rest.logo_url && rest.logo_url.startsWith('data:image')) {
                 rest.logo_url = await StorageService.uploadFile(rest.logo_url, `tenants/${id}/logo`);
             }
-            if (rest.logoUrl && rest.logoUrl.startsWith('data:image')) {
-                rest.logoUrl = await StorageService.uploadFile(rest.logoUrl, `tenants/${id}/logo`);
+            if (rest.logoUrl && (rest.logoUrl as string).startsWith('data:image')) {
+                rest.logo_url = await StorageService.uploadFile(rest.logoUrl as string, `tenants/${id}/logo`);
             }
 
             // 🛠️ Nexus Schema Cleaner
-            const processedUpdate: any = {};
+            const processedUpdate: Partial<DbTenantInsert> & Record<string, unknown> = {};
             Object.keys(rest).forEach(key => {
                 const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-                if (key !== snakeKey && rest[snakeKey] !== undefined) return;
-                processedUpdate[snakeKey] = rest[key];
+                if (key !== snakeKey && (rest as Record<string, unknown>)[snakeKey] !== undefined) return;
+                processedUpdate[snakeKey] = (rest as Record<string, unknown>)[key];
             });
 
-            const { data, error } = await adminSupabase
+            const { data, error } = await supabase
                 .from('tenants')
                 .update(processedUpdate)
                 .eq('id', id)
@@ -286,24 +264,27 @@ export const TenantService = {
 
         try {
             // 1. Obter todos os usuários vinculados à empresa
-            const { data: users } = await adminSupabase.from('users').select('id').eq('tenant_id', tenantId);
+            const { data: users } = await supabase.from('users').select('id').eq('tenant_id', tenantId);
 
             if (users && users.length > 0) {
                 console.log(`👤 Removendo ${users.length} usuários do Supabase Auth...`);
                 for (const user of users) {
-                    await adminSupabase.auth.admin.deleteUser(user.id).catch(() => { });
+                    // Deleta do Auth via Edge Function
+                    await adminAuthProxy.admin.deleteUser(user.id).catch(() => { });
                 }
             }
 
-            // 2. Remover todos os dados operacionais em paralelo (Cascade manual se FKs não estiverem setadas com cascade delete)
+            // 2. Remover todos os dados operacionais (cascade manual)
             const tables = ['orders', 'customers', 'equipments', 'stock_items', 'form_templates', 'contracts', 'quotes', 'technicians', 'users', 'user_groups'];
 
             for (const table of tables) {
-                await adminSupabase.from(table).delete().eq('tenant_id', tenantId).catch(() => { });
+                try {
+                    await supabase.from(table).delete().eq('tenant_id', tenantId);
+                } catch { /* ignora erros de tabelas inexistentes */ }
             }
 
             // 3. Por fim, deletar o registro da empresa
-            const { error: tenantDeleteError } = await adminSupabase.from('tenants').delete().eq('id', tenantId);
+            const { error: tenantDeleteError } = await supabase.from('tenants').delete().eq('id', tenantId);
             if (tenantDeleteError) throw tenantDeleteError;
 
         } catch (err: any) {
@@ -314,26 +295,26 @@ export const TenantService = {
 
     // --- USER MANAGEMENT (TENANT LEVEL) ---
 
-    getTenantUsers: async (tenantId: string): Promise<any[]> => {
+    getTenantUsers: async (tenantId: string): Promise<User[]> => {
         if (!tenantId) return [];
         if (isCloudEnabled) {
-            const { data, error } = await adminSupabase
+            const { data, error } = await supabase
                 .from('users')
                 .select('*')
                 .eq('tenant_id', tenantId)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .limit(100);
 
             if (error) {
                 console.error("Error fetching tenant users:", error);
                 return [];
             }
 
-            // Map to frontend User model if needed (though component handles raw data well, standardizing is better)
-            return data.map(u => ({
+            return (data as DbUser[]).map(u => ({
                 id: u.id,
                 name: u.name,
                 email: u.email,
-                role: u.role,
+                role: u.role as UserRole,
                 active: u.active,
                 avatar: u.avatar,
                 groupId: u.group_id,
@@ -344,10 +325,10 @@ export const TenantService = {
         return [];
     },
 
-    getUserGroups: async (tenantId: string): Promise<any[]> => {
+    getUserGroups: async (tenantId: string): Promise<UserGroup[]> => {
         if (!tenantId) return [];
         if (isCloudEnabled) {
-            const { data, error } = await adminSupabase
+            const { data, error } = await supabase
                 .from('user_groups')
                 .select('*')
                 .eq('tenant_id', tenantId)
@@ -357,29 +338,29 @@ export const TenantService = {
                 console.error("Error fetching user groups:", error);
                 return [];
             }
-            return data.map(g => ({
+            return (data as DbUserGroup[]).map(g => ({
                 id: g.id,
                 name: g.name,
                 description: g.description,
                 permissions: g.permissions,
                 isSystem: g.is_system,
-                active: true // Groups usually don't have active status in DB yet, default to true
+                active: true
             }));
         }
         return [];
     },
 
-    createUserGroup: async (groupData: any): Promise<any> => {
+    createUserGroup: async (groupData: Omit<UserGroup, 'id'>): Promise<UserGroup> => {
         if (isCloudEnabled) {
-            const dbGroup = {
+            const dbGroup: DbUserGroupInsert = {
                 name: groupData.name,
                 description: groupData.description,
                 permissions: groupData.permissions,
-                is_system: groupData.isSystem || false,
-                tenant_id: groupData.tenantId
+                is_system: groupData.isSystem ?? false,
+                tenant_id: groupData.tenantId ?? ''
             };
 
-            const { data, error } = await adminSupabase
+            const { data, error } = await supabase
                 .from('user_groups')
                 .insert([dbGroup])
                 .select()
@@ -398,15 +379,15 @@ export const TenantService = {
         return groupData;
     },
 
-    updateUserGroup: async (groupData: any): Promise<any> => {
+    updateUserGroup: async (groupData: Pick<UserGroup, 'id' | 'name' | 'description' | 'permissions'>): Promise<UserGroup> => {
         if (isCloudEnabled) {
-            const dbGroup = {
+            const dbGroup: Pick<DbUserGroupInsert, 'name' | 'description' | 'permissions'> = {
                 name: groupData.name,
                 description: groupData.description,
                 permissions: groupData.permissions
             };
 
-            const { data, error } = await adminSupabase
+            const { data, error } = await supabase
                 .from('user_groups')
                 .update(dbGroup)
                 .eq('id', groupData.id)
@@ -428,7 +409,7 @@ export const TenantService = {
 
     deleteUserGroup: async (groupId: string): Promise<void> => {
         if (isCloudEnabled) {
-            const { error } = await adminSupabase
+            const { error } = await supabase
                 .from('user_groups')
                 .delete()
                 .eq('id', groupId);
@@ -436,12 +417,11 @@ export const TenantService = {
         }
     },
 
-    createUser: async (userData: any): Promise<any> => {
+    createUser: async (userData: Omit<User, 'id'> & { password?: string; tenantId: string; groupId?: string }): Promise<DbUser> => {
         // This usually involves creating Auth User + DB User
-        // For simplicity and security, we often use a server function, but here using adminSupabase
         if (isCloudEnabled) {
-            // 1. Create Auth User
-            const { data: authUser, error: authError } = await adminSupabase.auth.admin.createUser({
+            // 1. Cria usuário Auth via adminAuthProxy (Edge Function)
+            const { data: authUser, error: authError } = await adminAuthProxy.admin.createUser({
                 email: userData.email,
                 password: userData.password,
                 email_confirm: true,
@@ -469,7 +449,7 @@ export const TenantService = {
                 permissions: userData.permissions
             };
 
-            const { data, error } = await adminSupabase
+            const { data, error } = await supabase
                 .from('users')
                 .insert([dbUser])
                 .select()
@@ -481,7 +461,7 @@ export const TenantService = {
         return userData;
     },
 
-    updateUser: async (userData: any): Promise<any> => {
+    updateUser: async (userData: Partial<User> & { id: string; password?: string; groupId?: string }): Promise<DbUser> => {
         if (isCloudEnabled) {
             const dbUser = {
                 name: userData.name,
@@ -491,7 +471,7 @@ export const TenantService = {
                 permissions: userData.permissions
             };
 
-            const { data, error } = await adminSupabase
+            const { data, error } = await supabase
                 .from('users')
                 .update(dbUser)
                 .eq('id', userData.id)
@@ -502,7 +482,7 @@ export const TenantService = {
 
             // Optionally update Auth Metadata if needed
             if (userData.password) {
-                await adminSupabase.auth.admin.updateUserById(userData.id, { password: userData.password });
+                await adminAuthProxy.admin.updateUserById(userData.id, { password: userData.password });
             }
 
             return data;
@@ -512,10 +492,10 @@ export const TenantService = {
 
     deleteUser: async (userId: string): Promise<void> => {
         if (isCloudEnabled) {
-            // Delete from Auth (Cascade should handle DB, but we do manual just in case or if cascade missing)
-            await adminSupabase.auth.admin.deleteUser(userId);
-            // Verify DB deletion
-            await adminSupabase.from('users').delete().eq('id', userId);
+            // Deleta do Auth via Edge Function
+            await adminAuthProxy.admin.deleteUser(userId);
+            // Deleta do banco — RLS garante que só admin do próprio tenant pode deletar
+            await supabase.from('users').delete().eq('id', userId);
         }
     },
 
@@ -523,7 +503,7 @@ export const TenantService = {
 
     createSystemNotification: async (notification: { title: string, content: string, type: 'broadcast' | 'targeted', targetTenants?: string[], priority: string }) => {
         if (isCloudEnabled) {
-            const { data, error } = await adminSupabase.from('system_notifications').insert([{
+            const { data, error } = await supabase.from('system_notifications').insert([{
                 title: notification.title,
                 content: notification.content,
                 type: notification.type,
