@@ -1,5 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
+import type { DbUserInsert } from '../types/database';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -12,35 +13,81 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const safeUrl = supabaseUrl || 'https://placeholder.supabase.co';
 const safeKey = supabaseAnonKey || 'placeholder';
 
+// 🛡️ Enterprise-Grade In-Process Mutex
+// Implementa uma fila de execução para garantir serialização de operações críticas (Auth),
+// substituindo o navigator.locks que apresenta instabilidade em conjunto com Service Workers.
+// Padrão: "Mutex com Queue e Fail-Safe Timeout".
+
+const lockQueue: Record<string, Promise<unknown>> = {};
+
+const processLock = async (name: string, acquireTimeout: number, fn: () => Promise<unknown>) => {
+    // 1. Recupera a promessa anterior da fila (ou resolve imediatamente se vazia)
+    const previousOperation = lockQueue[name] || Promise.resolve();
+
+    // 2. Cria fail-safe para timeout (evita Deadlock infinito)
+    // Se acquireTimeout for 0, usa valor padrão de 10s para segurança
+    const timeoutMs = acquireTimeout > 0 ? acquireTimeout : 10000;
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const currentOperation = (async () => {
+        try {
+            // Espera a operação anterior terminar (com timeout para não ficar preso pra sempre)
+            await Promise.race([
+                previousOperation.catch(() => { }), // Ignora erros da anterior
+                new Promise((_, reject) => {
+                    timeoutId = setTimeout(() => reject(new Error(`⚠️ Lock Timeout: ${name}`)), timeoutMs);
+                })
+            ]);
+
+            // 3. Executa a função real (Critical Section)
+            return await fn();
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+        }
+    })();
+
+    // 4. Atualiza a fila: a próxima operação vai esperar esta terminar (mesmo que falhe)
+    // O catch aqui garante que a fila nunca "quebre" por erro de uma operação
+    lockQueue[name] = currentOperation.catch(() => { });
+
+    return currentOperation;
+};
+
 // Cliente Padrão (Anon Key) com resiliência avançada
 export const supabase = createClient(safeUrl, safeKey, {
     auth: {
         storageKey: 'nexus_shared_auth',
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true
+        detectSessionInUrl: true,
+        lock: processLock,
     },
     global: {
         fetch: (url: RequestInfo | URL, init?: RequestInit) => {
-            // Custom fetch with timeout to prevent hanging requests
+            // 🛡️ AbortController Memory Leak Fix
             const controller = new AbortController();
             const originalSignal = init?.signal;
 
-            // 🛡️ Chain the abort signal if one was provided by Supabase
+            const onOriginalAbort = () => controller.abort();
             if (originalSignal) {
                 if (originalSignal.aborted) {
                     controller.abort();
                 } else {
-                    originalSignal.addEventListener('abort', () => controller.abort());
+                    originalSignal.addEventListener('abort', onOriginalAbort);
                 }
             }
 
-            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout for better stability
+            // Timeout de segurança (30s)
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
 
             return fetch(url, {
                 ...init,
                 signal: controller.signal,
-            }).finally(() => clearTimeout(timeoutId));
+            }).finally(() => {
+                clearTimeout(timeoutId);
+                originalSignal?.removeEventListener('abort', onOriginalAbort);
+            });
         }
     },
     realtime: {
@@ -90,9 +137,8 @@ export async function ensureValidSession(): Promise<boolean> {
 }
 
 // 🛡️ Secure Admin Proxy
-// Redireciona chamadas AUTH sensíveis para o Backend (/api/admin-users)
-// 🛡️ Secure Admin Proxy
-// Redireciona chamadas AUTH sensíveis para Edge Function segura
+// Redireciona chamadas AUTH sensíveis para Edge Function segura.
+// NÃO usa service_role key no frontend. NÃO bypassa RLS.
 const EDGE_FUNCTION_URL = import.meta.env.VITE_EDGE_FUNCTION_URL ||
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-operations`;
 
@@ -104,9 +150,40 @@ async function getUserToken(): Promise<string | null> {
     return session?.access_token || null;
 }
 
+// ─── Tipos do adminAuthProxy ─────────────────────────────────
+
+interface AdminCreateUserAttributes {
+    email: string;
+    password?: string;
+    email_confirm?: boolean;
+    user_metadata?: {
+        name?: string;
+        role?: string;
+        tenantId?: string;
+        avatar?: string;
+        [key: string]: unknown;
+    };
+}
+
+interface AdminUpdateUserAttributes {
+    password?: string;
+    email?: string;
+    user_metadata?: Record<string, unknown>;
+}
+
+interface AdminUserResult {
+    data: { user: DbUserInsert | null };
+    error: Error | null;
+}
+
+interface AdminListUsersResult {
+    data: { users: DbUserInsert[] };
+    error: string | Error | null;
+}
+
 const adminAuthProxy = {
     admin: {
-        createUser: async (attributes: any) => {
+        createUser: async (attributes: AdminCreateUserAttributes): Promise<AdminUserResult> => {
             try {
                 const token = await getUserToken();
                 if (!token) {
@@ -134,7 +211,7 @@ const adminAuthProxy = {
             }
         },
 
-        deleteUser: async (userId: string) => {
+        deleteUser: async (userId: string): Promise<{ data: unknown; error: Error | null }> => {
             try {
                 const token = await getUserToken();
                 if (!token) {
@@ -161,7 +238,7 @@ const adminAuthProxy = {
             }
         },
 
-        listUsers: async () => {
+        listUsers: async (): Promise<AdminListUsersResult> => {
             try {
                 const token = await getUserToken();
                 if (!token) {
@@ -188,7 +265,7 @@ const adminAuthProxy = {
             }
         },
 
-        updateUserById: async (userId: string, updates: any) => {
+        updateUserById: async (userId: string, updates: AdminUpdateUserAttributes): Promise<AdminUserResult> => {
             try {
                 const token = await getUserToken();
                 if (!token) {
@@ -217,23 +294,19 @@ const adminAuthProxy = {
     }
 };
 
-// Admin Client Híbrido (100% Seguro Frontend)
-// Não usa mais VITE_SUPABASE_SERVICE_ROLE_KEY
-export const adminSupabase = {
-    ...supabase,
-    auth: {
-        ...supabase.auth,
-        admin: adminAuthProxy.admin
-    },
-    from: supabase.from,   // Herda do cliente normal
-    rpc: supabase.rpc,     // 🟢 FIX: Adicionado método RPC
-    storage: supabase.storage,
-    channel: supabase.channel,
-    functions: supabase.functions,
-    realtime: supabase.realtime
-} as any;
+/**
+ * 🔒 adminAuthProxy — Proxy seguro para operações de Auth Admin.
+ * Redireciona chamadas para Edge Functions autenticadas.
+ * NÃO bypassa RLS. NÃO usa service role key no frontend.
+ * Use apenas para: createUser, deleteUser, updateUserById, listUsers.
+ */
+export { adminAuthProxy };
 
-// Cliente Público
+/**
+ * publicSupabase — cliente anon sem sessão persistida.
+ * Usado apenas para RPCs públicas (ex: approve_quote_public).
+ * O RLS ainda se aplica via SECURITY DEFINER nas funções.
+ */
 export const publicSupabase = createClient(safeUrl, safeKey, {
     auth: {
         persistSession: false,
@@ -241,3 +314,9 @@ export const publicSupabase = createClient(safeUrl, safeKey, {
         detectSessionInUrl: false
     }
 });
+
+// ⛔ adminSupabase foi REMOVIDO intencionalmente.
+// Motivo: era um objeto híbrido que herdava `from/rpc` do cliente anon,
+// dando falsa impressão de bypass de RLS e criando confusão arquitetural.
+// Substitua todos os usos de `adminSupabase.from(...)` por `supabase.from(...)`.
+// Substitua todos os usos de `adminSupabase.auth.admin.*` por `adminAuthProxy.admin.*`.

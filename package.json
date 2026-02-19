@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
+    "db:sync": "npx supabase gen types typescript --project-id esrwwaoirlhcptbxtlsu > src/types/supabase.ts",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --ext .ts,.tsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",

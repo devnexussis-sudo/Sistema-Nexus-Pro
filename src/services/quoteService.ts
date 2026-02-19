@@ -1,38 +1,13 @@
 
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase, publicSupabase } from '../lib/supabase';
 import { StorageService } from './storageService';
 import { CacheManager } from '../lib/cache';
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { getCurrentTenantId } from '../lib/tenantContext';
 import { logger } from '../lib/logger';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-// Helper para obter tenant ID (DRY)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
 
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-        if (urlTid) return urlTid;
-
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
 
 export const QuoteService = {
 
@@ -80,7 +55,8 @@ export const QuoteService = {
                 const { data, error } = await supabase.from('quotes')
                     .select('*')
                     .eq('tenant_id', tenantId)
-                    .order('created_at', { ascending: false });
+                    .order('created_at', { ascending: false })
+                    .limit(100);
 
                 if (error) {
                     console.error("Erro ao buscar orçamentos:", error);
@@ -233,10 +209,10 @@ export const QuoteService = {
                 console.log(`[📝 Nexus Approve] Assinatura enviada com sucesso!`);
             }
 
-            console.log(`[📝 Nexus Approve] Chamando função RPC approve_quote_public (BYPASS RLS)...`);
+            console.log(`[📝 Nexus Approve] Chamando função RPC approve_quote_public (SECURITY DEFINER)...`);
 
-            // 🚀 USA RPC FUNCTION QUE BYPASSA RLS
-            const { data, error } = await adminSupabase
+            // 🚀 USA publicSupabase (sem sessão) — a função é SECURITY DEFINER e valida o token público
+            const { data, error } = await publicSupabase
                 .rpc('approve_quote_public', {
                     p_quote_id: id,
                     p_document: approvalData.document,
@@ -274,10 +250,10 @@ export const QuoteService = {
                 finalSignature = await StorageService.uploadFile(finalSignature, `quotes/${id}/rejections`);
             }
 
-            console.log(`[🚫 Nexus Reject] Chamando RPC reject_quote_public (BYPASS RLS)...`);
+            console.log(`[🚫 Nexus Reject] Chamando RPC reject_quote_public (SECURITY DEFINER)...`);
 
-            // 🚀 USA RPC FUNCTION QUE BYPASSA RLS
-            const { data, error } = await adminSupabase
+            // 🚀 USA publicSupabase (sem sessão) — a função é SECURITY DEFINER e valida o token público
+            const { data, error } = await publicSupabase
                 .rpc('reject_quote_public', {
                     p_quote_id: id,
                     p_document: rejectionData.document,

@@ -1,82 +1,68 @@
 
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { CacheManager } from '../lib/cache';
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { Contract } from '../types';
+import type { DbContract } from '../types/database';
+import { getCurrentTenantId } from '../lib/tenantContext';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-// Helper para obter tenant ID (DRY)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-        if (urlTid) return urlTid;
-
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
+/** Campos adicionais de contrato comercial (não estão no types/index.ts) */
+interface ContractExtended extends Contract {
+    contractValue?: number;
+    includesParts?: boolean;
+    visitCount?: number;
+    contractTerms?: string;
+}
 
 export const ContractService = {
 
-    _mapContractFromDB: (data: any): any => {
+    _mapContractFromDB: (data: DbContract & Record<string, unknown>): ContractExtended => {
         return {
             id: data.id,
             tenantId: data.tenant_id,
-            // O id agora é o pmocCode, eliminamos a redundância
-            pmocCode: data.id,
+            pmocCode: data.id as string,
             title: data.title,
             description: data.description,
-            customerName: data.customer_name || data.customerName,
-            customerAddress: data.customer_address || data.customerAddress,
-            status: data.status,
-            priority: data.priority,
-            operationType: data.operation_type || data.operationType,
-            scheduledDate: data.scheduled_date || data.scheduledDate,
+            customerName: data.customer_name,
+            customerAddress: data.customer_address,
+            status: data.status as Contract['status'],
+            priority: data.priority as Contract['priority'],
+            operationType: data.operation_type ?? '',
+            scheduledDate: data.scheduled_date,
             periodicity: data.periodicity,
-            maintenanceDay: data.maintenance_day || data.maintenanceDay,
-            equipmentIds: data.equipment_ids || data.equipmentIds || [],
-            logs: data.logs || [],
-            alertSettings: data.alert_settings || data.alertSettings,
-            // Novos campos comerciais
-            contractValue: data.contract_value || data.contractValue || 0,
-            includesParts: data.includes_parts || data.includesParts || false,
-            visitCount: data.visit_count || data.visitCount || 1,
-            contractTerms: data.contract_terms || data.contractTerms || '',
-            createdAt: data.created_at || data.createdAt,
-            updatedAt: data.updated_at || data.updatedAt
+            maintenanceDay: data.maintenance_day,
+            equipmentIds: data.equipment_ids ?? [],
+            logs: data.logs ?? [],
+            alertSettings: {
+                enabled: data.alert_settings?.enabled ?? false,
+                daysBefore: data.alert_settings?.days_before ?? 5,
+                frequency: data.alert_settings?.frequency ?? 1
+            },
+            contractValue: (data.contract_value as number) ?? 0,
+            includesParts: (data.includes_parts as boolean) ?? false,
+            visitCount: (data.visit_count as number) ?? 1,
+            contractTerms: (data.contract_terms as string) ?? '',
+            createdAt: data.created_at,
+            updatedAt: data.updated_at
         };
     },
 
-    getContracts: async (): Promise<any[]> => {
+    getContracts: async (): Promise<ContractExtended[]> => {
         if (isCloudEnabled) {
             const tenantId = getCurrentTenantId();
             if (!tenantId) return [];
 
             const cacheKey = `contracts_${tenantId}`;
-            const cached = CacheManager.get<any[]>(cacheKey);
+            const cached = CacheManager.get<ContractExtended[]>(cacheKey);
             if (cached) return cached;
 
             return CacheManager.deduplicate(cacheKey, async () => {
                 const { data, error } = await supabase.from('contracts')
                     .select('*')
                     .eq('tenant_id', tenantId)
-                    .order('created_at', { ascending: false });
+                    .order('created_at', { ascending: false })
+                    .limit(100);
 
                 if (error) {
                     console.error("Erro ao buscar contratos:", error);
@@ -90,7 +76,7 @@ export const ContractService = {
         return [];
     },
 
-    createContract: async (contract: any): Promise<any> => {
+    createContract: async (contract: Omit<ContractExtended, 'id' | 'createdAt' | 'updatedAt'>): Promise<ContractExtended> => {
         const tid = getCurrentTenantId();
         if (isCloudEnabled) {
             const dbPayload = {
@@ -126,10 +112,10 @@ export const ContractService = {
             CacheManager.invalidate(`contracts_${tid}`);
             return ContractService._mapContractFromDB(data?.[0]);
         }
-        return contract;
+        return contract as ContractExtended;
     },
 
-    updateContract: async (contract: any): Promise<any> => {
+    updateContract: async (contract: ContractExtended): Promise<ContractExtended> => {
         if (isCloudEnabled) {
             const dbPayload = {
                 title: contract.title,

@@ -1,43 +1,17 @@
 
-import { supabase, adminSupabase, publicSupabase } from '../lib/supabase';
+import { supabase, adminAuthProxy, publicSupabase } from '../lib/supabase';
 import { StorageService } from './storageService';
 import { UserRole } from '../types'; // Adjust import path if needed
 import { CacheManager } from '../lib/cache';
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { getCurrentTenantId } from '../lib/tenantContext';
 import { logger } from '../lib/logger';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-// Helper para obter tenant ID (precisa ser extraído para um Context ou Helper comum ser DRY)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || sessionStorage.getItem('nexus_current_tenant');
-        if (urlTid) return urlTid;
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
 
-// Helper interno para acessar Service Client
-const getServiceClient = () => {
-    // Retorna o cliente que melhor se adapta (admin se disponível para bypass RLS em certas ops, ou public)
-    // No DataService original usava adminSupabase para muitas coisas administrativas
-    return adminSupabase;
-};
+
+// getServiceClient() REMOVIDO — use `supabase` diretamente (RLS ativo).
+// Para operações de Auth Admin, use adminAuthProxy.
 
 export const TechnicianService = {
 
@@ -52,10 +26,11 @@ export const TechnicianService = {
 
             // 🔄 Deduplication: Se já houver uma requisição em voo, espera por ela
             return CacheManager.deduplicate(cacheKey, async () => {
-                const { data, error } = await getServiceClient().from('technicians')
+                const { data, error } = await supabase.from('technicians')
                     .select('*')
                     .eq('tenant_id', tenantId)
-                    .order('name');
+                    .order('name')
+                    .limit(100);
 
                 if (error) throw error;
                 const result = (data || []).map(d => ({ ...d, tenantId: d.tenant_id }));
@@ -94,13 +69,14 @@ export const TechnicianService = {
                 console.warn("⚠️ Erro RPC técnicos, usando fallback:", err);
             }
 
-            // 🔄 ESTRATÉGIA 2: Fallback (Admin Bypassing RLS)
+            // 🔄 ESTRATÉGIA 2: Fallback (supabase anon — RLS via public_token ou função pública)
             try {
-                const { data, error } = await adminSupabase
+                const { data, error } = await supabase
                     .from('technicians')
                     .select('id, name, avatar, tenant_id')
                     .eq('tenant_id', tenantId)
-                    .eq('active', true);
+                    .eq('active', true)
+                    .limit(100);
 
                 if (error) {
                     console.error("❌ Erro ao buscar técnicos públicos (fallback):", error);
@@ -142,7 +118,7 @@ export const TechnicianService = {
             // Nota: A verificação de e-mail existente idealmente estaria aqui.
             // Assumimos que o Supabase Auth.admin.createUser vai falhar se já existir.
 
-            const { data, error } = await adminSupabase.auth.admin.createUser({
+            const { data, error } = await adminAuthProxy.admin.createUser({
                 email: tech.email.toLowerCase(),
                 password: tech.password,
                 user_metadata: {
@@ -168,7 +144,6 @@ export const TechnicianService = {
                 avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`
             };
 
-            // Usamos adminSupabase para garantir que o bypass do RLS funcione durante a criação
             const { error: userError } = await supabase.from('users').upsert([dbUser]);
             if (userError) {
                 console.error("Erro ao sincronizar tabela users:", userError);
@@ -231,7 +206,7 @@ export const TechnicianService = {
                 updateAuthData.password = tech.password;
             }
 
-            const { error: authError } = await adminSupabase.auth.admin.updateUserById(
+            const { error: authError } = await adminAuthProxy.admin.updateUserById(
                 tech.id,
                 updateAuthData
             );
@@ -244,13 +219,13 @@ export const TechnicianService = {
             // CONTROLE DE ACESSO: Bloqueia/Desbloqueia a conta no Auth baseado no status
             if (tech.active === false) {
                 // Desabilita o técnico - bane a conta
-                await adminSupabase.auth.admin.updateUserById(tech.id, {
+                await adminAuthProxy.admin.updateUserById(tech.id, {
                     ban_duration: '876000h' // ~100 anos = banimento permanente
                 });
                 console.log("🚫 Técnico bloqueado no sistema de autenticação");
             } else {
                 // Reabilita o técnico - remove o banimento
-                await adminSupabase.auth.admin.updateUserById(tech.id, {
+                await adminAuthProxy.admin.updateUserById(tech.id, {
                     ban_duration: 'none'
                 });
                 console.log("✅ Técnico reabilitado no sistema de autenticação");
@@ -305,14 +280,14 @@ export const TechnicianService = {
 
                 // 2. Atualiza a tabela technicians ou users
                 // Tenta technicians primeiro
-                const { error: techError } = await getServiceClient()
+                const { error: techError } = await supabase
                     .from('technicians')
                     .update({ avatar: publicUrl })
                     .eq('id', userId);
 
                 if (techError) {
                     console.warn("[Avatar] ⚠️ Falha ao atualizar tabela 'technicians', tentando 'users'...", techError.message);
-                    const { error: userError } = await getServiceClient()
+                    const { error: userError } = await supabase
                         .from('users')
                         .update({ avatar: publicUrl })
                         .eq('id', userId);
@@ -336,7 +311,7 @@ export const TechnicianService = {
 
         try {
             // 1. Tenta usar RPC V2 com Histórico (Mais seguro e rápido, bypass RLS)
-            const { error: rpcError } = await getServiceClient()
+            const { error: rpcError } = await supabase
                 .rpc('update_tech_location_v2', {
                     p_lat: lat,
                     p_lng: lng,
@@ -354,7 +329,7 @@ export const TechnicianService = {
             console.warn("[🚀 Nexus Sync] RPC V2 falhou, tentando fallback (sem histórico)...", rpcError);
 
             // 2. Fallback para Update direto (Apenas última posição, sem histórico)
-            const { error } = await getServiceClient()
+            const { error } = await supabase
                 .from('technicians')
                 .update({
                     last_latitude: lat,

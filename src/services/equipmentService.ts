@@ -1,50 +1,29 @@
 
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Equipment } from '../types';
+import type { DbEquipment } from '../types/database';
 import { CacheManager } from '../lib/cache';
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { getCurrentTenantId } from '../lib/tenantContext';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
-// Helper para obter tenant ID (precisa ser extraído para um Context ou Helper comum ser DRY)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
 
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-        if (urlTid) return urlTid;
-
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
 
 export const EquipmentService = {
 
-    _mapEquipmentFromDB: (data: any): Equipment => {
+    _mapEquipmentFromDB: (data: DbEquipment): Equipment => {
         return {
-            ...data,
+            id: data.id,
             tenantId: data.tenant_id,
-            serialNumber: data.serial_number || data.serialNumber,
-            familyId: data.family_id || data.familyId,
-            familyName: data.family_name || data.familyName,
-            customerId: data.customer_id || data.customerId,
-            customerName: data.customer_name || data.customerName,
-            createdAt: data.created_at || data.createdAt
+            serialNumber: data.serial_number,
+            model: data.model,
+            familyId: data.family_id,
+            familyName: data.family_name,
+            description: data.description,
+            customerId: data.customer_id,
+            customerName: data.customer_name,
+            active: data.active,
+            createdAt: data.created_at
         };
     },
 
@@ -61,7 +40,8 @@ export const EquipmentService = {
                 const { data, error } = await supabase.from('equipments')
                     .select('*')
                     .eq('tenant_id', tenantId)
-                    .order('model');
+                    .order('model')
+                    .limit(100);
 
                 if (error) {
                     console.error("Erro ao buscar equipamentos:", error);
@@ -78,7 +58,7 @@ export const EquipmentService = {
     createEquipment: async (equipment: Equipment): Promise<Equipment> => {
         const tid = getCurrentTenantId();
         if (isCloudEnabled) {
-            const { id, tenantId, ...rest } = equipment as any;
+            const { id: _id, tenantId: _tid, ...rest } = equipment;
 
             // 🛡️ Nexus ID Gen: Gera ID se o banco não for auto-increment
             const newId = `eq-${Date.now().toString(36)}`;

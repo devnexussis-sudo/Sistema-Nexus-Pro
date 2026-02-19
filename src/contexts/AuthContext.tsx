@@ -28,49 +28,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const lastActivityRef = useRef(Date.now());
     const isMountedRef = useRef(true);
 
-    // 1. Session Restoration Logic (Ported from App.tsx)
+    // 🔒 Guard: evita validações simultâneas (FATAL-R1 fix)
+    const isValidatingRef = useRef(false);
+    // 🔒 Guard: debounce para handleFocus (FATAL-R2 fix)
+    const focusDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    /**
+     * validateAndRestoreSession
+     *
+     * ⚠️ REGRA CRÍTICA: NÃO chama supabase.auth.refreshSession() manualmente.
+     * O SDK já tem autoRefreshToken: true — refresh manual causa race condition
+     * que invalida o refresh token e gera o erro "Invalid Refresh Token".
+     *
+     * Apenas verifica se a sessão existe via getSession() (leitura do cache local,
+     * sem chamada de rede). Se não existir, limpa o estado.
+     */
     const validateAndRestoreSession = useCallback(async (silent = true) => {
+        // 🛡️ Mutex: evita execuções simultâneas
+        if (isValidatingRef.current) {
+            logger.info('[AuthProvider] Validação já em andamento, ignorando chamada duplicada.');
+            return;
+        }
+        isValidatingRef.current = true;
+
         try {
+            // getSession() lê do cache local — sem chamada de rede, sem race condition.
+            // O autoRefreshToken do SDK cuida da renovação quando necessário.
             const { data: { session }, error } = await supabase.auth.getSession();
 
-            // Handle invalid session
             if (error || !session) {
                 const localUser = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-                if (!localUser && !error) {
-                    if (isMountedRef.current) setAuth({ user: null, isAuthenticated: false });
-                    return;
-                }
 
-                console.warn('[AuthProvider] 🗝️ Sessão inválida ou expirada. Realizando limpeza de segurança.');
-                if (isMountedRef.current) {
-                    setAuth({ user: null, isAuthenticated: false });
-                    SessionStorage.clear();
+                // Se não há sessão mas há usuário local, pode ser modo offline/impersonation
+                if (!localUser) {
+                    if (isMountedRef.current) setAuth({ user: null, isAuthenticated: false });
+                }
+                // Se há erro real (não apenas ausência de sessão), limpa tudo
+                if (error) {
+                    console.warn('[AuthProvider] 🗝️ Erro de sessão. Realizando limpeza de segurança.', error.message);
+                    if (isMountedRef.current) {
+                        setAuth({ user: null, isAuthenticated: false });
+                        SessionStorage.clear();
+                    }
                 }
                 return;
             }
 
-            // 🧠 Check Token Freshness (Fix para inatividade)
-            if (session?.expires_at) {
-                const expiresAtMs = session.expires_at * 1000;
-                const now = Date.now();
-                // Se faltar menos de 60s ou já tiver passado
-                if (expiresAtMs - now < 60000) {
-                    console.log('[AuthProvider] ⏳ Detectado token expirado/próximo. Renovando sessão...');
-                    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-
-                    if (refreshError || !refreshData.session) {
-                        console.error('[AuthProvider] ❌ Falha ao renovar token expirado:', refreshError?.message);
-                        if (isMountedRef.current) {
-                            setAuth({ user: null, isAuthenticated: false });
-                            SessionStorage.clear();
-                        }
-                        return;
-                    }
-                    console.log('[AuthProvider] ✅ Sessão renovada com sucesso.');
-                }
-            }
-
-            // Restore/Refresh User Data
+            // ✅ Sessão válida — atualiza dados do usuário
+            // Não verificamos expires_at nem chamamos refreshSession() manualmente.
+            // O SDK emitirá TOKEN_REFRESHED via onAuthStateChange quando renovar.
             const refreshedUser = await DataService.refreshUser().catch(() => null);
             if (refreshedUser && isMountedRef.current) {
                 setAuth({ user: refreshedUser, isAuthenticated: true });
@@ -80,9 +86,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
             }
         } catch (err: any) {
+            // Erros de Lock são normais em tabs concorrentes — retry com backoff
             if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
                 setTimeout(() => validateAndRestoreSession(true), 5000);
+            } else {
+                console.error('[AuthProvider] ❌ Erro inesperado na validação de sessão:', err);
             }
+        } finally {
+            isValidatingRef.current = false;
         }
     }, []);
 
@@ -90,11 +101,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         isMountedRef.current = true;
 
-        // Init Timeout Safety
+        // Safety timeout: se init demorar mais de 3s, libera a UI
         const timeoutId = setTimeout(() => {
             setIsInitializing(prev => {
                 if (prev) {
-                    console.warn('[AuthProvider] ⚠️ Init Timeout - O sistema demorou a responder, liberando interface.');
+                    console.warn('[AuthProvider] ⚠️ Init Timeout - liberando interface.');
                     return false;
                 }
                 return prev;
@@ -102,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }, 3000);
 
         const initAuth = async () => {
-            // Check if Public Route
+            // Rotas públicas não precisam de sessão
             const isPublic = window.location.hash.startsWith('#/view/') || window.location.hash.startsWith('#/view-quote/');
             if (isPublic) {
                 logger.info('Rota Pública detectada. Ignorando Heartbeat de sessão.');
@@ -113,14 +124,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await validateAndRestoreSession(true);
             if (isMountedRef.current) setIsInitializing(false);
 
-            // Supabase Listener
+            // 🔔 Supabase Auth State Listener
+            // Este é o canal OFICIAL para reagir a mudanças de sessão.
+            // TOKEN_REFRESHED é emitido automaticamente pelo SDK — não precisamos forçar.
             const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
                 if (!isMountedRef.current) return;
                 console.log(`[AuthProvider] Auth Event: ${event}`);
 
                 if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+                    // TOKEN_REFRESHED: SDK renovou o token automaticamente — apenas atualiza o estado
                     const refreshedUser = await DataService.refreshUser().catch(() => null);
-                    if (refreshedUser && isMountedRef.current) setAuth({ user: refreshedUser, isAuthenticated: true });
+                    if (refreshedUser && isMountedRef.current) {
+                        setAuth({ user: refreshedUser, isAuthenticated: true });
+                    }
                 } else if (event === 'SIGNED_OUT') {
                     if (isMountedRef.current) setAuth({ user: null, isAuthenticated: false });
                     SessionStorage.clear();
@@ -131,22 +147,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             authSubscriptionRef.current = subscription;
         };
 
-        const handleFocus = async () => {
-            if (auth.isAuthenticated) {
-                const currentTenant = DataService.getCurrentTenantId();
-                if (!currentTenant) await validateAndRestoreSession(false);
+        /**
+         * handleFocus — FATAL-R2 fix
+         *
+         * Problemas anteriores:
+         * 1. Chamava validateAndRestoreSession() DUAS vezes (uma condicional + uma incondicional)
+         * 2. Sem debounce: alt+tab rápido disparava múltiplas validações simultâneas
+         *
+         * Solução:
+         * - Uma única chamada, com debounce de 500ms
+         * - O mutex isValidatingRef garante que chamadas simultâneas são ignoradas
+         */
+        const handleFocus = () => {
+            if (!auth.isAuthenticated) return;
+
+            // Debounce: cancela chamada anterior se o foco mudou muito rápido
+            if (focusDebounceRef.current) clearTimeout(focusDebounceRef.current);
+
+            focusDebounceRef.current = setTimeout(async () => {
                 await validateAndRestoreSession(true);
                 DataService.forceGlobalRefresh();
-
-                // 🔄 Force Refetch Global (Acorda o useQuery)
                 window.dispatchEvent(new CustomEvent('NEXUS_QUERY_INVALIDATE', { detail: { key: '*' } }));
-            }
+            }, 500);
         };
 
-        const handleOnline = () => { if (auth.isAuthenticated) validateAndRestoreSession(false); };
+        const handleOnline = () => {
+            if (auth.isAuthenticated) validateAndRestoreSession(false);
+        };
         const handleOffline = () => { wasOfflineRef.current = true; };
 
-        // Bind events
         window.addEventListener('focus', handleFocus);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
@@ -156,14 +185,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => {
             isMountedRef.current = false;
             clearTimeout(timeoutId);
+            if (focusDebounceRef.current) clearTimeout(focusDebounceRef.current);
             window.removeEventListener('focus', handleFocus);
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
             if (authSubscriptionRef.current?.unsubscribe) authSubscriptionRef.current.unsubscribe();
         };
-    }, []); // Run once on mount
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps — auth.isAuthenticated lido via closure estável
 
-    // 3. Inactivity Check
+    // 3. Inactivity Check — desconecta após 1.5h sem interação
     useEffect(() => {
         const updateActivity = () => { lastActivityRef.current = Date.now(); };
         const checkInactivity = setInterval(() => {
@@ -185,7 +215,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             events.forEach(e => window.removeEventListener(e, updateActivity));
         };
     }, [auth.isAuthenticated]);
-
 
     // Public API
     const login = (user: User) => {

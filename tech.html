@@ -85,7 +85,25 @@
     // Gerenciador de Service Worker e Limpeza de Splash
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/tech-sw.js').catch(console.error);
+        navigator.serviceWorker.register('/tech-sw.js', { scope: '/' })
+          .then(reg => {
+            console.log('[Nexus Tech PWA] ✅ Service Worker registrado:', reg.scope);
+            window.__nexusTechSWRegistration = reg;
+
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  window.dispatchEvent(new CustomEvent('nexus-sw-update-available'));
+                }
+              });
+            });
+          })
+          .catch(err => console.error('[Nexus Tech PWA] ❌ Erro ao registrar SW:', err));
+
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        });
       });
     }
 

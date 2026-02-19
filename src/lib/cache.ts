@@ -73,29 +73,42 @@ export class CacheManager {
      * Decorator para deduplicação de requisições.
      * Se uma requisição idêntica já estiver em andamento, retorna a Promise existente.
      */
-    static async deduplicate<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+    static deduplicate<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
         if (this.inflightRequests.has(key)) {
             // Se já existe uma requisição em voo, retorna ela (Deduplicação)
             return this.inflightRequests.get(key) as Promise<T>;
         }
 
-        // Cria a promise com timeout de segurança
-        // Se a requisição demorar muito (20s), remove do mapa para não travar futuras chamadas
-        const safetyTimeout = setTimeout(() => {
-            console.warn(`⚠️ [CacheManager] Safety Timeout (20s) - Limpando requisição travada: ${key}`);
-            this.inflightRequests.delete(key);
-        }, 20000);
-
-        const promise = fetcher()
-            .finally(() => {
-                clearTimeout(safetyTimeout); // Limpa o timeout se completou a tempo
+        // Cria uma promise wrapper que controla tanto o fetch quanto o timeout
+        const promise = new Promise<T>((resolve, reject) => {
+            // Setup Timeout Safety (20s)
+            const safetyTimeout = setTimeout(() => {
+                console.warn(`⚠️ [CacheManager] Safety Timeout (20s) - Limpando requisição travada: ${key}`);
                 this.inflightRequests.delete(key);
-            });
+                reject(new Error(`Timeout de requisição (${key})`));
+            }, 20000);
+
+            // Executa o fetch real
+            fetcher()
+                .then(data => {
+                    clearTimeout(safetyTimeout);
+                    resolve(data);
+                })
+                .catch(err => {
+                    clearTimeout(safetyTimeout);
+                    reject(err);
+                })
+                .finally(() => {
+                    // Sempre limpa o mapa de voo ao terminar (sucesso ou erro)
+                    // Mas apenas se ainda estiver lá (o timeout pode ter limpado antes)
+                    if (this.inflightRequests.get(key) === promise) {
+                        this.inflightRequests.delete(key);
+                    }
+                });
+        });
 
         this.inflightRequests.set(key, promise);
 
-        // Retorna a promise original (que pode falhar ou ter sucesso)
-        // O chamador deve tratar o erro
         return promise;
     }
 

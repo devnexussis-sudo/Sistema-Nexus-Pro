@@ -1,45 +1,26 @@
 
-import { supabase, adminSupabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Customer } from '../types';
+import type { DbCustomer } from '../types/database';
 import { CacheManager } from '../lib/cache';
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { getCurrentTenantId } from '../lib/tenantContext';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const STORAGE_KEYS = { CUSTOMERS: 'nexus_customers_v2' };
 
-// Helper para obter tenant ID (DRY)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
 
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-        if (urlTid) return urlTid;
-
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
 
 export const CustomerService = {
 
-    _mapCustomerFromDB: (data: any): Customer => {
+    _mapCustomerFromDB: (data: DbCustomer): Customer => {
         return {
-            ...data,
+            id: data.id,
             tenantId: data.tenant_id,
+            type: data.type,
+            name: data.name,
+            document: data.document,
+            email: data.email,
+            phone: data.phone,
             whatsapp: data.whatsapp,
             zip: data.zip,
             state: data.state,
@@ -69,7 +50,8 @@ export const CustomerService = {
                 const { data, error } = await supabase.from('customers')
                     .select('*')
                     .eq('tenant_id', tenantId)
-                    .order('name');
+                    .order('name')
+                    .limit(100);
 
                 if (error) {
                     console.error("Erro ao buscar clientes:", error);
@@ -89,7 +71,7 @@ export const CustomerService = {
         if (isCloudEnabled) {
             if (!tid) throw new Error("Tenant ID não encontrado.");
 
-            const { id, tenantId, ...rest } = customer as any;
+            const { id, tenantId, ...rest } = customer;
 
             // 🛡️ Nexus ID Gen: Garantia de ID único para o Clientes
             const newId = crypto.randomUUID();
@@ -113,9 +95,11 @@ export const CustomerService = {
 
     updateCustomer: async (customer: Customer): Promise<Customer> => {
         if (isCloudEnabled) {
-            const { id, tenantId, created_at, ...rest } = customer as any;
+            const { id, tenantId, ...rest } = customer;
+            // Remove created_at if present in rest (runtime safety)
+            const { created_at: _ca, ...dbFields } = rest as Customer & { created_at?: string };
             const dbPayload = {
-                ...rest
+                ...dbFields
             };
             const tid = getCurrentTenantId();
             if (!tid) throw new Error("Tenant não identificado.");

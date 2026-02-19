@@ -54,7 +54,6 @@ interface Tenant {
 
 import { DataService } from '../../services/dataService';
 import SessionStorage from '../../lib/sessionStorage';
-import { adminSupabase } from '../../lib/supabase';
 
 export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   const [tenants, setTenants] = useState<Tenant[]>([]);

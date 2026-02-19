@@ -1,89 +1,116 @@
 /**
- * 🏢 Nexus Pro - Tenant Context Manager
- * 
- * Gerenciamento centralizado do contexto de tenant
- * Elimina duplicação de getCurrentTenantId em 13 arquivos
+ * 🏢 Nexus Pro - Tenant Context Manager (Singleton)
+ *
+ * Fonte única de verdade para o tenant_id do usuário autenticado.
+ *
+ * ⛔ REGRA DE SEGURANÇA (FATAL-S2 fix):
+ *   Se o usuário está autenticado, o tenant_id vem OBRIGATORIAMENTE
+ *   da sessão/JWT. Parâmetros de URL (`?tid=`) são IGNORADOS para
+ *   usuários autenticados, impedindo injeção de tenant via URL.
+ *
+ *   O fallback de URL params só é aceito para rotas públicas
+ *   (ex: /view-quote/) onde não há sessão.
  */
 
 import SessionStorage, { GlobalStorage } from './sessionStorage';
 
-export class TenantContext {
-    private static instance: TenantContext;
-    private currentTenantId: string | null = null;
-    private listeners: Set<(tenantId: string | null) => void> = new Set();
+// ─── Tipos ───────────────────────────────────────────────
+type TenantChangeListener = (tenantId: string | null) => void;
 
-    private constructor() {
-        // Singleton pattern
-    }
+// ─── Singleton ───────────────────────────────────────────
+class TenantContextManager {
+    private static instance: TenantContextManager;
+    private cachedTenantId: string | null = null;
+    private listeners: Set<TenantChangeListener> = new Set();
 
-    static getInstance(): TenantContext {
-        if (!TenantContext.instance) {
-            TenantContext.instance = new TenantContext();
+    private constructor() { /* Singleton */ }
+
+    static getInstance(): TenantContextManager {
+        if (!TenantContextManager.instance) {
+            TenantContextManager.instance = new TenantContextManager();
         }
-        return TenantContext.instance;
+        return TenantContextManager.instance;
     }
 
     /**
-     * Obtém o tenant ID atual com fallback robusto
+     * Obtém o tenant ID atual com fallback seguro.
+     *
+     * Ordem de prioridade:
+     *   1. Cache em memória (mais rápido)
+     *   2. Sessão de técnico (localStorage — PWA persistence)
+     *   3. Sessão de admin (SessionStorage/GlobalStorage)
+     *   4. SessionStorage `current_tenant` (impersonation)
+     *   5. ⛔ URL params — APENAS se NÃO houver sessão autenticada
+     *
+     * Retorna `undefined` (não `null`) para compatibilidade com os services.
      */
-    getCurrentTenantId(): string | null {
-        // 1. Retornar cache se disponível
-        if (this.currentTenantId) {
-            return this.currentTenantId;
-        }
+    getCurrentTenantId(): string | undefined {
+        // 1. Cache em memória
+        if (this.cachedTenantId) return this.cachedTenantId;
 
         try {
-            // 2. Verificar sessão de técnico (legacy)
+            // 2. Sessão de técnico (localStorage — sobrevive a reloads em PWA)
             const techSession = localStorage.getItem('nexus_tech_session_v2') ||
                 localStorage.getItem('nexus_tech_session');
             if (techSession) {
                 const user = JSON.parse(techSession);
                 const tid = user.tenantId || user.tenant_id;
                 if (tid) {
-                    this.currentTenantId = tid;
+                    this.cachedTenantId = tid;
                     return tid;
                 }
             }
 
-            // 3. Verificar SessionStorage/GlobalStorage
+            // 3. Sessão de admin/operador (SessionStorage — isolada por aba)
             const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
             if (userStr) {
                 const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
                 const tid = user.tenantId || user.tenant_id;
                 if (tid) {
-                    this.currentTenantId = tid;
+                    this.cachedTenantId = tid;
                     return tid;
                 }
             }
 
-            // 4. Fallback: URL params ou session
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-            if (urlTid) {
-                this.currentTenantId = urlTid;
-                return urlTid;
+            // 4. SessionStorage `current_tenant` (setado por impersonation no SuperAdminPage)
+            const storedTenant = SessionStorage.get('current_tenant');
+            if (storedTenant) {
+                this.cachedTenantId = storedTenant;
+                return storedTenant;
             }
 
-            return null;
+            // ⛔ 5. URL params — BLOQUEADO para usuários autenticados.
+            // Se chegamos aqui, não há sessão alguma. Verificamos URL apenas
+            // para rotas públicas (ex: /view-quote/?tid=xxx) onde é legítimo.
+            const isPublicRoute = window.location.hash.startsWith('#/view/') ||
+                window.location.hash.startsWith('#/view-quote/');
+            if (isPublicRoute) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlTid = urlParams.get('tid');
+                if (urlTid) {
+                    // NÃO cachear — é efêmero
+                    return urlTid;
+                }
+            }
+
+            return undefined;
         } catch (error) {
-            console.error('[TenantContext] Error getting tenant ID:', error);
-            return null;
+            console.error('[TenantContext] ❌ Erro ao obter tenant ID:', error);
+            return undefined;
         }
     }
 
     /**
-     * Define o tenant ID atual
+     * Define o tenant ID atual (chamado no login/impersonation).
      */
     setTenantId(tenantId: string | null): void {
-        const oldTenantId = this.currentTenantId;
-        this.currentTenantId = tenantId;
+        const oldTenantId = this.cachedTenantId;
+        this.cachedTenantId = tenantId;
 
-        // Notificar listeners se mudou
         if (oldTenantId !== tenantId) {
             this.notifyListeners(tenantId);
         }
 
-        // Persistir no storage
         if (tenantId) {
             SessionStorage.set('current_tenant', tenantId);
         } else {
@@ -92,86 +119,67 @@ export class TenantContext {
     }
 
     /**
-     * Limpa o tenant ID atual
+     * Limpa o cache e o storage (chamado no logout).
      */
     clear(): void {
-        this.setTenantId(null);
+        this.cachedTenantId = null;
+        SessionStorage.remove('current_tenant');
+        this.notifyListeners(null);
     }
 
     /**
-     * Adiciona listener para mudanças de tenant
+     * Invalida o cache para forçar nova leitura do storage.
+     * Útil quando os dados de sessão mudam externamente.
      */
-    onChange(callback: (tenantId: string | null) => void): () => void {
+    invalidateCache(): void {
+        this.cachedTenantId = null;
+    }
+
+    /**
+     * Adiciona listener para mudanças de tenant.
+     * Retorna função de cleanup.
+     */
+    onChange(callback: TenantChangeListener): () => void {
         this.listeners.add(callback);
-
-        // Retorna função para remover listener
-        return () => {
-            this.listeners.delete(callback);
-        };
+        return () => { this.listeners.delete(callback); };
     }
 
     /**
-     * Notifica todos os listeners
-     */
-    private notifyListeners(tenantId: string | null): void {
-        this.listeners.forEach(callback => {
-            try {
-                callback(tenantId);
-            } catch (error) {
-                console.error('[TenantContext] Error in listener:', error);
-            }
-        });
-    }
-
-    /**
-     * Valida se há um tenant ID válido
+     * Verifica se há um tenant válido definido.
      */
     hasValidTenant(): boolean {
-        const tenantId = this.getCurrentTenantId();
-        return tenantId !== null && tenantId.length > 0;
+        return !!this.getCurrentTenantId();
     }
 
     /**
-     * Obtém tenant ID ou lança erro
+     * Obtém tenant ID ou lança erro (para operações que EXIGEM tenant).
      */
     requireTenantId(): string {
-        const tenantId = this.getCurrentTenantId();
-        if (!tenantId) {
-            throw new Error('Tenant ID is required but not available');
-        }
-        return tenantId;
+        const tid = this.getCurrentTenantId();
+        if (!tid) throw new Error('[TenantContext] Tenant ID obrigatório mas não encontrado.');
+        return tid;
+    }
+
+    private notifyListeners(tenantId: string | null): void {
+        this.listeners.forEach(callback => {
+            try { callback(tenantId); }
+            catch (e) { console.error('[TenantContext] Erro em listener:', e); }
+        });
     }
 }
 
-// Export singleton instance
-export const tenantContext = TenantContext.getInstance();
+// ─── Exports ─────────────────────────────────────────────
 
-// Export helper function for backward compatibility
-export function getCurrentTenantId(): string | null {
+/** Instância singleton do TenantContext */
+export const tenantContext = TenantContextManager.getInstance();
+
+/**
+ * Função helper para compatibilidade com os services existentes.
+ * Use esta em vez de implementações locais de getCurrentTenantId().
+ */
+export function getCurrentTenantId(): string | undefined {
     return tenantContext.getCurrentTenantId();
 }
 
-/**
- * React Hook para usar tenant context
- */
-export function useTenantContext() {
-    const [tenantId, setTenantId] = React.useState<string | null>(
-        tenantContext.getCurrentTenantId()
-    );
-
-    React.useEffect(() => {
-        // Atualizar quando tenant mudar
-        const unsubscribe = tenantContext.onChange(setTenantId);
-        return unsubscribe;
-    }, []);
-
-    return {
-        tenantId,
-        setTenantId: (id: string | null) => tenantContext.setTenantId(id),
-        hasValidTenant: tenantContext.hasValidTenant(),
-        requireTenantId: () => tenantContext.requireTenantId(),
-    };
-}
-
-// Para uso em componentes que não são React
-import * as React from 'react';
+// Re-export da classe para testes
+export { TenantContextManager };

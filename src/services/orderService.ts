@@ -1,89 +1,53 @@
 
-import { supabase, adminSupabase, publicSupabase } from '../lib/supabase';
+import { supabase, publicSupabase, ensureValidSession } from '../lib/supabase';
 import { AuthService } from './authService';
 import { StorageService } from './storageService';
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { getCurrentTenantId } from '../lib/tenantContext';
 import { CacheManager } from '../lib/cache';
 import { ServiceOrder, OrderStatus, OrderItem } from '../types';
+import type { DbOrder, DbOrderInsert, DbOrderUpdate, DbOrderItem } from '../types/database';
 import { logger } from '../lib/logger';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const STORAGE_KEYS = { ORDERS: 'nexus_orders_v2' }; // Replication of constant
 
-// Helper para obter tenant ID (Redundant but safe copy to avoid circular deps or lazy loading issues)
-const getCurrentTenantId = (): string | undefined => {
-    try {
-        const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
-        if (techSession) {
-            const user = JSON.parse(techSession);
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-        const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-        if (userStr) {
-            const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
-            const tid = user.tenantId || user.tenant_id;
-            if (tid) return tid;
-        }
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
-        if (urlTid) return urlTid;
-        return undefined;
-    } catch (e) {
-        return undefined;
-    }
-};
 
-// Helper interno para acessar Service Client
-const getServiceClient = () => {
-    return adminSupabase;
-};
 
-// Helper session guard
-const ensureValidSession = async (): Promise<boolean> => {
-    try {
-        const { data: session } = await supabase.auth.getSession();
-        if (!session?.session) {
-            // Tenta refresh
-            const { data: refresh } = await supabase.auth.refreshSession();
-            return !!refresh?.session;
-        }
-        return true;
-    } catch {
-        return false;
-    }
-};
+// getServiceClient() REMOVIDO — use `supabase` diretamente.
+// O RLS garante o isolamento por tenant via get_user_tenant_id().
+// ensureValidSession importado de lib/supabase (versão sem refresh manual).
+
 
 export const OrderService = {
 
     // Helper para mapear ServiceOrder do Front (camelCase) para o DB (snake_case)
-    _mapOrderToDB: (order: any) => {
+    _mapOrderToDB: (order: Partial<ServiceOrder>): Omit<DbOrderInsert, 'tenant_id'> => {
         return {
-            title: order.title,
-            description: order.description,
-            customer_name: order.customerName,
-            customer_address: order.customerAddress,
-            status: order.status,
-            priority: order.priority,
+            title: order.title ?? '',
+            description: order.description ?? '',
+            customer_name: order.customerName ?? '',
+            customer_address: order.customerAddress ?? '',
+            status: (order.status?.toUpperCase() === 'CANCELED' ? 'CANCELADO' : order.status) as DbOrderInsert['status'],
+            priority: order.priority as DbOrderInsert['priority'],
             operation_type: order.operationType,
             assigned_to: order.assignedTo,
             form_id: order.formId,
-            form_data: order.formData,
+            form_data: order.formData as Record<string, unknown>,
             equipment_name: order.equipmentName,
             equipment_model: order.equipmentModel,
             equipment_serial: order.equipmentSerial,
-            scheduled_date: order.scheduledDate,
+            scheduled_date: order.scheduledDate ?? '',
             scheduled_time: order.scheduledTime,
             start_date: order.startDate,
             end_date: order.endDate,
             notes: order.notes,
-            items: order.items,
+            items: order.items as DbOrderItem[],
             show_value_to_client: order.showValueToClient,
             billing_status: order.billingStatus,
             payment_method: order.paymentMethod,
             paid_at: order.paidAt,
             billing_notes: order.billingNotes,
-            linked_quotes: order.linkedQuotes || [],
+            linked_quotes: order.linkedQuotes ?? [],
             timeline: order.timeline,
             checkin_location: order.checkinLocation,
             checkout_location: order.checkoutLocation,
@@ -93,40 +57,42 @@ export const OrderService = {
     },
 
     // Helper para mapear ServiceOrder do DB (snake_case) para o Front (camelCase)
-    _mapOrderFromDB: (data: any): ServiceOrder => {
+    _mapOrderFromDB: (data: DbOrder): ServiceOrder => {
         // Mapeamento extra-resiliente para garantir que nada se perca entre Snake e Camel
         return {
             id: data.id,
-            displayId: data.display_id || data.displayId,
+            displayId: data.display_id,
             publicToken: data.public_token,
-            tenantId: data.tenant_id || data.tenantId,
+            tenantId: data.tenant_id,
             title: data.title,
-            description: data.description || data.description_text,
-            customerName: data.customer_name || data.customerName || 'Cliente não identificado',
-            customerAddress: data.customer_address || data.customerAddress || '',
-            status: data.status,
-            priority: data.priority,
-            operationType: data.operation_type || data.operationType || '',
-            assignedTo: data.assigned_to || data.assignedTo,
-            formId: data.form_id || data.formId,
-            formData: OrderService.migrateSignatureData(data.form_data || data.formData || {}),
-            equipmentName: data.equipment_name || data.equipmentName,
-            equipmentModel: data.equipment_model || data.equipmentModel,
-            equipmentSerial: data.equipment_serial || data.equipmentSerial,
-            createdAt: data.created_at || data.createdAt || new Date().toISOString(),
-            updatedAt: data.updated_at || data.updatedAt,
-            scheduledDate: data.scheduled_date || data.scheduledDate || '',
-            scheduledTime: data.scheduled_time || data.scheduledTime || '',
-            startDate: data.start_date || data.startDate,
-            endDate: data.end_date || data.endDate,
+            description: data.description,
+            customerName: data.customer_name,
+            customerAddress: data.customer_address,
+            status: data.status as ServiceOrder['status'],
+            priority: data.priority as ServiceOrder['priority'],
+            operationType: data.operation_type ?? '',
+            assignedTo: data.assigned_to,
+            formId: data.form_id,
+            formData: OrderService.migrateSignatureData(
+                (data.form_data ?? {}) as Record<string, unknown>
+            ),
+            equipmentName: data.equipment_name,
+            equipmentModel: data.equipment_model,
+            equipmentSerial: data.equipment_serial,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at,
+            scheduledDate: data.scheduled_date ?? '',
+            scheduledTime: data.scheduled_time ?? '',
+            startDate: data.start_date,
+            endDate: data.end_date,
             notes: data.notes,
-            items: data.items || [],
-            showValueToClient: data.show_value_to_client ?? data.showValueToClient ?? false,
-            billingStatus: data.billing_status || 'PENDING',
+            items: (data.items ?? []) as OrderItem[],
+            showValueToClient: data.show_value_to_client ?? false,
+            billingStatus: data.billing_status ?? 'PENDING',
             paymentMethod: data.payment_method,
             paidAt: data.paid_at,
             billingNotes: data.billing_notes,
-            timeline: data.timeline || {},
+            timeline: data.timeline ?? {},
             checkinLocation: data.checkin_location,
             checkoutLocation: data.checkout_location,
             pauseReason: data.pause_reason
@@ -196,7 +162,7 @@ export const OrderService = {
 
             // Timeout e Error Handling encapsulados
             try {
-                let query = getServiceClient()
+                let query = supabase
                     .from('orders')
                     .select('id, display_id, created_at, scheduled_date, status, assigned_to, end_date, customer_name, title')
                     .eq('tenant_id', tenantId)
@@ -214,10 +180,10 @@ export const OrderService = {
                 }
 
                 // Mapeamento manual otimizado
-                return (data || []).map((d: any) => ({
+                return (data || []).map((d: Pick<DbOrder, 'id' | 'display_id' | 'status' | 'created_at' | 'scheduled_date' | 'end_date' | 'assigned_to' | 'customer_name' | 'title'>) => ({
                     id: d.id,
                     displayId: d.display_id,
-                    status: d.status,
+                    status: d.status as ServiceOrder['status'],
                     createdAt: d.created_at,
                     scheduledDate: d.scheduled_date,
                     endDate: d.end_date,
@@ -228,12 +194,12 @@ export const OrderService = {
                     tenantId: tenantId,
                     description: '',
                     customerAddress: '',
-                    priority: 'MÉDIA' as any,
+                    priority: 'MÉDIA' as ServiceOrder['priority'],
                     operationType: '',
                     items: [],
                     showValueToClient: false,
-                    billingStatus: 'PENDING'
-                } as any));
+                    billingStatus: 'PENDING' as const
+                } as ServiceOrder));
             } catch (e) {
                 console.error("Nexus Stats Error:", e);
                 return [];
@@ -270,11 +236,11 @@ export const OrderService = {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-                    const { data, error } = await getServiceClient().from('orders')
+                    const { data, error } = await supabase.from('orders')
                         .select('*')
                         .eq('tenant_id', tenantId)
                         .order('created_at', { ascending: false })
-                        .limit(200)
+                        .limit(100)
                         .abortSignal(controller.signal);
 
                     clearTimeout(timeoutId);
@@ -287,9 +253,10 @@ export const OrderService = {
                             error.code === 'PGRST301') {
 
                             if (attempt < MAX_RETRIES - 1) {
-                                // Force token refresh and retry
-                                await supabase.auth.refreshSession();
-                                await new Promise(r => setTimeout(r, 1000));
+                                // ⚠️ NÃO chamar refreshSession() manualmente — causa race condition
+                                // com autoRefreshToken do SDK e invalida o refresh token.
+                                // Aguarda o SDK renovar automaticamente e tenta novamente.
+                                await new Promise(r => setTimeout(r, 2000));
                                 continue;
                             }
                             throw new Error('SESSION_EXPIRED_AUTH');
@@ -349,7 +316,7 @@ export const OrderService = {
             const from = (page - 1) * limit;
             const to = from + limit - 1;
 
-            let query = getServiceClient()
+            let query = supabase
                 .from('orders')
                 .select('*', { count: 'exact' })
                 .eq('tenant_id', tenantId);
@@ -402,7 +369,7 @@ export const OrderService = {
                     console.log("🚀 DEBUG_V3_DIRECT_DB: Iniciando criação de OS...");
 
                     // 1. GERAR ID SEQUENCIAL (RPC)
-                    const { data: seqNum, error: seqError } = await getServiceClient().rpc('get_next_order_id', {
+                    const { data: seqNum, error: seqError } = await supabase.rpc('get_next_order_id', {
                         p_tenant_id: tid
                     });
 
@@ -412,7 +379,7 @@ export const OrderService = {
                     }
 
                     // 2. OBTER PREFIXO DO TENANT
-                    const { data: tenantData } = await getServiceClient()
+                    const { data: tenantData } = await supabase
                         .from('tenants')
                         .select('os_prefix')
                         .eq('id', tid)
@@ -430,7 +397,7 @@ export const OrderService = {
                     };
 
                     // 4. INSERIR NO BANCO
-                    const { data: insertedData, error: insertError } = await getServiceClient()
+                    const { data: insertedData, error: insertError } = await supabase
                         .from('orders')
                         .insert(dbPayload)
                         .select()
@@ -468,7 +435,7 @@ export const OrderService = {
                     const tid = getCurrentTenantId();
                     if (!tid) throw new Error("Tenant não identificado.");
 
-                    const { data, error } = await getServiceClient().from('orders')
+                    const { data, error } = await supabase.from('orders')
                         .update(dbPayload)
                         .eq('id', updatedOrder.id)
                         .eq('tenant_id', tid)
@@ -525,14 +492,14 @@ export const OrderService = {
         }
 
         // 2. Preparação do Payload
-        const updatePayload: any = {
+        const updatePayload: DbOrderUpdate = {
             status,
             updated_at: new Date().toISOString()
         };
 
         if (notes !== undefined) updatePayload.notes = notes;
-        if (processedData !== undefined) updatePayload.form_data = processedData;
-        if (items !== undefined) updatePayload.items = items;
+        if (processedData !== undefined) updatePayload.form_data = processedData as Record<string, unknown>;
+        if (items !== undefined) updatePayload.items = items as DbOrderItem[];
 
         if (status === OrderStatus.IN_PROGRESS) {
             updatePayload.start_date = new Date().toISOString();
@@ -630,10 +597,10 @@ export const OrderService = {
     subscribeToOrders: (onUpdate: () => void) => {
         if (!isCloudEnabled) return { unsubscribe: () => { } };
 
-        let channel: any = null;
+        let channel: ReturnType<typeof supabase.channel> | null = null;
         let isActive = true;
         let reconnectAttempts = 0;
-        let reconnectTimer: any = null;
+        let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
         const connect = async () => {
             if (!isActive) return;

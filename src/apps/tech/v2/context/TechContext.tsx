@@ -269,24 +269,15 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error || !session) {
-                // Se não há sessão e não temos usuário local, é um estado normal
+                // Se não há sessão, o SDK já tentou renovar via autoRefreshToken e falhou.
+                // ⚠️ NÃO chamar refreshSession() aqui — causa race condition e invalida o token.
+                // Fazemos logout silencioso: o usuário precisará logar novamente.
                 const localUser = localStorage.getItem(STORAGE_KEYS.SESSION);
-                if (!localUser && !error) return;
+                if (!localUser && !error) return; // Modo offline sem sessão — normal
 
-                console.warn('[TechContext] 🗝️ Sessão instável. Tentando refresh...');
-                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-
-                if (refreshError || !refreshData.session) {
-                    // Se o erro for apenas "sessão ausente", fazemos logout silencioso
-                    if (refreshError?.message?.includes('session missing') || refreshError?.name === 'AuthSessionMissingError' || refreshError?.message?.includes('refresh_token_not_found')) {
-                        console.log('[TechContext] 💤 Sessão expirada ou ausente. Limpando ambiente.');
-                        logoutRef.current?.();
-                        return;
-                    }
-
-                    console.error('[TechContext] ❌ Falha crítica no heartbeat:', refreshError);
-                    return;
-                }
+                console.log('[TechContext] 💤 Sessão expirada ou ausente. Limpando ambiente.');
+                logoutRef.current?.();
+                return;
             }
 
             // Sessão válida (ou recuperada) - refresh dados
