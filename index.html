@@ -81,18 +81,18 @@
       if (!navigator.locks) return;
       try {
         const state = await navigator.locks.query();
-        const staleLocks = state.held.filter(function(l) {
+        const staleLocks = state.held.filter(function (l) {
           // GoTrue locks sempre contêm o storage key do Supabase
           return l.name && l.name.includes('nexus_shared_auth');
         });
         if (staleLocks.length > 0) {
-          console.warn('[Nexus] 🔓 Liberando ' + staleLocks.length + ' Web Lock(s) travado(s) do GoTrue:', staleLocks.map(function(l) { return l.name; }));
+          console.warn('[Nexus] 🔓 Liberando ' + staleLocks.length + ' Web Lock(s) travado(s) do GoTrue:', staleLocks.map(function (l) { return l.name; }));
           // Steal cada lock travado para liberá-lo
           for (var i = 0; i < staleLocks.length; i++) {
             try {
               var ac = new AbortController();
               // Solicita o lock com steal: true, que tira do holder atual
-              navigator.locks.request(staleLocks[i].name, { steal: true }, function() {
+              navigator.locks.request(staleLocks[i].name, { steal: true }, function () {
                 // Lock adquirido e imediatamente liberado (função retorna)
                 return Promise.resolve();
               });
@@ -129,10 +129,10 @@
           })
           .catch(err => console.error('[Nexus PWA] ❌ Erro ao registrar SW:', err));
 
-        // Recarrega a página quando o SW assume controle (após update)
+        // Detecta quando o SW assume controle (útil para logs, mas evitamos reload forçado aqui para prevenir loops)
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          console.log('[Nexus PWA] 🔄 Novo SW assumiu controle — recarregando...');
-          window.location.reload();
+          console.log('[Nexus PWA] 🔄 Novo Service Worker assumiu o controle.');
+          // window.location.reload(); // ⚠️ REMOVIDO: Evita loop infinito de recarregamento
         });
       });
     }

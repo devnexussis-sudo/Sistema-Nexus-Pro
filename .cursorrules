@@ -1,0 +1,40 @@
+# 🛡️ Nexus Pro - Governança e Diretrizes de Engenharia (Big Tech Standard)
+
+Este documento estabelece os padrões de rigor técnico e arquitetura para o projeto **Nexus Pro**. Qualquer modificação no código deve aderir estritamente a estas diretrizes.
+
+## 🏁 Princípio Fundamental
+**Zero Tolerância para Gambiarras.** Este é um projeto de nível Big Tech, projetado para escala massiva, segurança extrema e manutenibilidade de longo prazo. Bypasses de segurança ou "hacks" temporários são proibidos.
+
+---
+
+## 🔐 Segurança e Isolamento de Dados
+1.  **Prioridade Número 1:** Isolamento Multitenant via `tenant_id`. 
+2.  **RLS (Row Level Security):** O RLS é a única fonte da verdade para permissões. Nunca utilize `service_role` no frontend.
+3.  **Isolamento de Escrita:** Todas as operações de `INSERT` e `UPDATE` devem ser validadas no nível do banco de dados para garantir que os dados pertençam ao `tenant_id` do usuário autenticado.
+
+---
+
+## 🏗️ Gestão de Banco de Dados
+1.  **Migrations First:** Todas as alterações de schema, funções SQL ou políticas de RLS devem ser realizadas através de arquivos de migração (`supabase/migrations/`).
+2.  **Tipagem Estrita:** Após qualquer alteração no banco, o comando `npm run db:sync` deve ser executado para atualizar `src/types/supabase.ts`.
+3.  **Integridade:** O histórico de migrações local deve sempre refletir o estado do banco remoto.
+
+---
+
+## 💻 Stack Técnica
+- **Frontend:** React 19 + Vite + TypeScript.
+- **Backend:** Supabase (Auth, DB, Functions).
+- **Styling:** TailwindCSS / CSS Moderno.
+- **Infra:** GitHub Actions (CI/CD) + Vercel.
+
+---
+
+## 🎨 Padrões de Código
+- **Clean Architecture:** Separação clara entre UI (Componentes), Lógica de Negócio (Services) e Infra (Lib/Supabase).
+- **No `any` Types:** O uso de `any` é desencorajado. Utilize os tipos gerados do banco de dados ou interfaces de domínio.
+- **Singleton Supabase:** Utilize apenas a instância de cliente exportada em `src/lib/supabase.ts` para garantir a persistência correta da sessão e locks de concorrência.
+
+---
+
+## 🎯 Objetivo Atual
+**Reparo de Acesso de Escrita (RLS):** Corrigir o bloqueio de operações `INSERT` e `UPDATE` nas tabelas críticas (`orders`, `users`, `user_groups`, `technicians`), garantindo que o isolamento entre empresas esteja 100% garantido no nível do banco de dados, sem quebrar a funcionalidade de criação de usuários via Edge Functions.
