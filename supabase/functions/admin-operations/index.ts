@@ -2,118 +2,108 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-/**
- * 🔒 Nexus Pro - Secure Admin Operations Edge Function (Production Grade)
- * 
- * Correções L7:
- * - Tratamento Robust de CORS (Preflight e Errors).
- * - Logs estruturados.
- * - Validação estrita de input.
- */
-
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
 };
 
-// Interface estrita para a requisição
-interface AdminRequest {
-    action: 'create_user' | 'delete_user' | 'update_user' | 'list_users';
-    payload?: any;
-}
-
-serve(async (req) => {
-    // 1. Handle CORS Preflight (OPTIONS) - Critical for Browser Access
+serve(async (req: Request) => {
+    // 1. Resposta IMEDIATA para OPTIONS (Resolve o CORS do navegador)
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
     }
 
+    // 2. Resposta para GET (Sanity Check)
+    if (req.method === 'GET') {
+        return new Response(JSON.stringify({ status: "online", message: "Nexus Pro Admin API is active" }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+        });
+    }
+
     try {
-        // Validação básica do método
-        if (req.method !== 'POST') {
-            throw new Error(`Method ${req.method} not allowed`);
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+        if (!supabaseUrl || !serviceRoleKey) {
+            throw new Error("Variáveis de ambiente (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY) não configuradas.");
         }
 
-        // 2. Verificar autenticação do usuário (Authorization Header)
+        // 3. Verificar quem está chamando (Autenticação do Operador)
         const authHeader = req.headers.get('Authorization');
-        if (!authHeader) {
-            throw new Error('Missing Authorization header');
-        }
+        if (!authHeader) throw new Error('Cabeçalho de autorização ausente.');
 
-        // 3. Criar cliente Supabase com contexto do usuário (Anon Key + Token)
-        // Isso permite verificar quem está chamando
-        const supabaseClient = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-            { global: { headers: { Authorization: authHeader } } }
-        );
+        const operatorClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+            global: { headers: { Authorization: authHeader } }
+        });
 
-        // 4. Validar Autenticação e Permissões
-        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+        const { data: { user: operator }, error: authError } = await operatorClient.auth.getUser();
+        if (authError || !operator) throw new Error("Operador não autenticado.");
 
-        if (userError || !user) {
-            console.error('[AdminOps] Auth Error:', userError);
-            return new Response(
-                JSON.stringify({ error: 'Unauthorized', detail: userError?.message }),
-                { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-        }
-
-        console.log(`[AdminOps] User Authenticated: ${user.email} (${user.id})`);
-
-        // Check if user has admin role/permission in public.users
-        // Podemos relaxar para 'ADMIN' role ao invés de 'accessSuperAdmin' JSON se quisermos ser práticos,
-        // mas vamos manter a segurança alta. O ideal é checar role 'ADMIN'.
-        const { data: userData, error: dbError } = await supabaseClient
+        // 4. Obter o TenantId do Operador (Fonte da Verdade)
+        const { data: operatorData, error: operatorDbError } = await operatorClient
             .from('users')
-            .select('role')
-            .eq('id', user.id)
+            .select('tenant_id, role')
+            .eq('id', operator.id)
             .single();
 
-        // Permite se for ADMIN (role) OU se tiver flag superadmin.
-        // Adaptado para aceitar UserRole.ADMIN do sistema.
-        if (dbError || (userData?.role !== 'ADMIN' && userData?.role !== 'moros_admin')) {
-            console.error('[AdminOps] Permission Denied:', userData);
-            return new Response(
-                JSON.stringify({ error: 'Forbidden - Admin access required' }),
-                { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+        if (operatorDbError || !operatorData) throw new Error("Não foi possível validar as permissões do operador.");
+
+        // Apenas ADMIN pode realizar estas operações
+        if (operatorData.role !== 'ADMIN' && operatorData.role !== 'moros_admin') {
+            throw new Error("Acesso negado: Somente administradores podem realizar esta ação.");
         }
 
-        // 5. Inicializar Cliente Admin (Service Role) - O Poderoso Chefão
-        // Se as keys não existirem, vai quebrar aqui.
-        const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const operatorTenantId = operatorData.tenant_id;
 
-        if (!serviceRoleKey || !supabaseUrl) {
-            console.error('[AdminOps] Configuration Error: Missing Service Role Key or URL');
-            return new Response(
-                JSON.stringify({ error: 'Server Configuration Error' }),
-                { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-        }
-
+        // 5. Processar o JSON
+        const body = await req.json().catch(() => ({}));
+        const { action, payload } = body;
         const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-        // 6. Processar a Ação
-        const { action, payload }: AdminRequest = await req.json();
-        console.log(`[AdminOps] Executing Action: ${action}`);
+        console.log(`[Admin] Action: ${action} | Operator: ${operator.email} | Tenant: ${operatorTenantId}`);
 
         let result;
 
         switch (action) {
             case 'create_user': {
                 const { email, password, user_metadata } = payload;
-                if (!email || !password) throw new Error("Email and password are required");
 
-                // Auto-confirm email for admin-created users
+                // 🛡️ Segurança: Força o tenant_id do operador no novo usuário
+                const finalMetadata = {
+                    ...user_metadata,
+                    tenantId: operatorTenantId,
+                    created_by: operator.id
+                };
+
                 const { data, error } = await adminClient.auth.admin.createUser({
                     email,
                     password,
                     email_confirm: true,
-                    user_metadata: { ...user_metadata, created_via: 'admin_ops' }
+                    user_metadata: finalMetadata
                 });
+                if (error) throw error;
+                result = { user: data.user };
+                break;
+            }
+
+            case 'update_user': {
+                const { userId, updates } = payload;
+                if (!userId) throw new Error("ID do usuário é obrigatório.");
+
+                // 🛡️ Segurança: Verifica se o usuário a ser editado pertence ao mesmo tenant
+                const { data: targetUser, error: targetError } = await adminClient
+                    .from('users')
+                    .select('tenant_id')
+                    .eq('id', userId)
+                    .single();
+
+                if (targetError || !targetUser || targetUser.tenant_id !== operatorTenantId) {
+                    throw new Error("Acesso negado: Você não tem permissão para editar usuários de outra empresa.");
+                }
+
+                const { data, error } = await adminClient.auth.admin.updateUserById(userId, updates);
                 if (error) throw error;
                 result = { user: data.user };
                 break;
@@ -121,46 +111,51 @@ serve(async (req) => {
 
             case 'delete_user': {
                 const { userId } = payload;
-                if (!userId) throw new Error("UserId required");
+                if (!userId) throw new Error("ID do usuário é obrigatório.");
+
+                // 🛡️ Segurança: Verifica se o usuário pertence ao mesmo tenant
+                const { data: targetUser, error: targetError } = await adminClient
+                    .from('users')
+                    .select('tenant_id')
+                    .eq('id', userId)
+                    .single();
+
+                if (targetError || !targetUser || targetUser.tenant_id !== operatorTenantId) {
+                    throw new Error("Acesso negado: Você não tem permissão para excluir usuários de outra empresa.");
+                }
+
                 const { error } = await adminClient.auth.admin.deleteUser(userId);
                 if (error) throw error;
                 result = { success: true };
                 break;
             }
 
-            case 'update_user': {
-                const { userId, updates } = payload;
-                if (!userId) throw new Error("UserId required");
-                const { data, error } = await adminClient.auth.admin.updateUserById(userId, updates);
-                if (error) throw error;
-                result = { user: data.user };
-                break;
-            }
-
             case 'list_users': {
+                // Embora list_users retorne todos os usuários do Auth, 
+                // o nosso frontend usa o getTenantUsers do TenantService para filtrar via DB.
+                // Mas vamos implementar com segurança se houver necessidade.
                 const { data, error } = await adminClient.auth.admin.listUsers();
                 if (error) throw error;
-                result = { users: data.users };
+                // Filtra apenas os usuários do tenant do operador
+                const tenantUsers = data.users.filter(u => u.user_metadata?.tenantId === operatorTenantId);
+                result = { users: tenantUsers };
                 break;
             }
 
             default:
-                throw new Error(`Unknown action: ${action}`);
+                throw new Error(`Ação desconhecida: ${action}`);
         }
 
-        // 7. Retornar Sucesso
-        return new Response(
-            JSON.stringify(result),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify(result), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+        });
 
     } catch (error: any) {
-        console.error(`[AdminOps] Execution Failed:`, error.message);
-
-        // Retorna erro JSON legível com Headers CORS (evita 'Preflight Missing')
-        return new Response(
-            JSON.stringify({ error: error.message || 'Internal Server Error' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.error('Admin Error:', error.message);
+        return new Response(JSON.stringify({ error: error.message }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+        });
     }
 });

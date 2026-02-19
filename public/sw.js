@@ -71,24 +71,27 @@ const NEVER_CACHE_PATTERNS = [
 // ─── Página Offline ───────────────────────────────────────────
 const OFFLINE_PAGE = '/index.html'; // HashRouter serve tudo pelo index.html
 
+// ─── Logger Interno ───────────────────────────────────────────
+const DEBUG = false; // Mude para true para ver logs detalhados
+const log = (msg, data = '') => DEBUG && console.log(`[SW] ${msg}`, data);
+const error = (msg, err = '') => console.error(`[SW] ❌ ${msg}`, err);
+
 // ─── INSTALL ─────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
-    console.log(`[SW] 🚀 Instalando Nexus Pro SW ${CACHE_VERSION}...`);
+    log(`🚀 Instalando Nexus Pro SW ${CACHE_VERSION}...`);
 
     event.waitUntil(
         caches.open(CACHE_NAMES.STATIC)
             .then((cache) => {
-                console.log('[SW] 📦 Pre-cacheando App Shell...');
+                log('📦 Pre-cacheando App Shell...');
                 return cache.addAll(APP_SHELL);
             })
             .then(() => {
-                console.log('[SW] ✅ App Shell cacheado com sucesso.');
-                // Ativa imediatamente sem esperar tabs antigas fecharem
+                log('✅ App Shell cacheado com sucesso.');
                 return self.skipWaiting();
             })
             .catch((err) => {
-                console.error('[SW] ❌ Erro no pre-cache:', err);
-                // Não falha o install por causa de recursos opcionais
+                error('Erro no pre-cache:', err);
                 return self.skipWaiting();
             })
     );
@@ -96,7 +99,7 @@ self.addEventListener('install', (event) => {
 
 // ─── ACTIVATE ────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
-    console.log(`[SW] ⚡ Ativando Nexus Pro SW ${CACHE_VERSION}...`);
+    log(`⚡ Ativando Nexus Pro SW ${CACHE_VERSION}...`);
 
     event.waitUntil(
         Promise.all([
@@ -107,15 +110,14 @@ self.addEventListener('activate', (event) => {
                     cacheNames
                         .filter((name) => !validCaches.includes(name))
                         .map((name) => {
-                            console.log(`[SW] 🗑️ Removendo cache antigo: ${name}`);
+                            log(`🗑️ Removendo cache antigo: ${name}`);
                             return caches.delete(name);
                         })
                 );
             }),
-            // Assume controle de todas as tabs imediatamente
             self.clients.claim(),
         ]).then(() => {
-            console.log('[SW] ✅ SW ativo e controlando todas as tabs.');
+            log('✅ SW ativo e controlando todas as tabs.');
         })
     );
 });
@@ -338,4 +340,4 @@ self.addEventListener('message', (event) => {
     }
 });
 
-console.log(`[SW] ✅ Nexus Pro Service Worker ${CACHE_VERSION} carregado.`);
+log(`✅ Nexus Pro Service Worker ${CACHE_VERSION} carregado.`);
