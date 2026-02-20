@@ -236,6 +236,35 @@ export interface ServiceOrder {
   pauseReason?: string; // Motivo da pausa (ex: aguardando peça)
 }
 
+export type VisitStatus = 'pending' | 'ongoing' | 'paused' | 'completed';
+
+export interface ServiceVisit {
+  id: string;
+  tenantId?: string;
+  orderId: string;
+  technicianId?: string;
+  status: VisitStatus;
+  pauseReason?: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  arrivalTime?: string;
+  departureTime?: string;
+  notes?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderTimelineEvent {
+  eventId: string;
+  eventType: string;
+  eventDate: string;
+  userId?: string;
+  userName?: string;
+  details: Record<string, any>;
+}
+
+
 
 export interface Customer {
   id: string;
