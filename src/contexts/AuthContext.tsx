@@ -221,11 +221,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAuth({ user, isAuthenticated: true });
     };
 
-    const logout = () => {
+    const logout = useCallback(async () => {
+        // 1. Update React state immediately for UI responsiveness
         setAuth({ user: null, isAuthenticated: false });
+
+        // 2. Clear both session and global storage
         SessionStorage.clear();
-        supabase.auth.signOut();
-    };
+        GlobalStorage.remove('persistent_user');
+
+        // 3. Clear legacy/tech specific keys
+        localStorage.removeItem('nexus_tech_session_v2');
+        localStorage.removeItem('nexus_tech_cache_v2');
+
+        // 4. Supabase SignOut
+        try {
+            await supabase.auth.signOut();
+        } catch (err) {
+            console.error('[AuthContext] Error signing out from Supabase:', err);
+        }
+    }, []);
 
     const refreshUser = async () => {
         const user = await DataService.refreshUser();
