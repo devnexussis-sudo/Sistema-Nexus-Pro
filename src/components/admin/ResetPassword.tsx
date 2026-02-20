@@ -17,33 +17,63 @@ export const ResetPassword: React.FC = () => {
     useEffect(() => {
         let mounted = true;
 
+        // 🛡️ TRAVA DE SEGURANÇA: Se em 4 segundos nada acontecer, libera a tela
+        const safetyTimer = setTimeout(() => {
+            if (mounted && isChecking) {
+                console.warn('[ResetPassword] ⏱️ Timeout de segurança atingido. Liberando tela.');
+                setIsChecking(false);
+            }
+        }, 4000);
+
         const validateSession = async () => {
+            console.log('[ResetPassword] 🔍 Iniciando validação de link...');
             try {
-                // Força detecção de token na URL (independente do HashRouter)
                 const url = window.location.href;
+                console.log('[ResetPassword] 🌐 URL Detectada:', url);
+
+                // Extração via Regex (robusta para HashRouter)
                 const accessToken = url.match(/access_token=([^&]*)/)?.[1];
                 const refreshToken = url.match(/refresh_token=([^&]*)/)?.[1];
 
                 if (accessToken) {
-                    await supabase.auth.setSession({
+                    console.log('[ResetPassword] 🔑 Token encontrado na URL. Injetando sessão...');
+                    const { error: setSessionError } = await supabase.auth.setSession({
                         access_token: accessToken,
                         refresh_token: refreshToken || '',
                     });
+
+                    if (setSessionError) {
+                        console.error('[ResetPassword] ❌ Erro ao setar sessão:', setSessionError);
+                        if (mounted) setError('O link de recuperação parece inválido ou expirou.');
+                    } else {
+                        console.log('[ResetPassword] ✅ Sessão injetada com sucesso.');
+                        // Pequeno delay para o state do Supabase atualizar globalmente
+                        await new Promise(r => setTimeout(r, 500));
+                    }
                 }
 
                 const { data: { session } } = await supabase.auth.getSession();
+                console.log('[ResetPassword] 👤 Sessão atual:', session ? 'Ativa' : 'Ausente');
+
                 if (!session && mounted) {
-                    setError('Sessão de recuperação expirada. Por favor, solicite um novo e-mail.');
+                    setError('Sessão de recuperação não detectada. Tente clicar novamente no link do e-mail.');
                 }
             } catch (err) {
-                console.error('[ResetPassword] Erro inicial:', err);
+                console.error('[ResetPassword] 💥 Erro fatal na validação:', err);
+                if (mounted) setError('Erro ao processar o link de recuperação.');
             } finally {
-                if (mounted) setIsChecking(false);
+                if (mounted) {
+                    setIsChecking(false);
+                    clearTimeout(safetyTimer);
+                }
             }
         };
 
         validateSession();
-        return () => { mounted = false; };
+        return () => {
+            mounted = false;
+            clearTimeout(safetyTimer);
+        };
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -61,32 +91,46 @@ export const ResetPassword: React.FC = () => {
         }
 
         setLoading(true);
+        console.log('[ResetPassword] 🚀 Tentando atualizar senha...');
 
-        // Proteção contra travamento: se em 15s não responder, libera o botão
+        // Proteção contra travamento no botão (15s)
         const fallbackTimer = setTimeout(() => {
             if (loading) {
                 setLoading(false);
-                setError('O servidor demorou muito para responder. Tente novamente.');
+                setError('O servidor não respondeu a tempo. Verifique sua internet.');
+                console.warn('[ResetPassword] ⏱️ Timeout no envio da senha.');
             }
         }, 15000);
 
         try {
+            // Verifica sessão um milissegundo antes para garantir
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                throw new Error('Sessão ausente. Volte ao e-mail e clique no link novamente.');
+            }
+
             const { error: updateError } = await supabase.auth.updateUser({
                 password: password
             });
 
             if (updateError) throw updateError;
 
+            console.log('[ResetPassword] ✨ Senha atualizada com sucesso!');
             clearTimeout(fallbackTimer);
             setSuccess(true);
 
-            // Limpa sessão e volta para o login
-            await supabase.auth.signOut();
-            setTimeout(() => navigate('/login'), 3000);
+            // Logout imediato e limpeza local para segurança
+            await supabase.auth.signOut().catch(() => { });
+
+            setTimeout(() => {
+                if (window.location.hash.includes('reset-password')) {
+                    navigate('/login');
+                }
+            }, 3000);
 
         } catch (err: any) {
-            console.error('[ResetPassword] Erro ao salvar:', err);
-            setError(err.message || 'Erro ao atualizar senha. Verifique sua conexão.');
+            console.error('[ResetPassword] ❌ Erro ao salvar:', err);
+            setError(err.message || 'Falha ao atualizar senha. Link pode estar expirado.');
             setLoading(false);
             clearTimeout(fallbackTimer);
         }
