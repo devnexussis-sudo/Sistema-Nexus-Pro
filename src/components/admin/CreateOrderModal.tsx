@@ -42,6 +42,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [clientSearch, setClientSearch] = useState(initialData?.customerName || '');
   const [serialSearch, setSerialSearch] = useState('');
   const [techSearch, setTechSearch] = useState('');
+
+  const isCompleted = initialData?.status === OrderStatus.COMPLETED;
+  const canCreateVisit = initialData?.status === OrderStatus.PAUSED || initialData?.status === OrderStatus.BLOCKED;
   const [isClientListOpen, setIsClientListOpen] = useState(false);
   const [isSerialListOpen, setIsSerialListOpen] = useState(false);
 
@@ -932,12 +935,20 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <h3 className="text-sm font-bold text-slate-800">Gerenciamento de Visitas</h3>
                   <p className="text-[10px] text-slate-500 font-medium">Você pode emitir um novo agendamento para esta mesma Ordem se ela estiver pausada ou precisar de retorno.</p>
                 </div>
-                <Button
-                  onClick={openNewVisitModal}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 font-bold text-xs"
-                >
-                  + Nova Visita
-                </Button>
+                {isCompleted ? (
+                  <div className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2">
+                    <CheckCircle2 size={16} /> Protocolo Finalizado
+                  </div>
+                ) : (
+                  <Button
+                    onClick={openNewVisitModal}
+                    disabled={!canCreateVisit}
+                    className={`rounded-lg px-4 py-2 font-bold text-xs ${canCreateVisit ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                    title={!canCreateVisit ? "Apenas ordens pausadas ou impedidas permitem novas visitas." : ""}
+                  >
+                    + Nova Visita
+                  </Button>
+                )}
               </div>
               <OrderTimeline key={`timeline-${timelineKey}`} orderId={initialData.id} />
             </div>
@@ -970,6 +981,16 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               >
                 Continuar <ChevronRight size={16} />
               </Button>
+            ) : isCompleted ? (
+              <Button
+                type="button"
+                key="submit-btn"
+                className="bg-slate-200 text-slate-500 rounded-xl px-12 py-3 font-bold text-xs uppercase tracking-widest shadow-none cursor-not-allowed flex items-center gap-2"
+                title="Protocolo finalizado. Apenas visualização."
+                disabled
+              >
+                <CheckCircle2 size={18} /> Apenas Consulta
+              </Button>
             ) : (
               <Button
                 type={step === 5 ? "button" : "submit"}
@@ -986,76 +1007,78 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         </div>
       </div>
 
-      {showNewVisitModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg border border-slate-200">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-bold text-slate-800">Agendar Nova Visita</h3>
-              <button type="button" onClick={() => setShowNewVisitModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico Designado *</label>
-                <select
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
-                  value={newVisitData.assignedTo}
-                  onChange={e => setNewVisitData({ ...newVisitData, assignedTo: e.target.value })}
-                >
-                  <option value="">Selecione um técnico...</option>
-                  {technicians.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
+      {
+        showNewVisitModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg border border-slate-200">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-slate-800">Agendar Nova Visita</h3>
+                <button type="button" onClick={() => setShowNewVisitModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X size={20} />
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Data *</label>
-                  <input
-                    type="date"
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico Designado *</label>
+                  <select
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
-                    value={newVisitData.scheduledDate}
-                    onChange={e => setNewVisitData({ ...newVisitData, scheduledDate: e.target.value })}
+                    value={newVisitData.assignedTo}
+                    onChange={e => setNewVisitData({ ...newVisitData, assignedTo: e.target.value })}
+                  >
+                    <option value="">Selecione um técnico...</option>
+                    {technicians.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Data *</label>
+                    <input
+                      type="date"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
+                      value={newVisitData.scheduledDate}
+                      onChange={e => setNewVisitData({ ...newVisitData, scheduledDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Horário (Opcional)</label>
+                    <input
+                      type="time"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
+                      value={newVisitData.scheduledTime}
+                      onChange={e => setNewVisitData({ ...newVisitData, scheduledTime: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Observações da Visita / Motivo</label>
+                  <TextArea
+                    placeholder="Instruções para o técnico..."
+                    value={newVisitData.notes}
+                    onChange={e => setNewVisitData({ ...newVisitData, notes: e.target.value })}
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Horário (Opcional)</label>
-                  <input
-                    type="time"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
-                    value={newVisitData.scheduledTime}
-                    onChange={e => setNewVisitData({ ...newVisitData, scheduledTime: e.target.value })}
-                  />
+
+                <div className="pt-4 flex gap-3 flex-row-reverse">
+                  <Button
+                    onClick={confirmScheduleNewVisit}
+                    isLoading={schedulingVisit}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 font-bold"
+                  >
+                    Confirmar Agendamento
+                  </Button>
+                  <Button type="button" onClick={() => setShowNewVisitModal(false)} className="flex-1 shadow-none bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl py-3 font-bold">Cancelar</Button>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Observações da Visita / Motivo</label>
-                <TextArea
-                  placeholder="Instruções para o técnico..."
-                  value={newVisitData.notes}
-                  onChange={e => setNewVisitData({ ...newVisitData, notes: e.target.value })}
-                />
-              </div>
-
-              <div className="pt-4 flex gap-3 flex-row-reverse">
-                <Button
-                  onClick={confirmScheduleNewVisit}
-                  isLoading={schedulingVisit}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 font-bold"
-                >
-                  Confirmar Agendamento
-                </Button>
-                <Button type="button" onClick={() => setShowNewVisitModal(false)} className="flex-1 shadow-none bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl py-3 font-bold">Cancelar</Button>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 
