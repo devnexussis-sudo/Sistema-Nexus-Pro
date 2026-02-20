@@ -17,36 +17,53 @@ export const ResetPassword: React.FC = () => {
     useEffect(() => {
         let mounted = true;
 
-        const checkInitialSession = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                if (mounted) {
-                    setIsChecking(false);
-                    setError('');
-                }
-            } else {
-                // Se não encontrou de primeira, aguarda 1.5s (tempo do Supabase processar a hash da URL)
-                setTimeout(async () => {
-                    const { data: { session: retrySession } } = await supabase.auth.getSession();
-                    if (!retrySession && mounted) {
-                        setError('Sessão de recuperação inválida ou expirada. Tente solicitar um novo e-mail.');
+        const handleRecovery = async () => {
+            try {
+                // 1. Tenta pegar a sessão normal
+                let { data: { session } } = await supabase.auth.getSession();
+
+                // 2. Se não tem sessão, mas tem token na URL (comum em HashRouter)
+                if (!session) {
+                    const hash = window.location.hash;
+                    if (hash.includes('access_token=')) {
+                        // Extrai os tokens da string da URL (considerando o formato do HashRouter)
+                        const params = new URLSearchParams(hash.split('#').pop());
+                        const accessToken = params.get('access_token');
+                        const refreshToken = params.get('refresh_token');
+
+                        if (accessToken && refreshToken) {
+                            console.log('[ResetPassword] 🔑 Token detectado na URL, definindo sessão manual...');
+                            const { data, error: sessionError } = await supabase.auth.setSession({
+                                access_token: accessToken,
+                                refresh_token: refreshToken,
+                            });
+
+                            if (sessionError) throw sessionError;
+                            session = data.session;
+                        }
                     }
-                    if (mounted) setIsChecking(false);
-                }, 1500);
+                }
+
+                if (!session && mounted) {
+                    setError('Sessão de recuperação inválida ou expirada. Tente solicitar um novo e-mail.');
+                }
+            } catch (err: any) {
+                console.error('[ResetPassword] Erro ao validar tokens:', err);
+                if (mounted) setError('Falha ao validar o link de recuperação.');
+            } finally {
+                if (mounted) setIsChecking(false);
             }
         };
 
-        // Escuta eventos de Auth para pegar a recuperação em tempo real
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            if (event === 'PASSWORD_RECOVERY') {
-                if (mounted) {
-                    setIsChecking(false);
-                    setError('');
-                }
+        handleRecovery();
+
+        // Listener para mudanças de estado (garante captura do evento PASSWORD_RECOVERY)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'PASSWORD_RECOVERY' && mounted) {
+                setIsChecking(false);
+                setError('');
             }
         });
-
-        checkInitialSession();
 
         return () => {
             mounted = false;
@@ -71,6 +88,12 @@ export const ResetPassword: React.FC = () => {
         setLoading(true);
 
         try {
+            // Verifica novamente a sessão antes de dar o update
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                throw new Error('Sessão perdida. Por favor, clique no link do e-mail novamente.');
+            }
+
             const { error: updateError } = await supabase.auth.updateUser({
                 password: password
             });
@@ -78,10 +101,10 @@ export const ResetPassword: React.FC = () => {
             if (updateError) throw updateError;
 
             setSuccess(true);
-            // Logout para forçar novo login com a senha nova
-            await supabase.auth.signOut();
 
-            setTimeout(() => {
+            // Aguarda um pouco e limpa tudo
+            setTimeout(async () => {
+                await supabase.auth.signOut();
                 navigate('/login');
             }, 3000);
         } catch (err: any) {
@@ -91,11 +114,11 @@ export const ResetPassword: React.FC = () => {
         }
     };
 
-    if (isChecking && !error) {
+    if (isChecking) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc]">
                 <div className="w-12 h-12 rounded-full border-4 border-primary-100 border-t-primary-600 animate-spin mb-4"></div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Validando Sessão...</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Validando Link...</p>
             </div>
         );
     }
@@ -111,7 +134,7 @@ export const ResetPassword: React.FC = () => {
                         <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Senha Alterada!</h2>
                         <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
                             Sua senha foi atualizada com sucesso. <br />
-                            Redirecionando para o login...
+                            Você já pode fechar esta aba ou aguardar o redirecionamento.
                         </p>
                     </div>
                 </div>
