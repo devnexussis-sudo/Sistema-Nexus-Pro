@@ -152,7 +152,12 @@ export interface User {
   avatar?: string;
   active?: boolean;
   groupId?: string; // Vínculo com o grupo de permissões
+  groupName?: string; // Nome do grupo para exibição
   permissions?: UserPermissions;
+}
+
+export interface UserWithPassword extends User {
+  password: string;
 }
 
 export interface OrderItem {

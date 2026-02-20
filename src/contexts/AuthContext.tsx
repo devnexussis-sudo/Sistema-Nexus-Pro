@@ -134,10 +134,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 console.log(`[AuthProvider] Auth Event: ${event}`);
 
                 if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-                    // TOKEN_REFRESHED: SDK renovou o token automaticamente — apenas atualiza o estado
                     const refreshedUser = await DataService.refreshUser().catch(() => null);
+
                     if (refreshedUser && isMountedRef.current) {
                         setAuth({ user: refreshedUser, isAuthenticated: true });
+                    } else if (event === 'SIGNED_IN') {
+                        // 🛑 ACESSO NEGADO: Autenticado no Provider (Google), mas sem registro no Nexus.
+                        logger.error('[AuthContext] Usuário não autorizado no sistema. Forçando logout.');
+                        await supabase.auth.signOut().catch(() => { });
+                        if (isMountedRef.current) {
+                            setAuth({ user: null, isAuthenticated: false });
+                        }
+                        // Opcional: alert ou redirect com erro.
                     }
                 } else if (event === 'SIGNED_OUT') {
                     if (isMountedRef.current) setAuth({ user: null, isAuthenticated: false });

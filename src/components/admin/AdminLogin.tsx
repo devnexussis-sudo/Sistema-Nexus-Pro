@@ -277,7 +277,17 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                         </div>
 
                         <button
-                            className="w-full flex items-center justify-center gap-3 py-4.5 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.97] shadow-sm"
+                            onClick={async () => {
+                                try {
+                                    setLoading(true);
+                                    await DataService.signInWithGoogle();
+                                } catch (err: any) {
+                                    setError(err.message || 'Falha ao iniciar login com Google');
+                                    setLoading(false);
+                                }
+                            }}
+                            className="w-full flex items-center justify-center gap-3 py-4.5 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50"
+                            disabled={loading}
                         >
                             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
                             Entrar com Google Workspace
@@ -287,12 +297,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                     {/* Footer Links */}
                     <div className="flex flex-col items-center gap-6 pt-10">
                         <div className="text-center space-y-2">
-                            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                                É um colaborador de campo?
-                            </p>
-                            <a href="/tech" className="inline-flex items-center gap-2 px-6 py-2 bg-primary-50 text-primary-600 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-primary-600 hover:text-white transition-all">
-                                Acessar App do Técnico
-                            </a>
+                            {/* Seção 'colaborador de campo' removida conforme solicitação */}
                         </div>
 
                         <div className="flex flex-col items-center gap-3">
