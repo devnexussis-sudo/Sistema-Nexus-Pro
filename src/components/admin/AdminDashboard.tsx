@@ -12,6 +12,7 @@ import {
 import { Pagination } from '../ui/Pagination';
 import { CreateOrderModal } from './CreateOrderModal';
 import { PublicOrderView } from '../public/PublicOrderView';
+import { OrderTimeline } from '../shared/OrderTimeline';
 import { createPortal } from 'react-dom';
 import { DataService } from '../../services/dataService';
 import { useOrderExport } from '../../hooks/useOrderExport';
@@ -39,7 +40,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit' | 'costs'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit' | 'costs' | 'history'>('overview');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
@@ -567,6 +568,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 { id: 'execution', label: 'Checklist', icon: ClipboardList },
                 { id: 'media', label: 'Galeria', icon: Camera },
                 { id: 'costs', label: 'Peças e Custos', icon: DollarSign },
+                { id: 'history', label: 'Histórico', icon: Clock },
                 { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
               ].map(tab => (
                 <button
@@ -886,6 +888,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       );
                     })()}
                   </div>
+                </div>
+              )}
+
+              {/* TAB: HISTÓRICO */}
+              {activeTab === 'history' && (
+                <div className="max-w-4xl mx-auto space-y-8 bg-white p-8 rounded-lg border border-slate-200">
+                  <OrderTimeline orderId={selectedOrder.id} />
                 </div>
               )}
 
