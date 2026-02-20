@@ -4,8 +4,8 @@ import { AuthService } from './authService';
 import { StorageService } from './storageService';
 import { getCurrentTenantId } from '../lib/tenantContext';
 import { CacheManager } from '../lib/cache';
-import { ServiceOrder, OrderStatus, OrderItem } from '../types';
-import type { DbOrder, DbOrderInsert, DbOrderUpdate, DbOrderItem } from '../types/database';
+import { ServiceOrder, OrderStatus, OrderItem, ServiceVisit, VisitStatus, OrderTimelineEvent } from '../types';
+import type { DbOrder, DbOrderInsert, DbOrderUpdate, DbOrderItem, DbServiceVisit } from '../types/database';
 import { logger } from '../lib/logger';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
@@ -647,5 +647,126 @@ export const OrderService = {
                 if (channel) supabase.removeChannel(channel).catch(() => { });
             }
         };
+    },
+
+    // =========================================================================
+    // SERVIÇOS DE VISITAS (SERVICE VISITS)
+    // =========================================================================
+
+    _mapVisitFromDB: (data: DbServiceVisit): ServiceVisit => {
+        return {
+            id: data.id,
+            tenantId: data.tenant_id,
+            orderId: data.order_id,
+            technicianId: data.technician_id,
+            status: data.status as VisitStatus,
+            pauseReason: data.pause_reason,
+            scheduledDate: data.scheduled_date,
+            scheduledTime: data.scheduled_time,
+            arrivalTime: data.arrival_time,
+            departureTime: data.departure_time,
+            notes: data.notes,
+            createdBy: data.created_by,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at
+        };
+    },
+
+    /**
+     * Pausa a visita atual de uma Ordem de Serviço.
+     * Deve ser chamada pelo app do técnico.
+     */
+    pauseVisit: async (visitId: string, orderId: string, reason: string): Promise<void> => {
+        if (!isCloudEnabled) return;
+        const tenantId = getCurrentTenantId();
+        if (!tenantId) throw new Error("Tenant não identificado.");
+
+        // 1. Atualizar Visita para pausada
+        const { error: visitError } = await supabase.from('service_visits')
+            .update({
+                status: 'paused',
+                pause_reason: reason,
+                departure_time: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', visitId)
+            .eq('tenant_id', tenantId);
+
+        if (visitError) throw new Error(`Erro ao pausar visita: ${visitError.message}`);
+
+        // 2. Atualizar OS para pausada (Status macro)
+        const { error: orderError } = await supabase.from('orders')
+            .update({
+                status: 'PAUSADO',
+                pause_reason: reason,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', orderId)
+            .eq('tenant_id', tenantId);
+
+        if (orderError) throw new Error(`Erro ao atualizar status da OS: ${orderError.message}`);
+    },
+
+    /**
+     * Cria uma nova visita para uma OS existente.
+     * Utilizado pelo Admin para reagendamento após pausa ou retorno.
+     */
+    scheduleNewVisit: async (orderId: string, technicianId: string, date: string, time?: string, notes?: string): Promise<ServiceVisit> => {
+        if (!isCloudEnabled) throw new Error("Apenas operações na nuvem suportadas.");
+        const tenantId = getCurrentTenantId();
+        if (!tenantId) throw new Error("Tenant não identificado.");
+
+        // Buscar usuário atual (Criador)
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+
+        const { data, error } = await supabase.from('service_visits')
+            .insert([{
+                tenant_id: tenantId,
+                order_id: orderId,
+                technician_id: technicianId,
+                status: 'pending',
+                scheduled_date: date,
+                scheduled_time: time,
+                notes: notes,
+                created_by: userId
+            }])
+            .select()
+            .single();
+
+        if (error) throw new Error(`Erro ao agendar nova visita: ${error.message}`);
+
+        // Também pode querer alterar a OS de volta para alguma prioridade ou status pendente
+        await supabase.from('orders').update({ updated_at: new Date().toISOString() }).eq('id', orderId);
+
+        return OrderService._mapVisitFromDB(data);
+    },
+
+    /**
+     * Busca o histórico cronológico de uma OS, suas visitas e interrupções (RPC)
+     */
+    getOrderTimeline: async (orderId: string): Promise<OrderTimelineEvent[]> => {
+        if (!isCloudEnabled) return [];
+        const tenantId = getCurrentTenantId();
+        if (!tenantId) return [];
+
+        const { data, error } = await supabase.rpc('get_order_timeline', {
+            p_order_id: orderId,
+            p_tenant_id: tenantId
+        });
+
+        if (error) {
+            console.error("Erro ao carregar timeline:", error);
+            return [];
+        }
+
+        return (data || []).map((event: any) => ({
+            eventId: event.event_id,
+            eventType: event.event_type,
+            eventDate: event.event_date,
+            userId: event.user_id,
+            userName: event.user_name,
+            details: event.details
+        }));
     }
 };

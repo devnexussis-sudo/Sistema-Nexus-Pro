@@ -30,6 +30,7 @@ export type DbOrderPriority = 'BAIXA' | 'MÉDIA' | 'ALTA' | 'CRÍTICA';
 export type DbBillingStatus = 'PENDING' | 'PAID';
 export type DbCashFlowType = 'INCOME' | 'EXPENSE';
 export type DbStockMovementType = 'TRANSFER' | 'CONSUMPTION' | 'RESTOCK' | 'ADJUSTMENT';
+export type DbVisitStatus = 'pending' | 'ongoing' | 'paused' | 'completed';
 
 // ─── Tabela: tenants ──────────────────────────────────────────
 
@@ -168,6 +169,27 @@ export type DbOrderInsert = Omit<DbOrder, 'id' | 'display_id' | 'public_token' |
 export type DbOrderUpdate = Partial<Omit<DbOrder, 'id' | 'tenant_id' | 'created_at'>> & {
     updated_at: string;
 };
+
+// ─── Tabela: service_visits ───────────────────────────────────
+
+export interface DbServiceVisit {
+    id: string;
+    tenant_id: string;
+    order_id: string;
+    technician_id?: string;
+    status: DbVisitStatus;
+    pause_reason?: string;
+    scheduled_date?: string;
+    scheduled_time?: string;
+    arrival_time?: string;
+    departure_time?: string;
+    notes?: string;
+    created_by?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export type DbServiceVisitInsert = Omit<DbServiceVisit, 'id' | 'created_at' | 'updated_at'> & { id?: string };
 
 // ─── Tabela: customers ────────────────────────────────────────
 
