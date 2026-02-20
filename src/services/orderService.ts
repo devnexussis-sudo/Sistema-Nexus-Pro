@@ -673,15 +673,15 @@ export const OrderService = {
     },
 
     /**
-     * Pausa a visita atual de uma Ordem de Serviço.
-     * Deve ser chamada pelo app do técnico.
+     * Pausa a visita atual de uma Ordem de Serviço pelo técnico.
+     * Busca a visita que não está concluída e altera para pausada.
      */
-    pauseVisit: async (visitId: string, orderId: string, reason: string): Promise<void> => {
+    pauseActiveVisit: async (orderId: string, technicianId: string, reason: string): Promise<void> => {
         if (!isCloudEnabled) return;
         const tenantId = getCurrentTenantId();
         if (!tenantId) throw new Error("Tenant não identificado.");
 
-        // 1. Atualizar Visita para pausada
+        // 1. Atualiza qualquer visita pendente/em andamento deste técnico para pausada
         const { error: visitError } = await supabase.from('service_visits')
             .update({
                 status: 'paused',
@@ -689,22 +689,14 @@ export const OrderService = {
                 departure_time: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             })
-            .eq('id', visitId)
+            .eq('order_id', orderId)
+            .eq('technician_id', technicianId)
+            .neq('status', 'completed')
             .eq('tenant_id', tenantId);
 
         if (visitError) throw new Error(`Erro ao pausar visita: ${visitError.message}`);
 
-        // 2. Atualizar OS para pausada (Status macro)
-        const { error: orderError } = await supabase.from('orders')
-            .update({
-                status: 'PAUSADO',
-                pause_reason: reason,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', orderId)
-            .eq('tenant_id', tenantId);
-
-        if (orderError) throw new Error(`Erro ao atualizar status da OS: ${orderError.message}`);
+        // Se nenhuma visita existisse (backend migrando), a timeline ainda tem o update da OS via onUpdateStatus.
     },
 
     /**
