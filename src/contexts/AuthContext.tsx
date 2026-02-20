@@ -111,10 +111,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }, 3000);
 
         const initAuth = async () => {
-            // Rotas públicas não precisam de sessão
-            const isPublic = window.location.hash.startsWith('#/view/') || window.location.hash.startsWith('#/view-quote/');
-            if (isPublic) {
-                logger.info('Rota Pública detectada. Ignorando Heartbeat de sessão.');
+            // 🛡️ Rotas críticas que NÃO devem disparar validação automática ou Heartbeat
+            const isIgnored =
+                window.location.hash.startsWith('#/view/') ||
+                window.location.hash.startsWith('#/view-quote/') ||
+                window.location.hash.includes('reset-password');
+
+            if (isIgnored) {
+                logger.info('[AuthProvider] Rota protegida detectada. Pulando validação automática.');
                 setIsInitializing(false);
                 return;
             }
