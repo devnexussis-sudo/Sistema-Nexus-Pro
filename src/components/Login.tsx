@@ -166,31 +166,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
           >
             Autenticar no Sistema
           </Button>
-
-          <div className="relative py-4 flex items-center justify-center">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-slate-100"></span>
-            </div>
-            <span className="relative px-4 text-[9px] font-black text-slate-300 uppercase bg-white italic tracking-widest">ou login social</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                setLoading(true);
-                await DataService.signInWithGoogle();
-              } catch (err: any) {
-                setError('Falha ao autenticar com Google. Tente novamente.');
-                setLoading(false);
-              }
-            }}
-            className="w-full flex items-center justify-center gap-3 py-4 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50"
-            disabled={loading}
-          >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
-            Entrar com Google Workspace
-          </button>
         </form>
 
         <div className="mt-10 text-center">
@@ -198,6 +173,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
           <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em]">Versão Enterprise v2.6.0-stable (Hotfix)</p>
         </div>
       </div>
-    </div>
+    </div >
   );
 };
