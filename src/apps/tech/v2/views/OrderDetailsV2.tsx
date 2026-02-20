@@ -19,6 +19,7 @@ import {
 import { ChecklistRenderer } from '../components/ChecklistRenderer';
 import { SignatureCanvas } from '../components/ui/SignatureCanvas';
 import { DataService } from '../../../../services/dataService';
+import { OrderService } from '../../../../services/orderService';
 import { getStatusBadge, getStatusLabel } from '../../../../lib/statusColors';
 import { GeoService } from '../../../../lib/geo'; // 📍 Geolocalização
 
@@ -89,6 +90,14 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                     newStatus = OrderStatus.PAUSED;
                     timeline.pausedAt = now;
                     updates.pauseReason = blockReason || 'Pausa solicitada pelo técnico';
+                    // Atualiza visitas pendentes/em andamento antes de onUpdateStatus
+                    if (order.assignedTo) {
+                        try {
+                            await OrderService.pauseActiveVisit(order.id, order.assignedTo, updates.pauseReason);
+                        } catch (err) {
+                            console.warn("Nenhuma visita anterior atualizada (Migration), ou outro erro:", err);
+                        }
+                    }
                     break;
 
                 case 'RESUME':

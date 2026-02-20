@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
 import { OrderPriority, OrderStatus, ServiceOrder, User as UserType, OrderItem, StockItem, FormTemplate } from '../../types';
 import { DataService } from '../../services/dataService';
+import { OrderTimeline } from '../shared/OrderTimeline';
 
 interface CreateOrderModalProps {
   onClose: () => void;
@@ -24,8 +25,9 @@ export const OS_TYPES = [
 ];
 
 export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onSubmit, initialData }) => {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(initialData ? 2 : 1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(initialData ? 2 : 1);
   const [loading, setLoading] = useState(false);
+  const [schedulingVisit, setSchedulingVisit] = useState(false);
   const [technicians, setTechnicians] = useState<UserType[]>([]);
   const [searchMode, setSearchMode] = useState<'client' | 'serial'>('client');
   const [clientSearch, setClientSearch] = useState(initialData?.customerName || '');
@@ -376,6 +378,29 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     s.code.toLowerCase().includes(stockSearch.toLowerCase())
   );
 
+  const handleScheduleNewVisit = async () => {
+    if (!initialData || !formData.assignedTo || !formData.scheduledDate) {
+      alert("Para agendar uma nova visita, certifique-se de que a data agendada e o técnico responsável estão preenchidos na aba '2'.");
+      return;
+    }
+    setSchedulingVisit(true);
+    try {
+      await OrderService.scheduleNewVisit(
+        initialData.id,
+        formData.assignedTo,
+        formData.scheduledDate,
+        formData.scheduledTime,
+        "Reagendamento após pausa ou retorno."
+      );
+      alert("Nova visita agendada com sucesso!");
+      // Optionally reload data or just let the timeline re-fetch by remounting it (or close modal)
+    } catch (e: any) {
+      alert(`Erro ao agendar visita: ${e.message}`);
+    } finally {
+      setSchedulingVisit(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
       <div className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
@@ -398,15 +423,15 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
           <div className="flex items-center gap-6">
             <div className="hidden md:flex items-center gap-2">
-              {[1, 2, 3, 4].map((s) => (
+              {[1, 2, 3, 4, ...(initialData ? [5] : [])].map((s) => (
                 <div key={s} className="flex items-center">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold transition-all border ${step === s
                     ? 'bg-[#1c2d4f] border-[#1c2d4f] text-white shadow-md'
                     : (step > s ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-50 border-slate-200 text-slate-400')
                     }`}>
-                    {step > s ? <CheckCircle2 size={16} /> : s}
+                    {step > s ? <CheckCircle2 size={16} /> : (s === 5 ? <Clock size={16} /> : s)}
                   </div>
-                  {s < 4 && <div className={`w-6 h-0.5 mx-1 rounded-full ${step > s ? 'bg-emerald-500' : 'bg-slate-100'}`} />}
+                  {(s < 4 || (s === 4 && initialData)) && <div className={`w-6 h-0.5 mx-1 rounded-full ${step > s ? 'bg-emerald-500' : 'bg-slate-100'}`} />}
                 </div>
               ))}
             </div>
@@ -879,6 +904,25 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               </form>
             </div>
           )}
+
+          {step === 5 && initialData && (
+            <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
+              <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Gerenciamento de Visitas</h3>
+                  <p className="text-[10px] text-slate-500 font-medium">Você pode emitir um novo agendamento para esta mesma Ordem se ela estiver pausada ou precisar de retorno.</p>
+                </div>
+                <Button
+                  onClick={handleScheduleNewVisit}
+                  isLoading={schedulingVisit}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 font-bold text-xs"
+                >
+                  + Nova Visita
+                </Button>
+              </div>
+              <OrderTimeline orderId={initialData.id} />
+            </div>
+          )}
         </div>
 
         {/* FOOTER */}
@@ -893,7 +937,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           </button>
 
           <div className="flex gap-4">
-            {step < 4 ? (
+            {step < (initialData ? 5 : 4) ? (
               <Button
                 type="button"
                 key={`next-btn-${step}`}
@@ -902,6 +946,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   if (step === 1) goToStep2();
                   else if (step === 2) setStep(3);
                   else if (step === 3) setStep(4);
+                  else if (step === 4 && initialData) setStep(5);
                 }}
               >
                 Continuar <ChevronRight size={16} />
