@@ -69,7 +69,7 @@ const AppRoutes: React.FC = () => {
           <AdminApp
             auth={auth} // Mantendo prop por enquanto para não quebrar AdminApp (Refatoração gradual)
             onLogin={login}
-            onLogout={() => { logout(); window.location.href = '/'; }}
+            onLogout={async () => { await logout(); window.location.href = '/'; }}
             isImpersonating={isImpersonating}
             onToggleMaster={() => { }}
             systemNotifications={systemNotifications}
