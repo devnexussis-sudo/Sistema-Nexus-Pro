@@ -97,26 +97,69 @@ BEGIN
 
     UNION ALL
     
-    -- Eventos 2: Visitas (Criação, Chegada, Pausa, Conclusão)
+    -- Eventos 2.1: Visitas (AGENDADA/CRIADA)
     SELECT 
         sv.id AS event_id,
-        'VISIT_' || UPPER(sv.status::TEXT) AS event_type,
-        COALESCE(
-            CASE WHEN sv.status = 'completed' THEN sv.departure_time
-                 WHEN sv.status = 'ongoing' THEN sv.arrival_time
-                 ELSE sv.updated_at END,
-            sv.created_at
-        ) AS event_date,
+        'VISIT_PENDING'::TEXT AS event_type,
+        sv.created_at AS event_date,
+        sv.created_by AS user_id,
+        u.name AS user_name,
+        jsonb_build_object(
+            'scheduled_date', sv.scheduled_date,
+            'scheduled_time', sv.scheduled_time,
+            'notes', sv.notes,
+            'assigned_tech', t.name
+        ) AS details
+    FROM public.service_visits sv
+    LEFT JOIN public.users u ON u.id = sv.created_by
+    LEFT JOIN public.users t ON t.id = sv.technician_id
+    WHERE sv.order_id = p_order_id AND sv.tenant_id = p_tenant_id
+
+    UNION ALL
+
+    -- Eventos 2.2: Visitas (INICIADA)
+    SELECT 
+        sv.id AS event_id,
+        'VISIT_ONGOING'::TEXT AS event_type,
+        sv.arrival_time AS event_date,
+        sv.technician_id AS user_id,
+        u.name AS user_name,
+        jsonb_build_object() AS details
+    FROM public.service_visits sv
+    LEFT JOIN public.users u ON u.id = sv.technician_id
+    WHERE sv.order_id = p_order_id AND sv.tenant_id = p_tenant_id AND sv.arrival_time IS NOT NULL
+
+    UNION ALL
+
+    -- Eventos 2.3: Visitas (PAUSADA)
+    SELECT 
+        sv.id AS event_id,
+        'VISIT_PAUSED'::TEXT AS event_type,
+        sv.updated_at AS event_date,  -- Usando updated_at pois não há pause_time explícito
         sv.technician_id AS user_id,
         u.name AS user_name,
         jsonb_build_object(
-            'pause_reason', sv.pause_reason, 
-            'scheduled_date', sv.scheduled_date,
-            'notes', sv.notes
+            'pause_reason', sv.pause_reason
         ) AS details
     FROM public.service_visits sv
     LEFT JOIN public.users u ON u.id = sv.technician_id
-    WHERE sv.order_id = p_order_id AND sv.tenant_id = p_tenant_id
+    WHERE sv.order_id = p_order_id AND sv.tenant_id = p_tenant_id AND sv.status = 'paused'
+
+    UNION ALL
+
+    -- Eventos 2.4: Visitas (CONCLUÍDA)
+    SELECT 
+        sv.id AS event_id,
+        'VISIT_COMPLETED'::TEXT AS event_type,
+        sv.departure_time AS event_date,
+        sv.technician_id AS user_id,
+        u.name AS user_name,
+        jsonb_build_object(
+            'form_data', sv.form_data
+        ) AS details
+    FROM public.service_visits sv
+    LEFT JOIN public.users u ON u.id = sv.technician_id
+    WHERE sv.order_id = p_order_id AND sv.tenant_id = p_tenant_id AND sv.status = 'completed' AND sv.departure_time IS NOT NULL
 
     UNION ALL
 

@@ -47,6 +47,7 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
 
     const getIcon = (type: string) => {
         if (type === 'ORDER_CREATED') return <CheckCircle2 size={16} className="text-emerald-500" />;
+        if (type === 'VISIT_PENDING') return <CalendarDays size={16} className="text-indigo-500" />;
         if (type.startsWith('VISIT_ONGOING')) return <Play size={16} className="text-blue-500" />;
         if (type.startsWith('VISIT_PAUSED')) return <Pause size={16} className="text-amber-500" />;
         if (type.startsWith('VISIT_COMPLETED')) return <CheckCircle2 size={16} className="text-emerald-500" />;
@@ -121,6 +122,21 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
                                 <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-2">
                                     De: <span className="font-bold text-slate-400 line-through">{(event.details.old_date || '') + ' ' + (event.details.old_time || '')}</span>
                                     Para: <span className="font-bold text-[#1c2d4f]">{(event.details.new_date || '') + ' ' + (event.details.new_time || '')}</span>
+                                </div>
+                            )}
+
+                            {event.eventType === 'VISIT_PENDING' && (
+                                <div className="mt-2 text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg font-medium flex gap-2 flex-col">
+                                    <div className="flex items-center gap-2">
+                                        <CalendarDays size={14} className="text-indigo-400 shrink-0" />
+                                        <span>Agendada para: <strong className="text-indigo-600">{event.details.scheduled_date} {event.details.scheduled_time || ''}</strong></span>
+                                    </div>
+                                    {event.details.assigned_tech && (
+                                        <div className="flex items-center gap-2">
+                                            <UserCheck size={14} className="text-indigo-400 shrink-0" />
+                                            <span>Técnico: <strong className="text-[#1c2d4f]">{event.details.assigned_tech}</strong></span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
