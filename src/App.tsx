@@ -7,6 +7,7 @@ import { AdminApp } from './apps/admin/AdminApp';
 import { AdminLogin } from './components/admin/AdminLogin';
 import { MasterLogin } from './components/admin/MasterLogin';
 import { SuperAdminPage } from './components/admin/SuperAdminPage';
+import { ResetPassword } from './components/admin/ResetPassword';
 import { NotFoundPage } from './pages/NotFoundPage';
 import SessionStorage from './lib/sessionStorage';
 import { DataService } from './services/dataService';
@@ -83,6 +84,9 @@ const AppRoutes: React.FC = () => {
         auth.isAuthenticated ? <Navigate to="/admin" replace /> :
           <AdminLogin onLogin={login} onToggleMaster={() => { }} />
       } />
+
+      {/* RESET PASSWORD */}
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* ROOT REDIRECT */}
       <Route path="/" element={<Navigate to={auth.isAuthenticated ? "/admin" : "/login"} replace />} />
