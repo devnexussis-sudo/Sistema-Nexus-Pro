@@ -11,18 +11,47 @@ export const ResetPassword: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+    const [isChecking, setIsChecking] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
-        // Verifica se chegamos aqui com um access_token (o Supabase coloca na hash da URL após o reset)
-        // O SDK do Supabase captura isso automaticamente.
-        const checkSession = async () => {
+        let mounted = true;
+
+        const checkInitialSession = async () => {
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                setError('Sessão de recuperação inválida ou expirada. Tente solicitar um novo e-mail.');
+            if (session) {
+                if (mounted) {
+                    setIsChecking(false);
+                    setError('');
+                }
+            } else {
+                // Se não encontrou de primeira, aguarda 1.5s (tempo do Supabase processar a hash da URL)
+                setTimeout(async () => {
+                    const { data: { session: retrySession } } = await supabase.auth.getSession();
+                    if (!retrySession && mounted) {
+                        setError('Sessão de recuperação inválida ou expirada. Tente solicitar um novo e-mail.');
+                    }
+                    if (mounted) setIsChecking(false);
+                }, 1500);
             }
         };
-        checkSession();
+
+        // Escuta eventos de Auth para pegar a recuperação em tempo real
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                if (mounted) {
+                    setIsChecking(false);
+                    setError('');
+                }
+            }
+        });
+
+        checkInitialSession();
+
+        return () => {
+            mounted = false;
+            subscription.unsubscribe();
+        };
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -42,11 +71,11 @@ export const ResetPassword: React.FC = () => {
         setLoading(true);
 
         try {
-            const { error } = await supabase.auth.updateUser({
+            const { error: updateError } = await supabase.auth.updateUser({
                 password: password
             });
 
-            if (error) throw error;
+            if (updateError) throw updateError;
 
             setSuccess(true);
             // Logout para forçar novo login com a senha nova
@@ -61,6 +90,15 @@ export const ResetPassword: React.FC = () => {
             setLoading(false);
         }
     };
+
+    if (isChecking && !error) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc]">
+                <div className="w-12 h-12 rounded-full border-4 border-primary-100 border-t-primary-600 animate-spin mb-4"></div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Validando Sessão...</p>
+            </div>
+        );
+    }
 
     if (success) {
         return (
@@ -129,7 +167,7 @@ export const ResetPassword: React.FC = () => {
 
                         <Button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || !!error}
                             className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-2xl py-5 font-black uppercase tracking-[0.25em] transition-all active:scale-[0.97]"
                         >
                             {loading ? 'Salvando...' : 'Atualizar Senha'}
