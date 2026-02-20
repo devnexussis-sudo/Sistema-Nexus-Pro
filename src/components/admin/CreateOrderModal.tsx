@@ -29,6 +29,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(initialData ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [schedulingVisit, setSchedulingVisit] = useState(false);
+  const [timelineKey, setTimelineKey] = useState(0);
   const [showNewVisitModal, setShowNewVisitModal] = useState(false);
   const [newVisitData, setNewVisitData] = useState({
     assignedTo: '',
@@ -246,8 +247,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   };
 
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
 
     console.log('=== INICIANDO CRIAÇÃO DE ORDEM ===');
     console.log('FormData:', formData);
@@ -412,7 +413,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       );
       alert("Nova visita agendada com sucesso!");
       setShowNewVisitModal(false);
-      // Reload is handled by timeline component refetch if possible or remount
+      setTimelineKey(prev => prev + 1);
     } catch (e: any) {
       alert(`Erro ao agendar visita: ${e.message}`);
     } finally {
@@ -938,7 +939,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   + Nova Visita
                 </Button>
               </div>
-              <OrderTimeline orderId={initialData.id} />
+              <OrderTimeline key={`timeline-${timelineKey}`} orderId={initialData.id} />
             </div>
           )}
         </div>
@@ -971,9 +972,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               </Button>
             ) : (
               <Button
-                type="submit"
+                type={step === 5 ? "button" : "submit"}
                 key="submit-btn"
-                form="os-form"
+                form={step === 5 ? undefined : "os-form"}
+                onClick={step === 5 ? () => handleSubmit() : undefined}
                 isLoading={loading}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-12 py-3 font-bold text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
               >
