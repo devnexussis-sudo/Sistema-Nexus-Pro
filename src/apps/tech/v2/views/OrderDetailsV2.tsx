@@ -520,18 +520,21 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
                             {template ? (
                                 <>
-                                    <div className="bg-primary-50 rounded-lg p-4 border border-primary-100 flex items-start gap-3">
-                                        <Info size={20} className="text-primary-600 mt-0.5 shrink-0" />
-                                        <p className="text-xs text-primary-800 font-medium leading-relaxed">
-                                            Preencha todos os itens obrigatórios para finalizar o serviço. As alterações são salvas automaticamente no dispositivo.
-                                        </p>
-                                    </div>
+                                    {order.status !== OrderStatus.COMPLETED && (
+                                        <div className="bg-primary-50 rounded-lg p-4 border border-primary-100 flex items-start gap-3">
+                                            <Info size={20} className="text-primary-600 mt-0.5 shrink-0" />
+                                            <p className="text-xs text-primary-800 font-medium leading-relaxed">
+                                                Preencha todos os itens obrigatórios para finalizar o serviço. As alterações são salvas automaticamente no dispositivo.
+                                            </p>
+                                        </div>
+                                    )}
 
                                     <div className="space-y-6">
                                         <ChecklistRenderer
                                             fields={template.fields}
                                             answers={answers}
                                             onAnswerChange={handleAnswerChange}
+                                            readOnly={order.status === OrderStatus.COMPLETED}
                                         />
                                     </div>
 
