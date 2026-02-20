@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { OrderTimelineEvent } from '../../../types';
-import { OrderService } from '../../../services/orderService';
+import { OrderTimelineEvent } from '../../types';
+import { OrderService } from '../../services/orderService';
 import { Clock, Play, Pause, CheckCircle2, AlertCircle, Edit3, CalendarCheck, MessageSquare } from 'lucide-react';
 
 interface OrderTimelineProps {
