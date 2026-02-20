@@ -106,7 +106,7 @@ export const AuthService = {
             const existingUser = (authData.users || []).find(u => u.email?.toLowerCase() === email.toLowerCase());
 
             if (existingUser) {
-                const tenantId = existingUser.user_metadata?.tenantId;
+                const tenantId = (existingUser as any).user_metadata?.tenantId;
                 if (tenantId) {
                     // Busca nome do tenant via supabase (anon) — RLS permite leitura do próprio tenant
                     const { data: tenant } = await supabase
@@ -137,19 +137,10 @@ export const AuthService = {
             .single();
 
         if (!dbUser) {
-            console.warn("⚠️ Usuário não encontrado na tabela 'users'. Tentando reconstruir via metadata...");
-            // Fallback: Usa metadados do Auth se tabela falhar (ex: usuario novo nao syncado)
-            if (metadata && metadata.role) {
-                return {
-                    id: authId,
-                    name: metadata.name || 'Usuário',
-                    email: email,
-                    role: metadata.role as UserRole,
-                    tenantId: metadata.tenantId,
-                    avatar: metadata.avatar,
-                    active: true
-                };
-            }
+            // 🛑 SEGURANÇA BIG TECH: Bloqueio de acesso se não houver registro na tabela 'users'.
+            // Isso garante que apenas e-mails pré-autorizados pela empresa (via Admin) possam entrar,
+            // mesmo que consigam se autenticar no Google/Auth.
+            logger.warn('Acesso Negado: Usuário autenticado mas não autorizado (sem registro na tabela users).', { authId, email });
             return undefined;
         }
 
@@ -201,6 +192,22 @@ export const AuthService = {
         if (isCloudEnabled) {
             const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase(), {
                 redirectTo: `${window.location.origin}/#/reset-password`,
+            });
+            if (error) throw error;
+        }
+    },
+
+    signInWithGoogle: async (): Promise<void> => {
+        if (isCloudEnabled) {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: window.location.origin,
+                    queryParams: {
+                        access_type: 'offline',
+                        prompt: 'select_account'
+                    }
+                }
             });
             if (error) throw error;
         }
