@@ -179,5 +179,14 @@ export const AuthService = {
             }
         }
         return undefined;
+    },
+
+    resetPasswordForEmail: async (email: string): Promise<void> => {
+        if (isCloudEnabled) {
+            const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase(), {
+                redirectTo: `${window.location.origin}/#/reset-password`,
+            });
+            if (error) throw error;
+        }
     }
 };
