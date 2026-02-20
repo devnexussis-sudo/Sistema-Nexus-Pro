@@ -17,57 +17,54 @@ export const ResetPassword: React.FC = () => {
     useEffect(() => {
         let mounted = true;
 
-        const handleRecovery = async () => {
+        const initRecovery = async () => {
             try {
-                // 1. Tenta pegar a sessão normal
+                // Força um pequeno aguardo para o router estabilizar a URL
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // 1. Tenta pegar a sessão (o Supabase pode ter lido a URL sozinho)
                 let { data: { session } } = await supabase.auth.getSession();
 
-                // 2. Se não tem sessão, mas tem token na URL (comum em HashRouter)
+                // 2. Se não pegou, tentamos extrair manualmente da URL (conflito de HashRouter)
                 if (!session) {
-                    const hash = window.location.hash;
-                    if (hash.includes('access_token=')) {
-                        // Extrai os tokens da string da URL (considerando o formato do HashRouter)
-                        const params = new URLSearchParams(hash.split('#').pop());
-                        const accessToken = params.get('access_token');
-                        const refreshToken = params.get('refresh_token');
+                    const fullHash = window.location.hash; // ex: #/reset-password#access_token=...
+                    if (fullHash.includes('access_token=')) {
+                        const tokenPart = fullHash.split('access_token=')[1]?.split('&')[0];
+                        const refreshPart = fullHash.split('refresh_token=')[1]?.split('&')[0];
 
-                        if (accessToken && refreshToken) {
-                            console.log('[ResetPassword] 🔑 Token detectado na URL, definindo sessão manual...');
-                            const { data, error: sessionError } = await supabase.auth.setSession({
-                                access_token: accessToken,
-                                refresh_token: refreshToken,
+                        if (tokenPart && refreshPart) {
+                            const { data, error: setSessionError } = await supabase.auth.setSession({
+                                access_token: tokenPart,
+                                refresh_token: refreshPart,
                             });
-
-                            if (sessionError) throw sessionError;
-                            session = data.session;
+                            if (!setSessionError) session = data.session;
                         }
                     }
                 }
 
+                // 3. Verifica se agora temos uma sessão válida
                 if (!session && mounted) {
-                    setError('Sessão de recuperação inválida ou expirada. Tente solicitar um novo e-mail.');
+                    // Não damos erro fatal aqui, apenas deixamos o usuário tentar digitar
+                    // O erro real virá no submit se a sessão realmente não for válida
+                    console.warn('[ResetPassword] Sessão não detectada na carga inicial.');
                 }
-            } catch (err: any) {
-                console.error('[ResetPassword] Erro ao validar tokens:', err);
-                if (mounted) setError('Falha ao validar o link de recuperação.');
+            } catch (err) {
+                console.error('[ResetPassword] Erro na inicialização:', err);
             } finally {
                 if (mounted) setIsChecking(false);
             }
         };
 
-        handleRecovery();
+        // Trava de segurança: Se em 3 segundos não liberou, força a liberação dos campos
+        const safetyTimeout = setTimeout(() => {
+            if (mounted && isChecking) setIsChecking(false);
+        }, 3000);
 
-        // Listener para mudanças de estado (garante captura do evento PASSWORD_RECOVERY)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-            if (event === 'PASSWORD_RECOVERY' && mounted) {
-                setIsChecking(false);
-                setError('');
-            }
-        });
+        initRecovery();
 
         return () => {
             mounted = false;
-            subscription.unsubscribe();
+            clearTimeout(safetyTimeout);
         };
     }, []);
 
@@ -88,21 +85,19 @@ export const ResetPassword: React.FC = () => {
         setLoading(true);
 
         try {
-            // Verifica novamente a sessão antes de dar o update
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                throw new Error('Sessão perdida. Por favor, clique no link do e-mail novamente.');
-            }
-
             const { error: updateError } = await supabase.auth.updateUser({
                 password: password
             });
 
-            if (updateError) throw updateError;
+            if (updateError) {
+                if (updateError.message.includes('session')) {
+                    throw new Error('Sessão expirada. Por favor, solicite um novo e-mail de recuperação.');
+                }
+                throw updateError;
+            }
 
             setSuccess(true);
 
-            // Aguarda um pouco e limpa tudo
             setTimeout(async () => {
                 await supabase.auth.signOut();
                 navigate('/login');
@@ -118,7 +113,7 @@ export const ResetPassword: React.FC = () => {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc]">
                 <div className="w-12 h-12 rounded-full border-4 border-primary-100 border-t-primary-600 animate-spin mb-4"></div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Validando Link...</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Aguarde, validando acesso...</p>
             </div>
         );
     }
@@ -134,7 +129,7 @@ export const ResetPassword: React.FC = () => {
                         <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Senha Alterada!</h2>
                         <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
                             Sua senha foi atualizada com sucesso. <br />
-                            Você já pode fechar esta aba ou aguardar o redirecionamento.
+                            Você já pode fazer login normalmente.
                         </p>
                     </div>
                 </div>
@@ -146,14 +141,14 @@ export const ResetPassword: React.FC = () => {
         <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-8">
             <div className="w-full max-w-sm space-y-8">
                 <div className="text-center space-y-4">
-                    <div className="inline-flex p-4 bg-white rounded-2xl shadow-xl border border-slate-50 mb-4">
+                    <div className="inline-flex p-4 bg-white rounded-2xl shadow-xl border border-slate-50 mb-4 transition-transform hover:scale-105">
                         <img src="/nexus-logo.png" alt="Nexus Logo" className="h-12 w-auto" />
                     </div>
-                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Nova Senha</h1>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Defina sua nova senha de acesso administrativo</p>
+                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Nova Senha</h1>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Crie sua nova credencial de acesso</p>
                 </div>
 
-                <div className="bg-white p-8 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-50">
+                <div className="bg-white p-8 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-50 animate-in fade-in zoom-in duration-500">
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Nova Senha</label>
@@ -162,7 +157,7 @@ export const ResetPassword: React.FC = () => {
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Mínimo 6 caracteres"
+                                placeholder="Digite a nova senha"
                                 className="bg-slate-50 border-slate-200 text-slate-900 rounded-2xl py-4 focus:ring-4 focus:ring-primary-100 transition-all font-bold"
                                 icon={<Lock size={18} className="text-slate-300" />}
                             />
@@ -175,14 +170,14 @@ export const ResetPassword: React.FC = () => {
                                 required
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
-                                placeholder="Repita a senha"
+                                placeholder="Repita a nova senha"
                                 className="bg-slate-50 border-slate-200 text-slate-900 rounded-2xl py-4 focus:ring-4 focus:ring-primary-100 transition-all font-bold"
                                 icon={<ShieldCheck size={18} className="text-slate-300" />}
                             />
                         </div>
 
                         {error && (
-                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3">
+                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3 animate-in shake duration-300">
                                 <AlertCircle className="text-rose-500 shrink-0" size={16} />
                                 <p className="text-rose-600 text-[10px] font-black uppercase tracking-tight leading-tight">{error}</p>
                             </div>
@@ -190,10 +185,10 @@ export const ResetPassword: React.FC = () => {
 
                         <Button
                             type="submit"
-                            disabled={loading || !!error}
+                            disabled={loading}
                             className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-2xl py-5 font-black uppercase tracking-[0.25em] transition-all active:scale-[0.97]"
                         >
-                            {loading ? 'Salvando...' : 'Atualizar Senha'}
+                            {loading ? 'Processando...' : 'Salvar Nova Senha'}
                         </Button>
                     </form>
                 </div>
@@ -203,7 +198,7 @@ export const ResetPassword: React.FC = () => {
                         onClick={() => navigate('/login')}
                         className="text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-slate-600 transition-all"
                     >
-                        Cancelar e Voltar
+                        Voltar para o Login
                     </button>
                 </div>
             </div>
