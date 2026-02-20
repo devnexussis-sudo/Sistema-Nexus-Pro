@@ -17,55 +17,51 @@ export const ResetPassword: React.FC = () => {
     useEffect(() => {
         let mounted = true;
 
-        const initRecovery = async () => {
+        const handleToken = async () => {
             try {
-                // Força um pequeno aguardo para o router estabilizar a URL
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // Pequeno delay para garantir que o navegador processou a URL completa
+                await new Promise(resolve => setTimeout(resolve, 800));
 
-                // 1. Tenta pegar a sessão (o Supabase pode ter lido a URL sozinho)
-                let { data: { session } } = await supabase.auth.getSession();
+                const hash = window.location.hash;
+                if (hash.includes('access_token=')) {
+                    // Extração robusta do token
+                    const token = hash.split('access_token=')[1]?.split('&')[0];
+                    const refresh = hash.split('refresh_token=')[1]?.split('&')[0];
 
-                // 2. Se não pegou, tentamos extrair manualmente da URL (conflito de HashRouter)
-                if (!session) {
-                    const fullHash = window.location.hash; // ex: #/reset-password#access_token=...
-                    if (fullHash.includes('access_token=')) {
-                        const tokenPart = fullHash.split('access_token=')[1]?.split('&')[0];
-                        const refreshPart = fullHash.split('refresh_token=')[1]?.split('&')[0];
+                    if (token) {
+                        const { error: sessionError } = await supabase.auth.setSession({
+                            access_token: token,
+                            refresh_token: refresh || '',
+                        });
 
-                        if (tokenPart && refreshPart) {
-                            const { data, error: setSessionError } = await supabase.auth.setSession({
-                                access_token: tokenPart,
-                                refresh_token: refreshPart,
-                            });
-                            if (!setSessionError) session = data.session;
+                        if (sessionError) {
+                            console.error('[ResetPassword] Erro ao carregar sessão:', sessionError);
+                            if (mounted) setError('O link de recuperação parece inválido ou expirou.');
+                        } else {
+                            // Limpa a URL para evitar re-processamento do token pelo Supabase
+                            const cleanUrl = window.location.origin + window.location.pathname + window.location.search + '#/reset-password';
+                            window.history.replaceState(null, '', cleanUrl);
                         }
                     }
                 }
 
-                // 3. Verifica se agora temos uma sessão válida
-                if (!session && mounted) {
-                    // Não damos erro fatal aqui, apenas deixamos o usuário tentar digitar
-                    // O erro real virá no submit se a sessão realmente não for válida
-                    console.warn('[ResetPassword] Sessão não detectada na carga inicial.');
+                // Verifica se temos sessão agora
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session && mounted && !error) {
+                    setError('Não foi possível validar seu acesso. Por favor, tente clicar no link do e-mail novamente.');
                 }
+
             } catch (err) {
-                console.error('[ResetPassword] Erro na inicialização:', err);
+                console.error('[ResetPassword] Erro crítico:', err);
+                if (mounted) setError('Ocorreu um erro ao validar o link de recuperação.');
             } finally {
                 if (mounted) setIsChecking(false);
             }
         };
 
-        // Trava de segurança: Se em 3 segundos não liberou, força a liberação dos campos
-        const safetyTimeout = setTimeout(() => {
-            if (mounted && isChecking) setIsChecking(false);
-        }, 3000);
+        handleToken();
 
-        initRecovery();
-
-        return () => {
-            mounted = false;
-            clearTimeout(safetyTimeout);
-        };
+        return () => { mounted = false; };
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -85,25 +81,33 @@ export const ResetPassword: React.FC = () => {
         setLoading(true);
 
         try {
+            // 1. Verifica se a sessão está ativa antes de tentar o update
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                throw new Error('Sessão perdida. Por favor, atualize a página ou clique novamente no link do e-mail.');
+            }
+
+            // 2. Tenta atualizar a senha
             const { error: updateError } = await supabase.auth.updateUser({
                 password: password
             });
 
-            if (updateError) {
-                if (updateError.message.includes('session')) {
-                    throw new Error('Sessão expirada. Por favor, solicite um novo e-mail de recuperação.');
-                }
-                throw updateError;
-            }
+            if (updateError) throw updateError;
 
+            // 3. Sucesso!
             setSuccess(true);
 
-            setTimeout(async () => {
-                await supabase.auth.signOut();
+            // 4. Limpa a sessão para forçar novo login
+            await supabase.auth.signOut();
+
+            // 5. Redireciona
+            setTimeout(() => {
                 navigate('/login');
             }, 3000);
+
         } catch (err: any) {
-            setError(err.message || 'Erro ao atualizar senha.');
+            console.error('[ResetPassword] Erro ao salvar senha:', err);
+            setError(err.message || 'Erro inesperado ao salvar. Verifique sua conexão.');
         } finally {
             setLoading(false);
         }
@@ -113,7 +117,7 @@ export const ResetPassword: React.FC = () => {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc]">
                 <div className="w-12 h-12 rounded-full border-4 border-primary-100 border-t-primary-600 animate-spin mb-4"></div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Aguarde, validando acesso...</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Carregando formulário...</p>
             </div>
         );
     }
@@ -126,10 +130,10 @@ export const ResetPassword: React.FC = () => {
                         <ShieldCheck size={40} />
                     </div>
                     <div className="space-y-2">
-                        <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Senha Alterada!</h2>
+                        <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Senha Atualizada!</h2>
                         <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
-                            Sua senha foi atualizada com sucesso. <br />
-                            Você já pode fazer login normalmente.
+                            Senha alterada com sucesso. <br />
+                            Redirecionando para o login...
                         </p>
                     </div>
                 </div>
@@ -141,14 +145,14 @@ export const ResetPassword: React.FC = () => {
         <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-8">
             <div className="w-full max-w-sm space-y-8">
                 <div className="text-center space-y-4">
-                    <div className="inline-flex p-4 bg-white rounded-2xl shadow-xl border border-slate-50 mb-4 transition-transform hover:scale-105">
+                    <div className="inline-flex p-4 bg-white rounded-2xl shadow-xl border border-slate-50 mb-4">
                         <img src="/nexus-logo.png" alt="Nexus Logo" className="h-12 w-auto" />
                     </div>
-                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Nova Senha</h1>
+                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Nova Senha</h1>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Crie sua nova credencial de acesso</p>
                 </div>
 
-                <div className="bg-white p-8 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-50 animate-in fade-in zoom-in duration-500">
+                <div className="bg-white p-8 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-50">
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Nova Senha</label>
@@ -170,14 +174,14 @@ export const ResetPassword: React.FC = () => {
                                 required
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
-                                placeholder="Repita a nova senha"
+                                placeholder="Repita a senha"
                                 className="bg-slate-50 border-slate-200 text-slate-900 rounded-2xl py-4 focus:ring-4 focus:ring-primary-100 transition-all font-bold"
                                 icon={<ShieldCheck size={18} className="text-slate-300" />}
                             />
                         </div>
 
                         {error && (
-                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3 animate-in shake duration-300">
+                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3 animate-in fade-in duration-300">
                                 <AlertCircle className="text-rose-500 shrink-0" size={16} />
                                 <p className="text-rose-600 text-[10px] font-black uppercase tracking-tight leading-tight">{error}</p>
                             </div>
@@ -186,9 +190,10 @@ export const ResetPassword: React.FC = () => {
                         <Button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-2xl py-5 font-black uppercase tracking-[0.25em] transition-all active:scale-[0.97]"
+                            className={`w-full text-white rounded-2xl py-5 font-black uppercase tracking-[0.25em] transition-all active:scale-[0.97] ${loading ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#1c2d4f] hover:bg-[#253a66]'
+                                }`}
                         >
-                            {loading ? 'Processando...' : 'Salvar Nova Senha'}
+                            {loading ? 'Salvando Senha...' : 'Salvar Nova Senha'}
                         </Button>
                     </form>
                 </div>
