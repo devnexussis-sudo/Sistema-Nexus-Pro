@@ -268,30 +268,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                 </div>
                             </form>
                         )}
-
-                        <div className="relative py-4 flex items-center justify-center">
-                            <div className="absolute inset-0 flex items-center">
-                                <span className="w-full border-t border-slate-100"></span>
-                            </div>
-                            <span className="relative px-6 text-[10px] font-black text-slate-300 uppercase bg-white italic tracking-widest">ou login social</span>
-                        </div>
-
-                        <button
-                            onClick={async () => {
-                                try {
-                                    setLoading(true);
-                                    await DataService.signInWithGoogle();
-                                } catch (err: any) {
-                                    setError(err.message || 'Falha ao iniciar login com Google');
-                                    setLoading(false);
-                                }
-                            }}
-                            className="w-full flex items-center justify-center gap-3 py-4.5 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.97] shadow-sm disabled:opacity-50"
-                            disabled={loading}
-                        >
-                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
-                            Entrar com Google Workspace
-                        </button>
                     </div>
 
                     {/* Footer Links */}
