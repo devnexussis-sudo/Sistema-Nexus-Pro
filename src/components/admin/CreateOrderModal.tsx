@@ -29,6 +29,13 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(initialData ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [schedulingVisit, setSchedulingVisit] = useState(false);
+  const [showNewVisitModal, setShowNewVisitModal] = useState(false);
+  const [newVisitData, setNewVisitData] = useState({
+    assignedTo: '',
+    scheduledDate: '',
+    scheduledTime: '',
+    notes: ''
+  });
   const [technicians, setTechnicians] = useState<UserType[]>([]);
   const [searchMode, setSearchMode] = useState<'client' | 'serial'>('client');
   const [clientSearch, setClientSearch] = useState(initialData?.customerName || '');
@@ -379,22 +386,33 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     s.code.toLowerCase().includes(stockSearch.toLowerCase())
   );
 
-  const handleScheduleNewVisit = async () => {
-    if (!initialData || !formData.assignedTo || !formData.scheduledDate) {
-      alert("Para agendar uma nova visita, certifique-se de que a data agendada e o técnico responsável estão preenchidos na aba '2'.");
+  const openNewVisitModal = () => {
+    setNewVisitData({
+      assignedTo: formData?.assignedTo || '',
+      scheduledDate: new Date().toISOString().split('T')[0],
+      scheduledTime: '',
+      notes: ''
+    });
+    setShowNewVisitModal(true);
+  };
+
+  const confirmScheduleNewVisit = async () => {
+    if (!initialData || !newVisitData.assignedTo || !newVisitData.scheduledDate) {
+      alert("Selecione um técnico e uma data para a visita.");
       return;
     }
     setSchedulingVisit(true);
     try {
       await OrderService.scheduleNewVisit(
         initialData.id,
-        formData.assignedTo,
-        formData.scheduledDate,
-        formData.scheduledTime,
-        "Reagendamento após pausa ou retorno."
+        newVisitData.assignedTo,
+        newVisitData.scheduledDate,
+        newVisitData.scheduledTime,
+        newVisitData.notes
       );
       alert("Nova visita agendada com sucesso!");
-      // Optionally reload data or just let the timeline re-fetch by remounting it (or close modal)
+      setShowNewVisitModal(false);
+      // Reload is handled by timeline component refetch if possible or remount
     } catch (e: any) {
       alert(`Erro ao agendar visita: ${e.message}`);
     } finally {
@@ -914,8 +932,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <p className="text-[10px] text-slate-500 font-medium">Você pode emitir um novo agendamento para esta mesma Ordem se ela estiver pausada ou precisar de retorno.</p>
                 </div>
                 <Button
-                  onClick={handleScheduleNewVisit}
-                  isLoading={schedulingVisit}
+                  onClick={openNewVisitModal}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 font-bold text-xs"
                 >
                   + Nova Visita
@@ -966,6 +983,76 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           </div>
         </div>
       </div>
+
+      {showNewVisitModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg border border-slate-200">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-slate-800">Agendar Nova Visita</h3>
+              <button type="button" onClick={() => setShowNewVisitModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico Designado *</label>
+                <select
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
+                  value={newVisitData.assignedTo}
+                  onChange={e => setNewVisitData({ ...newVisitData, assignedTo: e.target.value })}
+                >
+                  <option value="">Selecione um técnico...</option>
+                  {technicians.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Data *</label>
+                  <input
+                    type="date"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
+                    value={newVisitData.scheduledDate}
+                    onChange={e => setNewVisitData({ ...newVisitData, scheduledDate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Horário (Opcional)</label>
+                  <input
+                    type="time"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
+                    value={newVisitData.scheduledTime}
+                    onChange={e => setNewVisitData({ ...newVisitData, scheduledTime: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Observações da Visita / Motivo</label>
+                <TextArea
+                  placeholder="Instruções para o técnico..."
+                  value={newVisitData.notes}
+                  onChange={e => setNewVisitData({ ...newVisitData, notes: e.target.value })}
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3 flex-row-reverse">
+                <Button
+                  onClick={confirmScheduleNewVisit}
+                  isLoading={schedulingVisit}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 font-bold"
+                >
+                  Confirmar Agendamento
+                </Button>
+                <Button type="button" onClick={() => setShowNewVisitModal(false)} className="flex-1 shadow-none bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl py-3 font-bold">Cancelar</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
