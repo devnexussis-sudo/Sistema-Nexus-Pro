@@ -104,29 +104,43 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         setItems(newItems);
     };
 
-    const handleSaveQuote = async () => {
-        const customer = customers.find(c => c.name === customerName);
-        const payload = {
-            customerName,
-            customerAddress: customer?.address || '',
-            customerDocument: customer?.document || '00000000000000', // Necessário para gerar o ID Único
-            title,
-            description,
-            items,
-            totalValue,
-            notes,
-            validUntil,
-            linkedOrderId,
-            status: selectedQuote?.status || 'ABERTO'
-        };
+    const [loading, setLoading] = useState(false);
 
-        if (selectedQuote) {
-            await onEditQuote({ ...selectedQuote, ...payload });
-        } else {
-            await onCreateQuote(payload);
+    const handleSaveQuote = async () => {
+        if (loading) return;
+        try {
+            setLoading(true);
+            const customer = customers.find(c => c.name === customerName);
+            const payload = {
+                customerName,
+                customerAddress: customer?.address || '',
+                customerDocument: customer?.document || '00000000000000',
+                title,
+                description,
+                items,
+                totalValue,
+                notes,
+                validUntil,
+                linkedOrderId,
+                status: selectedQuote?.status || 'ABERTO'
+            };
+
+            console.log('[QuoteManagement] Salvando orçamento...', payload);
+
+            if (selectedQuote) {
+                await onEditQuote({ ...selectedQuote, ...payload });
+            } else {
+                await onCreateQuote(payload);
+            }
+
+            setIsModalOpen(false);
+            resetForm();
+        } catch (error: any) {
+            console.error('[QuoteManagement] Erro ao salvar orçamento:', error);
+            alert(`Falha ao salvar orçamento: ${error.message || 'Erro desconhecido'}`);
+        } finally {
+            setLoading(false);
         }
-        setIsModalOpen(false);
-        resetForm();
     };
 
     const resetForm = () => {
@@ -138,6 +152,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         setNotes('');
         setValidUntil('');
         setLinkedOrderId('');
+        setLoading(false);
     };
 
     const handleConvertToOrder = async (quote: Quote) => {
@@ -215,8 +230,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
             <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                    <table className="w-full border-separate border-spacing-y-0">
-                        <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
+                    <table className="w-full border-separate border-spacing-y-0 text-left">
+                        <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
                             <tr className="border-b border-slate-100">
                                 <th className="px-4 py-6">Orçamento ID</th>
                                 <th className="px-4 py-6">Criado em</th>
@@ -361,200 +376,234 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 />
             </div>
 
-            {/* Modal Editor de Orçamento */}
+            {/* Modal Editor de Orçamento - BIG TECH STANDARD DESIGN */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-6 overflow-y-auto">
-                    <div className="bg-white rounded-[3.5rem] w-full max-w-5xl shadow-2xl overflow-hidden animate-fade-in-up my-auto">
-                        <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-hidden">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-7xl h-[90vh] shadow-2xl overflow-hidden animate-fade-in-up flex flex-col border border-white/20">
+                        {/* Header Compacto */}
+                        <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-[#1c2d4f] rounded-2xl flex items-center justify-center text-white shadow-xl">
-                                    <Calculator size={24} />
+                                <div className="w-10 h-10 bg-[#1c2d4f] rounded-xl flex items-center justify-center text-white shadow-lg">
+                                    <Calculator size={20} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{selectedQuote ? 'Ajustar Proposta' : 'Nova Proposta Comercial'}</h2>
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none">Validade, Vínculos e Itens Faturáveis.</p>
+                                    <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight leading-none">{selectedQuote ? 'Ajustar Proposta' : 'Nova Proposta Comercial'}</h2>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Engenharia de Vendas Nexus Pro</p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsModalOpen(false)}><XCircle size={24} className="text-slate-400" /></button>
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                            >
+                                <XCircle size={24} className="text-slate-300 hover:text-rose-500" />
+                            </button>
                         </div>
 
-                        <div className="p-10 max-h-[65vh] overflow-y-auto custom-scrollbar space-y-8">
-                            {/* Banner de Identidade Única */}
-                            <div className="p-6 bg-slate-50 border border-slate-200 rounded-[2rem] shadow-inner flex items-center justify-between">
-                                <div>
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase mb-1 block tracking-widest">Identificador Único Nexus</label>
-                                    <p className="text-3xl font-bold text-[#1c2d4f] uppercase tracking-tighter leading-none">{previewId}</p>
+                        {/* Corpo do Modal - Grid Layout p/ Visibilidade Total */}
+                        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                            {/* Coluna Esquerda: Dados Principais (35% -> 100% on mobile) */}
+                            <div className="w-full lg:w-[35%] border-b lg:border-b-0 lg:border-r border-slate-100 p-6 lg:p-8 space-y-6 overflow-y-auto custom-scrollbar bg-slate-50/20">
+                                <div className="p-4 lg:p-5 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase mb-1 block tracking-widest">Identificador Soberano</label>
+                                    <p className="text-xl font-black text-[#1c2d4f] uppercase tracking-tighter">{previewId}</p>
                                 </div>
-                                <div className="text-right">
-                                    <span className="px-3 py-1 bg-white text-[#1c2d4f] rounded-full text-[8px] font-bold uppercase shadow-sm border border-slate-200">Código Automático</span>
-                                </div>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-8">
-                                <div className="space-y-6">
+                                <div className="space-y-4">
                                     <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Clientenexus</label>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Cliente</label>
                                         <select
                                             value={customerName}
                                             onChange={(e) => setCustomerName(e.target.value)}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
+                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
                                         >
                                             <option value="">Selecionar Cliente...</option>
                                             {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                         </select>
                                     </div>
+
                                     <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Título do Orçamento</label>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Título da Proposta</label>
                                         <input
                                             type="text"
                                             value={title}
                                             onChange={(e) => setTitle(e.target.value)}
-                                            placeholder="Título descritivo da proposta..."
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-inner"
+                                            placeholder="Ex: Manutenção Preventiva Q1..."
+                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
                                         />
                                     </div>
-                                </div>
 
-                                <div className="space-y-6">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Validade da Proposta</label>
+                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Validade</label>
                                             <div className="relative">
-                                                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-400" size={16} />
+                                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-primary-400" size={14} />
                                                 <input
                                                     type="date"
                                                     value={validUntil}
                                                     onChange={(e) => setValidUntil(e.target.value)}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
+                                                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
                                                 />
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Vincular a uma O.S.</label>
+                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Protocolo O.S.</label>
                                             <div className="relative">
-                                                <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-400" size={16} />
+                                                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-primary-400" size={14} />
                                                 <select
                                                     value={linkedOrderId}
                                                     onChange={(e) => setLinkedOrderId(e.target.value)}
-                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
+                                                    className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
                                                 >
-                                                    <option value="">Sem Vínculo OS</option>
+                                                    <option value="">Sem Vínculo</option>
                                                     {customerOrders.map(o => (
-                                                        <option key={o.id} value={o.id}>{o.id} - {o.title.substring(0, 20)}...</option>
+                                                        <option key={o.id} value={o.id}>{o.id}</option>
                                                     ))}
                                                 </select>
                                             </div>
                                         </div>
                                     </div>
+
                                     <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Descrição Detalhada</label>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Escopo Técnico</label>
                                         <textarea
                                             value={description}
                                             onChange={(e) => setDescription(e.target.value)}
                                             rows={2}
-                                            placeholder="Descreva o escopo técnico do orçamento..."
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-inner resize-none"
+                                            placeholder="Detalhamento técnico do serviço..."
+                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all resize-none shadow-inner"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Observações Internas</label>
+                                        <textarea
+                                            value={notes}
+                                            onChange={(e) => setNotes(e.target.value)}
+                                            rows={2}
+                                            placeholder="Notas privadas para o faturamento..."
+                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all resize-none shadow-inner"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            {/* Coluna Direita: Composição de Preços (65% -> 100% on mobile) */}
+                            <div className="w-full lg:w-[65%] flex flex-col bg-white">
+                                <div className="px-6 lg:px-8 py-4 border-b border-slate-50 flex items-center justify-between sticky top-0 bg-white z-10 shadow-sm">
                                     <div className="flex items-center gap-2">
                                         <ListPlus size={16} className="text-primary-600" />
-                                        <label className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] italic">Composição de Preços (Serviços / Peças)</label>
+                                        <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest italic">Composição de Preços e Itens</label>
                                     </div>
-                                    <button onClick={handleAddItem} className="px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-[#1c2d4f]/20 hover:scale-105 transition-all">
-                                        + Adicionar Item
+                                    <button
+                                        onClick={handleAddItem}
+                                        className="px-4 py-2 bg-[#1c2d4f] text-white rounded-lg text-[10px] font-black uppercase shadow-lg shadow-[#1c2d4f]/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                                    >
+                                        <Plus size={14} /> Adicionar Item
                                     </button>
                                 </div>
 
-                                <div className="space-y-3">
-                                    {items.length > 0 && (
-                                        <div className="grid grid-cols-12 gap-4 px-5 py-2">
-                                            <div className="col-span-6 text-[8px] font-black text-slate-400 uppercase tracking-widest pl-1">Descrição / Especificação</div>
-                                            <div className="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Qtd</div>
-                                            <div className="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">Unitário</div>
-                                            <div className="col-span-2 text-[8px] font-black text-slate-400 uppercase tracking-widest text-right pr-10">Total</div>
-                                        </div>
-                                    )}
-                                    {items.map((item, index) => (
-                                        <div key={item.id} className="grid grid-cols-12 gap-4 items-center p-5 bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-primary-200 transition-all">
-                                            <div className="col-span-6">
-                                                <input
-                                                    placeholder="Escolher do Estoque ou digitar..."
-                                                    value={item.description}
-                                                    list="stock-suggestions"
-                                                    onChange={e => updateItem(index, { description: e.target.value })}
-                                                    className="w-full bg-transparent border-none text-[11px] font-black uppercase outline-none text-slate-700"
-                                                />
-                                                <datalist id="stock-suggestions">
-                                                    {stockItems.map(s => (
-                                                        <option key={s.id} value={s.description}>
-                                                            Cod: {s.code} - R$ {s.sellPrice.toLocaleString('pt-BR')}
-                                                        </option>
-                                                    ))}
-                                                </datalist>
+                                <div className="flex-1 overflow-y-auto p-8 space-y-3 custom-scrollbar">
+                                    {items.length > 0 ? (
+                                        <>
+                                            <div className="grid grid-cols-12 gap-4 px-4 py-1 mb-2">
+                                                <div className="col-span-6 text-[8px] font-black text-slate-300 uppercase tracking-widest pl-1">Descrição / Produto / Serviço</div>
+                                                <div className="col-span-2 text-[8px] font-black text-slate-300 uppercase tracking-widest">Qtd</div>
+                                                <div className="col-span-2 text-[8px] font-black text-slate-300 uppercase tracking-widest">R$ Unit</div>
+                                                <div className="col-span-2 text-[8px] font-black text-slate-300 uppercase tracking-widest text-right pr-12">Subtotal</div>
                                             </div>
-                                            <div className="col-span-2">
-                                                <input
-                                                    type="number"
-                                                    placeholder="Qtd"
-                                                    value={item.quantity}
-                                                    onChange={e => updateItem(index, { quantity: Number(e.target.value) })}
-                                                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-[11px] font-black outline-none"
-                                                />
-                                            </div>
-                                            <div className="col-span-2">
-                                                <input
-                                                    type="number"
-                                                    placeholder="R$ Unit"
-                                                    value={item.unitPrice}
-                                                    onChange={e => updateItem(index, { unitPrice: Number(e.target.value) })}
-                                                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-[11px] font-black outline-none"
-                                                />
-                                            </div>
-                                            <div className="col-span-2 flex items-center justify-between pl-4">
-                                                <p className="text-[12px] font-black text-emerald-600 italic">R$ {item.total.toLocaleString('pt-BR')}</p>
-                                                <button onClick={() => setItems(items.filter((_, i) => i !== index))} className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={14} /></button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {items.length === 0 && (
-                                        <div className="py-12 border-2 border-dashed border-slate-100 rounded-[2.5rem] flex flex-col items-center justify-center text-slate-300">
-                                            <Calculator size={32} className="mb-2 opacity-20" />
-                                            <p className="text-[9px] font-black uppercase tracking-widest italic">A proposta está vazia. Adicione itens para calcular.</p>
+                                            {items.map((item, index) => (
+                                                <div key={item.id} className="grid grid-cols-12 gap-4 items-center p-3 bg-white rounded-xl border border-slate-100 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] hover:border-primary-300 transition-all group">
+                                                    <div className="col-span-6">
+                                                        <input
+                                                            placeholder="Digitar item ou escolher do estoque..."
+                                                            value={item.description}
+                                                            list="stock-suggestions"
+                                                            onChange={e => updateItem(index, { description: e.target.value })}
+                                                            className="w-full bg-transparent border-none text-[10px] font-black uppercase outline-none text-slate-800 placeholder:text-slate-300"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <input
+                                                            type="number"
+                                                            value={item.quantity}
+                                                            onChange={e => updateItem(index, { quantity: Number(e.target.value) })}
+                                                            className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-[10px] font-black outline-none focus:bg-white focus:border-primary-200"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <input
+                                                            type="number"
+                                                            value={item.unitPrice}
+                                                            onChange={e => updateItem(index, { unitPrice: Number(e.target.value) })}
+                                                            className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 text-[10px] font-black outline-none focus:bg-white focus:border-primary-200"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2 flex items-center justify-between pl-4">
+                                                        <p className="text-[11px] font-black text-[#1c2d4f] italic">R$ {item.total.toLocaleString('pt-BR')}</p>
+                                                        <button
+                                                            onClick={() => setItems(items.filter((_, i) => i !== index))}
+                                                            className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </>
+                                    ) : (
+                                        <div className="h-full flex flex-col items-center justify-center text-slate-200 border-2 border-dashed border-slate-50 rounded-3xl">
+                                            <Calculator size={48} className="mb-4 opacity-10" />
+                                            <p className="text-[9px] font-black uppercase tracking-[0.3em] italic">Orçamento Vazio</p>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="px-10 py-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center shadow-inner">
-                            <div className="flex items-center gap-6">
-                                <div className="flex items-center gap-4 border-r border-slate-200 pr-8">
-                                    <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 border border-emerald-100">
-                                        <DollarSign size={20} />
+                        {/* Footer Unificado e Sempre Visível */}
+                        <div className="px-6 lg:px-8 py-4 lg:py-6 bg-[#1c2d4f] flex flex-col sm:flex-row justify-between items-center gap-4 lg:gap-10 shadow-[0_-10px_30px_rgba(0,0,0,0.15)] z-20 shrink-0">
+                            <div className="flex flex-col sm:flex-row items-center gap-4 lg:gap-10 w-full sm:w-auto">
+                                <div className="flex items-center gap-4 border-b sm:border-b-0 sm:border-r border-white/10 pb-4 sm:pb-0 sm:pr-10 w-full sm:w-auto">
+                                    <div className="w-10 h-10 lg:w-12 lg:h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/30 shrink-0">
+                                        <DollarSign size={20} className="lg:hidden" />
+                                        <DollarSign size={24} className="hidden lg:block" />
                                     </div>
                                     <div>
-                                        <p className="text-[8px] font-black text-slate-400 uppercase">Total Geral</p>
-                                        <p className="text-2xl font-black text-emerald-600 italic leading-none">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Investimento Total</p>
+                                        <p className="text-xl lg:text-3xl font-black text-white italic leading-none">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <span className={`w-3 h-3 rounded-full ${customerName ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></span>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase italic">{customerName ? `Cliente: ${customerName}` : 'Selecione um cliente para salvar'}</p>
+                                <div className="hidden sm:flex items-center gap-3">
+                                    <span className={`w-2 h-2 rounded-full ${(!customerName || !title || items.length === 0) ? 'bg-rose-500' : 'bg-emerald-500'} animate-pulse`}></span>
+                                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.1em] italic">
+                                        {!customerName ? 'Selecione o Cliente' : !title ? 'Informe o Título' : items.length === 0 ? 'Adicione Itens' : 'Pronto para faturar'}
+                                    </p>
                                 </div>
                             </div>
-                            <div className="flex gap-4">
-                                <button onClick={() => setIsModalOpen(false)} className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 tracking-widest">Cancelar</button>
+
+                            <div className="flex gap-3 lg:gap-4 w-full sm:w-auto">
+                                <button
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="flex-1 sm:flex-none px-4 lg:px-6 py-3 lg:py-4 text-[10px] font-black uppercase text-slate-400 hover:text-white tracking-widest transition-colors"
+                                    disabled={loading}
+                                >
+                                    Sair
+                                </button>
                                 <button
                                     onClick={handleSaveQuote}
-                                    disabled={!customerName || !title || items.length === 0}
-                                    className="px-10 py-4 bg-[#1c2d4f] text-white rounded-2xl text-[10px] font-bold uppercase shadow-sm shadow-[#1c2d4f]/10 disabled:opacity-50 transition-all hover:bg-[#253a66] hover:scale-[1.02]"
+                                    disabled={!customerName || !title || items.length === 0 || loading}
+                                    className="flex-[2] sm:flex-none px-6 lg:px-12 py-3 lg:py-4 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-2xl shadow-emerald-500/20 disabled:opacity-30 transition-all hover:bg-emerald-400 hover:scale-[1.05] active:scale-95 flex items-center justify-center gap-2 lg:gap-3"
                                 >
-                                    Confirmar Orçamento <ArrowRight size={16} className="inline ml-2" />
+                                    {loading ? (
+                                        <>
+                                            <Loader2 size={16} className="animate-spin" />
+                                            <span className="hidden sm:inline">Salvando...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            Gerar Orçamento <ArrowRight size={16} />
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
