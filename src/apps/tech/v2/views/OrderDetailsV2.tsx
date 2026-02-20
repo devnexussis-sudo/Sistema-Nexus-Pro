@@ -22,6 +22,7 @@ import { DataService } from '../../../../services/dataService';
 import { OrderService } from '../../../../services/orderService';
 import { getStatusBadge, getStatusLabel } from '../../../../lib/statusColors';
 import { GeoService } from '../../../../lib/geo'; // 📍 Geolocalização
+import { OrderTimeline } from '../../../../components/shared/OrderTimeline';
 
 interface OrderDetailsV2Props {
     order: ServiceOrder;
@@ -498,6 +499,18 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                         "{order.description || 'Sem descrição detalhada fornecida pelo solicitante.'}"
                                     </p>
                                 </div>
+                                <div className="w-full h-px bg-slate-200"></div>
+
+                                {/* SECTION: Histórico / Visitas (Encapsulamento de Protocolo) */}
+                                <div className="space-y-4 pt-4 border-t border-slate-100">
+                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                        <Clock size={16} className="text-primary-500" /> Histórico do Protocolo
+                                    </h3>
+                                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+                                        <OrderTimeline orderId={order.id} />
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     )}
