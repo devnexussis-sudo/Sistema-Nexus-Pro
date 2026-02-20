@@ -57,9 +57,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error || !session) {
-                // Se não há sessão no Supabase, não devemos estar autenticados (exceto em modo offline muito específico)
-                // Para evitar o bug de auto-login no refresh, limpamos o estado se a sessão sumiu.
-                console.warn('[AuthProvider] 🗝️ Sessão não encontrada ou erro. Limpando estado local.');
+                // FATAL-FIX: Do not forcibly log out if the error is just a network fetch failure.
+                // This prevents users from losing their session when waking the app from the background or offline.
+                if (error && (error.message.includes('Failed to fetch') || error.message.includes('Network') || error.message.includes('network'))) {
+                    console.warn('[AuthProvider] ⚠️ Network error fetching session (offline/background). Preserving local Auth state.');
+                    return;
+                }
+
+                // Se não há sessão no Supabase e não é erro de rede, deve ser token revogado/expirado.
+                console.warn('[AuthProvider] 🗝️ Sessão não encontrada ou token expirado/inválido. Limpando estado local.');
                 if (isMountedRef.current) {
                     setAuth({ user: null, isAuthenticated: false });
                 }
@@ -203,28 +209,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps — auth.isAuthenticated lido via closure estável
 
-    // 3. Inactivity Check — desconecta após 1.5h sem interação
-    useEffect(() => {
-        const updateActivity = () => { lastActivityRef.current = Date.now(); };
-        const checkInactivity = setInterval(() => {
-            const ONE_HOUR_THIRTY = 1.5 * 60 * 60 * 1000;
-            if (auth.isAuthenticated && Date.now() - lastActivityRef.current > ONE_HOUR_THIRTY) {
-                console.info('[AuthProvider] Sessão expirada por inatividade.');
-                setAuth({ user: null, isAuthenticated: false });
-                SessionStorage.clear();
-                localStorage.removeItem('nexus_tech_session_v2');
-                window.location.reload();
-            }
-        }, 60000);
-
-        const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
-        events.forEach(e => window.addEventListener(e, updateActivity, { passive: true }));
-
-        return () => {
-            clearInterval(checkInactivity);
-            events.forEach(e => window.removeEventListener(e, updateActivity));
-        };
-    }, [auth.isAuthenticated]);
+    // O Inactivity Check de 1.5h foi INTENCIONALMENTE REMOVIDO aqui (FATAL-PWA).
+    // Antes, deslogava forçadamente o usuário se fechasse a tab por mais de 1.5 horas.
 
     // Public API
     const login = (user: User) => {

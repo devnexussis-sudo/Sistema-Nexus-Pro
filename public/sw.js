@@ -45,11 +45,7 @@ const CACHE_FIRST_PATTERNS = [
 
 /** Network-First: API Supabase e dados dinâmicos */
 const NETWORK_FIRST_PATTERNS = [
-    /supabase\.co/,
-    /functions\/v1\//,
-    /rest\/v1\//,
-    /auth\/v1\//,
-    /realtime\/v1\//,
+    // Supabase APIs removidas daqui para evitar stale tokens e conflitos de conexão
 ];
 
 /** Stale-While-Revalidate: JS/CSS do build (Vite gera hashes únicos) */
@@ -58,9 +54,13 @@ const STALE_WHILE_REVALIDATE_PATTERNS = [
     /\.(?:js|css)$/i,
 ];
 
-/** Nunca cachear: WebSockets, streams, analytics, localhost */
+/** Nunca cachear: WebSockets, streams, analytics, localhost, Supabase Auth/API */
 const NEVER_CACHE_PATTERNS = [
-    /realtime\/v1\/websocket/,
+    /supabase\.co/,
+    /functions\/v1\//,
+    /rest\/v1\//,
+    /auth\/v1\//,
+    /realtime\/v1\//,
     /chrome-extension/,
     /sockjs/,
     /localhost/,
