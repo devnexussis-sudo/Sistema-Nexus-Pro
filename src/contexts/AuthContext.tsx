@@ -57,19 +57,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error || !session) {
-                const localUser = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
-
-                // Se não há sessão mas há usuário local, pode ser modo offline/impersonation
-                if (!localUser) {
-                    if (isMountedRef.current) setAuth({ user: null, isAuthenticated: false });
+                // Se não há sessão no Supabase, não devemos estar autenticados (exceto em modo offline muito específico)
+                // Para evitar o bug de auto-login no refresh, limpamos o estado se a sessão sumiu.
+                console.warn('[AuthProvider] 🗝️ Sessão não encontrada ou erro. Limpando estado local.');
+                if (isMountedRef.current) {
+                    setAuth({ user: null, isAuthenticated: false });
                 }
-                // Se há erro real (não apenas ausência de sessão), limpa tudo
+                SessionStorage.remove('user');
+                GlobalStorage.remove('persistent_user');
+
                 if (error) {
-                    console.warn('[AuthProvider] 🗝️ Erro de sessão. Realizando limpeza de segurança.', error.message);
-                    if (isMountedRef.current) {
-                        setAuth({ user: null, isAuthenticated: false });
-                        SessionStorage.clear();
-                    }
+                    console.error('[AuthProvider] Erro de sessão detectado:', error.message);
                 }
                 return;
             }
@@ -222,6 +220,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const logout = useCallback(async () => {
+        logger.info('[AuthContext] Iniciando logout completo...');
+
         // 1. Update React state immediately for UI responsiveness
         setAuth({ user: null, isAuthenticated: false });
 
@@ -229,11 +229,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         SessionStorage.clear();
         GlobalStorage.remove('persistent_user');
 
-        // 3. Clear legacy/tech specific keys
-        localStorage.removeItem('nexus_tech_session_v2');
-        localStorage.removeItem('nexus_tech_cache_v2');
+        // 3. Clear all potential local auth keys (Supabase + Legacy)
+        const authKeys = [
+            'nexus_shared_auth', // Chave configurada no supabase.ts
+            'supabase.auth.token',
+            'nexus_tech_session_v2',
+            'nexus_tech_cache_v2',
+            'persistent_user'
+        ];
+        authKeys.forEach(key => {
+            localStorage.removeItem(key);
+            localStorage.removeItem(`nexus_global_${key}`);
+            sessionStorage.removeItem(key);
+        });
 
-        // 4. Supabase SignOut
+        // 4. Supabase SignOut (Garante invalidação no servidor)
         try {
             await supabase.auth.signOut();
         } catch (err) {

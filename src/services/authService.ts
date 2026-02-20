@@ -72,13 +72,29 @@ export const AuthService = {
 
     logout: async (): Promise<void> => {
         if (isCloudEnabled) {
-            await supabase.auth.signOut();
+            try {
+                await supabase.auth.signOut();
+            } catch (err) {
+                console.error('[AuthService] Error during signOut:', err);
+            }
         }
         SessionStorage.clear();
         GlobalStorage.remove('persistent_user');
-        localStorage.removeItem('nexus_tech_session_v2');
-        localStorage.removeItem('nexus_tech_cache_v2');
-        // Force reload to clear memory states
+
+        // Clear all potential auth keys
+        const keys = [
+            'nexus_shared_auth',
+            'nexus_tech_session_v2',
+            'nexus_tech_cache_v2',
+            'persistent_user'
+        ];
+        keys.forEach(k => {
+            localStorage.removeItem(k);
+            localStorage.removeItem(`nexus_global_${k}`);
+            sessionStorage.removeItem(k);
+        });
+
+        // Force reload to clear memory states and redirect
         window.location.href = '/login';
     },
 
