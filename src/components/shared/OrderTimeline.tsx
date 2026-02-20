@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { OrderTimelineEvent } from '../../types';
 import { OrderService } from '../../services/orderService';
-import { Clock, Play, Pause, CheckCircle2, AlertCircle, Edit3, CalendarCheck, MessageSquare } from 'lucide-react';
+import { Clock, Play, Pause, CheckCircle2, AlertCircle, Edit3, CalendarCheck, MessageSquare, UserCheck, CalendarDays } from 'lucide-react';
 
 interface OrderTimelineProps {
     orderId: string;
@@ -51,6 +51,8 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
         if (type.startsWith('VISIT_PAUSED')) return <Pause size={16} className="text-amber-500" />;
         if (type.startsWith('VISIT_COMPLETED')) return <CheckCircle2 size={16} className="text-emerald-500" />;
         if (type === 'STATUS_CHANGED') return <Edit3 size={16} className="text-[#1c2d4f]" />;
+        if (type === 'TECH_ASSIGNED') return <UserCheck size={16} className="text-indigo-500" />;
+        if (type === 'SCHEDULE_CHANGED') return <CalendarDays size={16} className="text-rose-500" />;
         return <AlertCircle size={16} className="text-slate-400" />;
     };
 
@@ -61,6 +63,8 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
         if (type === 'VISIT_PAUSED') return `Visita Pausada`;
         if (type === 'VISIT_COMPLETED') return `Visita Concluída`;
         if (type === 'STATUS_CHANGED') return `Status Alterado para ${details.new_status}`;
+        if (type === 'TECH_ASSIGNED') return `Atribuição de Técnico`;
+        if (type === 'SCHEDULE_CHANGED') return `Agendamento Modificado`;
         return type;
     };
 
@@ -104,6 +108,19 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
                                 <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-2">
                                     De: <span className="font-bold text-slate-400 line-through">{event.details.old_status}</span>
                                     Para: <span className="font-bold text-[#1c2d4f]">{event.details.new_status}</span>
+                                </div>
+                            )}
+
+                            {event.eventType === 'TECH_ASSIGNED' && (
+                                <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-2">
+                                    <span className="font-bold text-[#1c2d4f]">Técnico Atribuído / Alterado</span>
+                                </div>
+                            )}
+
+                            {event.eventType === 'SCHEDULE_CHANGED' && (
+                                <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-2">
+                                    De: <span className="font-bold text-slate-400 line-through">{(event.details.old_date || '') + ' ' + (event.details.old_time || '')}</span>
+                                    Para: <span className="font-bold text-[#1c2d4f]">{(event.details.new_date || '') + ' ' + (event.details.new_time || '')}</span>
                                 </div>
                             )}
 
