@@ -17,50 +17,33 @@ export const ResetPassword: React.FC = () => {
     useEffect(() => {
         let mounted = true;
 
-        // 🛡️ TRAVA DE SEGURANÇA: Se em 4 segundos nada acontecer, libera a tela
         const safetyTimer = setTimeout(() => {
-            if (mounted && isChecking) {
-                console.warn('[ResetPassword] ⏱️ Timeout de segurança atingido. Liberando tela.');
-                setIsChecking(false);
-            }
-        }, 4000);
+            if (mounted && isChecking) setIsChecking(false);
+        }, 3500);
 
-        const validateSession = async () => {
-            console.log('[ResetPassword] 🔍 Iniciando validação de link...');
+        const init = async () => {
             try {
                 const url = window.location.href;
-                console.log('[ResetPassword] 🌐 URL Detectada:', url);
+                const access = url.match(/access_token=([^&]*)/)?.[1];
+                const refresh = url.match(/refresh_token=([^&]*)/)?.[1];
 
-                // Extração via Regex (robusta para HashRouter)
-                const accessToken = url.match(/access_token=([^&]*)/)?.[1];
-                const refreshToken = url.match(/refresh_token=([^&]*)/)?.[1];
-
-                if (accessToken) {
-                    console.log('[ResetPassword] 🔑 Token encontrado na URL. Injetando sessão...');
-                    const { error: setSessionError } = await supabase.auth.setSession({
-                        access_token: accessToken,
-                        refresh_token: refreshToken || '',
+                if (access) {
+                    await supabase.auth.setSession({
+                        access_token: access,
+                        refresh_token: refresh || '',
                     });
 
-                    if (setSessionError) {
-                        console.error('[ResetPassword] ❌ Erro ao setar sessão:', setSessionError);
-                        if (mounted) setError('O link de recuperação parece inválido ou expirou.');
-                    } else {
-                        console.log('[ResetPassword] ✅ Sessão injetada com sucesso.');
-                        // Pequeno delay para o state do Supabase atualizar globalmente
-                        await new Promise(r => setTimeout(r, 500));
-                    }
+                    // 🛡️ LIMPEZA DE URL: Remove o token da barra de endereços para evitar conflitos
+                    const cleanUrl = window.location.origin + window.location.pathname + '#/reset-password';
+                    window.history.replaceState(null, '', cleanUrl);
                 }
 
                 const { data: { session } } = await supabase.auth.getSession();
-                console.log('[ResetPassword] 👤 Sessão atual:', session ? 'Ativa' : 'Ausente');
-
                 if (!session && mounted) {
-                    setError('Sessão de recuperação não detectada. Tente clicar novamente no link do e-mail.');
+                    setError('Link expirado ou inválido. Peça um novo e-mail.');
                 }
             } catch (err) {
-                console.error('[ResetPassword] 💥 Erro fatal na validação:', err);
-                if (mounted) setError('Erro ao processar o link de recuperação.');
+                console.error('[ResetPassword] Init Error:', err);
             } finally {
                 if (mounted) {
                     setIsChecking(false);
@@ -69,11 +52,8 @@ export const ResetPassword: React.FC = () => {
             }
         };
 
-        validateSession();
-        return () => {
-            mounted = false;
-            clearTimeout(safetyTimer);
-        };
+        init();
+        return () => { mounted = false; clearTimeout(safetyTimer); };
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -81,58 +61,33 @@ export const ResetPassword: React.FC = () => {
         if (loading) return;
 
         setError('');
-        if (password.length < 6) {
-            setError('A senha deve ter pelo menos 6 caracteres.');
-            return;
-        }
-        if (password !== confirmPassword) {
-            setError('As senhas não coincidem.');
-            return;
-        }
+        if (password.length < 6) { return setError('Mínimo 6 caracteres.'); }
+        if (password !== confirmPassword) { return setError('Senhas não conferem.'); }
 
         setLoading(true);
-        console.log('[ResetPassword] 🚀 Tentando atualizar senha...');
-
-        // Proteção contra travamento no botão (15s)
-        const fallbackTimer = setTimeout(() => {
-            if (loading) {
-                setLoading(false);
-                setError('O servidor não respondeu a tempo. Verifique sua internet.');
-                console.warn('[ResetPassword] ⏱️ Timeout no envio da senha.');
-            }
-        }, 15000);
 
         try {
-            // Verifica sessão um milissegundo antes para garantir
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                throw new Error('Sessão ausente. Volte ao e-mail e clique no link novamente.');
-            }
+            // 🏎️ RACE CONDITION FIX: Se o Supabase demorar mais de 12s, desistimos e mostramos erro
+            const updatePromise = supabase.auth.updateUser({ password });
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('O servidor não respondeu a tempo. Tente novamente.')), 12000)
+            );
 
-            const { error: updateError } = await supabase.auth.updateUser({
-                password: password
-            });
+            await Promise.race([updatePromise, timeoutPromise])
+                .then((res: any) => {
+                    if (res.error) throw res.error;
+                });
 
-            if (updateError) throw updateError;
-
-            console.log('[ResetPassword] ✨ Senha atualizada com sucesso!');
-            clearTimeout(fallbackTimer);
             setSuccess(true);
-
-            // Logout imediato e limpeza local para segurança
             await supabase.auth.signOut().catch(() => { });
-
-            setTimeout(() => {
-                if (window.location.hash.includes('reset-password')) {
-                    navigate('/login');
-                }
-            }, 3000);
+            setTimeout(() => navigate('/login'), 3000);
 
         } catch (err: any) {
-            console.error('[ResetPassword] ❌ Erro ao salvar:', err);
-            setError(err.message || 'Falha ao atualizar senha. Link pode estar expirado.');
+            console.error('[ResetPassword] Update Error:', err);
+            setError(err.message || 'Erro ao salvar. Verifique sua conexão.');
+        } finally {
+            // 🔓 GARANTIA: O botão sempre volta ao normal se não for sucesso
             setLoading(false);
-            clearTimeout(fallbackTimer);
         }
     };
 
@@ -140,7 +95,7 @@ export const ResetPassword: React.FC = () => {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc]">
                 <div className="w-10 h-10 rounded-full border-4 border-slate-100 border-t-primary-600 animate-spin mb-4"></div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Validando Link...</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aguarde...</p>
             </div>
         );
     }
@@ -148,15 +103,13 @@ export const ResetPassword: React.FC = () => {
     if (success) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-8">
-                <div className="w-full max-w-sm bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-50 text-center space-y-6">
-                    <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto text-emerald-500 animate-bounce">
+                <div className="w-full max-w-sm bg-white p-10 rounded-[2.5rem] shadow-2xl text-center space-y-6 animate-in zoom-in duration-500">
+                    <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto text-emerald-500">
                         <ShieldCheck size={40} />
                     </div>
                     <div className="space-y-2">
-                        <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Sucesso!</h2>
-                        <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
-                            Senha alterada. Redirecionando...
-                        </p>
+                        <h2 className="text-2xl font-black text-slate-800 uppercase italic">Senha Salva!</h2>
+                        <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">Redirecionando para login...</p>
                     </div>
                 </div>
             </div>
@@ -174,9 +127,9 @@ export const ResetPassword: React.FC = () => {
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Crie sua nova credencial de acesso</p>
                 </div>
 
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-slate-50">
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-slate-50 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="space-y-1 block">
+                        <div className="space-y-1">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Nova Senha</label>
                             <Input
                                 type="password"
@@ -189,8 +142,8 @@ export const ResetPassword: React.FC = () => {
                             />
                         </div>
 
-                        <div className="space-y-1 block">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Confirmar Senha</label>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Repetir Senha</label>
                             <Input
                                 type="password"
                                 required
@@ -203,7 +156,7 @@ export const ResetPassword: React.FC = () => {
                         </div>
 
                         {error && (
-                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3 animate-in fade-in duration-300">
+                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3">
                                 <AlertCircle className="text-rose-500 shrink-0" size={16} />
                                 <p className="text-rose-600 text-[10px] font-black uppercase tracking-tight leading-tight">{error}</p>
                             </div>
@@ -211,11 +164,11 @@ export const ResetPassword: React.FC = () => {
 
                         <Button
                             type="submit"
-                            disabled={loading || !!error}
-                            className={`w-full text-white rounded-2xl py-5 font-black uppercase tracking-[0.2em] shadow-xl transition-all active:scale-[0.97] text-[11px] ${loading ? 'bg-slate-400 cursor-wait' : 'bg-[#1c2d4f] hover:bg-[#253a66]'
+                            disabled={loading}
+                            className={`w-full text-white rounded-2xl py-5 font-black uppercase tracking-[0.2em] shadow-xl transition-all active:scale-[0.97] text-[11px] ${loading ? 'bg-slate-400 cursor-not-allowed opacity-70' : 'bg-[#1c2d4f] hover:bg-[#253a66]'
                                 }`}
                         >
-                            {loading ? 'MODIFICANDO...' : 'ATUALIZAR SENHA'}
+                            {loading ? 'PROCESSANDO...' : 'MODIFICAR SENHA'}
                         </Button>
                     </form>
                 </div>
