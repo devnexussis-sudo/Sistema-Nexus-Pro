@@ -17,51 +17,60 @@ export const ResetPassword: React.FC = () => {
     useEffect(() => {
         let mounted = true;
 
-        const handleToken = async () => {
+        const validateSession = async () => {
             try {
-                // Pequeno delay para garantir que o navegador processou a URL completa
-                await new Promise(resolve => setTimeout(resolve, 800));
+                // 1. Tenta pegar sessão atual (caso o SDK já tenha lido)
+                let { data: { session } } = await supabase.auth.getSession();
 
-                const hash = window.location.hash;
-                if (hash.includes('access_token=')) {
-                    // Extração robusta do token
-                    const token = hash.split('access_token=')[1]?.split('&')[0];
-                    const refresh = hash.split('refresh_token=')[1]?.split('&')[0];
+                // 2. Se não tem sessão, busca Manualmente na URL inteira (Solução definitiva para HashRouter)
+                if (!session) {
+                    const url = window.location.href;
+                    // Regex para pegar os tokens independente de onde estejam na URL
+                    const accessToken = url.match(/access_token=([^&]*)/)?.[1];
+                    const refreshToken = url.match(/refresh_token=([^&]*)/)?.[1];
 
-                    if (token) {
-                        const { error: sessionError } = await supabase.auth.setSession({
-                            access_token: token,
-                            refresh_token: refresh || '',
+                    if (accessToken) {
+                        const { data, error: setSessionError } = await supabase.auth.setSession({
+                            access_token: accessToken,
+                            refresh_token: refreshToken || '',
                         });
-
-                        if (sessionError) {
-                            console.error('[ResetPassword] Erro ao carregar sessão:', sessionError);
-                            if (mounted) setError('O link de recuperação parece inválido ou expirou.');
-                        } else {
-                            // Limpa a URL para evitar re-processamento do token pelo Supabase
-                            const cleanUrl = window.location.origin + window.location.pathname + window.location.search + '#/reset-password';
-                            window.history.replaceState(null, '', cleanUrl);
-                        }
+                        if (!setSessionError) session = data.session;
                     }
                 }
 
-                // Verifica se temos sessão agora
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session && mounted && !error) {
-                    setError('Não foi possível validar seu acesso. Por favor, tente clicar no link do e-mail novamente.');
+                if (!session && mounted) {
+                    // Se mesmo assim não achou, esperamos um pouco mais (Supabase as vezes demora)
+                    await new Promise(r => setTimeout(r, 1000));
+                    const { data: { session: finalSession } } = await supabase.auth.getSession();
+                    if (!finalSession) {
+                        setError('Sessão expirada ou link inválido. Por favor, tente gerar um novo e-mail.');
+                    }
+                }
+
+                // Limpa a URL para o usuário não ver o token
+                if (mounted) {
+                    const cleanUrl = window.location.origin + window.location.pathname + '#/reset-password';
+                    window.history.replaceState(null, '', cleanUrl);
                 }
 
             } catch (err) {
-                console.error('[ResetPassword] Erro crítico:', err);
-                if (mounted) setError('Ocorreu um erro ao validar o link de recuperação.');
+                console.error('[ResetPassword] Erro:', err);
             } finally {
                 if (mounted) setIsChecking(false);
             }
         };
 
-        handleToken();
+        validateSession();
 
-        return () => { mounted = false; };
+        // Safety net: libera a tela em no máximo 2.5 segundos de qualquer jeito
+        const timer = setTimeout(() => {
+            if (mounted && isChecking) setIsChecking(false);
+        }, 2500);
+
+        return () => {
+            mounted = false;
+            clearTimeout(timer);
+        };
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -81,43 +90,30 @@ export const ResetPassword: React.FC = () => {
         setLoading(true);
 
         try {
-            // 1. Verifica se a sessão está ativa antes de tentar o update
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                throw new Error('Sessão perdida. Por favor, atualize a página ou clique novamente no link do e-mail.');
-            }
-
-            // 2. Tenta atualizar a senha
             const { error: updateError } = await supabase.auth.updateUser({
                 password: password
             });
 
             if (updateError) throw updateError;
 
-            // 3. Sucesso!
             setSuccess(true);
-
-            // 4. Limpa a sessão para forçar novo login
             await supabase.auth.signOut();
 
-            // 5. Redireciona
             setTimeout(() => {
                 navigate('/login');
             }, 3000);
-
         } catch (err: any) {
-            console.error('[ResetPassword] Erro ao salvar senha:', err);
-            setError(err.message || 'Erro inesperado ao salvar. Verifique sua conexão.');
+            setError(err.message || 'Erro ao atualizar senha.');
         } finally {
             setLoading(false);
         }
     };
 
-    if (isChecking) {
+    if (isChecking && !error) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc]">
-                <div className="w-12 h-12 rounded-full border-4 border-primary-100 border-t-primary-600 animate-spin mb-4"></div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Carregando formulário...</p>
+                <div className="w-10 h-10 rounded-full border-4 border-slate-100 border-t-primary-600 animate-spin mb-4"></div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Autenticando acesso...</p>
             </div>
         );
     }
@@ -125,15 +121,14 @@ export const ResetPassword: React.FC = () => {
     if (success) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-8">
-                <div className="w-full max-w-sm bg-white p-10 rounded-3xl shadow-2xl border border-slate-50 text-center space-y-6">
+                <div className="w-full max-w-sm bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-50 text-center space-y-6 animate-in zoom-in duration-500">
                     <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto text-emerald-500">
                         <ShieldCheck size={40} />
                     </div>
                     <div className="space-y-2">
-                        <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Senha Atualizada!</h2>
+                        <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Pronto!</h2>
                         <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
-                            Senha alterada com sucesso. <br />
-                            Redirecionando para o login...
+                            Senha alterada. Redirecionando...
                         </p>
                     </div>
                 </div>
@@ -143,17 +138,17 @@ export const ResetPassword: React.FC = () => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-8">
-            <div className="w-full max-w-sm space-y-8">
+            <div className="w-full max-w-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="text-center space-y-4">
-                    <div className="inline-flex p-4 bg-white rounded-2xl shadow-xl border border-slate-50 mb-4">
-                        <img src="/nexus-logo.png" alt="Nexus Logo" className="h-12 w-auto" />
+                    <div className="inline-flex p-4 bg-white rounded-2xl shadow-xl border border-slate-50 mb-2">
+                        <img src="/nexus-logo.png" alt="Nexus Logo" className="h-10 w-auto" />
                     </div>
-                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Nova Senha</h1>
+                    <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Nova Senha</h1>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Crie sua nova credencial de acesso</p>
                 </div>
 
-                <div className="bg-white p-8 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-50">
-                    <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.06)] border border-slate-50">
+                    <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Nova Senha</label>
                             <Input
@@ -161,27 +156,27 @@ export const ResetPassword: React.FC = () => {
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Digite a nova senha"
-                                className="bg-slate-50 border-slate-200 text-slate-900 rounded-2xl py-4 focus:ring-4 focus:ring-primary-100 transition-all font-bold"
+                                placeholder="******"
+                                className="bg-slate-50 border-slate-200 text-slate-900 rounded-2xl py-4 focus:ring-4 focus:ring-primary-100 transition-all font-bold placeholder:text-slate-300"
                                 icon={<Lock size={18} className="text-slate-300" />}
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Confirmar Nova Senha</label>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Confirmar Senha</label>
                             <Input
                                 type="password"
                                 required
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
-                                placeholder="Repita a senha"
-                                className="bg-slate-50 border-slate-200 text-slate-900 rounded-2xl py-4 focus:ring-4 focus:ring-primary-100 transition-all font-bold"
+                                placeholder="******"
+                                className="bg-slate-50 border-slate-200 text-slate-900 rounded-2xl py-4 focus:ring-4 focus:ring-primary-100 transition-all font-bold placeholder:text-slate-300"
                                 icon={<ShieldCheck size={18} className="text-slate-300" />}
                             />
                         </div>
 
                         {error && (
-                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3 animate-in fade-in duration-300">
+                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3">
                                 <AlertCircle className="text-rose-500 shrink-0" size={16} />
                                 <p className="text-rose-600 text-[10px] font-black uppercase tracking-tight leading-tight">{error}</p>
                             </div>
@@ -190,21 +185,12 @@ export const ResetPassword: React.FC = () => {
                         <Button
                             type="submit"
                             disabled={loading}
-                            className={`w-full text-white rounded-2xl py-5 font-black uppercase tracking-[0.25em] transition-all active:scale-[0.97] ${loading ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#1c2d4f] hover:bg-[#253a66]'
+                            className={`w-full text-white rounded-2xl py-5 font-black uppercase tracking-[0.2em] shadow-xl transition-all active:scale-[0.97] text-[11px] ${loading ? 'bg-slate-400' : 'bg-[#1c2d4f] hover:bg-[#253a66] shadow-primary-900/10'
                                 }`}
                         >
-                            {loading ? 'Salvando Senha...' : 'Salvar Nova Senha'}
+                            {loading ? 'Salvando...' : 'Atualizar Credencial'}
                         </Button>
                     </form>
-                </div>
-
-                <div className="text-center">
-                    <button
-                        onClick={() => navigate('/login')}
-                        className="text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-slate-600 transition-all"
-                    >
-                        Voltar para o Login
-                    </button>
                 </div>
             </div>
         </div>
