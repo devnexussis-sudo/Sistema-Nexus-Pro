@@ -719,7 +719,7 @@ export const OrderService = {
                 technician_id: technicianId,
                 status: 'pending',
                 scheduled_date: date,
-                scheduled_time: time,
+                scheduled_time: time && time.trim() !== '' ? time : null,
                 notes: notes,
                 created_by: userId
             }])
