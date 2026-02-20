@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
 import { OrderPriority, OrderStatus, ServiceOrder, User as UserType, OrderItem, StockItem, FormTemplate } from '../../types';
 import { DataService } from '../../services/dataService';
+import { OrderService } from '../../services/orderService';
 import { OrderTimeline } from '../shared/OrderTimeline';
 
 interface CreateOrderModalProps {

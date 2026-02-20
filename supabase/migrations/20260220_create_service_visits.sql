@@ -122,23 +122,70 @@ BEGIN
 
     -- Eventos 3: Audit Logs (Mudanças de Status da OS)
     SELECT 
-        al.id AS event_id,
+        al.id::UUID AS event_id,
         'STATUS_CHANGED'::TEXT AS event_type,
-        al.created_at AS event_date,
-        al.user_id,
+        al.changed_at::TIMESTAMPTZ AS event_date,
+        al.changed_by::UUID AS user_id,
         u.name AS user_name,
         jsonb_build_object(
-            'old_status', al.old_data->>'status',
-            'new_status', al.new_data->>'status'
+            'old_status', al.old_values->>'status',
+            'new_status', al.new_values->>'status'
         ) AS details
     FROM public.audit_logs al
-    LEFT JOIN public.users u ON u.id = al.user_id
+    LEFT JOIN public.users u ON u.id::TEXT = al.changed_by
     WHERE al.table_name = 'orders' 
       AND al.record_id = p_order_id 
-      AND al.tenant_id = p_tenant_id
-      AND al.operation = 'UPDATE'
-      AND al.old_data->>'status' IS DISTINCT FROM al.new_data->>'status'
+      AND al.tenant_id::UUID = p_tenant_id
+      AND al.action = 'UPDATE'
+      AND al.old_values->>'status' IS DISTINCT FROM al.new_values->>'status'
       
+    UNION ALL
+
+    -- Eventos 4: Atribuição de Técnico (Audit Logs)
+    SELECT 
+        al.id::UUID AS event_id,
+        'TECH_ASSIGNED'::TEXT AS event_type,
+        al.changed_at::TIMESTAMPTZ AS event_date,
+        al.changed_by::UUID AS user_id,
+        u.name AS user_name,
+        jsonb_build_object(
+            'old_tech', al.old_values->>'assigned_to',
+            'new_tech', al.new_values->>'assigned_to'
+        ) AS details
+    FROM public.audit_logs al
+    LEFT JOIN public.users u ON u.id::TEXT = al.changed_by
+    WHERE al.table_name = 'orders' 
+      AND al.record_id = p_order_id 
+      AND al.tenant_id::UUID = p_tenant_id
+      AND al.action = 'UPDATE'
+      AND al.old_values->>'assigned_to' IS DISTINCT FROM al.new_values->>'assigned_to'
+
+    UNION ALL
+
+    -- Eventos 5: Agendamento Remarcado (Audit Logs)
+    SELECT 
+        al.id::UUID AS event_id,
+        'SCHEDULE_CHANGED'::TEXT AS event_type,
+        al.changed_at::TIMESTAMPTZ AS event_date,
+        al.changed_by::UUID AS user_id,
+        u.name AS user_name,
+        jsonb_build_object(
+            'old_date', al.old_values->>'scheduled_date',
+            'new_date', al.new_values->>'scheduled_date',
+            'old_time', al.old_values->>'scheduled_time',
+            'new_time', al.new_values->>'scheduled_time'
+        ) AS details
+    FROM public.audit_logs al
+    LEFT JOIN public.users u ON u.id::TEXT = al.changed_by
+    WHERE al.table_name = 'orders' 
+      AND al.record_id = p_order_id 
+      AND al.tenant_id::UUID = p_tenant_id
+      AND al.action = 'UPDATE'
+      AND (
+          al.old_values->>'scheduled_date' IS DISTINCT FROM al.new_values->>'scheduled_date'
+          OR al.old_values->>'scheduled_time' IS DISTINCT FROM al.new_values->>'scheduled_time'
+      )
+
     ORDER BY event_date ASC;
 END;
 $$;
