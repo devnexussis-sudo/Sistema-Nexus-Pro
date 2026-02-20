@@ -529,8 +529,40 @@ export const OrderService = {
             }
         }
 
-        // 3. Sync Database
+        // 🚀 L7 PATTERN: Interceptação para Service Visits (Encapsulamento)
         const tid = getCurrentTenantId();
+        const { data: userSession } = await supabase.auth.getSession();
+        const role = userSession.session?.user?.user_metadata?.role;
+        const uid = userSession.session?.user?.id;
+
+        if (role === 'technician' && uid) {
+            let visitStatus = status === OrderStatus.COMPLETED ? 'completed' :
+                status === OrderStatus.PAUSED ? 'paused' :
+                    status === OrderStatus.IN_PROGRESS ? 'ongoing' : undefined;
+
+            if (visitStatus) {
+                const visitUpdate: any = {
+                    status: visitStatus,
+                    updated_at: new Date().toISOString()
+                };
+
+                if (processedData) visitUpdate.form_data = processedData;
+                if (updatePayload.pause_reason) visitUpdate.pause_reason = updatePayload.pause_reason;
+                if (notes) visitUpdate.notes = notes;
+                if (visitStatus === 'completed') visitUpdate.departure_time = new Date().toISOString();
+                if (visitStatus === 'ongoing') visitUpdate.arrival_time = new Date().toISOString();
+
+                // Atualiza de forma silenciosa e deixa o Trigger atualizar o status da OS master
+                await supabase.from('service_visits')
+                    .update(visitUpdate)
+                    .eq('order_id', id)
+                    .eq('technician_id', uid)
+                    .in('status', ['pending', 'ongoing', 'paused']);
+
+                // Remove form_data da master payload para garantir separação de contexto L7
+                delete updatePayload.form_data;
+            }
+        }
 
         const dbPromise = supabase.from('orders').update(updatePayload)
             .eq('id', id)

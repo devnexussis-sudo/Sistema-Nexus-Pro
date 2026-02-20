@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { OrderTimelineEvent } from '../../types';
 import { OrderService } from '../../services/orderService';
-import { Clock, Play, Pause, CheckCircle2, AlertCircle, Edit3, CalendarCheck, MessageSquare, UserCheck, CalendarDays } from 'lucide-react';
+import { Clock, Play, Pause, CheckCircle2, AlertCircle, Edit3, CalendarCheck, MessageSquare, UserCheck, CalendarDays, FileText } from 'lucide-react';
 
 interface OrderTimelineProps {
     orderId: string;
@@ -10,6 +10,11 @@ interface OrderTimelineProps {
 export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
     const [events, setEvents] = useState<OrderTimelineEvent[]>([]);
     const [loading, setLoading] = useState(true);
+    const [expandedForms, setExpandedForms] = useState<Record<string, boolean>>({});
+
+    const toggleForm = (id: string) => {
+        setExpandedForms(prev => ({ ...prev, [id]: !prev[id] }));
+    };
 
     useEffect(() => {
         if (!orderId) return;
@@ -135,6 +140,49 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
                                         <div className="flex items-center gap-2">
                                             <UserCheck size={14} className="text-indigo-400 shrink-0" />
                                             <span>Técnico: <strong className="text-[#1c2d4f]">{event.details.assigned_tech}</strong></span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {event.eventType === 'VISIT_COMPLETED' && event.details.form_data && Object.keys(event.details.form_data).length > 0 && (
+                                <div className="mt-3">
+                                    <button
+                                        onClick={() => toggleForm(event.eventId)}
+                                        className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-md transition-colors w-full justify-between"
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <FileText size={14} />
+                                            {expandedForms[event.eventId] ? "Ocultar Formulário Técnico" : "Ler Formulário Técnico"}
+                                        </div>
+                                    </button>
+
+                                    {expandedForms[event.eventId] && (
+                                        <div className="mt-2 p-3 bg-slate-50 border border-slate-100 rounded-lg space-y-2 text-[11px]">
+                                            {Object.entries(event.details.form_data).map(([key, val]: any) => {
+                                                if (key === 'signature' || key === 'signatureName' || key.includes('signature')) return null;
+                                                return (
+                                                    <div key={key} className="flex flex-col">
+                                                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px] mb-0.5">{key.replace(/_/g, ' ')}</span>
+                                                        {typeof val === 'string' && val.startsWith('http') ? (
+                                                            <a href={val} target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">Ver Imagem Anexada</a>
+                                                        ) : typeof val === 'object' ? (
+                                                            <span className="text-slate-800 font-medium">Anexo/Tabela Múltipla</span>
+                                                        ) : (
+                                                            <span className="text-slate-800 font-medium whitespace-pre-wrap">{String(val)}</span>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                            {event.details.form_data.signatureName && (
+                                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                                    <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px] mb-1 block">Assinatura do Cliente</span>
+                                                    <span className="text-slate-800 font-bold">{event.details.form_data.signatureName}</span>
+                                                    {event.details.form_data.signature && typeof event.details.form_data.signature === 'string' && event.details.form_data.signature.startsWith('http') && (
+                                                        <img src={event.details.form_data.signature} className="h-10 object-contain mt-1 mix-blend-multiply" />
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
