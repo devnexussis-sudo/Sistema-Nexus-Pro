@@ -46,6 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_visits_tech ON public.service_visits(technician_i
 ALTER TABLE public.service_visits ENABLE ROW LEVEL SECURITY;
 
 -- 4.1 Leitura: Todos do mesmo tenant podem ler as visitas de suas OSs
+DROP POLICY IF EXISTS "Visits SELECT" ON public.service_visits;
 CREATE POLICY "Visits SELECT" ON public.service_visits
     FOR SELECT USING (
         tenant_id = COALESCE(
@@ -55,6 +56,7 @@ CREATE POLICY "Visits SELECT" ON public.service_visits
     );
 
 -- 4.2 Escrita Geral (Tratada de forma híbrida para Técnicos e Admins)
+DROP POLICY IF EXISTS "Visits ALL" ON public.service_visits;
 CREATE POLICY "Visits ALL" ON public.service_visits
     FOR ALL USING (
         tenant_id = COALESCE(
@@ -142,6 +144,7 @@ END;
 $$;
 
 -- 6. GATILHOS (TRIGGERS) PARA AUTO-ATUALIZAÇÃO
+DROP TRIGGER IF EXISTS update_service_visits_modtime ON public.service_visits;
 CREATE TRIGGER update_service_visits_modtime 
 BEFORE UPDATE ON public.service_visits 
 FOR EACH ROW EXECUTE PROCEDURE public.update_updated_at();
