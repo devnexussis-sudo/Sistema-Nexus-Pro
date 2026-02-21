@@ -760,8 +760,12 @@ export const OrderService = {
 
         if (error) throw new Error(`Erro ao agendar nova visita: ${error.message}`);
 
-        // Também pode querer alterar a OS de volta para alguma prioridade ou status pendente
-        await supabase.from('orders').update({ updated_at: new Date().toISOString() }).eq('id', orderId);
+        // Altera a OS Master de volta para status ATRIBUÍDO para impedir novas visitas paralelas
+        await supabase.from('orders').update({
+            status: OrderStatus.ASSIGNED,
+            assigned_to: technicianId,
+            updated_at: new Date().toISOString()
+        }).eq('id', orderId);
 
         return OrderService._mapVisitFromDB(data);
     },

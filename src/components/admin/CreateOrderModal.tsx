@@ -43,8 +43,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [serialSearch, setSerialSearch] = useState('');
   const [techSearch, setTechSearch] = useState('');
 
-  const isCompleted = initialData?.status === OrderStatus.COMPLETED;
-  const canCreateVisit = initialData?.status === OrderStatus.PAUSED || initialData?.status === OrderStatus.BLOCKED;
+  const [localStatus, setLocalStatus] = useState<string | undefined>(initialData?.status);
+  const isCompleted = localStatus === OrderStatus.COMPLETED;
+  const canCreateVisit = localStatus === OrderStatus.PAUSED || localStatus === OrderStatus.BLOCKED;
   const [isClientListOpen, setIsClientListOpen] = useState(false);
   const [isSerialListOpen, setIsSerialListOpen] = useState(false);
 
@@ -86,8 +87,6 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [items, setItems] = useState<OrderItem[]>(initialData?.items || []);
   const [isStockListOpen, setIsStockListOpen] = useState(false);
   const [stockSearch, setStockSearch] = useState('');
-
-  const isCompleted = initialData?.status === OrderStatus.COMPLETED;
 
   const loadData = React.useCallback(async () => {
     setLoading(true);
@@ -417,6 +416,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       alert("Nova visita agendada com sucesso!");
       setShowNewVisitModal(false);
       setTimelineKey(prev => prev + 1);
+      setLocalStatus(OrderStatus.ASSIGNED);
     } catch (e: any) {
       alert(`Erro ao agendar visita: ${e.message}`);
     } finally {
