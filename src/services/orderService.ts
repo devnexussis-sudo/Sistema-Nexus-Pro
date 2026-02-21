@@ -698,10 +698,33 @@ export const OrderService = {
             arrivalTime: data.arrival_time,
             departureTime: data.departure_time,
             notes: data.notes,
+            formData: typeof data.form_data === 'object' && data.form_data !== null ? data.form_data : undefined,
             createdBy: data.created_by,
             createdAt: data.created_at,
             updatedAt: data.updated_at
         };
+    },
+
+    /**
+     * Busca todas as visitas de uma Ordem de Serviço específica
+     */
+    getOrderVisits: async (orderId: string): Promise<ServiceVisit[]> => {
+        if (!isCloudEnabled) return [];
+        const tenantId = getCurrentTenantId();
+        if (!tenantId) return [];
+
+        const { data, error } = await supabase.from('service_visits')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error("Erro ao carregar visitas da OS:", error);
+            return [];
+        }
+
+        return (data || []).map(OrderService._mapVisitFromDB);
     },
 
     /**

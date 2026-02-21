@@ -250,6 +250,7 @@ export interface ServiceVisit {
   arrivalTime?: string;
   departureTime?: string;
   notes?: string;
+  formData?: Record<string, any>;
   createdBy?: string;
   createdAt: string;
   updatedAt: string;

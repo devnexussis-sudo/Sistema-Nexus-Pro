@@ -184,6 +184,7 @@ export interface DbServiceVisit {
     arrival_time?: string;
     departure_time?: string;
     notes?: string;
+    form_data?: Record<string, any>;
     created_by?: string;
     created_at: string;
     updated_at: string;

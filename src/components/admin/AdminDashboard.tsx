@@ -42,6 +42,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit' | 'costs' | 'history'>('overview');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [orderVisits, setOrderVisits] = useState<any[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
@@ -129,6 +130,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, techFilter, customerFilter, startDate, endDate, dateTypeFilter]);
+
+  useEffect(() => {
+    if (selectedOrder) {
+      import('../../services/orderService').then(mod => {
+        mod.OrderService.getOrderVisits(selectedOrder.id).then(visits => {
+          setOrderVisits(visits);
+        });
+      });
+    } else {
+      setOrderVisits([]);
+    }
+  }, [selectedOrder]);
 
 
   const handleOpenPublicView = (order: ServiceOrder, e: React.MouseEvent) => {
@@ -722,14 +735,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   )}
 
-                  <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-                      <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Lista de Verificação (Checklist)</h3>
-                      <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
-                        {Object.keys(selectedOrder.formData || {}).length} Itens
-                      </span>
-                    </div>
-                    {(selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) ? (
+                  {/* Agrupar e Renderizar os Checklists de Todas as Visitas */}
+                  {orderVisits.length > 0 ? orderVisits.filter(v => ['completed', 'paused'].includes(v.status)).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((visit, index) => {
+                    const vFormData = visit.formData || {};
+                    const isFromOrder = false; // flag to distinguish real visits from main OS form fallback if needed
+                    const hasItems = Object.keys(vFormData).length > 0;
+                    if (!hasItems) return null;
+
+                    return (
+                      <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden mb-6">
+                        <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                          <div>
+                            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                              Visita concluída em {new Date(visit.updatedAt || visit.createdAt).toLocaleString()}
+                            </h3>
+                            <p className="text-[10px] text-slate-500 font-medium">Status da Visita: {visit.status}</p>
+                          </div>
+                          <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
+                            {Object.keys(vFormData).length} Itens
+                          </span>
+                        </div>
+                        <div className="divide-y divide-slate-50">
+                          {Object.entries(vFormData).filter(([key, val]) => {
+                            if (Array.isArray(val)) return false;
+                            if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) return false;
+                            if (key.includes('Assinatura') || key.includes('impediment')) return false;
+                            if (['signature', 'signatureName', 'signatureDoc', 'finishedAt'].includes(key)) return false;
+                            return true;
+                          }).map(([key, val]) => (
+                            <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
+                              <div className="text-[13px] font-medium text-slate-600">{key}</div>
+                              <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                {String(val)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }) : (selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) ? (
+                    <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden mb-6">
+                      <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                        <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Lista de Verificação (OS)</h3>
+                        <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
+                          {Object.keys(selectedOrder.formData || {}).length} Itens
+                        </span>
+                      </div>
                       <div className="divide-y divide-slate-50">
                         {Object.entries(selectedOrder.formData).filter(([key, val]) => {
                           if (Array.isArray(val)) return false;
@@ -746,32 +797,67 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <div className="p-20 text-center">
-                        <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento do checklist</p>
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : null}
+
+                  {(!orderVisits.some(v => ['completed', 'paused'].includes(v.status) && Object.keys(v.formData || {}).length > 0) && (!selectedOrder.formData || Object.keys(selectedOrder.formData).length === 0)) && (
+                    <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden mb-6">
+                      <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento do checklist</p>
+                    </div>
+                  )}
+
                 </div>
               )}
 
               {/* TAB: MÍDIAS */}
               {activeTab === 'media' && (
                 <div className="space-y-8">
-                  {Object.entries(selectedOrder.formData || {}).map(([key, val]) => {
-                    let photos: string[] = [];
-                    if (Array.isArray(val)) photos = val;
-                    else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) photos = [val];
+                  {/* Combina fotos da OS e das visitas concluídas/pausadas */}
+                  {(() => {
+                    const allForms: any[] = [];
+                    if (selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) {
+                      allForms.push(selectedOrder.formData);
+                    }
+                    orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
 
-                    if (photos.length === 0) return null;
-                    return (
+                    const extractedPhotos: { key: string, url: string }[] = [];
+                    allForms.forEach(form => {
+                      Object.entries(form).forEach(([key, val]) => {
+                        if (Array.isArray(val)) val.forEach(url => { if (typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:image'))) extractedPhotos.push({ key, url }) });
+                        else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image')) && !key.toLowerCase().includes('assinat') && !key.toLowerCase().includes('sign')) {
+                          extractedPhotos.push({ key, url: val });
+                        }
+                      });
+                    });
+
+                    const groupedPhotos = extractedPhotos.reduce((acc, curr) => {
+                      if (!acc[curr.key]) acc[curr.key] = [];
+                      // Avoid exact duplicates
+                      if (!acc[curr.key].includes(curr.url)) {
+                        acc[curr.key].push(curr.url);
+                      }
+                      return acc;
+                    }, {} as Record<string, string[]>);
+
+                    const groupKeys = Object.keys(groupedPhotos);
+
+                    if (groupKeys.length === 0) {
+                      return (
+                        <div className="py-20 text-center bg-white border border-slate-200 rounded-lg">
+                          <Camera className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Nenhuma evidência fotográfica registrada</p>
+                        </div>
+                      );
+                    }
+
+                    return groupKeys.map(key => (
                       <div key={key} className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
                         <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
                           <Camera size={16} className="text-slate-400" /> {key}
                         </h4>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
-                          {photos.map((p, i) => (
+                          {groupedPhotos[key].map((p, i) => (
                             <div
                               key={i}
                               className="aspect-[4/3] bg-slate-50 rounded-md border border-slate-200 overflow-hidden cursor-zoom-in relative group transition-all hover:border-primary-400"
@@ -783,14 +869,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           ))}
                         </div>
                       </div>
-                    );
-                  })}
-                  {(!selectedOrder.formData || Object.keys(selectedOrder.formData).length === 0) && (
-                    <div className="py-20 text-center bg-white border border-slate-200 rounded-lg">
-                      <Camera className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Nenhuma evidência fotográfica registrada</p>
-                    </div>
-                  )}
+                    ));
+                  })()}
                 </div>
               )}
 
