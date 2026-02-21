@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS public.service_visits (
     
     created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    form_data JSONB DEFAULT '{}'::jsonb
 );
 
 -- 3. ÍNDICES PARA PERFORMANCE
