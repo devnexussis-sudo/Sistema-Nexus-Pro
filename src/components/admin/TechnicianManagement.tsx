@@ -160,19 +160,19 @@ export const TechnicianManagement: React.FC = () => {
 
       <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
-          <table className="w-full border-separate border-spacing-y-3">
+          <table className="w-full border-separate border-spacing-y-1">
             <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
               <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                <th className="px-4 py-5">Identidade Visual</th>
-                <th className="px-4 py-5 font-bold uppercase tracking-[0.3em]">Credencial (E-mail)</th>
-                <th className="px-4 py-5 text-center">Status App</th>
-                <th className="px-4 py-5 text-right pr-6">Ações</th>
+                <th className="px-4 py-2">Identidade Visual</th>
+                <th className="px-4 py-2 font-bold uppercase tracking-[0.3em]">Credencial (E-mail)</th>
+                <th className="px-4 py-2 text-center">Status App</th>
+                <th className="px-4 py-2 text-right pr-6">Ações</th>
               </tr>
             </thead>
             <tbody>
               {paginatedTechs.map(t => (
                 <tr key={t.id} className="bg-white hover:bg-emerald-50/40 transition-all group shadow-sm hover:shadow-md">
-                  <td className="px-4 py-4 rounded-l-[1.5rem] border border-slate-100 border-r-0">
+                  <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0">
                     <div className="flex items-center gap-4">
                       <div className="relative group/avatar shrink-0">
                         <img src={t.avatar} className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
@@ -190,11 +190,11 @@ export const TechnicianManagement: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 border-y border-slate-100 italic text-[11px] font-bold text-slate-500 truncate max-w-[180px]">{t.email}</td>
-                  <td className="px-4 py-4 border-y border-slate-100 text-center whitespace-nowrap">
+                  <td className="px-4 py-1.5 border-y border-slate-100 italic text-[11px] font-bold text-slate-500 truncate max-w-[180px]">{t.email}</td>
+                  <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
                     <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                   </td>
-                  <td className="px-4 py-4 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                  <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                     <button onClick={() => { setFormData(t); setEditingId(t.id); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Técnico"><Edit2 size={16} /></button>
                   </td>
                 </tr>

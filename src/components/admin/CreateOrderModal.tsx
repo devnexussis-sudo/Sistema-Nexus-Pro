@@ -743,17 +743,17 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                      <th className="px-4 py-4">Item / Descrição</th>
-                      <th className="px-4 py-4 w-28 text-center">Qtd</th>
-                      <th className="px-4 py-4 w-32">Unitário (R$)</th>
-                      <th className="px-4 py-4 w-36">Subtotal</th>
-                      <th className="px-4 py-4 text-center w-20">Ações</th>
+                      <th className="px-4 py-1.5">Item / Descrição</th>
+                      <th className="px-4 py-1.5 w-28 text-center">Qtd</th>
+                      <th className="px-4 py-1.5 w-32">Unitário (R$)</th>
+                      <th className="px-4 py-1.5 w-36">Subtotal</th>
+                      <th className="px-4 py-1.5 text-center w-20">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {items.map(item => (
                       <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-1.5">
                           <input
                             type="text"
                             value={item.description}
@@ -761,7 +761,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                             className="bg-transparent border-none text-[11px] font-bold text-slate-700 outline-none w-full focus:ring-0 truncate"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-1.5">
                           <input
                             type="number"
                             step="0.1"
@@ -770,7 +770,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                             className="bg-slate-50 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-700 outline-none w-16 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all text-center"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-1.5">
                           <input
                             type="number"
                             step="0.01"
@@ -779,10 +779,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                             className="bg-slate-50 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-700 outline-none w-28 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-1.5">
                           <span className="text-[12px] font-black text-slate-900 whitespace-nowrap">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-1.5 text-center">
                           <button onClick={() => removeItem(item.id)} className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
                             <Trash2 size={16} />
                           </button>

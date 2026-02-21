@@ -297,15 +297,15 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
       <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         {/* TABELA PADRONIZADA */}
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
-          <table className="w-full border-separate border-spacing-y-3">
+          <table className="w-full border-separate border-spacing-y-1">
             <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
               <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                <th className="px-3 py-5 w-8"></th>
-                <th className="px-4 py-5">Cliente / Documento</th>
-                <th className="px-4 py-5">Contato Principal</th>
-                <th className="px-4 py-5">Localização</th>
-                <th className="px-4 py-5 text-center">Status</th>
-                <th className="px-4 py-5 text-right pr-6">Ações</th>
+                <th className="px-3 py-2 w-8"></th>
+                <th className="px-4 py-2">Cliente / Documento</th>
+                <th className="px-4 py-2">Contato Principal</th>
+                <th className="px-4 py-2">Localização</th>
+                <th className="px-4 py-2 text-center">Status</th>
+                <th className="px-4 py-2 text-right pr-6">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -317,10 +317,10 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       onClick={() => toggleSelectCustomer(c.id)}
                       className={`bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer ${!c.active ? 'opacity-50' : ''}`}
                     >
-                      <td className="px-3 py-4 rounded-l-[1.5rem] border border-slate-100 border-r-0 text-slate-300">
+                      <td className="px-3 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0 text-slate-300">
                         {isSelected ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </td>
-                      <td className="px-4 py-4 border-y border-slate-100 font-black text-xs">
+                      <td className="px-4 py-1.5 border-y border-slate-100 font-black text-xs">
                         <div className="flex items-center gap-3">
                           <div className={`p-2.5 rounded-xl border-2 shrink-0 ${c.type === 'PJ' ? 'bg-primary-50 border-primary-100 text-primary-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
                             {c.type === 'PJ' ? <Building2 size={16} /> : <User size={16} />}
@@ -331,24 +331,24 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 border-y border-slate-100">
+                      <td className="px-4 py-1.5 border-y border-slate-100">
                         <div className="space-y-0.5">
                           <p className="text-[10px] font-black text-slate-600 flex items-center gap-1.5 truncate max-w-[150px]"><Mail size={12} className="text-primary-400" /> {c.email}</p>
                           <p className="text-[10px] font-black text-emerald-500 flex items-center gap-1.5 uppercase tracking-tighter"><Phone size={12} /> {c.whatsapp || c.phone}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-4 border-y border-slate-100 font-black text-[10px] uppercase text-slate-500 italic truncate max-w-[120px]">
+                      <td className="px-4 py-1.5 border-y border-slate-100 font-black text-[10px] uppercase text-slate-500 italic truncate max-w-[120px]">
                         <div className="flex items-center gap-1.5">
                           <MapPin size={14} className="text-primary-400" />
                           <span className="truncate">{c.city} • {c.state}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-4 border-y border-slate-100 text-center whitespace-nowrap">
+                      <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
                         <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${c.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                           {c.active ? 'Ativo' : 'Suspenso'}
                         </span>
                       </td>
-                      <td className="px-4 py-4 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                      <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
 
                         <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
                           <button onClick={(e) => toggleStatus(c.id, e)} title={c.active ? "Suspender" : "Liberar"} className="p-2.5 bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-amber-100 transition-all active:scale-90">
@@ -367,7 +367,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
                     {isSelected && (
                       <tr className="animate-fade-in-up">
-                        <td colSpan={6} className="px-12 py-4 pb-8">
+                        <td colSpan={6} className="px-12 py-1.5 pb-8">
                           <div className="bg-slate-50 border-2 border-primary-100 rounded-[3rem] p-8 shadow-inner">
 
                             <div className="flex items-center justify-between mb-8 border-b border-primary-100 pb-5">
