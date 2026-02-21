@@ -131,6 +131,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setCurrentPage(1);
   }, [searchTerm, statusFilter, techFilter, customerFilter, startDate, endDate, dateTypeFilter]);
 
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+
   useEffect(() => {
     if (selectedOrder) {
       import('../../services/orderService').then(mod => {
@@ -138,10 +140,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           setOrderVisits(visits);
         });
       });
+
+      // Busca o template para mapear IDs para Labels no checklist
+      if (selectedOrder.formId) {
+        import('../../services/formService').then(mod => {
+          mod.FormService.getFormTemplates().then(templates => {
+            const template = templates.find(t => t.id === selectedOrder.formId);
+            setSelectedTemplate(template || null);
+          });
+        });
+      } else {
+        setSelectedTemplate(null);
+      }
     } else {
       setOrderVisits([]);
+      setSelectedTemplate(null);
     }
   }, [selectedOrder]);
+
+  const mapIdToLabel = (id: string) => {
+    if (!selectedTemplate) return id;
+    const field = selectedTemplate.fields?.find((f: any) => f.id === id);
+    return field ? field.label : id;
+  };
 
 
   const handleOpenPublicView = (order: ServiceOrder, e: React.MouseEvent) => {
@@ -741,32 +762,74 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       .filter(v => ['completed', 'paused'].includes(v.status) && v.formData && Object.keys(v.formData).length > 0)
                       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-                    if (validVisits.length > 0) {
-                      return validVisits.map((visit, index) => {
-                        const vFormData = visit.formData || {};
-                        return (
-                          <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden mb-6">
-                            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-                              <div>
-                                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                                  Visita concluída em {new Date(visit.updatedAt || visit.createdAt).toLocaleString()}
-                                </h3>
-                                <p className="text-[10px] text-slate-500 font-medium">Status da Visita: {visit.status}</p>
+                    const osFormData = selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0 ? selectedOrder.formData : null;
+
+                    if (validVisits.length === 0 && !osFormData) {
+                      return (
+                        <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden mb-6">
+                          <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento do checklist</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-6">
+                        {/* 1. VISITAS REGISTRADAS */}
+                        {validVisits.map((visit, index) => {
+                          const vFormData = visit.formData || {};
+                          return (
+                            <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                              <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                                <div>
+                                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                    Visita concluída em {new Date(visit.updatedAt || visit.createdAt).toLocaleString()}
+                                  </h3>
+                                  <p className="text-[10px] text-slate-500 font-medium">Status da Visita: {visit.status}</p>
+                                </div>
+                                <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
+                                  {Object.keys(vFormData).length} Itens
+                                </span>
                               </div>
+                              <div className="divide-y divide-slate-50">
+                                {Object.entries(vFormData).filter(([key, val]) => {
+                                  if (Array.isArray(val)) return false;
+                                  if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) return false;
+                                  if (key.includes('Assinatura') || key.includes('impediment')) return false;
+                                  if (['signature', 'signatureName', 'signatureDoc', 'finishedAt'].includes(key)) return false;
+                                  return true;
+                                }).map(([key, val]) => (
+                                  <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
+                                    <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
+                                    <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                      {String(val)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* 2. DADOS DO FORMULÁRIO MASTER (SE NÃO ESTIVEREM NAS VISITAS) */}
+                        {osFormData && (
+                          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Dados Globais do Formulário (OS)</h3>
                               <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
-                                {Object.keys(vFormData).length} Itens
+                                {Object.keys(osFormData).length} Itens
                               </span>
                             </div>
                             <div className="divide-y divide-slate-50">
-                              {Object.entries(vFormData).filter(([key, val]) => {
+                              {Object.entries(osFormData).filter(([key, val]) => {
                                 if (Array.isArray(val)) return false;
                                 if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) return false;
                                 if (key.includes('Assinatura') || key.includes('impediment')) return false;
-                                if (['signature', 'signatureName', 'signatureDoc', 'finishedAt'].includes(key)) return false;
+                                if (['signature', 'signatureName', 'signatureDoc', 'finishedAt', 'technical_report', 'parts_used'].includes(key)) return false;
                                 return true;
                               }).map(([key, val]) => (
                                 <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
-                                  <div className="text-[13px] font-medium text-slate-600">{key}</div>
+                                  <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
                                   <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                                     {String(val)}
                                   </div>
@@ -774,43 +837,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               ))}
                             </div>
                           </div>
-                        );
-                      });
-                    }
-
-                    if (selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) {
-                      return (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden mb-6">
-                          <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-                            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Lista de Verificação (OS)</h3>
-                            <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
-                              {Object.keys(selectedOrder.formData || {}).length} Itens
-                            </span>
-                          </div>
-                          <div className="divide-y divide-slate-50">
-                            {Object.entries(selectedOrder.formData).filter(([key, val]) => {
-                              if (Array.isArray(val)) return false;
-                              if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) return false;
-                              if (key.includes('Assinatura') || key.includes('impediment')) return false;
-                              if (['signature', 'signatureName', 'signatureDoc', 'finishedAt', 'technical_report', 'parts_used'].includes(key)) return false;
-                              return true;
-                            }).map(([key, val]) => (
-                              <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
-                                <div className="text-[13px] font-medium text-slate-600">{key}</div>
-                                <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                                  {String(val)}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden mb-6">
-                        <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento do checklist</p>
+                        )}
                       </div>
                     );
                   })()}
@@ -839,10 +866,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     });
 
                     const groupedPhotos = extractedPhotos.reduce((acc, curr) => {
-                      if (!acc[curr.key]) acc[curr.key] = [];
-                      // Avoid exact duplicates
-                      if (!acc[curr.key].includes(curr.url)) {
-                        acc[curr.key].push(curr.url);
+                      const displayKey = mapIdToLabel(curr.key);
+                      if (!acc[displayKey]) acc[displayKey] = [];
+                      // Evitar duplicatas exatas de URL no mesmo grupo
+                      if (!acc[displayKey].includes(curr.url)) {
+                        acc[displayKey].push(curr.url);
                       }
                       return acc;
                     }, {} as Record<string, string[]>);
