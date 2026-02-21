@@ -31,6 +31,7 @@ export default function ExecuteOSScreen() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [viewerVisible, setViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [isUploadingPhoto, setIsUploadingPhoto] = useState<string | null>(null);
     const signatureRef = useRef<any>(null);
 
     useFocusEffect(
@@ -189,8 +190,8 @@ export default function ExecuteOSScreen() {
                 if (Array.isArray(val)) {
                     const uploadedUrls = [];
                     for (const item of val) {
-                        if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('content://'))) {
-                            const url = await OrderService.uploadFile(item, `orders/${id}/form_photos`);
+                        if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('content://') || item.startsWith('/'))) {
+                            const url = await OrderService.uploadFile(item, `orders/${id}/form_photos`, order?.tenantId);
                             if (url) uploadedUrls.push(url);
                         } else {
                             uploadedUrls.push(item); // Already valid URL
@@ -199,8 +200,8 @@ export default function ExecuteOSScreen() {
                     updatedDynamicData[key] = uploadedUrls;
                 }
                 // Handle Single Photo (Legacy/Fallback)
-                else if (typeof val === 'string' && (val.startsWith('file://') || val.startsWith('content://'))) {
-                    const uploadedUrl = await OrderService.uploadFile(val, `orders/${id}/form_photos`);
+                else if (typeof val === 'string' && (val.startsWith('file://') || val.startsWith('content://') || val.startsWith('/'))) {
+                    const uploadedUrl = await OrderService.uploadFile(val, `orders/${id}/form_photos`, order?.tenantId);
                     if (uploadedUrl) updatedDynamicData[key] = uploadedUrl;
                 }
             }
@@ -211,7 +212,8 @@ export default function ExecuteOSScreen() {
                 photos: [], // Legacy photos removed
                 signature: signature,
                 clientName: clientName, // Pass client name
-                formData: updatedDynamicData
+                formData: updatedDynamicData,
+                tenantId: order?.tenantId
             });
 
             Alert.alert('Sucesso', 'OS finalizada com sucesso!', [
@@ -233,15 +235,34 @@ export default function ExecuteOSScreen() {
             });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                const compressedUri = await ImageService.compressImage(result.assets[0].uri);
-                setDynamicData(prev => {
-                    const current = Array.isArray(prev[fieldId]) ? prev[fieldId] : (prev[fieldId] ? [prev[fieldId]] : []);
-                    if (current.length >= 3) {
-                        Alert.alert('Limite atingido', 'Máximo de 3 fotos por campo.');
-                        return prev;
+                setIsUploadingPhoto(fieldId);
+                try {
+                    // 1. Comprimir e Converter para WebP Localmente
+                    const compressedUri = await ImageService.compressImage(result.assets[0].uri);
+
+                    // 2. Upload Imediato para o Supabase (garante persistência)
+                    console.log(`[ExecuteOS] Uploading compressed WebP for field ${fieldId}...`);
+                    const publicUrl = await OrderService.uploadFile(
+                        compressedUri,
+                        `orders/${id}/form_photos`,
+                        order?.tenantId
+                    );
+
+                    if (publicUrl) {
+                        setDynamicData(prev => {
+                            const current = Array.isArray(prev[fieldId]) ? prev[fieldId] : (prev[fieldId] ? [prev[fieldId]] : []);
+                            if (current.length >= 3) {
+                                Alert.alert('Limite atingido', 'Máximo de 3 fotos por campo.');
+                                return prev;
+                            }
+                            return { ...prev, [fieldId]: [...current, publicUrl] };
+                        });
+                    } else {
+                        Alert.alert('Erro de Upload', 'Não foi possível salvar a imagem no servidor. Tente novamente.');
                     }
-                    return { ...prev, [fieldId]: [...current, compressedUri] };
-                });
+                } finally {
+                    setIsUploadingPhoto(null);
+                }
             }
         } catch (error) {
             Alert.alert('Erro', 'Não foi possível capturar a foto.');
@@ -290,7 +311,14 @@ export default function ExecuteOSScreen() {
 
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
                             {photos.map((photoUri: string, index: number) => (
-                                <View key={index} style={{ position: 'relative', width: 100, height: 100, borderRadius: 8, overflow: 'hidden' }}>
+                                <Pressable
+                                    key={index}
+                                    style={{ position: 'relative', width: 100, height: 100, borderRadius: 8, overflow: 'hidden' }}
+                                    onPress={() => {
+                                        setSelectedImage(photoUri);
+                                        setViewerVisible(true);
+                                    }}
+                                >
                                     <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} />
                                     <Pressable
                                         style={{ position: 'absolute', bottom: 0, width: '100%', backgroundColor: 'rgba(255,0,0,0.7)', alignItems: 'center', padding: 4 }}
@@ -302,16 +330,23 @@ export default function ExecuteOSScreen() {
                                     >
                                         <Ionicons name="trash" size={16} color="#fff" />
                                     </Pressable>
-                                </View>
+                                </Pressable>
                             ))}
 
                             {photos.length < 3 && (
                                 <Pressable
                                     style={[styles.photoFieldPlaceholder, { width: 100, height: 100, margin: 0 }]}
                                     onPress={() => handleTakeFieldPhoto(field.id)}
+                                    disabled={isUploadingPhoto === field.id}
                                 >
-                                    <Ionicons name="camera" size={24} color="#666" />
-                                    <Text style={[styles.photoFieldPlaceholderText, { fontSize: 10 }]}>Adicionar</Text>
+                                    {isUploadingPhoto === field.id ? (
+                                        <Text style={{ fontSize: 10, color: '#666' }}>Enviando...</Text>
+                                    ) : (
+                                        <>
+                                            <Ionicons name="camera" size={24} color="#666" />
+                                            <Text style={[styles.photoFieldPlaceholderText, { fontSize: 10 }]}>Adicionar</Text>
+                                        </>
+                                    )}
                                 </Pressable>
                             )}
                         </View>

@@ -31,19 +31,21 @@ export default function HomeScreen() {
     setIsLoading(true);
     try {
       const result = await OrderService.getAllOrders();
-      setOrders(result);
+      setOrders(result || []);
 
       // 🚀 Agendar Lembretes de OS (30/60 min)
-      result.forEach(order => {
-        if ((order.status === 'pending' || order.status === 'assigned') && order.scheduledDate && order.scheduledTime) {
-          NotificationService.scheduleOrderReminders(
-            order.id,
-            order.scheduledDate,
-            order.scheduledTime,
-            order.displayId || 'S/N'
-          );
-        }
-      });
+      if (result && Array.isArray(result)) {
+        result.forEach(order => {
+          if ((order.status === 'pending' || order.status === 'assigned') && order.scheduledDate && order.scheduledTime) {
+            NotificationService.scheduleOrderReminders(
+              order.id,
+              order.scheduledDate,
+              order.scheduledTime,
+              order.displayId || 'S/N'
+            );
+          }
+        });
+      }
     } catch (e) {
       console.error(e);
     } finally {

@@ -3,7 +3,7 @@ import { OrderStatus, ServiceOrder } from '@/constants/mock-data';
 import { logger } from './logger';
 import { supabase, BUCKET_NAME } from './supabase';
 import { authService } from './auth-service';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 
 // Polyfill for arrayBuffer if needed, or assume ArrayBuffer global exists.
@@ -59,7 +59,7 @@ export interface ExtendedServiceOrder extends ServiceOrder {
         signature: string | null;
     };
     blockReason?: string;
-    // Extra fields from DB
+    tenantId?: string;
     type?: string;
     priority?: string;
     displayId?: string; // Short ID for display
@@ -75,40 +75,72 @@ export interface ExtendedServiceOrder extends ServiceOrder {
 
 export class OrderService {
 
-    private static async uploadFile(uri: string, folder: string): Promise<string | null> {
+    public static async uploadFile(uri: string, folder: string, manualTenantId?: string): Promise<string | null> {
         try {
-            const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
+            console.log(`[OrderService] 📤 Iniciando upload. URI local: ${uri.substring(0, 60)}...`);
 
-            // Read file as base64
-            const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+            // 1. Obter Tenant ID para bater com a estrutura do Storage do Admix
+            let tenantId = manualTenantId;
 
-            // Convert base64 to ArrayBuffer (we need to implement/import decode)
-            // Since we can't easily install packages mid-flight without stopping, 
-            // we'll try to use FormData if possible, or include a tiny decode function.
-            // Let's use fetch().blob() strategy which is cleaner in Expo.
+            if (!tenantId) {
+                const userId = authService.getCurrentUserId();
+                if (userId) {
+                    const { data } = await supabase.from('users').select('tenant_id').eq('id', userId).single();
+                    tenantId = data?.tenant_id;
+                }
+            }
 
-            const response = await fetch(uri);
-            const blob = await response.blob();
+            console.log(`[OrderService] 🏢 Tenant detectado para upload: ${tenantId || 'N/A'}`);
 
+            const cleanFolder = folder.replace(/^\/+/, '').replace(/\/+$/, '');
+            const finalFolder = tenantId ? `${tenantId}/${cleanFolder}` : cleanFolder;
+            const fileName = `${finalFolder}/${Date.now()}_${Math.random().toString(36).substring(7)}.webp`.replace(/\/+/g, '/');
+
+            // 2. Obter os dados base64 (Lidando com arquivos locais ou Data URIs de assinatura)
+            let base64: string;
+
+            if (uri.startsWith('data:')) {
+                console.log(`[OrderService] 📝 Processando Data URI (Assinatura)...`);
+                base64 = uri.split(',')[1];
+            } else {
+                const fileUri = (uri.startsWith('/') && !uri.startsWith('file://')) ? `file://${uri}` : uri;
+                base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
+            }
+
+            if (!base64 || base64.length === 0) {
+                console.error(`[OrderService] ❌ Erro: Base64 vazio para URI: ${uri.substring(0, 50)}...`);
+                return null;
+            }
+
+            // 3. Converter base64 para ArrayBuffer usando decode importado
+            const arrayBuffer = decode(base64);
+            console.log(`[OrderService] 📦 Buffer criado: ${(arrayBuffer.byteLength / 1024).toFixed(1)} KB para ${fileName}`);
+
+            // 4. Upload para o Supabase
             const { data, error } = await supabase.storage
                 .from(BUCKET_NAME)
-                .upload(fileName, blob, {
+                .upload(fileName, arrayBuffer, {
                     contentType: 'image/webp',
                     upsert: false
                 });
 
             if (error) {
+                console.error(`[OrderService] ❌ Erro no Upload Supabase:`, JSON.stringify(error, null, 2));
                 logger.log(`Upload error: ${error.message}`, 'error');
                 return null;
             }
 
-            // Get Public URL
+            console.log(`[OrderService] ✅ Upload concluído com sucesso: ${fileName}`);
+
+            // 5. Gerar URL Pública Estritamente como o Admix espera
             const { data: { publicUrl } } = supabase.storage
                 .from(BUCKET_NAME)
                 .getPublicUrl(fileName);
 
+            console.log(`[OrderService] 🔗 URL Gerada: ${publicUrl}`);
             return publicUrl;
         } catch (error) {
+            console.error(`[OrderService] 💥 Exceção Fatal no Upload:`, error);
             logger.log(`Upload exception: ${error}`, 'error');
             return null;
         }
@@ -130,8 +162,8 @@ export class OrderService {
         // Map execution details from form_data
         const details = dbOrder.form_data || {};
         const executionDetails = (status === 'completed') ? {
-            technicalReport: details.technicalReport || '',
-            partsUsed: details.partsUsed || '',
+            technicalReport: details.technical_report || details.technicalReport || '',
+            partsUsed: details.parts_used || details.partsUsed || '',
             photos: details.photos || [],
             signature: dbOrder.signature_url
         } : undefined;
@@ -158,6 +190,7 @@ export class OrderService {
 
         return {
             id: dbOrder.id, // Keep original ID for API calls
+            tenantId: dbOrder.tenant_id,
             // PROBLEM: We cannot change the ID if we use it for lookups.
             // SOLUTION: Add a `displayId` field to ExtendedServiceOrder and update UI to use it.
             // ALTERNATIVE: Use the real ID for logic, but format it in the UI. 
@@ -286,23 +319,28 @@ export class OrderService {
         signature: string | null;
         formData?: any;
         clientName?: string;
+        tenantId?: string;
     }): Promise<void> {
         try {
-            // 1. Upload Photos
+            // 1. Upload Photos (Standard ones)
             const uploadedPhotos: string[] = [];
-            for (const photoUri of details.photos) {
-                if (photoUri.startsWith('http')) {
-                    uploadedPhotos.push(photoUri);
-                } else {
-                    const url = await this.uploadFile(photoUri, `orders/${id}/photos`);
-                    if (url) uploadedPhotos.push(url);
+            if (details.photos && details.photos.length > 0) {
+                for (const photoUri of details.photos) {
+                    if (photoUri && typeof photoUri === 'string') {
+                        if (photoUri.startsWith('http')) {
+                            uploadedPhotos.push(photoUri);
+                        } else {
+                            const url = await this.uploadFile(photoUri, `orders/${id}/photos`, details.tenantId);
+                            if (url) uploadedPhotos.push(url);
+                        }
+                    }
                 }
             }
 
             // 2. Upload Signature
             let signatureUrl = null;
             if (details.signature) {
-                const url = await this.uploadFile(details.signature, `orders/${id}/signatures`);
+                const url = await this.uploadFile(details.signature, `orders/${id}/signatures`, details.tenantId);
                 if (url) signatureUrl = url;
             }
 

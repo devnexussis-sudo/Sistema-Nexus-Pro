@@ -1,5 +1,5 @@
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { logger } from './logger';
 
@@ -12,8 +12,8 @@ export class ImageService {
         try {
             logger.log(`Starting image compression for: ${uri}`, 'info');
 
-            // 1. Initial manipulation: Resize to 900px & Convert to WebP (Very efficient)
-            const MAX_SIZE_BYTES = 250 * 1024; // 250KB limit
+            // 1. Initial manipulation: Resize & Convert to WebP (Very efficient)
+            const MAX_SIZE_BYTES = 200 * 1024; // 200KB limit
             let width = 900;
             let quality = 0.7;
 
@@ -32,7 +32,7 @@ export class ImageService {
 
             // 3. Adaptive loop: Reduce quality first, then size if needed
             while (size > MAX_SIZE_BYTES && attempts < 5) {
-                logger.log(`Image size ${(size / 1024).toFixed(2)}KB exceeds 250KB. Re-compressing (attempt ${attempts + 1})...`, 'warn');
+                logger.log(`Image size ${(size / 1024).toFixed(2)}KB exceeds 200KB. Re-compressing (attempt ${attempts + 1})...`, 'warn');
 
                 attempts++;
 
@@ -59,7 +59,7 @@ export class ImageService {
             }
 
             if (size > MAX_SIZE_BYTES) {
-                logger.log(`Warning: Could not compress under 250KB after 5 attempts. Final: ${(size / 1024).toFixed(2)}KB`, 'warn');
+                logger.log(`Warning: Could not compress under 200KB after 5 attempts. Final: ${(size / 1024).toFixed(2)}KB`, 'warn');
             } else {
                 logger.log(`Image compressed successfully. Final size: ${(size / 1024).toFixed(2)}KB`, 'info');
             }

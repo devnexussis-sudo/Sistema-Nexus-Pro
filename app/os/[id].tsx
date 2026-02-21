@@ -185,39 +185,104 @@ export default function OrderDetailsScreen() {
                 )}
 
                 {/* Execution Details Display */}
-                {order.executionDetails && (
+                {(order.executionDetails || (order.formData && Object.keys(order.formData).length > 0)) && (
                     <View>
-                        <ThemedText type="title" style={{ marginBottom: 12 }}>Detalhes da Execução</ThemedText>
+                        <ThemedText type="title" style={{ marginBottom: 12, marginTop: 8 }}>Resumo da Execução</ThemedText>
 
-                        <View style={styles.card}>
-                            <ThemedText type="subtitle">Relatório Técnico</ThemedText>
-                            <Text style={styles.infoText}>{order.executionDetails.technicalReport}</Text>
-                        </View>
-
-                        <View style={styles.card}>
-                            <ThemedText type="subtitle">Peças Utilizadas</ThemedText>
-                            <Text style={styles.infoText}>{order.executionDetails.partsUsed || 'Nenhuma peça utilizada'}</Text>
-                        </View>
-
-                        {order.executionDetails.photos && order.executionDetails.photos.length > 0 && (
+                        {/* Relatório Técnico (se existir) */}
+                        {(order.executionDetails?.technicalReport || order.formData?.technical_report) && (
                             <View style={styles.card}>
-                                <ThemedText type="subtitle">Fotos</ThemedText>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
-                                    {order.executionDetails.photos.map((uri, index) => (
-                                        <Pressable key={index} onPress={() => openImage(uri)}>
-                                            <Image source={{ uri }} style={styles.photoThumbnail} />
-                                        </Pressable>
-                                    ))}
-                                </ScrollView>
+                                <ThemedText type="subtitle">Relatório Técnico</ThemedText>
+                                <Text style={styles.infoText}>
+                                    {order.executionDetails?.technicalReport || order.formData?.technical_report}
+                                </Text>
                             </View>
                         )}
 
-                        {order.executionDetails.signature && (
+                        {/* Peças Utilizadas (se existir) */}
+                        {(order.executionDetails?.partsUsed || order.formData?.parts_used) && (
+                            <View style={styles.card}>
+                                <ThemedText type="subtitle">Peças Utilizadas</ThemedText>
+                                <Text style={styles.infoText}>
+                                    {order.executionDetails?.partsUsed || order.formData?.parts_used}
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Checklist Completo e Dados do Formulário */}
+                        {order.formData && Object.keys(order.formData).length > 0 && (
+                            <View style={styles.card}>
+                                <ThemedText type="subtitle">Checklist / Formulário</ThemedText>
+                                <View style={{ marginTop: 10 }}>
+                                    {Object.entries(order.formData).map(([key, val]) => {
+                                        // Pular campos de sistema ou mídia
+                                        if (['technical_report', 'parts_used', 'signature', 'photos'].includes(key)) return null;
+                                        if (Array.isArray(val)) return null;
+                                        if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) return null;
+
+                                        return (
+                                            <View key={key} style={styles.dynamicFieldRow}>
+                                                <Text style={styles.dynamicFieldLabel}>{key.replace(/_/g, ' ')}</Text>
+                                                <Text style={[
+                                                    styles.dynamicFieldValue,
+                                                    (val === 'OK' || val === 'Sim') && { color: '#2e7d32', fontWeight: 'bold' }
+                                                ]}>
+                                                    {String(val)}
+                                                </Text>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            </View>
+                        )}
+
+                        {/* Galeria de Fotos Dinâmica (Formulário + Gerais) */}
+                        {(() => {
+                            const allPhotos: string[] = [];
+                            if (order.executionDetails?.photos) allPhotos.push(...order.executionDetails.photos);
+
+                            // Buscar fotos dentro de arrays ou campos simples no formData
+                            if (order.formData) {
+                                Object.values(order.formData).forEach(val => {
+                                    if (Array.isArray(val)) {
+                                        val.forEach(item => {
+                                            if (typeof item === 'string' && (item.startsWith('http') || item.startsWith('data:'))) {
+                                                allPhotos.push(item);
+                                            }
+                                        });
+                                    } else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) {
+                                        // Evitar assinatura aqui
+                                        if (!val.includes('signature')) allPhotos.push(val);
+                                    }
+                                });
+                            }
+
+                            const uniquePhotos = [...new Set(allPhotos)];
+
+                            if (uniquePhotos.length > 0) {
+                                return (
+                                    <View style={styles.card}>
+                                        <ThemedText type="subtitle">Anexos Fotográficos</ThemedText>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
+                                            {uniquePhotos.map((uri, index) => (
+                                                <Pressable key={index} onPress={() => openImage(uri)}>
+                                                    <Image source={{ uri }} style={styles.photoThumbnail} />
+                                                </Pressable>
+                                            ))}
+                                        </ScrollView>
+                                    </View>
+                                );
+                            }
+                            return null;
+                        })()}
+
+                        {/* Assinatura */}
+                        {(order.executionDetails?.signature || order.formData?.signature) && (
                             <View style={styles.card}>
                                 <ThemedText type="subtitle">Assinatura do Cliente</ThemedText>
-                                <Pressable onPress={() => openImage(order.executionDetails!.signature!)}>
+                                <Pressable onPress={() => openImage(order.executionDetails?.signature || order.formData?.signature)}>
                                     <Image
-                                        source={{ uri: order.executionDetails.signature }}
+                                        source={{ uri: order.executionDetails?.signature || order.formData?.signature }}
                                         style={styles.signatureImage}
                                         resizeMode="contain"
                                     />
@@ -481,6 +546,27 @@ const styles = StyleSheet.create({
     confirmButtonText: {
         color: '#fff',
         fontWeight: 'bold',
+    },
+    // New Styles for Dynamic Content
+    dynamicFieldRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+    },
+    dynamicFieldLabel: {
+        fontSize: 13,
+        color: '#666',
+        flex: 0.6,
+        textTransform: 'capitalize',
+    },
+    dynamicFieldValue: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#333',
+        flex: 0.4,
+        textAlign: 'right',
     },
 });
 

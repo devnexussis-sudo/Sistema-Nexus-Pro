@@ -6,7 +6,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { startBackgroundLocation } from '@/services/location-service';
 import { logger } from '@/services/logger';
-import { useEffect } from 'react';
+// Fixed duplicate import
 import { authService } from '@/services/auth-service';
 
 export const unstable_settings = {
