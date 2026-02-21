@@ -436,7 +436,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     <table className="w-full text-left border-separate border-spacing-y-0">
                         <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
-                                <th className="px-3 py-6 w-12 text-center">
+                                <th className="px-3 py-2 w-12 text-center">
                                     <input
                                         type="checkbox"
                                         className="w-4 h-4 rounded border-slate-200 text-primary-600 focus:ring-primary-100 cursor-pointer transition-all active:scale-90"
@@ -447,11 +447,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         }}
                                     />
                                 </th>
-                                <th className="px-4 py-6 border-b border-slate-100">Documento / Cliente</th>
-                                <th className="px-4 py-6 border-b border-slate-100">Descrição</th>
-                                <th className="px-4 py-6 border-b border-slate-100 italic">Técnico</th>
-                                <th className="px-4 py-6 border-b border-slate-100">Valor</th>
-                                <th className="px-4 py-6 text-center border-b border-slate-100">Status</th>
+                                <th className="px-4 py-2 border-b border-slate-100">Documento / Cliente</th>
+                                <th className="px-4 py-2 border-b border-slate-100">Descrição</th>
+                                <th className="px-4 py-2 border-b border-slate-100 italic">Técnico</th>
+                                <th className="px-4 py-2 border-b border-slate-100">Valor</th>
+                                <th className="px-4 py-2 text-center border-b border-slate-100">Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -464,7 +464,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         setIsSidebarOpen(true);
                                     }}
                                 >
-                                    <td className="px-3 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                    <td className="px-3 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                                         <input
                                             type="checkbox"
                                             className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
@@ -472,7 +472,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                             onChange={() => toggleSelect(item.id)}
                                         />
                                     </td>
-                                    <td className="px-4 py-4">
+                                    <td className="px-4 py-1.5">
                                         <div className="flex flex-col truncate max-w-[150px]">
                                             <span className={`text-[8px] font-black px-1.5 py-0.5 rounded w-fit mb-1 ${item.type === 'QUOTE' ? 'bg-primary-50 text-primary-600 border border-primary-100' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
                                                 {item.type === 'QUOTE' ? 'ORC' : 'OS'}#{item.id.slice(0, 8)}
@@ -480,17 +480,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                             <p className="text-xs font-bold text-slate-800 tracking-tight truncate italic">{item.customerName}</p>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4">
+                                    <td className="px-4 py-1.5">
                                         <p className="text-[10px] text-slate-600 line-clamp-1 truncate max-w-[180px] uppercase font-bold italic tracking-tighter">{item.title}</p>
                                         <p className="text-[9px] text-slate-400 truncate mt-0.5">{new Date(item.date).toLocaleDateString()}</p>
                                     </td>
-                                    <td className="px-4 py-4">
+                                    <td className="px-4 py-1.5">
                                         <span className="text-[10px] font-black text-slate-700 capitalize truncate max-w-[100px] inline-block">{item.technician?.toLowerCase()}</span>
                                     </td>
-                                    <td className="px-4 py-4 whitespace-nowrap">
+                                    <td className="px-4 py-1.5 whitespace-nowrap">
                                         <span className="text-xs font-black text-slate-900">{formatCurrency(item.value)}</span>
                                     </td>
-                                    <td className="px-4 py-4 text-center whitespace-nowrap">
+                                    <td className="px-4 py-1.5 text-center whitespace-nowrap">
                                         <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
                                             {item.status === 'PAID' ? 'Pago' : 'Pendente'}
                                         </div>

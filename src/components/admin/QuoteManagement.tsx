@@ -233,40 +233,40 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                     <table className="w-full border-separate border-spacing-y-0 text-left">
                         <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
                             <tr className="border-b border-slate-100">
-                                <th className="px-4 py-6">Orçamento ID</th>
-                                <th className="px-4 py-6">Criado em</th>
-                                <th className="px-4 py-6">Cliente</th>
-                                <th className="px-4 py-6">Validade</th>
-                                <th className="px-4 py-6">Valor Total</th>
-                                <th className="px-4 py-6">Vínculo O.S.</th>
-                                <th className="px-4 py-6 text-center">Status</th>
-                                <th className="px-4 py-6 text-right pr-6">Ações</th>
+                                <th className="px-4 py-2">Orçamento ID</th>
+                                <th className="px-4 py-2">Criado em</th>
+                                <th className="px-4 py-2">Cliente</th>
+                                <th className="px-4 py-2">Validade</th>
+                                <th className="px-4 py-2">Valor Total</th>
+                                <th className="px-4 py-2">Vínculo O.S.</th>
+                                <th className="px-4 py-2 text-center">Status</th>
+                                <th className="px-4 py-2 text-right pr-6">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             {paginatedQuotes.map(quote => (
                                 <tr key={quote.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
-                                    <td className="px-4 py-4">
+                                    <td className="px-4 py-1.5">
                                         <div className="flex flex-col truncate max-w-[120px]">
                                             <span className="text-[11px] font-black uppercase italic text-primary-600 tracking-tighter truncate">{quote.id}</span>
                                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">{quote.title}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4">
+                                    <td className="px-4 py-1.5">
                                         <div className="flex items-center gap-1.5 whitespace-nowrap">
                                             <Clock size={10} className="text-slate-400" />
                                             <span className="text-[10px] font-bold text-slate-600 uppercase">{new Date(quote.createdAt).toLocaleDateString()}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4 text-[10px] font-black uppercase italic text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
-                                    <td className="px-4 py-4">
+                                    <td className="px-4 py-1.5 text-[10px] font-black uppercase italic text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
+                                    <td className="px-4 py-1.5">
                                         <div className="flex items-center gap-1.5 whitespace-nowrap">
                                             <Calendar size={10} className="text-slate-400" />
                                             <span className="text-[10px] font-bold text-slate-600 uppercase">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'N/D'}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4 text-[11px] font-bold text-emerald-600 whitespace-nowrap">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                    <td className="px-4 py-4 text-[9px] font-bold uppercase whitespace-nowrap">
+                                    <td className="px-4 py-1.5 text-[11px] font-bold text-emerald-600 whitespace-nowrap">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-4 py-1.5 text-[9px] font-bold uppercase whitespace-nowrap">
                                         {quote.linkedOrderId ? (
                                             <span className="px-1.5 py-0.5 bg-slate-50 text-[#1c2d4f] rounded-lg border border-slate-200 flex items-center gap-1 w-fit">
                                                 <Link2 size={10} /> {quote.linkedOrderId.slice(0, 8)}
@@ -275,7 +275,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             <span className="text-slate-300">Sem Vínculo</span>
                                         )}
                                     </td>
-                                    <td className="px-4 py-4 text-center whitespace-nowrap">
+                                    <td className="px-4 py-1.5 text-center whitespace-nowrap">
                                         <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase ${quote.status === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
                                             quote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
                                                 quote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
@@ -285,7 +285,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             {quote.status}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5 text-right pr-6">
+                                    <td className="px-6 py-2 text-right pr-6">
                                         <div className="flex justify-end gap-1.5 transition-all">
                                             {/* Visualizar Tudo */}
                                             <button
@@ -683,28 +683,28 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <table className="w-full text-left">
                                         <thead className="bg-white text-[8px] font-black text-slate-400 uppercase">
                                             <tr>
-                                                <th className="px-6 py-4">Item</th>
-                                                <th className="px-6 py-4">Descrição</th>
-                                                <th className="px-6 py-4">Qtde</th>
-                                                <th className="px-6 py-4">Unitário</th>
-                                                <th className="px-6 py-4 text-right">Subtotal</th>
+                                                <th className="px-6 py-1.5">Item</th>
+                                                <th className="px-6 py-1.5">Descrição</th>
+                                                <th className="px-6 py-1.5">Qtde</th>
+                                                <th className="px-6 py-1.5">Unitário</th>
+                                                <th className="px-6 py-1.5 text-right">Subtotal</th>
                                             </tr>
                                         </thead>
                                         <tbody className="text-[10px] font-bold">
                                             {viewQuote.items.map((item, idx) => (
                                                 <tr key={idx} className="border-t border-slate-50 hover:bg-white transition-colors">
-                                                    <td className="px-6 py-3 text-slate-400 font-mono">{(idx + 1).toString().padStart(2, '0')}</td>
-                                                    <td className="px-6 py-3 text-slate-700 uppercase">{item.description}</td>
-                                                    <td className="px-6 py-3 text-slate-500">{item.quantity} un</td>
-                                                    <td className="px-6 py-3 text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR')}</td>
-                                                    <td className="px-6 py-3 text-right text-slate-900 font-black italic">R$ {item.total.toLocaleString('pt-BR')}</td>
+                                                    <td className="px-6 py-1.5 text-slate-400 font-mono">{(idx + 1).toString().padStart(2, '0')}</td>
+                                                    <td className="px-6 py-1.5 text-slate-700 uppercase">{item.description}</td>
+                                                    <td className="px-6 py-1.5 text-slate-500">{item.quantity} un</td>
+                                                    <td className="px-6 py-1.5 text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR')}</td>
+                                                    <td className="px-6 py-1.5 text-right text-slate-900 font-black italic">R$ {item.total.toLocaleString('pt-BR')}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                         <tfoot className="bg-slate-900 text-white">
                                             <tr>
-                                                <td colSpan={4} className="px-6 py-4 text-[9px] font-black uppercase text-right">Investimento Total Aplicado:</td>
-                                                <td className="px-6 py-4 text-right text-lg font-black italic tracking-tighter">R$ {viewQuote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                <td colSpan={4} className="px-6 py-1.5 text-[9px] font-black uppercase text-right">Investimento Total Aplicado:</td>
+                                                <td className="px-6 py-1.5 text-right text-lg font-black italic tracking-tighter">R$ {viewQuote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                             </tr>
                                         </tfoot>
                                     </table>

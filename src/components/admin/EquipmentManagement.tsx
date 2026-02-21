@@ -220,20 +220,20 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
         {/* TABELA PADRONIZADA */}
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'list' ? (
-            <table className="w-full border-separate border-spacing-y-3">
+            <table className="w-full border-separate border-spacing-y-1">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                  <th className="px-4 py-5">Equipamento / Modelo</th>
-                  <th className="px-4 py-5 text-center whitespace-nowrap">Nº de Série</th>
-                  <th className="px-4 py-5">Proprietário</th>
-                  <th className="px-4 py-5 text-center">Status</th>
-                  <th className="px-4 py-5 text-right pr-6">Ações</th>
+                  <th className="px-4 py-2">Equipamento / Modelo</th>
+                  <th className="px-4 py-2 text-center whitespace-nowrap">Nº de Série</th>
+                  <th className="px-4 py-2">Proprietário</th>
+                  <th className="px-4 py-2 text-center">Status</th>
+                  <th className="px-4 py-2 text-right pr-6">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedItems.map((e: any) => (
                   <tr key={e.id} className="bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer">
-                    <td className="px-4 py-4 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-black text-xs max-w-[200px]">
+                    <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-black text-xs max-w-[200px]">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-primary-400 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
                           <Box size={18} />
@@ -244,15 +244,15 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 border-y border-slate-100 text-center font-mono text-[11px] font-black text-slate-500 tracking-tighter italic uppercase whitespace-nowrap">#{e.serialNumber}</td>
-                    <td className="px-4 py-4 border-y border-slate-100 text-[10px] font-black uppercase text-slate-600 italic tracking-tight truncate max-w-[150px]">
+                    <td className="px-4 py-1.5 border-y border-slate-100 text-center font-mono text-[11px] font-black text-slate-500 tracking-tighter italic uppercase whitespace-nowrap">#{e.serialNumber}</td>
+                    <td className="px-4 py-1.5 border-y border-slate-100 text-[10px] font-black uppercase text-slate-600 italic tracking-tight truncate max-w-[150px]">
                       {customers.find(c => c.id === e.customerId)?.name || e.customerName || 'Não vinculado'}
                     </td>
 
-                    <td className="px-4 py-4 border-y border-slate-100 text-center">
+                    <td className="px-4 py-1.5 border-y border-slate-100 text-center">
                       <StatusBadge status={e.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                     </td>
-                    <td className="px-4 py-4 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                    <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5">
                         <button onClick={(evt) => { evt.stopPropagation(); toggleEquipmentStatus(e); }} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${e.active ? 'bg-slate-50 text-amber-500 hover:bg-white hover:border-amber-100 hover:text-amber-600' : 'bg-slate-50 text-emerald-500 hover:bg-white hover:border-emerald-100 hover:text-emerald-600'}`}>
                           {e.active ? <PowerOff size={16} /> : <Power size={16} />}
@@ -265,19 +265,19 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
               </tbody>
             </table>
           ) : (
-            <table className="w-full border-separate border-spacing-y-3">
+            <table className="w-full border-separate border-spacing-y-1">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                  <th className="px-4 py-5">Nome da Família</th>
-                  <th className="px-4 py-5">Descrição Técnica de Escopo</th>
-                  <th className="px-4 py-5 text-center">Status</th>
-                  <th className="px-4 py-5 text-right pr-6">Ações</th>
+                  <th className="px-4 py-2">Nome da Família</th>
+                  <th className="px-4 py-2">Descrição Técnica de Escopo</th>
+                  <th className="px-4 py-2 text-center">Status</th>
+                  <th className="px-4 py-2 text-right pr-6">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedItems.map((f: any) => (
                   <tr key={f.id} className="bg-white hover:bg-primary-50/30 transition-all group shadow-sm cursor-pointer">
-                    <td className="px-4 py-4 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-black text-xs max-w-[200px]">
+                    <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0 font-black text-xs max-w-[200px]">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 rounded-xl bg-primary-50 text-primary-600 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
                           <Layers size={18} />
@@ -285,13 +285,13 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         <p className="text-slate-900 uppercase italic tracking-tight truncate">{f.name}</p>
                       </div>
                     </td>
-                    <td className="px-4 py-4 border-y border-slate-100 text-[10px] font-medium text-slate-500 italic max-w-sm truncate">{f.description}</td>
-                    <td className="px-4 py-4 border-y border-slate-100 text-center">
+                    <td className="px-4 py-1.5 border-y border-slate-100 text-[10px] font-medium text-slate-500 italic max-w-sm truncate">{f.description}</td>
+                    <td className="px-4 py-1.5 border-y border-slate-100 text-center">
                       <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${f.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                         {f.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td className="px-4 py-4 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                    <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5">
                         <button onClick={() => setFamilies(families.map(item => item.id === f.id ? { ...item, active: !item.active } : item))} className={`p-2.5 rounded-lg shadow-sm border border-transparent transition-all active:scale-95 ${f.active ? 'bg-slate-50 text-amber-500 hover:bg-amber-50' : 'bg-slate-50 text-emerald-500 hover:bg-emerald-50'}`}>
                           {f.active ? <PowerOff size={16} /> : <Power size={16} />}
