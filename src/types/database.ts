@@ -439,6 +439,18 @@ export interface DbActivationRule {
     created_at?: string;
 }
 
+// ─── Tabela: stock_categories ─────────────────────────────────
+
+export interface DbStockCategory {
+    id: string;
+    tenant_id: string;
+    name: string;
+    type: string;
+    active: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
 // ─── Helpers de Tipagem ───────────────────────────────────────
 
 /**
