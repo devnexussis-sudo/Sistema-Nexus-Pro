@@ -56,14 +56,24 @@ export const StockService = {
     createCategory: async (category: Omit<Category, 'id'>): Promise<void> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            const { error } = await supabase.from('stock_categories').insert([{
-                id: crypto.randomUUID(),
+            const id = typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `cat-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+            const payload = {
+                id,
                 name: category.name,
                 type: category.type || 'stock',
                 active: category.active !== false,
                 tenant_id: tenantId
-            }]);
-            if (error) throw error;
+            };
+
+            const { error } = await supabase.from('stock_categories').insert([payload]);
+
+            if (error) {
+                console.error("❌ Erro Supabase (StockCategory):", error.message, error.details, error.hint);
+                throw error;
+            }
         }
     },
 
@@ -130,8 +140,12 @@ export const StockService = {
     createStockItem: async (item: StockItem): Promise<void> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
+            const id = typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `stk-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
             const dbItem = {
-                id: crypto.randomUUID(),
+                id,
                 tenant_id: tenantId,
                 code: item.code,
                 external_code: item.externalCode,
@@ -148,7 +162,10 @@ export const StockService = {
                 active: item.active
             };
             const { error } = await supabase.from('stock_items').insert([dbItem]);
-            if (error) throw error;
+            if (error) {
+                console.error("❌ Erro Supabase (StockItem):", error.message, error.details);
+                throw error;
+            }
         }
     },
 
