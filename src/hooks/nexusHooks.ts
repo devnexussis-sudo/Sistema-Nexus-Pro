@@ -209,6 +209,10 @@ export const NexusQueryClient = {
         queryClient.invalidateQueries('stock');
         CacheManager.invalidate('stock');
     },
+    invalidateCategories: () => {
+        queryClient.invalidateQueries('stock_categories');
+        CacheManager.invalidate('stock_categories');
+    },
     invalidateFinancials: () => {
         queryClient.invalidateQueries('cash_flow');
         CacheManager.invalidate('cash_flow');
