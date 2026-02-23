@@ -20,7 +20,7 @@ const safeKey = supabaseAnonKey || 'placeholder';
 
 const lockQueue: Record<string, Promise<unknown>> = {};
 
-const processLock = async (name: string, acquireTimeout: number, fn: () => Promise<unknown>) => {
+const processLock = async <R>(name: string, acquireTimeout: number, fn: () => Promise<R>): Promise<R> => {
     // 1. Recupera a promessa anterior da fila (ou resolve imediatamente se vazia)
     const previousOperation = lockQueue[name] || Promise.resolve();
 
@@ -51,7 +51,7 @@ const processLock = async (name: string, acquireTimeout: number, fn: () => Promi
     // O catch aqui garante que a fila nunca "quebre" por erro de uma operação
     lockQueue[name] = currentOperation.catch(() => { });
 
-    return currentOperation;
+    return currentOperation as Promise<R>;
 };
 
 // Cliente Padrão (Anon Key) com resiliência avançada
@@ -61,6 +61,7 @@ export const supabase = createClient(safeUrl, safeKey, {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        storage: window.localStorage, // 🛡️ Força persistência em localStorage (No-Memory-Only)
         lock: processLock,
     },
     global: {
@@ -99,6 +100,64 @@ export const supabase = createClient(safeUrl, safeKey, {
             Math.min(1000 * Math.pow(2, tries), 30000)
     }
 });
+
+// ─── 🛡️ Diagnóstico e Persistência Agressiva ───────────────────
+
+/**
+ * Listener de Estado de Autenticação
+ * Detecta e loga mudanças críticas, especialmente erros de renovação de token.
+ */
+supabase.auth.onAuthStateChange((event, session) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[Supabase Auth] 🔑 Evento: ${event} em ${timestamp}`);
+
+    if (event === 'TOKEN_REFRESHED') {
+        console.log('%c[Supabase Auth] ✨ Token renovado com sucesso!', 'color: #10b981; font-weight: bold;');
+    }
+
+    if (event === 'SIGNED_OUT') {
+        console.warn('[Supabase Auth] 🚪 Usuário desconectado (SIGNED_OUT).');
+    }
+
+    if (!session && event !== 'SIGNED_OUT') {
+        console.error('[Supabase Auth] 🚨 Sessão perdida inesperadamente ou falha no refresh!', { event, timestamp });
+    }
+});
+
+/**
+ * 💓 Heartbeat de Conexão (Nexus Resilience)
+ * Sincroniza a sessão sempre que a aba recupera o foco.
+ */
+if (typeof window !== 'undefined') {
+    window.addEventListener('focus', async () => {
+        console.log('[Supabase Heartbeat] 💓 Aba focada. Validando integridade da conexão...');
+
+        try {
+            const { data: { session }, error } = await supabase.auth.getSession();
+
+            if (error) {
+                console.error('[Supabase Heartbeat] ❌ Erro ao validar sessão no foco:', error);
+                return;
+            }
+
+            if (!session) {
+                console.warn('[Supabase Heartbeat] ⚠️ Sessão nula detectada. Tentando refresh forçado...');
+                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+                if (refreshError) {
+                    console.error('[Supabase Heartbeat] 🚨 Falha crítica no refresh forçado:', refreshError);
+                } else if (refreshData.session) {
+                    console.log('%c[Supabase Heartbeat] ✅ Sessão recuperada com sucesso via refresh forçado!', 'color: #10b981; font-weight: bold;');
+                }
+            } else {
+                console.log('[Supabase Heartbeat] ✅ Conexão íntegra.');
+            }
+        } catch (err) {
+            console.error('[Supabase Heartbeat] 💥 Exceção fatal no heartbeat:', err);
+        }
+    });
+}
+
 
 /**
  * 🛡️ Nexus Session Guard: Ensures a valid session exists before DB calls.
