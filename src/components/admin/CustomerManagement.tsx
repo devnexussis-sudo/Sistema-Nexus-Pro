@@ -489,11 +489,11 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                   <div className="flex items-center gap-3 text-primary-600 font-black text-xs uppercase tracking-[0.2em] italic"><MapPin size={20} /> Localização e Atendimento</div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <Input label="CEP" onBlur={handleZipBlur} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} />
-                    <Input label="Estado (UF)" value={formData.state || ''} readOnly className="rounded-2xl py-4 bg-slate-50 border-slate-100 font-black text-primary-600" />
-                    <Input label="Cidade" value={formData.city || ''} readOnly className="rounded-2xl py-4 bg-slate-50 border-slate-100 font-black" />
+                    <Input label="Estado (UF)" value={formData.state || ''} className="rounded-2xl py-4 border-slate-200 font-black text-primary-600" onChange={e => setFormData({ ...formData, state: e.target.value })} />
+                    <Input label="Cidade" value={formData.city || ''} className="rounded-2xl py-4 border-slate-200 font-black text-slate-700" onChange={e => setFormData({ ...formData, city: e.target.value })} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-                    <div className="md:col-span-9"><Input label="Logradouro" value={formData.address || ''} readOnly className="rounded-2xl py-4 bg-slate-50 border-slate-100 font-black" /></div>
+                    <div className="md:col-span-9"><Input label="Logradouro" value={formData.address || ''} className="rounded-2xl py-4 border-slate-200 font-black text-slate-700" onChange={e => setFormData({ ...formData, address: e.target.value })} /></div>
                     <div className="md:col-span-3"><Input label="Número" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} /></div>
                   </div>
                   <Input label="Ponto de Referência / Complemento" icon={<Info size={18} />} className="rounded-2xl py-4 font-bold border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />

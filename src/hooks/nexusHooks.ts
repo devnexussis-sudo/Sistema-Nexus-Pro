@@ -20,7 +20,7 @@ import { OrderStatus } from '../types';
 export const useOrders = (enabled = true) => {
     return useQuery('orders', OrderService.getOrders, {
         enabled,
-        staleTime: 1000 * 60 * 2 // 2 minutes stale
+        staleTime: 1000 * 30 // 30 seconds
     });
 };
 
@@ -87,7 +87,7 @@ export const useUserGroups = (enabled = true) => {
 export const useTechnicians = (enabled = true) => {
     return useQuery('technicians', TechnicianService.getAllTechnicians, {
         enabled,
-        staleTime: 1000 * 60 * 10 // 10 min
+        staleTime: 1000 * 30 // 30 seconds
     });
 };
 
@@ -98,7 +98,7 @@ export const useTechnicians = (enabled = true) => {
 export const useCustomers = (enabled = true) => {
     return useQuery('customers', CustomerService.getCustomers, {
         enabled,
-        staleTime: 1000 * 60 * 10
+        staleTime: 1000 * 30 // 30 seconds
     });
 };
 

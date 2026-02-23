@@ -242,9 +242,16 @@ export function useQuery<T>(
 
         window.addEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
 
+        // 💓 Window Focus Refetch (Big Tech Standard)
+        const handleFocus = () => {
+            fetchData(); // fetchData already checks for staleTime internally
+        };
+        window.addEventListener('focus', handleFocus);
+
         return () => {
             isMounted.current = false;
             window.removeEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
+            window.removeEventListener('focus', handleFocus);
         };
     }, [key, enabled]); // Re-run when key or enabled changes
 
@@ -272,13 +279,15 @@ export function useQuery<T>(
 // 🧹 Cache Helper
 export const queryClient = {
     invalidateQueries: (keyPrefix: string) => {
-        // Iterate over keys and invalidate matching ones
+        // Iterate over keys and invalidate matching ones in cache
         for (const key of queryCache.keys()) {
-            if (key.startsWith(keyPrefix)) {
+            if (key.startsWith(keyPrefix) || key === keyPrefix) {
                 const cached = queryCache.get(key);
                 if (cached) cached.timestamp = 0;
             }
         }
+        // Notify all active hooks with this prefix to refetch
+        window.dispatchEvent(new CustomEvent('NEXUS_QUERY_INVALIDATE', { detail: { key: keyPrefix } }));
     },
     setQueryData: (key: string, data: any) => {
         queryCache.set(key, { data, timestamp: Date.now() });

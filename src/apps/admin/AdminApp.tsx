@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
 import { AdminLogin } from '../../components/admin/AdminLogin';
 import { AdminDashboard } from '../../components/admin/AdminDashboard';
 import { AdminOverview } from '../../components/admin/AdminOverview';
@@ -56,8 +57,53 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const isCustomers = location.pathname.includes('/customers');
     const isEquipments = location.pathname.includes('/equipments');
     const isStock = location.pathname.includes('/stock');
-    const isUsers = location.pathname.includes('/users');
     const isForms = location.pathname.includes('/forms');
+    const isUsers = location.pathname.includes('/users');
+
+    // 📡 Realtime Sincronização (Big Tech Standard)
+    React.useEffect(() => {
+        const tid = DataService.getCurrentTenantId();
+        if (!tid || !auth.user) return;
+
+        console.log(`[AdminApp] 📡 Iniciando Realtime para Tenant: ${tid}`);
+
+        const channel = supabase
+            .channel(`nexus-realtime-${tid}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'customers',
+                    filter: `tenant_id=eq.${tid}`
+                },
+                (payload) => {
+                    console.log('🔄 Realtime: Customer change detected:', payload.eventType);
+                    NexusQueryClient.invalidateCustomers();
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `tenant_id=eq.${tid}`
+                },
+                (payload) => {
+                    console.log('🔄 Realtime: Order change detected:', payload.eventType);
+                    NexusQueryClient.invalidateOrders();
+                }
+            )
+            .subscribe((status) => {
+                console.log(`[AdminApp] 📡 Realtime Status: ${status}`);
+            });
+
+        return () => {
+            console.log('[AdminApp] 📡 Finalizando Realtime');
+            supabase.removeChannel(channel);
+        };
+    }, [auth.user]);
 
     // 1. Dashboard Light Fetch (Stats only)
     const { data: statsOrders = [], isLoading: statsLoading } = useOrdersStats(!!auth.isAuthenticated && isDashboard, overviewDateRange.start, overviewDateRange.end);
