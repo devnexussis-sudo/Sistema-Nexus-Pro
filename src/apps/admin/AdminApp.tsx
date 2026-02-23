@@ -134,6 +134,19 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     NexusQueryClient.invalidateTechnicians();
                 }
             )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'stock_categories',
+                    filter: `tenant_id=eq.${tid}`
+                },
+                (payload) => {
+                    console.log('🔄 Realtime: Stock Category change detected:', payload.eventType);
+                    NexusQueryClient.invalidateCategories();
+                }
+            )
             .subscribe((status) => {
                 console.log(`[AdminApp] 📡 Realtime Status: ${status}`);
             });

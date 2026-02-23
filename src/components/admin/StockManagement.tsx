@@ -244,23 +244,15 @@ export const StockManagement: React.FC = () => {
         e.preventDefault();
         try {
             if (editingCategory) {
-                // Update logic (Not in DataService explicitly but we can simulate delete+create or add update method later. For now let's assume simple replace or just reload)
-                // Actually DataService doesn't have updateCategory yet, let's just do a hacky replace in the list for now or use create to append? 
-                // Wait, deleteCategory removes by ID. So we can remove and add. 
-                // Ideally DataService should have update. I'll implement a simple delete + create loop for 'update' simulation or just create new if simple.
-
-                // Let's rely on basic local storage update:
-                const all = await DataService.getCategories();
-                const updated = all.map(c => c.id === editingCategory.id ? { ...c, ...categoryFormData } : c);
-                DataService.setStorage(DataService.STORAGE_KEYS.CATEGORIES, updated);
-
+                await DataService.updateCategory({
+                    ...editingCategory,
+                    ...categoryFormData
+                });
             } else {
-                const newCat = {
-                    id: `cat-${Date.now()}`,
+                await DataService.createCategory({
                     ...categoryFormData,
                     type: 'stock'
-                };
-                await DataService.createCategory(newCat);
+                } as any);
             }
             setIsCategoryModalOpen(false);
             loadCategories();

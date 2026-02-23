@@ -57,11 +57,27 @@ export const StockService = {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
             const { error } = await supabase.from('stock_categories').insert([{
+                id: crypto.randomUUID(),
                 name: category.name,
                 type: category.type || 'stock',
                 active: category.active !== false,
                 tenant_id: tenantId
             }]);
+            if (error) throw error;
+        }
+    },
+
+    updateCategory: async (category: Category): Promise<void> => {
+        const tenantId = getCurrentTenantId();
+        if (isCloudEnabled && tenantId) {
+            const { error } = await supabase.from('stock_categories')
+                .update({
+                    name: category.name,
+                    active: category.active,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', category.id)
+                .eq('tenant_id', tenantId);
             if (error) throw error;
         }
     },
@@ -115,6 +131,7 @@ export const StockService = {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
             const dbItem = {
+                id: crypto.randomUUID(),
                 tenant_id: tenantId,
                 code: item.code,
                 external_code: item.externalCode,
