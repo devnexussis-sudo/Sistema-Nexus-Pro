@@ -95,6 +95,45 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     NexusQueryClient.invalidateOrders();
                 }
             )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'quotes',
+                    filter: `tenant_id=eq.${tid}`
+                },
+                (payload) => {
+                    console.log('🔄 Realtime: Quote change detected:', payload.eventType);
+                    NexusQueryClient.invalidateQuotes();
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'equipments',
+                    filter: `tenant_id=eq.${tid}`
+                },
+                (payload) => {
+                    console.log('🔄 Realtime: Equipment change detected:', payload.eventType);
+                    NexusQueryClient.invalidateEquipments();
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'technicians',
+                    filter: `tenant_id=eq.${tid}`
+                },
+                (payload) => {
+                    console.log('🔄 Realtime: Technician change detected:', payload.eventType);
+                    NexusQueryClient.invalidateTechnicians();
+                }
+            )
             .subscribe((status) => {
                 console.log(`[AdminApp] 📡 Realtime Status: ${status}`);
             });
