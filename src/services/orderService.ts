@@ -389,14 +389,27 @@ export const OrderService = {
                     const protocol = `${prefix}${seqNum}`;
 
                     // 3. PREPARAR PAYLOAD (Mapeamento snake_case)
+                    // Garantimos a geração de um UUID único no cliente para evitar conflitos de sequence no DB
+                    const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                        ? crypto.randomUUID()
+                        : Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+                    const generatedToken = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                        ? crypto.randomUUID()
+                        : Math.random().toString(36).substring(2) + Date.now().toString(36);
+
                     const dbPayload = {
+                        id: generatedId,
                         ...OrderService._mapOrderToDB(order),
                         display_id: protocol, // Protocolo formatado
+                        public_token: generatedToken,
                         tenant_id: tid,
                         created_at: new Date().toISOString()
                     };
 
                     // 4. INSERIR NO BANCO
+                    console.log("📝 Enviando Payload para o Supabase:", dbPayload);
+
                     const { data: insertedData, error: insertError } = await supabase
                         .from('orders')
                         .insert(dbPayload)
