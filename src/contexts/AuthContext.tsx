@@ -33,6 +33,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 🔒 Guard: debounce para handleFocus (FATAL-R2 fix)
     const focusDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // 🚀 Public API (Defined early to avoid TDZ issues)
+    const login = useCallback((user: User) => {
+        setAuth({ user, isAuthenticated: true });
+    }, []);
+
+    const logout = useCallback(async () => {
+        logger.info('[AuthContext] Iniciando logout completo...');
+
+        // 1. Update React state immediately for UI responsiveness
+        setAuth({ user: null, isAuthenticated: false });
+
+        // 2. Clear both session and global storage
+        SessionStorage.clear();
+        GlobalStorage.remove('persistent_user');
+
+        // 3. Clear all potential local auth keys (Supabase + Legacy)
+        const authKeys = [
+            'nexus_shared_auth', // Chave configurada no supabase.ts
+            'supabase.auth.token',
+            'nexus_tech_session_v2',
+            'nexus_tech_cache_v2',
+            'persistent_user'
+        ];
+        authKeys.forEach(key => {
+            localStorage.removeItem(key);
+            localStorage.removeItem(`nexus_global_${key}`);
+            sessionStorage.removeItem(key);
+        });
+
+        // 4. Supabase SignOut (Garante invalidação no servidor)
+        try {
+            await supabase.auth.signOut();
+        } catch (err) {
+            console.error('[AuthContext] Error signing out from Supabase:', err);
+        }
+    }, []);
+
     /**
      * validateAndRestoreSession
      *
@@ -247,42 +284,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // O Inactivity Check de 1.5h foi INTENCIONALMENTE REMOVIDO aqui (FATAL-PWA).
     // Antes, deslogava forçadamente o usuário se fechasse a tab por mais de 1.5 horas.
 
-    // Public API
-    const login = (user: User) => {
-        setAuth({ user, isAuthenticated: true });
-    };
 
-    const logout = useCallback(async () => {
-        logger.info('[AuthContext] Iniciando logout completo...');
-
-        // 1. Update React state immediately for UI responsiveness
-        setAuth({ user: null, isAuthenticated: false });
-
-        // 2. Clear both session and global storage
-        SessionStorage.clear();
-        GlobalStorage.remove('persistent_user');
-
-        // 3. Clear all potential local auth keys (Supabase + Legacy)
-        const authKeys = [
-            'nexus_shared_auth', // Chave configurada no supabase.ts
-            'supabase.auth.token',
-            'nexus_tech_session_v2',
-            'nexus_tech_cache_v2',
-            'persistent_user'
-        ];
-        authKeys.forEach(key => {
-            localStorage.removeItem(key);
-            localStorage.removeItem(`nexus_global_${key}`);
-            sessionStorage.removeItem(key);
-        });
-
-        // 4. Supabase SignOut (Garante invalidação no servidor)
-        try {
-            await supabase.auth.signOut();
-        } catch (err) {
-            console.error('[AuthContext] Error signing out from Supabase:', err);
-        }
-    }, []);
 
     const refreshUser = async () => {
         const user = await DataService.refreshUser();
