@@ -256,8 +256,9 @@ export const StockManagement: React.FC = () => {
             }
             setIsCategoryModalOpen(false);
             loadCategories();
-        } catch (error) {
-            alert('Erro ao salvar categoria.');
+        } catch (error: any) {
+            console.error('❌ Erro completo ao salvar categoria:', error);
+            alert(`Erro ao salvar categoria: ${error.message || 'Verifique o console para mais detalhes.'}`);
         }
     };
 
