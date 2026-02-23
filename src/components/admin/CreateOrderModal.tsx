@@ -44,6 +44,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [techSearch, setTechSearch] = useState('');
 
   const [localStatus, setLocalStatus] = useState<string | undefined>(initialData?.status);
+  const isReadOnly = initialData?.status === OrderStatus.COMPLETED || initialData?.status === OrderStatus.CANCELED;
   const isCompleted = localStatus === OrderStatus.COMPLETED;
   const canCreateVisit = localStatus === OrderStatus.PAUSED || localStatus === OrderStatus.BLOCKED;
   const [isClientListOpen, setIsClientListOpen] = useState(false);
@@ -143,7 +144,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   }, [loadData]);
 
   const handleSelectTechnician = async (techId: string) => {
-    if (isCompleted) return;
+    if (isReadOnly) return;
     setFormData(prev => ({
       ...prev,
       assignedTo: techId,
@@ -505,12 +506,13 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                     <input
                       placeholder={searchMode === 'client' ? "Nome do cliente..." : "Número de série..."}
                       value={searchMode === 'client' ? clientSearch : serialSearch}
-                      className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-4 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all shadow-sm"
+                      disabled={isReadOnly}
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-4 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all shadow-sm disabled:opacity-50"
                       onChange={e => {
                         if (searchMode === 'client') { setClientSearch(e.target.value); setIsClientListOpen(true); }
                         else { setSerialSearch(e.target.value); setIsSerialListOpen(true); }
                       }}
-                      onFocus={() => searchMode === 'client' ? setIsClientListOpen(true) : setIsSerialListOpen(true)}
+                      onFocus={() => !isReadOnly && (searchMode === 'client' ? setIsClientListOpen(true) : setIsSerialListOpen(true))}
                     />
                   </div>
 
@@ -562,11 +564,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                     {equipments.filter(e => e.customerId === selectedClientId).map(eq => (
                       <div
                         key={eq.id}
-                        onClick={() => handleEquipmentToggle(eq.id)}
+                        onClick={() => !isReadOnly && handleEquipmentToggle(eq.id)}
                         className={`flex items-center gap-4 p-5 rounded-xl border transition-all cursor-pointer group ${selectedEquipIds.includes(eq.id)
                           ? 'border-[#1c2d4f] bg-[#1c2d4f05] ring-1 ring-[#1c2d4f]'
                           : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
-                          }`}
+                          } ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${selectedEquipIds.includes(eq.id) ? 'bg-[#1c2d4f] text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-slate-100'
                           }`}>
@@ -610,7 +612,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                           type="date"
                           required
                           min={getLocalDate()}
-                          className="rounded-xl border-slate-200 font-medium text-sm py-3"
+                          disabled={isReadOnly}
+                          className="rounded-xl border-slate-200 font-medium text-sm py-3 disabled:opacity-50"
                           value={formData.scheduledDate}
                           onChange={e => setFormData({ ...formData, scheduledDate: e.target.value })}
                         />
@@ -619,7 +622,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Horário Previsto</label>
                         <Input
                           type="time"
-                          className="rounded-xl border-slate-200 font-medium text-sm py-3"
+                          disabled={isReadOnly}
+                          className="rounded-xl border-slate-200 font-medium text-sm py-3 disabled:opacity-50"
                           value={formData.scheduledTime}
                           onChange={e => setFormData({ ...formData, scheduledTime: e.target.value })}
                         />
@@ -630,8 +634,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Modalidade</label>
                         <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer disabled:opacity-50"
                           value={formData.operationType}
+                          disabled={isReadOnly}
                           onChange={e => setFormData({ ...formData, operationType: e.target.value })}
                         >
                           {serviceTypes.map(type => (
@@ -642,8 +647,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nível de Prioridade</label>
                         <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer disabled:opacity-50"
                           value={formData.priority}
+                          disabled={isReadOnly}
                           onChange={e => setFormData({ ...formData, priority: e.target.value as OrderPriority })}
                         >
                           {Object.values(OrderPriority).map(p => (
@@ -757,8 +763,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                           <input
                             type="text"
                             value={item.description}
+                            disabled={isReadOnly}
                             onChange={e => updateItem(item.id, { description: e.target.value })}
-                            className="bg-transparent border-none text-[11px] font-bold text-slate-700 outline-none w-full focus:ring-0 truncate"
+                            className="bg-transparent border-none text-[11px] font-bold text-slate-700 outline-none w-full focus:ring-0 truncate disabled:opacity-50"
                           />
                         </td>
                         <td className="px-4 py-1.5">
@@ -766,8 +773,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                             type="number"
                             step="0.1"
                             value={item.quantity}
+                            disabled={isReadOnly}
                             onChange={e => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
-                            className="bg-slate-50 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-700 outline-none w-16 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all text-center"
+                            className="bg-slate-50 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-700 outline-none w-16 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all text-center disabled:opacity-50"
                           />
                         </td>
                         <td className="px-4 py-1.5">
@@ -775,15 +783,20 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                             type="number"
                             step="0.01"
                             value={item.unitPrice}
+                            disabled={isReadOnly}
                             onChange={e => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                            className="bg-slate-50 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-700 outline-none w-28 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all"
+                            className="bg-slate-50 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-700 outline-none w-28 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all disabled:opacity-50"
                           />
                         </td>
                         <td className="px-4 py-1.5">
                           <span className="text-[12px] font-black text-slate-900 whitespace-nowrap">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </td>
                         <td className="px-4 py-1.5 text-center">
-                          <button onClick={() => removeItem(item.id)} className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
+                          <button
+                            onClick={() => !isReadOnly && removeItem(item.id)}
+                            disabled={isReadOnly}
+                            className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
+                          >
                             <Trash2 size={16} />
                           </button>
                         </td>
@@ -858,8 +871,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Adição Manual</label>
                       <button
                         type="button"
-                        onClick={() => addItem({ description: 'DESCREVA O SERVIÇO OU PEÇA...', unitPrice: 0 })}
-                        className="w-full h-[46px] border-2 border-dashed border-slate-200 text-slate-400 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 hover:border-[#1c2d4f] hover:text-[#1c2d4f] hover:bg-[#1c2d4f05] transition-all"
+                        onClick={() => !isReadOnly && addItem({ description: 'DESCREVA O SERVIÇO OU PEÇA...', unitPrice: 0 })}
+                        disabled={isReadOnly}
+                        className="w-full h-[46px] border-2 border-dashed border-slate-200 text-slate-400 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 hover:border-[#1c2d4f] hover:text-[#1c2d4f] hover:bg-[#1c2d4f05] transition-all disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
                       >
                         <Plus size={16} /> Novo Item Personalizado
                       </button>
@@ -907,7 +921,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <Input
                     placeholder="Ex: Manutenção Preventiva do Sistema Central..."
                     required
-                    className="rounded-xl py-4 px-4 font-semibold text-sm border-slate-200 shadow-sm focus:ring-[#1c2d4f10]"
+                    disabled={isReadOnly}
+                    className="rounded-xl py-4 px-4 font-semibold text-sm border-slate-200 shadow-sm focus:ring-[#1c2d4f10] disabled:opacity-50"
                     value={formData.title}
                     onChange={e => setFormData({ ...formData, title: e.target.value })}
                   />
@@ -919,7 +934,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                     placeholder="Relate detalhadamente a necessidade do cliente e o escopo do trabalho..."
                     rows={6}
                     required
-                    className="rounded-2xl p-6 text-sm font-medium border-slate-200 bg-white shadow-sm focus:ring-[#1c2d4f10]"
+                    disabled={isReadOnly}
+                    className="rounded-2xl p-6 text-sm font-medium border-slate-200 bg-white shadow-sm focus:ring-[#1c2d4f10] disabled:opacity-50"
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
                   />
@@ -935,9 +951,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <h3 className="text-sm font-bold text-slate-800">Gerenciamento de Visitas</h3>
                   <p className="text-[10px] text-slate-500 font-medium">Você pode emitir um novo agendamento para esta mesma Ordem se ela estiver pausada ou precisar de retorno.</p>
                 </div>
-                {isCompleted ? (
-                  <div className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2">
-                    <CheckCircle2 size={16} /> Protocolo Finalizado
+                {isReadOnly ? (
+                  <div className="bg-slate-100 text-slate-500 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 border border-slate-200">
+                    <CheckCircle2 size={16} /> Protocolo {initialData?.status === OrderStatus.COMPLETED ? 'Concluído' : 'Cancelado'}
                   </div>
                 ) : (
                   <Button
@@ -981,12 +997,12 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               >
                 Continuar <ChevronRight size={16} />
               </Button>
-            ) : isCompleted ? (
+            ) : isReadOnly ? (
               <Button
                 type="button"
                 key="submit-btn"
                 className="bg-slate-200 text-slate-500 rounded-xl px-12 py-3 font-bold text-xs uppercase tracking-widest shadow-none cursor-not-allowed flex items-center gap-2"
-                title="Protocolo finalizado. Apenas visualização."
+                title="Protocolo finalizado ou cancelado. Apenas visualização."
                 disabled
               >
                 <CheckCircle2 size={18} /> Apenas Consulta

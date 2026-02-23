@@ -506,15 +506,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }}
-                          disabled={order.status === OrderStatus.CANCELED}
+                          disabled={order.status === OrderStatus.CANCELED || order.status === OrderStatus.COMPLETED}
                           className="p-2 text-slate-600 bg-white hover:bg-emerald-500 hover:text-white rounded-lg border border-slate-200 hover:border-emerald-500 transition-all shadow-sm disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600"
-                          title="Editar"
+                          title={order.status === OrderStatus.COMPLETED ? "OS Concluída - Apenas Visualização" : "Editar"}
                         >
                           <Edit3 size={16} />
                         </button>
                         <button
                           onClick={(e) => handleCancelOrder(order, e)}
-                          disabled={order.status === OrderStatus.CANCELED}
+                          disabled={order.status === OrderStatus.CANCELED || order.status === OrderStatus.COMPLETED}
                           className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all disabled:opacity-0"
                           title="Cancelar"
                         >
