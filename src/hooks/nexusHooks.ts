@@ -11,6 +11,7 @@ import { EquipmentService } from '../services/equipmentService';
 import { FormService } from '../services/formService';
 import { TenantService } from '../services/tenantService';
 import { DataService } from '../services/dataService';
+import { CacheManager } from '../lib/cache';
 import { OrderStatus } from '../types';
 
 // ------------------------------------------------------------------
@@ -192,14 +193,45 @@ export const useActivationRules = (enabled = true) => {
 // ------------------------------------------------------------------
 
 export const NexusQueryClient = {
-    invalidateOrders: () => queryClient.invalidateQueries('orders'),
-    invalidateTechnicians: () => queryClient.invalidateQueries('technicians'),
-    invalidateCustomers: () => queryClient.invalidateQueries('customers'),
-    invalidateStock: () => queryClient.invalidateQueries('stock'),
-    invalidateFinancials: () => queryClient.invalidateQueries('cash_flow'),
-    invalidateContracts: () => queryClient.invalidateQueries('contracts'),
-    invalidateQuotes: () => queryClient.invalidateQueries('quotes'),
-    invalidateEquipments: () => queryClient.invalidateQueries('equipments'),
-    invalidateForms: () => queryClient.invalidateQueries('forms'),
-    invalidateAll: () => queryClient.clear()
+    invalidateOrders: () => {
+        queryClient.invalidateQueries('orders');
+        CacheManager.invalidate('orders');
+    },
+    invalidateTechnicians: () => {
+        queryClient.invalidateQueries('technicians');
+        CacheManager.invalidate('technicians');
+    },
+    invalidateCustomers: () => {
+        queryClient.invalidateQueries('customers');
+        CacheManager.invalidate('customers');
+    },
+    invalidateStock: () => {
+        queryClient.invalidateQueries('stock');
+        CacheManager.invalidate('stock');
+    },
+    invalidateFinancials: () => {
+        queryClient.invalidateQueries('cash_flow');
+        CacheManager.invalidate('cash_flow');
+    },
+    invalidateContracts: () => {
+        queryClient.invalidateQueries('contracts');
+        CacheManager.invalidate('contracts');
+    },
+    invalidateQuotes: () => {
+        queryClient.invalidateQueries('quotes');
+        CacheManager.invalidate('quotes');
+    },
+    invalidateEquipments: () => {
+        queryClient.invalidateQueries('equipments');
+        CacheManager.invalidate('equipments');
+    },
+    invalidateForms: () => {
+        queryClient.invalidateQueries('forms');
+        CacheManager.invalidate('forms');
+    },
+    invalidateAll: () => {
+        queryClient.clear();
+        CacheManager.clear();
+        localStorage.removeItem('nexus_orders_v2'); // Specific for OrderService silent cache
+    }
 };
