@@ -12,10 +12,10 @@
 ### **Frontend (Nexus Pro)**
 | Mecanismo | Tempo | Ação |
 |-----------|-------|------|
-| **Auto-logout Inatividade** | **1h30min (90min)** | Logout automático + reload |
-| **Renovação Proativa** | **50min** | Refresh token antes de expirar |
-| **Verificação de Inatividade** | **1min** | Checagem contínua |
-| **Toast de Aviso** | **2s antes** | Notifica usuário |
+| **Auto-logout Inatividade** | **24 horas** | Logout automático por inatividade |
+| **Persistência de Sessão** | **12+ horas** | Garantida via LocalStorage + Auto-Refresh |
+| **Verificação de Inatividade** | **1min** | Checagem contínua em segundo plano |
+| **Heartbeat de Foco** | **Imediato** | Validação ao retornar para a aba |
 
 ---
 
@@ -74,23 +74,11 @@ Minuto 120: (Sem risco - sistema já fez logout ou renovou várias vezes)
 
 ---
 
-## 🎯 Por Que 1h30 e Não 2h?
-
-### ❌ **Problema com 2 horas:**
-- Supabase expira access token em **1h**
-- Refresh token pode falhar por diversos motivos:
-  - Rede instável
-  - Servidor ocupado
-  - Conflitos de concorrência
-  - Cache corrompido
-
-Se falhar, usuário fica **TRAVADO** na tela de loading.
-
-### ✅ **Solução com 1h30:**
-- **Margem de segurança de 30min** antes do Supabase ter problemas
-- Renovação proativa a cada **50min** garante token sempre válido
-- Se renovação falhar → Auto-logout limpo aos **90min**
-- Nunca chegamos perto dos **120min** problemáticos
+## 🎯 Por Que 24h e Não Menos?
+- O usuário requer sessões longas (mínimo 12h) para evitar interrupções no fluxo de trabalho.
+- O **Auto-Refresh** do Supabase é confiável quando combinado com o **Mutex (processLock)** e **LocalStorage**.
+- O logout de 24h serve apenas como uma "vassoura" de segurança para sessões abandonadas.
+- A estabilidade é garantida pelo **Heartbeat de Foco** que recupera sessões perdidas assim que o usuário volta à aba.
 
 ---
 
