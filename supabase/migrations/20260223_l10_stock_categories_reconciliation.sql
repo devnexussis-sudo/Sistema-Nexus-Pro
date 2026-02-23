@@ -1,80 +1,46 @@
--- 🛡️ Nexus Pro - Stock Categories Reconciliation (X-Ray Governance)
--- Alinhamento da tabela de categorias conforme padrões Big Tech
--- Versão V10 - Resiliente e Independente
+-- 🛡️ Nexus Pro - Stock Categories Reconciliation (Enterprise Grade)
+-- Alinhamento de schema e segurança seguindo rigorosamente a Governança.
 
 BEGIN;
 
--- ---------------------------------------------------------
--- 1. TABELA: stock_categories
--- ---------------------------------------------------------
+-- 1. RECONCILIAÇÃO DE COLUNAS (Sem quebrar Foreign Keys)
 DO $$ 
 BEGIN 
-    -- 1.1 Criar tabela se não existir
-    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'stock_categories') THEN
-        CREATE TABLE public.stock_categories (
-            id TEXT PRIMARY KEY,
-            tenant_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            type TEXT DEFAULT 'stock',
-            active BOOLEAN DEFAULT true,
-            created_at TIMESTAMPTZ DEFAULT NOW(),
-            updated_at TIMESTAMPTZ DEFAULT NOW(),
-            UNIQUE(tenant_id, name)
-        );
-    ELSE
-        -- 1.2 Se a tabela já existir, garantir colunas críticas
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='stock_categories' AND column_name='active') THEN
-            ALTER TABLE public.stock_categories ADD COLUMN active BOOLEAN DEFAULT true;
-        END IF;
+    -- 1.1 Coluna ID: Deve ser TEXT para suportar IDs customizados (cat-XXXX) do frontend
+    -- Se for UUID, convertemos para TEXT mantendo os dados
+    IF (SELECT data_type FROM information_schema.columns WHERE table_name='stock_categories' AND column_name='id') = 'uuid' THEN
+        ALTER TABLE public.stock_categories ALTER COLUMN id TYPE TEXT USING id::text;
+    END IF;
 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='stock_categories' AND column_name='type') THEN
-            ALTER TABLE public.stock_categories ADD COLUMN type TEXT DEFAULT 'stock';
-        END IF;
+    -- 1.2 Coluna tenant_id: MANTEMOS como UUID para preservar a Key Constraint com public.tenants
+    -- O erro 42804 ocorreu porque o banco exige que a ponta da FK tenha o mesmo tipo da origem.
 
-        -- 1.3 Garantir que os IDs sejam TEXT (Se forem UUID, precisamos converter com segurança)
-        -- Nota: Dropamos a política temporariamente se necessário para permitir o cast
-        IF (SELECT data_type FROM information_schema.columns WHERE table_name='stock_categories' AND column_name='id') = 'uuid' THEN
-            -- Remocão preventiva de políticas dependentes
-            DROP POLICY IF EXISTS stock_categories_isolation_policy ON public.stock_categories;
-            DROP POLICY IF EXISTS "Enable all for stock_categories" ON public.stock_categories;
-            
-            ALTER TABLE public.stock_categories ALTER COLUMN id TYPE TEXT;
-            ALTER TABLE public.stock_categories ALTER COLUMN tenant_id TYPE TEXT;
-        END IF;
+    -- 1.3 Coluna ACTIVE: Corrige o erro "Could not find active column" visto no seu print
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='stock_categories' AND column_name='active') THEN
+        ALTER TABLE public.stock_categories ADD COLUMN active BOOLEAN DEFAULT true;
+    END IF;
+
+    -- 1.4 Coluna TYPE: Define se a categoria é de estoque ou serviço
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='stock_categories' AND column_name='type') THEN
+        ALTER TABLE public.stock_categories ADD COLUMN type TEXT DEFAULT 'stock';
     END IF;
 END $$;
 
--- ---------------------------------------------------------
--- 2. POLÍTICAS DE SEGURANÇA (RLS)
--- ---------------------------------------------------------
--- Garantir que o RLS está ativo
+-- 2. GOVERNANÇA DE SEGURANÇA (RLS)
+-- Garante isolamento absoluto entre empresas
 ALTER TABLE public.stock_categories ENABLE ROW LEVEL SECURITY;
 
--- Recriar política de isolamento multitenant
+-- Recria política usando casting seguro para evitar conflito de tipos (UUID = TEXT)
 DROP POLICY IF EXISTS stock_categories_isolation_policy ON public.stock_categories;
 CREATE POLICY stock_categories_isolation_policy ON public.stock_categories
     FOR ALL 
-    USING (true)
-    WITH CHECK (true);
+    USING (tenant_id::text = (auth.jwt() ->> 'tenant_id'))
+    WITH CHECK (tenant_id::text = (auth.jwt() ->> 'tenant_id'));
 
--- ---------------------------------------------------------
--- 3. REALTIME SYNC
--- ---------------------------------------------------------
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_publication_tables 
-        WHERE pubname = 'supabase_realtime' 
-        AND schemaname = 'public' 
-        AND tablename = 'stock_categories'
-    ) THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.stock_categories;
-    END IF;
-END $$;
-
--- ---------------------------------------------------------
--- 4. RECARGA DE SCHEMA (Forçar Supabase a ver as mudanças)
--- ---------------------------------------------------------
+-- 3. RECARGA DE SCHEMA
+-- Força o PostgREST a ler a nova estrutura imediatamente
 NOTIFY pgrst, 'reload schema';
 
 COMMIT;
+
+SELECT 'Migração L10 aplicada com sucesso seguindo padrões Big Tech!' as status;
