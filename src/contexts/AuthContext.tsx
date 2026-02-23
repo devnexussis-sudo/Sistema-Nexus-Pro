@@ -25,7 +25,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [isInitializing, setIsInitializing] = useState(true);
     const authSubscriptionRef = useRef<any>(null);
     const wasOfflineRef = useRef(false);
-    const lastActivityRef = useRef(Date.now());
+    const lastActivityRef = useRef<number>(GlobalStorage.get<number>('last_activity') || Date.now());
     const isMountedRef = useRef(true);
 
     // 🔒 Guard: evita validações simultâneas (FATAL-R1 fix)
@@ -52,6 +52,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isValidatingRef.current = true;
 
         try {
+            // 🕒 Check: Inatividade de 24 horas (Big Tech Security Standard)
+            const now = Date.now();
+            const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+            const lastActivity = lastActivityRef.current;
+
+            if (auth.isAuthenticated && (now - lastActivity > TWENTY_FOUR_HOURS)) {
+                logger.warn('[AuthProvider] ⏰ Logout por inatividade (24h ultrapassadas).');
+                // Use logout() instead of manual clear to ensure consistency
+                await logout();
+                window.location.reload();
+                return;
+            }
+
             // getSession() lê do cache local — sem chamada de rede, sem race condition.
             // O autoRefreshToken do SDK cuida da renovação quando necessário.
             const { data: { session }, error } = await supabase.auth.getSession();
@@ -99,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } finally {
             isValidatingRef.current = false;
         }
-    }, []);
+    }, [auth.isAuthenticated, logout]);
 
     // 2. Setup Listeners
     useEffect(() => {
@@ -192,6 +205,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         const handleOffline = () => { wasOfflineRef.current = true; };
 
+        // ⏰ Periodic Inactivity Check (Big Tech Resilience)
+        const inactivityInterval = setInterval(() => {
+            if (auth.isAuthenticated) {
+                validateAndRestoreSession(true);
+            }
+        }, 60000); // Every 60 seconds
+
+        // 🖱️ Activity Tracking
+        const updateActivity = () => {
+            const now = Date.now();
+            // Throttle activity updates to every 30 seconds to save performance
+            if (now - lastActivityRef.current > 30000) {
+                lastActivityRef.current = now;
+                GlobalStorage.set('last_activity', now);
+            }
+        };
+
+        const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'mousemove'];
+        activityEvents.forEach(event => window.addEventListener(event, updateActivity, { passive: true }));
+
         window.addEventListener('focus', handleFocus);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
@@ -201,13 +234,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => {
             isMountedRef.current = false;
             clearTimeout(timeoutId);
+            clearInterval(inactivityInterval);
             if (focusDebounceRef.current) clearTimeout(focusDebounceRef.current);
+            activityEvents.forEach(event => window.removeEventListener(event, updateActivity));
             window.removeEventListener('focus', handleFocus);
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
             if (authSubscriptionRef.current?.unsubscribe) authSubscriptionRef.current.unsubscribe();
         };
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps — auth.isAuthenticated lido via closure estável
+    }, [auth.isAuthenticated, validateAndRestoreSession]); // eslint-disable-line react-hooks/exhaustive-deps — auth.isAuthenticated lido via closure estável
 
     // O Inactivity Check de 1.5h foi INTENCIONALMENTE REMOVIDO aqui (FATAL-PWA).
     // Antes, deslogava forçadamente o usuário se fechasse a tab por mais de 1.5 horas.
