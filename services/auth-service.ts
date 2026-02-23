@@ -31,15 +31,8 @@ class AuthService {
         }
     }
 
-    async login(email: string, keepConnected: boolean): Promise<boolean> {
-        // Since we don't have the password from the UI (it's hardcoded or user inputs), 
-        // we assume the UI passes a password.
-        // Wait, the UI calls login(email, keepConnected). Where is the password?
-        // Ah, the UI component handles password state. We need to update login signature.
-        // But for now, let's assume we update the call site too.
-        // Or if the password is not passed, we can't login with Supabase.
-        // I will update the signature to include password.
-        return false;
+    async login(email: string, password: string, keepConnected: boolean = true): Promise<boolean> {
+        return this.loginWithPassword(email, password);
     }
 
     // Overloaded for future use or temporary fix

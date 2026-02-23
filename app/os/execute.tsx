@@ -124,11 +124,15 @@ export default function ExecuteOSScreen() {
                             // Merge existing form data from OS with template defaults
                             const initialData: any = {};
                             template.fields.forEach((field: any) => {
-                                initialData[field.id] = (orderData.formData && orderData.formData[field.id])
-                                    ? orderData.formData[field.id]
-                                    : '';
+                                // Mapeamento resiliente: tenta ID, depois tenta Label (caso já tenha sido salvo no formato legível)
+                                if (orderData.formData && orderData.formData[field.id] !== undefined) {
+                                    initialData[field.id] = orderData.formData[field.id];
+                                } else if (orderData.formData && orderData.formData[field.label] !== undefined) {
+                                    initialData[field.id] = orderData.formData[field.label];
+                                } else {
+                                    initialData[field.id] = '';
+                                }
                             });
-                            setDynamicData(initialData);
                             setDynamicData(initialData);
                         } else {
                             console.log(`[ExecuteOS] ⚠️ No dynamic form found. Using legacy format.`);
@@ -181,12 +185,10 @@ export default function ExecuteOSScreen() {
         try {
             setIsSubmitting(true);
 
-            // Upload dynamic photos if any
+            // 1. Upload de fotos pendentes (Fallback de segurança)
             const updatedDynamicData = { ...dynamicData };
             for (const key in updatedDynamicData) {
                 const val = updatedDynamicData[key];
-
-                // Handle Array of Photos (New Pattern)
                 if (Array.isArray(val)) {
                     const uploadedUrls = [];
                     for (const item of val) {
@@ -194,25 +196,41 @@ export default function ExecuteOSScreen() {
                             const url = await OrderService.uploadFile(item, `orders/${id}/form_photos`, order?.tenantId);
                             if (url) uploadedUrls.push(url);
                         } else {
-                            uploadedUrls.push(item); // Already valid URL
+                            uploadedUrls.push(item);
                         }
                     }
                     updatedDynamicData[key] = uploadedUrls;
-                }
-                // Handle Single Photo (Legacy/Fallback)
-                else if (typeof val === 'string' && (val.startsWith('file://') || val.startsWith('content://') || val.startsWith('/'))) {
+                } else if (typeof val === 'string' && (val.startsWith('file://') || val.startsWith('content://') || val.startsWith('/'))) {
                     const uploadedUrl = await OrderService.uploadFile(val, `orders/${id}/form_photos`, order?.tenantId);
                     if (uploadedUrl) updatedDynamicData[key] = uploadedUrl;
                 }
             }
 
+            // 2. Transformar chaves (IDs -> Labels) para que o Admin veja as perguntas
+            const finalFormData: Record<string, any> = {};
+            if (formTemplate) {
+                formTemplate.fields.forEach(field => {
+                    const value = updatedDynamicData[field.id];
+                    if (value !== undefined) {
+                        finalFormData[field.label] = value;
+                    }
+                });
+            } else {
+                Object.assign(finalFormData, updatedDynamicData);
+            }
+
+            // Manter campos especiais de relatório e peças
+            if (dynamicData['technical_report']) finalFormData['technical_report'] = dynamicData['technical_report'];
+            if (dynamicData['parts_used']) finalFormData['parts_used'] = dynamicData['parts_used'];
+            if (dynamicData['impediment_reason']) finalFormData['impediment_reason'] = dynamicData['impediment_reason'];
+
             await OrderService.completeOrder(id as string, {
                 technicalReport: dynamicData['technical_report'] || '',
                 partsUsed: dynamicData['parts_used'] || '',
-                photos: [], // Legacy photos removed
+                photos: [],
                 signature: signature,
-                clientName: clientName, // Pass client name
-                formData: updatedDynamicData,
+                clientName: clientName,
+                formData: finalFormData,
                 tenantId: order?.tenantId
             });
 
