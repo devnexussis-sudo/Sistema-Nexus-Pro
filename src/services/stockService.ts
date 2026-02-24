@@ -140,9 +140,14 @@ export const StockService = {
     createStockItem: async (item: StockItem): Promise<void> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
+            // Polyfill para garantir UUIDv4 (Evita erro 400 de tipagem quando testado fora de https / localhost)
+            const generateUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                const r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
             const id = typeof crypto !== 'undefined' && crypto.randomUUID
                 ? crypto.randomUUID()
-                : `stk-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+                : generateUUID();
 
             const dbItem = {
                 id,
@@ -163,8 +168,9 @@ export const StockService = {
             };
             const { error } = await supabase.from('stock_items').insert([dbItem]);
             if (error) {
-                console.error("❌ Erro Supabase (StockItem):", error.message, error.details);
-                throw error;
+                console.error("❌ Erro ao criar item de estoque:", error);
+                // Extrai o máximo de detalhes possível para ajudar no diagnóstico visual
+                throw new Error(`Falha no banco (código: ${error.code || 'N/A'}): ${error.message || 'Erro desconhecido'}\nDetalhes: ${error.details || ''}`);
             }
         }
     },
