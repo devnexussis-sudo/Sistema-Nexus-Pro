@@ -240,6 +240,27 @@ export const StockService = {
         }
     },
 
+    returnFromTech: async (techId: string, itemId: string, quantity: number): Promise<void> => {
+        const tenantId = getCurrentTenantId();
+        if (isCloudEnabled && tenantId) {
+            const user = await AuthService.getCurrentUser();
+            if (!user) throw new Error('Usuário não autenticado');
+
+            // Devolução atômica (Técnico p/ Geral) via RPC
+            const { error } = await supabase.rpc('return_stock_from_tech', {
+                p_tech_id: techId,
+                p_item_id: itemId,
+                p_quantity: quantity,
+                p_created_by: user.id
+            });
+
+            if (error) {
+                console.error("❌ Erro na devolução (RPC):", error.message);
+                throw new Error(error.message);
+            }
+        }
+    },
+
     getTechStock: async (techId: string): Promise<{ id: string; stockItemId: string; quantity: number; item: { description: string; code: string; sellPrice: number } | null }[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
