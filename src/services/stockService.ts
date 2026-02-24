@@ -154,6 +154,7 @@ export const StockService = {
                 tenant_id: tenantId,
                 code: item.code,
                 external_code: item.externalCode,
+                name: item.description, // Fallback para compatibilidade estrutural com tabela antiga
                 description: item.description,
                 category: item.category,
                 location: item.location,
@@ -180,6 +181,7 @@ export const StockService = {
             const dbItem = {
                 code: item.code,
                 external_code: item.externalCode,
+                name: item.description, // Fallback p/ tabela antiga
                 description: item.description,
                 category: item.category,
                 location: item.location,
