@@ -7,7 +7,7 @@ BEGIN;
 -- 1. Consolidar registros duplicados causados pela falta de restrição anterior
 -- (Soma as quantidades de itens iguais do mesmo técnico e mantém o registro mais antigo)
 WITH duplicates AS (
-    SELECT user_id, stock_item_id, SUM(quantity) as total_qty, MAX(updated_at) as last_update, MIN(id) as keep_id
+    SELECT user_id, stock_item_id, SUM(quantity) as total_qty, MAX(updated_at) as last_update, MIN(id::text)::uuid as keep_id
     FROM public.tech_stock
     GROUP BY user_id, stock_item_id
     HAVING COUNT(id) > 1
@@ -20,7 +20,7 @@ WHERE t.id = d.keep_id;
 -- 2. Remover os registros redundantes (agora que o saldo está consolidado em um só ID)
 DELETE FROM public.tech_stock
 WHERE id NOT IN (
-    SELECT MIN(id)
+    SELECT MIN(id::text)::uuid
     FROM public.tech_stock
     GROUP BY user_id, stock_item_id
 );
