@@ -106,14 +106,8 @@ export const StockManagement: React.FC = () => {
 
     const loadMovements = async () => {
         try {
-            // Simplified query to avoid 400 errors on join if RLS/Permissions issues exist
-            const data = await DataService.getServiceClient()
-                .from('stock_movements')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(50);
-
-            if (data.data) setMovements(data.data);
+            const data = await DataService.getMovements();
+            setMovements(data);
         } catch (error) {
             console.error('Erro ao carregar movimentações:', error);
         }
@@ -305,17 +299,28 @@ export const StockManagement: React.FC = () => {
 
             await DataService.updateStockItem(updatedItem);
 
+            // Log de Movimentação (Audit Trail)
+            const user = await DataService.getCurrentUser();
+            const tenantId = DataService.getCurrentTenantId();
+            if (tenantId) {
+                await DataService.getServiceClient().from('stock_movements').insert([{
+                    tenant_id: tenantId,
+                    stock_item_id: selectedRestockItem.id,
+                    type: 'RESTOCK',
+                    quantity: qtyToAdd,
+                    source: 'FORNECEDOR',
+                    destination: 'GENERAL',
+                    created_by: user?.id
+                }]);
+            }
+
             // Reset
             setRestockQuantity('');
             setRestockSearch('');
             setSelectedRestockItem(null);
             alert(`Estoque atualizado! Nova quantidade: ${updatedItem.quantity}`);
             loadItems();
-
-            // Optional: Close modal or keep open for next item? User workflow usually sequential additions.
-            // Keeping open for speed.
-            // focus back on search? 
-            // We'll let the user decide when to close.
+            loadMovements();
         } catch (error) {
             alert('Erro ao atualizar estoque.');
         }
@@ -351,10 +356,11 @@ export const StockManagement: React.FC = () => {
     const calculateTotalCost = (item: any) => {
         const cost = Number(item.costPrice) || 0;
         const freight = Number(item.freightCost) || 0;
-        const taxPercent = Number(item.taxPercent) || 0;
-        const taxValue = cost * (taxPercent / 100);
+        const taxCost = Number(item.taxCost) || 0;
 
-        return cost + freight + taxValue; // Total = Cost + Freight + (Cost * Tax%)
+        // No banco salvamos o valor absoluto do imposto (tax_cost)
+        // Se houver taxPercent no formulário, ele é usado no handleSubmit para calcular o taxCost.
+        return cost + freight + taxCost;
     };
 
     const calculateMargin = (item: any) => {

@@ -214,46 +214,21 @@ export const StockService = {
     transferToTech: async (techId: string, itemId: string, quantity: number): Promise<void> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            const client = supabase; // RLS garante isolamento por tenant
+            const user = await AuthService.getCurrentUser();
+            if (!user) throw new Error('Usuário não autenticado');
 
-            // 1. Reduz estoque geral
-            const { data: item } = await client.from('stock_items').select('quantity').eq('id', itemId).single();
-            if (!item || item.quantity < quantity) throw new Error('Saldo insuficiente no estoque geral');
+            // Padrão Big Tech: Uso de RPC para operação atômica (Transaction)
+            const { error } = await supabase.rpc('transfer_stock_to_tech', {
+                p_tech_id: techId,
+                p_item_id: itemId,
+                p_quantity: quantity,
+                p_created_by: user.id
+            });
 
-            await client.from('stock_items').update({ quantity: item.quantity - quantity }).eq('id', itemId);
-
-            // 2. Aumenta estoque do técnico (upsert)
-            const { data: currentTechStock } = await client.from('tech_stock')
-                .select('quantity')
-                .eq('user_id', techId)
-                .eq('stock_item_id', itemId)
-                .maybeSingle();
-
-            if (currentTechStock) {
-                await client.from('tech_stock')
-                    .update({ quantity: currentTechStock.quantity + quantity, updated_at: new Date().toISOString() })
-                    .eq('user_id', techId)
-                    .eq('stock_item_id', itemId);
-            } else {
-                await client.from('tech_stock').insert([{
-                    tenant_id: tenantId,
-                    user_id: techId,
-                    stock_item_id: itemId,
-                    quantity: quantity
-                }]);
+            if (error) {
+                console.error("❌ Erro na transferência (RPC):", error.message);
+                throw new Error(error.message);
             }
-
-            // 3. Registra movimentação (Audit)
-            await client.from('stock_movements').insert([{
-                tenant_id: tenantId,
-                item_id: itemId,
-                user_id: techId,
-                type: 'TRANSFER',
-                quantity: quantity,
-                source: 'GENERAL',
-                destination: 'TECH',
-                created_by: (await AuthService.getCurrentUser())?.id
-            }]);
         }
     },
 
@@ -268,13 +243,13 @@ export const StockService = {
 
             if (error) throw error;
 
-            return (data || []).map((ts: Record<string, unknown> & { stock_items?: Record<string, unknown> }) => ({
-                id: ts.id as string,
-                stockItemId: ts.stock_item_id as string,
+            return (data || []).map((ts: any) => ({
+                id: ts.id,
+                stockItemId: ts.stock_item_id,
                 quantity: Number(ts.quantity),
                 item: ts.stock_items ? {
-                    description: ts.stock_items.description as string,
-                    code: ts.stock_items.code as string,
+                    description: ts.stock_items.description,
+                    code: ts.stock_items.code,
                     sellPrice: Number(ts.stock_items.sell_price)
                 } : null
             }));
@@ -285,48 +260,39 @@ export const StockService = {
     consumeTechStock: async (techId: string, stockItemId: string, quantity: number, orderId: string): Promise<void> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            // 1. Verificar se o técnico tem o item e em quantidade suficiente
-            const { data: techItems, error: fetchError } = await supabase
-                .from('tech_stock')
-                .select('*')
-                .eq('user_id', techId)
-                .eq('stock_item_id', stockItemId)
-                .eq('tenant_id', tenantId);
+            const user = await AuthService.getCurrentUser();
+            if (!user) throw new Error('Usuário não autenticado');
 
-            if (fetchError) throw fetchError;
-            if (!techItems || techItems.length === 0 || Number(techItems[0].quantity) < quantity) {
-                throw new Error(`Estoque insuficiente com o técnico para o item selecionado.`);
+            // Padrão Big Tech: Uso de RPC para garantir que o saldo do técnico
+            // seja reduzido e a movimentação registrada em uma única transação.
+            const { error } = await supabase.rpc('consume_tech_stock', {
+                p_tech_id: techId,
+                p_item_id: stockItemId,
+                p_quantity: quantity,
+                p_order_id: orderId,
+                p_created_by: user.id
+            });
+
+            if (error) {
+                console.error("❌ Erro no consumo (RPC):", error.message);
+                throw new Error(error.message || 'Erro ao consumir estoque do técnico');
             }
-
-            const currentTechQty = Number(techItems[0].quantity);
-
-            // 2. Deduzir do estoque do técnico
-            const { error: updateError } = await supabase
-                .from('tech_stock')
-                .update({
-                    quantity: currentTechQty - quantity,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', techItems[0].id);
-
-            if (updateError) throw updateError;
-
-            // 3. Registrar a movimentação consumida
-            const { error: moveError } = await supabase
-                .from('stock_movements')
-                .insert([{
-                    tenant_id: tenantId,
-                    stock_item_id: stockItemId,
-                    user_id: techId,
-                    type: 'CONSUMPTION',
-                    quantity: quantity,
-                    source: 'Técnico (' + techId.slice(0, 5) + ')',
-                    destination: 'O.S. #' + orderId.slice(0, 8),
-                    reference_id: orderId,
-                    created_at: new Date().toISOString()
-                }]);
-
-            if (moveError) throw moveError;
         }
+    },
+
+    getMovements: async (limit = 50): Promise<any[]> => {
+        const tenantId = getCurrentTenantId();
+        if (isCloudEnabled && tenantId) {
+            const { data, error } = await supabase
+                .from('stock_movements')
+                .select('*, stock_items(description, code)')
+                .eq('tenant_id', tenantId)
+                .order('created_at', { ascending: false })
+                .limit(limit);
+
+            if (error) throw error;
+            return data || [];
+        }
+        return [];
     }
 };
