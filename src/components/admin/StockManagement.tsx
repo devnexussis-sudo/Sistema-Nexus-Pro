@@ -210,8 +210,9 @@ export const StockManagement: React.FC = () => {
             }
             setIsModalOpen(false);
             loadItems();
-        } catch (error) {
-            alert('Erro ao salvar item.');
+        } catch (error: any) {
+            console.error('Erro completo ao salvar item:', error);
+            alert(`Erro ao salvar item no banco de dados:\n\n${error.message || 'Verifique sua conexão ou tente novamente.'}`);
         }
     };
 
