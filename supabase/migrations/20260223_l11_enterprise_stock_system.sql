@@ -114,7 +114,7 @@ END $$;
 -- Esta função realiza a transferência atômica do estoque geral para o técnico.
 -- Padrão Big Tech: Sem race conditions e com log automático.
 
-OR REPLACE FUNCTION public.transfer_stock_to_tech(
+CREATE OR REPLACE FUNCTION public.transfer_stock_to_tech(
     p_tech_id UUID,
     p_item_id TEXT,
     p_quantity NUMERIC,
@@ -164,7 +164,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ---------------------------------------------------------
 -- 6. FUNÇÃO TRANSACIONAL: consume_tech_stock
 -- ---------------------------------------------------------
-OR REPLACE FUNCTION public.consume_tech_stock(
+CREATE OR REPLACE FUNCTION public.consume_tech_stock(
     p_tech_id UUID,
     p_item_id TEXT,
     p_quantity NUMERIC,
