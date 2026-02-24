@@ -61,7 +61,7 @@ export const StockManagement: React.FC = () => {
     const [techStock, setTechStock] = useState<any[]>([]);
     const [movements, setMovements] = useState<any[]>([]);
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-    const [transferData, setTransferData] = useState({ itemId: '', techId: '', quantity: '' });
+    const [transferData, setTransferData] = useState({ itemId: '', techId: '', quantity: '', direction: 'transfer' });
 
     // --- Loaders ---
     const loadItems = async () => {
@@ -1100,9 +1100,14 @@ export const StockManagement: React.FC = () => {
                             e.preventDefault();
                             if (!transferData.itemId || !transferData.techId || !transferData.quantity) return;
                             try {
-                                await DataService.transferToTech(transferData.techId, transferData.itemId, Number(transferData.quantity));
+                                if (transferData.direction === 'return') {
+                                    await DataService.returnFromTech(transferData.techId, transferData.itemId, Number(transferData.quantity));
+                                    alert('Item devolvido ao estoque geral com sucesso!');
+                                } else {
+                                    await DataService.transferToTech(transferData.techId, transferData.itemId, Number(transferData.quantity));
+                                    alert('Transferência ao técnico concluída!');
+                                }
                                 setIsTransferModalOpen(false);
-                                alert('Transferência concluída com sucesso!');
                                 loadItems();
                                 loadMovements();
                                 if (selectedTech?.id === transferData.techId) {
@@ -1114,8 +1119,27 @@ export const StockManagement: React.FC = () => {
                             }
                         }}>
                             <div className="space-y-4">
+
+                                {/* Seleção de Direção da Operação */}
+                                <div className="flex bg-slate-100 p-1.5 rounded-xl">
+                                    <button
+                                        type="button"
+                                        className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'transfer' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        onClick={() => setTransferData({ ...transferData, direction: 'transfer' })}
+                                    >
+                                        Enviar para Técnico
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'return' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        onClick={() => setTransferData({ ...transferData, direction: 'return' })}
+                                    >
+                                        Devolver ao Estoque Geral
+                                    </button>
+                                </div>
+
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Item do Estoque Geral</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Item Envolvido</label>
                                     <select
                                         required
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-100"
@@ -1124,13 +1148,13 @@ export const StockManagement: React.FC = () => {
                                     >
                                         <option value="">Selecione o Item</option>
                                         {items.map(i => (
-                                            <option key={i.id} value={i.id}>{i.description} ({i.quantity} {i.unit} disp.)</option>
+                                            <option key={i.id} value={i.id}>{i.description} {transferData.direction === 'transfer' ? `(${i.quantity} ${i.unit} disp. no Geral)` : ''}</option>
                                         ))}
                                     </select>
                                 </div>
 
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Técnico Destino</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Técnico Envolvido</label>
                                     <select
                                         required
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-100"
