@@ -42,7 +42,14 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
   const [searchTerm, setSearchTerm] = useState('');
   const [techFilter, setTechFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL'); // Default: Todos
+  const [selectedDayData, setSelectedDayData] = useState<{ day: Date, orders: ServiceOrder[] } | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+
+  const handleDayClick = (day: Date, dayOrders: ServiceOrder[]) => {
+    if (dayOrders.length > 0) {
+      setSelectedDayData({ day, orders: dayOrders });
+    }
+  };
 
   const handleOrderClick = (order: ServiceOrder) => {
     setSelectedOrder(order);
@@ -167,54 +174,40 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             return (
               <div
                 key={idx}
-                className={`flex flex-col overflow-hidden relative transition-all group min-h-0
+                onClick={() => handleDayClick(day, dayOrders)}
+                className={`flex flex-col items-center justify-center overflow-hidden relative transition-all group min-h-0 cursor-pointer
                   ${isCurrentMonth ? 'bg-white' : 'bg-slate-50 opacity-40'} 
                   ${isToday ? 'bg-primary-50/20' : ''}
+                  ${dayOrders.length > 0 ? 'hover:bg-slate-50' : ''}
                 `}
               >
                 {/* Indicador de Dia Compacto */}
-                <div className="px-2 py-1 flex justify-between items-center relative z-10 shrink-0">
-                  <span className={`text-lg font-black italic tracking-tighter transition-all shrink-0
-                    ${isToday ? 'text-primary-600 scale-110 drop-shadow-sm' : 'text-slate-200 group-hover:text-slate-900'}
+                <div className="absolute top-2 left-2 flex justify-between items-center z-10">
+                  <span className={`text-sm font-black italic tracking-tighter transition-all shrink-0
+                    ${isToday ? 'text-primary-600 scale-110 drop-shadow-sm' : 'text-slate-300 group-hover:text-slate-900'}
                   `}>
                     {format(day, 'd')}
                   </span>
-                  {dayOrders.length > 0 && (
-                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full border shrink-0
-                      ${isToday ? 'bg-primary-600 text-white border-primary-700' : 'bg-slate-900 text-white border-slate-900'}
+                </div>
+
+                {/* VISUALIZAÇÃO DE QUANTIDADE (O que o usuário pediu) */}
+                {dayOrders.length > 0 ? (
+                  <div className="flex flex-col items-center gap-1 group-hover:scale-110 transition-transform">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 shadow-sm
+                      ${isToday
+                        ? 'bg-primary-600 border-primary-400 text-white'
+                        : 'bg-slate-900 border-slate-700 text-white'
+                      }
                     `}>
-                      {dayOrders.length}
-                    </span>
-                  )}
-                </div>
-
-                {/* LISTA DE O.S. - SCROLL APENAS DENTRO DA CÉLULA SE NECESSÁRIO */}
-                <div className="flex-1 px-1.5 pb-2 space-y-1 overflow-y-auto custom-scrollbar-thin relative z-10 min-h-0">
-                  {dayOrders.map(order => (
-                    <div
-                      key={order.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOrderClick(order);
-                      }}
-                      className={`group/item flex flex-col p-1 rounded border transition-all hover:scale-[1.03] hover:shadow-lg active:scale-95 cursor-pointer shadow-md ${getStatusStyle(order.status)}`}
-                    >
-                      <div className="flex justify-between items-center gap-1 leading-none">
-                        <span className="text-[7.5px] font-black tracking-tighter uppercase truncate flex-1">
-                          {order.customerName}
-                        </span>
-                        <span className="text-[6.5px] font-black bg-black/10 px-0.5 rounded shrink-0">
-                          {order.scheduledTime || '--:--'}
-                        </span>
-                      </div>
+                      <span className="text-xl font-black italic">{dayOrders.length}</span>
                     </div>
-                  ))}
-                </div>
-
-                {/* Numero de fundo sutil para preencher espaço visual se vazio */}
-                {dayOrders.length === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-4xl font-black italic text-slate-100 opacity-20 select-none">{format(day, 'd')}</span>
+                    <span className="text-[7px] font-black uppercase text-slate-400 tracking-widest group-hover:text-slate-900">
+                      {dayOrders.length === 1 ? 'Ordem' : 'Ordens'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center opacity-10 grayscale">
+                    <CalendarIcon size={24} className="text-slate-200" />
                   </div>
                 )}
               </div>
@@ -222,6 +215,45 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
           })}
         </div>
       </main>
+
+      {/* MODAL DE LISTAGEM POR DIA (QUANTIDADE -> LISTA) */}
+      {selectedDayData && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+           <div className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[80vh]">
+              <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">
+                    {format(selectedDayData.day, "dd 'de' MMMM", { locale: ptBR })}
+                  </h3>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{selectedDayData.orders.length} Ordens de Serviço</p>
+                </div>
+                <button onClick={() => setSelectedDayData(null)} className="p-2 hover:bg-white rounded-xl text-slate-400 transition-all"><X size={18} /></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                {selectedDayData.orders.map(order => (
+                  <div 
+                    key={order.id}
+                    onClick={() => handleOrderClick(order)}
+                    className={`group flex items-center gap-4 p-4 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-95 ${getStatusStyle(order.status)}`}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-black/5 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
+                      <Clock size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-black uppercase truncate leading-none mb-1">{order.customerName}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[8px] font-bold bg-black/10 px-1 rounded uppercase tracking-tighter">#{order.displayId || 'S/N'}</span>
+                        <span className="text-[8px] font-black italic">{order.scheduledTime || '--:--'}</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={14} className="opacity-30 group-hover:opacity-100 transition-all" />
+                  </div>
+                ))}
+              </div>
+           </div>
+        </div>
+      )}
 
       {/* MODAL / BALÃO DE DETALHES - MANTÉM O ESTILO PREMIUM */}
       {selectedOrder && (
