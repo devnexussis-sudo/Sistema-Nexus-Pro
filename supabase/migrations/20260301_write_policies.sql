@@ -1,33 +1,77 @@
--- 20260301_write_policies.sql
--- -------------------------------------------------
--- Policies de escrita (INSERT/UPDATE/DELETE) para tabelas críticas
--- Garantem que o tenant_id do usuário seja sempre validado.
--- -------------------------------------------------
+-- 🛡️ Nexus Pro - Enterprise Security Repair (V7)
+-- Objective: Fix write access and establish zero-trust tenant isolation.
+-- This migration fixes the syntax error found in previous attempt and ensures all helper functions exist.
 
--- orders
-create policy "orders_write_tenant"
-  on public.orders
-  for insert, update, delete
-  using (auth.uid() IS NOT NULL
-         AND tenant_id = (select get_auth_tenant_id()));
+BEGIN;
 
--- users
-create policy "users_write_tenant"
-  on public.users
-  for insert, update, delete
-  using (auth.uid() IS NOT NULL
-         AND tenant_id = (select get_auth_tenant_id()));
+-- 1. Helper Functions (Idempotent)
+-- Optimized to check JWT first, then fallback to DB to avoid unnecessary lookups.
+CREATE OR REPLACE FUNCTION public.get_auth_tenant_id()
+RETURNS uuid
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT COALESCE(
+    NULLIF(current_setting('request.jwt.claims', true)::jsonb -> 'user_metadata' ->> 'tenantId', '')::uuid,
+    NULLIF(current_setting('request.jwt.claims', true)::jsonb -> 'user_metadata' ->> 'tenant_id', '')::uuid,
+    (SELECT tenant_id FROM public.users WHERE id = auth.uid() LIMIT 1)
+  );
+$$;
 
--- technicians
-create policy "technicians_write_tenant"
-  on public.technicians
-  for insert, update, delete
-  using (auth.uid() IS NOT NULL
-         AND tenant_id = (select get_auth_tenant_id()));
+CREATE OR REPLACE FUNCTION public.has_permission(required_role text)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.users 
+    WHERE id = auth.uid() 
+    AND (UPPER(role) = UPPER(required_role) OR role = required_role)
+  );
+$$;
 
--- user_groups
-create policy "user_groups_write_tenant"
-  on public.user_groups
-  for insert, update, delete
-  using (auth.uid() IS NOT NULL
-         AND tenant_id = (select get_auth_tenant_id()));
+-- 2. Cleanup and Policy Establishment
+-- We use FOR ALL for total coverage (SELECT, INSERT, UPDATE, DELETE) within the tenant scope.
+
+-- Table: orders
+DROP POLICY IF EXISTS "orders_write_tenant" ON public.orders;
+DROP POLICY IF EXISTS "orders_all_policy" ON public.orders;
+DROP POLICY IF EXISTS "orders_all_access_tenant" ON public.orders;
+CREATE POLICY "orders_all_access_tenant" ON public.orders
+FOR ALL TO authenticated
+USING (tenant_id = get_auth_tenant_id())
+WITH CHECK (tenant_id = get_auth_tenant_id());
+
+-- Table: users
+DROP POLICY IF EXISTS "users_write_tenant" ON public.users;
+DROP POLICY IF EXISTS "users_isolation_select" ON public.users;
+DROP POLICY IF EXISTS "users_isolation_update" ON public.users;
+DROP POLICY IF EXISTS "users_isolation_insert" ON public.users;
+DROP POLICY IF EXISTS "users_all_access_tenant" ON public.users;
+CREATE POLICY "users_all_access_tenant" ON public.users
+FOR ALL TO authenticated
+USING (id = auth.uid() OR tenant_id = get_auth_tenant_id())
+WITH CHECK (id = auth.uid() OR (tenant_id = get_auth_tenant_id() AND has_permission('ADMIN')));
+
+-- Table: technicians
+DROP POLICY IF EXISTS "technicians_write_tenant" ON public.technicians;
+DROP POLICY IF EXISTS "technicians_all_policy" ON public.technicians;
+DROP POLICY IF EXISTS "technicians_all_access_tenant" ON public.technicians;
+CREATE POLICY "technicians_all_access_tenant" ON public.technicians
+FOR ALL TO authenticated
+USING (tenant_id = get_auth_tenant_id())
+WITH CHECK (tenant_id = get_auth_tenant_id());
+
+-- Table: user_groups
+DROP POLICY IF EXISTS "user_groups_write_tenant" ON public.user_groups;
+DROP POLICY IF EXISTS "user_groups_all_access_tenant" ON public.user_groups;
+CREATE POLICY "user_groups_all_access_tenant" ON public.user_groups
+FOR ALL TO authenticated
+USING (tenant_id = get_auth_tenant_id())
+WITH CHECK (tenant_id = get_auth_tenant_id());
+
+COMMIT;
