@@ -405,12 +405,15 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 🔐 SUPABASE AUTH SYNC (onAuthStateChange)
     useEffect(() => {
         let authListener: any = null;
+        let isCancelled = false;
 
         const initAuth = async () => {
             const { supabase } = await import('../../../../lib/supabase');
+            if (isCancelled) return;
 
             // Listen for auth changes (Recovery, Sign In, Sign Out)
             const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+                if (isCancelled) return;
                 console.log(`[TechContext] 🔑 Auth Event: ${event}`);
 
                 if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -435,11 +438,16 @@ export const TechProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
             authListener = data.subscription;
+            // Handle edge case where it was cancelled while setting up
+            if (isCancelled && authListener) {
+                authListener.unsubscribe();
+            }
         };
 
         if (mountedRef.current) initAuth();
 
         return () => {
+            isCancelled = true;
             if (authListener) authListener.unsubscribe();
         };
     }, [auth.isAuthenticated, logout]);
