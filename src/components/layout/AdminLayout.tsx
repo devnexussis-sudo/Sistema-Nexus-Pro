@@ -13,6 +13,8 @@ import SessionStorage from '../../lib/sessionStorage';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../ui/Button';
 
+import { ResilienceIndicator } from '../ResilienceIndicator';
+
 interface AdminLayoutProps {
     children: React.ReactNode;
     user: User | null;
@@ -30,47 +32,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 }) => {
     const location = useLocation();
     const [showInbox, setShowInbox] = useState(false);
-    const [healthReport, setHealthReport] = useState<any>(null);
-    const [isOnline, setIsOnline] = useState(navigator.onLine);
-    const [isCheckingHealth, setIsCheckingHealth] = useState(false);
-
-    // ✅ Health check local — sem depender de DataService.checkSystemHealth
-    const checkSystemHealth = useCallback(async () => {
-        setIsCheckingHealth(true);
-        const start = Date.now();
-        try {
-            const { error } = await supabase.from('tenants').select('id').limit(1);
-            const latency = Date.now() - start;
-            const report = {
-                status: error ? '❌ Erro' : '✅ Online',
-                latencia_ms: latency,
-                banco_de_dados: error ? `Erro: ${error.message}` : 'Conectado',
-                internet: navigator.onLine ? 'Online' : 'Offline',
-                cache_local: `${Object.keys(localStorage).filter(k => k.startsWith('NEXUS_CACHE_')).length} entradas`,
-                timestamp: new Date().toLocaleString('pt-BR'),
-            };
-            setHealthReport(report);
-        } catch (e: any) {
-            setHealthReport({
-                status: '❌ Falha',
-                erro: e.message,
-                internet: navigator.onLine ? 'Online' : 'Offline',
-                timestamp: new Date().toLocaleString('pt-BR'),
-            });
-        } finally {
-            setIsCheckingHealth(false);
-        }
-    }, []);
-
-    React.useEffect(() => {
-        const handleStatusChange = () => setIsOnline(navigator.onLine);
-        window.addEventListener('online', handleStatusChange);
-        window.addEventListener('offline', handleStatusChange);
-        return () => {
-            window.removeEventListener('online', handleStatusChange);
-            window.removeEventListener('offline', handleStatusChange);
-        };
-    }, []);
 
     const hasPermission = (module: keyof UserPermissions, action: 'read' | 'create' | 'update' | 'delete' | null = 'read'): boolean => {
         if (isImpersonating) return true;
@@ -139,27 +100,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">Administrador</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        {!isOnline && (
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/20 border border-rose-500/40 rounded-full text-rose-200">
-                                <WifiOff size={14} />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">Offline</span>
-                            </div>
-                        )}
-                        <button
-                            onClick={checkSystemHealth}
-                            disabled={isCheckingHealth}
-                            className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all disabled:opacity-50"
-                            title="Saúde do Sistema"
-                        >
-                            {isCheckingHealth
-                                ? <RefreshCw size={20} className="animate-spin" />
-                                : <ShieldCheck size={20} />}
-                        </button>
                         <button
                             onClick={onManualRefresh}
                             disabled={isRefreshing}
                             className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all"
-                            title="Atualizar Dados"
+                            title="Sincronizar Tudo"
                         >
                             <RefreshCw size={20} className={isRefreshing ? 'animate-spin text-[#1c2d4f]' : ''} />
                         </button>
@@ -205,7 +150,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             })}
                         </nav>
 
-                        <div className="mt-6 pt-4 border-t border-white/5 mx-2">
+                        {/* 🛡️ Monitor de Resiliência Nexus (Big Tech Standard) */}
+                        <div className="mt-auto pt-4 border-t border-white/5 mx-2 pb-4">
+                            <ResilienceIndicator />
+                        </div>
+
+                        <div className="pt-4 border-t border-white/5 mx-2">
                             <a
                                 href="https://wa.me/553534227420"
                                 target="_blank"
@@ -253,30 +203,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 </main>
             </div>
 
-            {healthReport && (
-                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-xl max-w-xl w-full border border-slate-200 overflow-hidden">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                            <div>
-                                <h3 className="text-lg font-bold text-slate-900">Status do Ecossistema</h3>
-                                <p className="text-xs text-slate-500">Diagnóstico de infraestrutura e performance.</p>
-                            </div>
-                            <button onClick={() => setHealthReport(null)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-all"><X size={20} /></button>
-                        </div>
-                        <div className="p-8">
-                            {/* ... Status Body ... */}
-                            <pre className="text-xs bg-slate-100 p-4 rounded text-slate-600 mb-4 overflow-auto max-h-40">{JSON.stringify(healthReport, null, 2)}</pre>
-                            <div className="flex gap-3">
-                                <Button onClick={checkSystemHealth} disabled={isCheckingHealth} className="flex-1 h-11">
-                                    {isCheckingHealth ? 'Verificando...' : 'Recarregar Status'}
-                                </Button>
-                                <Button variant="secondary" onClick={() => (window as any).NexusTelemetry?.downloadLogs()} className="px-6 h-11 text-slate-600 border border-slate-200">Baixar Logs</Button>
-                                <Button variant="secondary" onClick={() => window.location.reload()} className="px-6 h-11 bg-rose-50 text-rose-600 hover:bg-rose-100 border-rose-100">Reload App</Button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

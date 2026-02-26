@@ -44,11 +44,10 @@ export const StockService = {
                 .order('name');
 
             if (error) {
-                console.warn("Supabase categories error:", error.message);
-                return [];
-            } else {
-                return data || [];
+                console.error("❌ [StockService] Erro ao buscar categorias:", error.message);
+                throw new Error(`Falha ao carregar categorias: ${error.message}`);
             }
+            return data || [];
         }
         return [];
     },
@@ -113,7 +112,12 @@ export const StockService = {
                 .order('description')
                 .limit(100);
 
-            if (!error && data) {
+            if (error) {
+                console.error("❌ [StockService] Erro ao buscar itens:", error.message);
+                throw new Error(`Falha ao carregar estoque: ${error.message}`);
+            }
+
+            if (data) {
                 return data.map(item => ({
                     id: item.id,
                     tenantId: item.tenant_id,

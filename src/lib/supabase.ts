@@ -65,38 +65,60 @@ export const supabase = createClient(safeUrl, safeKey, {
         lock: processLock,
     },
     global: {
-        fetch: (url: RequestInfo | URL, init?: RequestInit) => {
-            // 🛡️ AbortController Memory Leak Fix
-            const controller = new AbortController();
-            const originalSignal = init?.signal;
+        fetch: async (url: RequestInfo | URL, init?: RequestInit) => {
+            const MAX_RETRIES = 2;
+            let lastError: any = null;
 
-            const onOriginalAbort = () => controller.abort();
-            if (originalSignal) {
-                if (originalSignal.aborted) {
+            for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    console.warn(`[Supabase Fetch] ⏱️ Timeout atingido (30s) na tentativa ${attempt + 1}: ${String(url)}`);
                     controller.abort();
-                } else {
-                    originalSignal.addEventListener('abort', onOriginalAbort);
+                }, 30000);
+
+                try {
+                    const response = await fetch(url, {
+                        ...init,
+                        signal: controller.signal,
+                    });
+
+                    // Se a resposta for um erro de servidor (5xx) ou rede, retenta
+                    if (response.status >= 500 && attempt < MAX_RETRIES) {
+                        console.warn(`[Supabase Fetch] 📉 Erro HTTP ${response.status}. Retentando (${attempt + 1}/${MAX_RETRIES})...`);
+                        clearTimeout(timeoutId);
+                        await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // Backoff simples
+                        continue;
+                    }
+
+                    clearTimeout(timeoutId);
+                    return response;
+                } catch (err: any) {
+                    clearTimeout(timeoutId);
+                    lastError = err;
+
+                    const isRetryable = err.name === 'AbortError' ||
+                        err.message?.includes('Failed to fetch') ||
+                        !window.navigator.onLine;
+
+                    if (isRetryable && attempt < MAX_RETRIES) {
+                        console.warn(`[Supabase Fetch] 🔄 Falha de conexão na tentativa ${attempt + 1}. Retentando...`, err.message);
+                        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                        continue;
+                    }
+
+                    console.error(`[Supabase Fetch] ❌ Falha crítica após ${attempt + 1} tentativas:`, err.message);
+                    throw err;
                 }
             }
-
-            // Timeout de segurança (30s)
-            const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-            return fetch(url, {
-                ...init,
-                signal: controller.signal,
-            }).finally(() => {
-                clearTimeout(timeoutId);
-                originalSignal?.removeEventListener('abort', onOriginalAbort);
-            });
+            throw lastError;
         }
     },
     realtime: {
         params: {
             eventsPerSecond: 2
         },
-        heartbeatIntervalMs: 15000,        // Heartbeat every 15s (default 30s)
-        reconnectAfterMs: (tries: number) => // Exponential backoff: 1s, 2s, 4s, 8s... max 30s
+        heartbeatIntervalMs: 15000,
+        reconnectAfterMs: (tries: number) =>
             Math.min(1000 * Math.pow(2, tries), 30000)
     }
 });
