@@ -12,6 +12,11 @@ export const StockManagement: React.FC = () => {
     // Application State
     const [activeTab, setActiveTab] = useState<'items' | 'categories' | 'techs' | 'movements'>('items');
 
+    // --- Items State ---
+    const [items, setItems] = useState<StockItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<StockItem | null>(null);
     const [error, setError] = useState<string | null>(null);
 

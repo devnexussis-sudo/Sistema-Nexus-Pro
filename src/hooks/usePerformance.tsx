@@ -162,9 +162,9 @@ export const VirtualList = memo(<T,>({
 
     return (
         <div
-      style= {{ height: containerHeight, overflow: 'auto' }
+            style= {{ height: containerHeight, overflow: 'auto' }
 }
-      onScroll = { onScroll }
+            onScroll = { onScroll }
     >
     <div style={{ height: visibleItems.totalHeight, position: 'relative' }}>
         <div style={ { transform: `translateY(${visibleItems.offsetY}px)` } }>
@@ -173,11 +173,11 @@ export const VirtualList = memo(<T,>({
                 <div key= { keyExtractor(item) } style = {{ height: itemHeight }} >
             { renderItem(item, visibleItems.startIndex + index) }
             </div>
-          ))}
+                    ))}
 </div>
     </div>
     </div>
-  );
+    );
 }) as<T>(props: VirtualListProps<T>) => JSX.Element;
 
 VirtualList.displayName = 'VirtualList';
