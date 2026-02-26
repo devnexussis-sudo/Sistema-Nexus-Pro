@@ -374,72 +374,75 @@ export const StockManagement: React.FC = () => {
     return (
         <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
             {/* Toolbar Externa */}
-            <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
+            <div className="mb-4 flex flex-wrap lg:flex-nowrap gap-4 items-center justify-between">
                 {/* Tabs */}
-                <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm flex-shrink-0">
-                    <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm shrink-0 overflow-x-auto max-w-full">
+                    <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
                         <List size={14} /> Itens
                     </button>
-                    <button onClick={() => setActiveTab('categories')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'categories' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <button onClick={() => setActiveTab('categories')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'categories' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
                         <Tag size={14} /> Categorias
                     </button>
-                    <button onClick={() => setActiveTab('techs')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'techs' ? 'bg-amber-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <button onClick={() => setActiveTab('techs')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'techs' ? 'bg-amber-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
                         <Box size={14} /> Estoque Técnico
                     </button>
-                    <button onClick={() => setActiveTab('movements')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'movements' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <button onClick={() => setActiveTab('movements')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'movements' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
                         <Scale size={14} /> Movimentações
                     </button>
                 </div>
 
-                {/* Search */}
-                {activeTab === 'items' ? (
-                    <div className="relative flex-1 w-full">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                            type="text"
-                            placeholder="Pesquisar estoque..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
-                        />
+                {/* Search & Actions Container */}
+                <div className="flex flex-1 items-center gap-3 w-full lg:w-auto">
+                    {/* Search */}
+                    {activeTab === 'items' ? (
+                        <div className="relative flex-1">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input
+                                type="text"
+                                placeholder="Pesquisar estoque..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
+                            />
+                        </div>
+                    ) : <div className="flex-1 lg:hidden"></div>}
+
+                    {/* Filters & Actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {activeTab === 'items' && (
+                            <div className="hidden lg:flex items-center gap-2">
+                                <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
+                                    <Filter size={14} className="text-slate-400 mr-2" />
+                                    <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none max-w-[100px] cursor-pointer">
+                                        <option value="ALL">Categorias</option>
+                                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
+                                    <AlertTriangle size={14} className="text-slate-400 mr-2" />
+                                    <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer">
+                                        <option value="ALL">Status</option>
+                                        <option value="GOOD">Regular</option>
+                                        <option value="LOW">Baixo</option>
+                                        <option value="OUT">Zerado</option>
+                                    </select>
+                                </div>
+                                <button
+                                    onClick={() => { setSearchTerm(''); setCategoryFilter('ALL'); setStatusFilter('ALL'); }}
+                                    className="px-4 py-2 text-[9px] font-bold uppercase text-slate-400 hover:text-[#1c2d4f] transition-colors"
+                                >
+                                    Limpar
+                                </button>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
+                            className={`flex items-center justify-center gap-2 px-6 h-[42px] rounded-xl text-[10px] font-bold uppercase shadow-md hover:-translate-y-0.5 transition-all text-white active:scale-95 whitespace-nowrap min-w-[140px] ${activeTab === 'items' ? 'bg-[#1c2d4f] hover:bg-[#253a66]' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                        >
+                            <Plus size={16} /> {activeTab === 'items' ? 'Novo Item' : 'Nova Categoria'}
+                        </button>
                     </div>
-                ) : <div className="flex-1"></div>}
-
-                {/* Filters & Actions */}
-                <div className="flex items-center gap-2 flex-shrink-0 w-full xl:w-auto justify-end">
-                    {activeTab === 'items' && (
-                        <>
-                            <div className="hidden lg:flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
-                                <Filter size={14} className="text-slate-400 mr-2" />
-                                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none max-w-[100px] cursor-pointer">
-                                    <option value="ALL">Categorias</option>
-                                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="hidden lg:flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
-                                <AlertTriangle size={14} className="text-slate-400 mr-2" />
-                                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer">
-                                    <option value="ALL">Status</option>
-                                    <option value="GOOD">Regular</option>
-                                    <option value="LOW">Baixo</option>
-                                    <option value="OUT">Zerado</option>
-                                </select>
-                            </div>
-                            <button
-                                onClick={() => { setSearchTerm(''); setCategoryFilter('ALL'); setStatusFilter('ALL'); }}
-                                className="hidden lg:block px-4 py-2 text-[9px] font-bold uppercase text-slate-400 hover:text-[#1c2d4f] transition-colors"
-                            >
-                                Limpar
-                            </button>
-                        </>
-                    )}
-
-                    <button
-                        onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
-                        className={`flex items-center gap-2 px-6 h-[42px] rounded-xl text-[10px] font-bold uppercase shadow-sm hover:-translate-y-0.5 transition-all text-white active:scale-95 whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] hover:bg-[#253a66]' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-                    >
-                        <Plus size={16} /> {activeTab === 'items' ? 'Novo Item' : 'Nova Categoria'}
-                    </button>
                 </div>
             </div>
 
