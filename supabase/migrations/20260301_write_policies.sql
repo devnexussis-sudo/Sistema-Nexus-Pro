@@ -1,11 +1,10 @@
--- 🛡️ Nexus Pro - Enterprise Security Repair (V7)
+-- 🛡️ Nexus Pro - Enterprise Security Repair (V7.1)
 -- Objective: Fix write access and establish zero-trust tenant isolation.
--- This migration fixes the syntax error found in previous attempt and ensures all helper functions exist.
+-- This version fixes the ENUM casting error for the 'role' column.
 
 BEGIN;
 
 -- 1. Helper Functions (Idempotent)
--- Optimized to check JWT first, then fallback to DB to avoid unnecessary lookups.
 CREATE OR REPLACE FUNCTION public.get_auth_tenant_id()
 RETURNS uuid
 LANGUAGE sql
@@ -30,12 +29,11 @@ AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.users 
     WHERE id = auth.uid() 
-    AND (UPPER(role) = UPPER(required_role) OR role = required_role)
+    AND (UPPER(role::text) = UPPER(required_role))
   );
 $$;
 
 -- 2. Cleanup and Policy Establishment
--- We use FOR ALL for total coverage (SELECT, INSERT, UPDATE, DELETE) within the tenant scope.
 
 -- Table: orders
 DROP POLICY IF EXISTS "orders_write_tenant" ON public.orders;
