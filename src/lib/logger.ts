@@ -17,6 +17,13 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 class Logger {
     private isDevelopment: boolean;
     private isProduction: boolean;
+    private originalConsole = {
+        log: console.log,
+        warn: console.warn,
+        error: console.error,
+        debug: console.debug,
+        info: console.info
+    };
 
     constructor() {
         this.isDevelopment = import.meta.env.DEV;
