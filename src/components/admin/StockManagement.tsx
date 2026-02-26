@@ -12,12 +12,8 @@ export const StockManagement: React.FC = () => {
     // Application State
     const [activeTab, setActiveTab] = useState<'items' | 'categories' | 'techs' | 'movements'>('items');
 
-    // --- Items State ---
-    const [items, setItems] = useState<StockItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<StockItem | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     // Filters
     const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -66,17 +62,24 @@ export const StockManagement: React.FC = () => {
     // --- Loaders ---
     const loadItems = async () => {
         setLoading(true);
+        setError(null);
+
         const timeoutId = setTimeout(() => {
-            setLoading(false);
-            console.warn('[Stock] ⚠️ Load timeout - forcing spinner stop');
-        }, 30000);
+            if (loading) {
+                console.warn('[Stock] ⚠️ Load timeout - check Supabase logs');
+                setError('A conexão está demorando mais que o esperado. Verifique sua internet.');
+                setLoading(false);
+            }
+        }, 15000); // 15s is more professional than 30s
 
         try {
             await import('../../lib/supabase').then(m => m.ensureValidSession());
             const data = await DataService.getStockItems();
             setItems(data);
-        } catch (error) {
-            console.error('Erro ao carregar estoque:', error);
+            setError(null);
+        } catch (err: any) {
+            console.error('Erro ao carregar estoque:', err);
+            setError(err.message || 'Erro inesperado ao sincronizar estoque.');
         } finally {
             clearTimeout(timeoutId);
             setLoading(false);
@@ -113,28 +116,34 @@ export const StockManagement: React.FC = () => {
         }
     };
 
+    const loadAll = async () => {
+        loadItems();
+        loadCategories();
+        loadTechs();
+        loadMovements();
+    };
+
     useEffect(() => {
         const init = async () => {
-            const user = await DataService.getCurrentUser();
-            const tid = user?.tenantId;
+            // Tenta obter usuário do service
+            let user = await DataService.getCurrentUser();
 
-            if (tid) {
-                loadItems();
-                loadCategories();
-                loadTechs();
-                loadMovements();
+            // Se falhar o service (cache), tenta direto no Supabase para forçar refresh
+            if (!user?.tenantId) {
+                const { data: { session } } = await (await import('../../lib/supabase')).supabase.auth.getSession();
+                if (session?.user?.user_metadata?.tenantId) {
+                    console.log('🛡️ [StockManagement] Tenant ID recuperado via Supabase Session');
+                    loadAll();
+                    return;
+                }
+            }
+
+            if (user?.tenantId) {
+                loadAll();
             } else {
-                console.warn("🛡️ [StockManagement] Tenant ID não detectado. Aguardando sincronização...");
-                // Retry logic safely
-                setTimeout(async () => {
-                    const retryUser = await DataService.getCurrentUser();
-                    if (retryUser?.tenantId) {
-                        loadItems();
-                        loadCategories();
-                        loadTechs();
-                        loadMovements();
-                    }
-                }, 1000);
+                console.warn("🛡️ [StockManagement] Tenant ID não detectado. Tentando carregamento forçado...");
+                setLoading(false);
+                setError('Não foi possível identificar seu Tenant ID. Recarregue a página ou faça login novamente.');
             }
         }
         init();
@@ -466,74 +475,91 @@ export const StockManagement: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {loading ? (
+                                    {error ? (
+                                        <tr>
+                                            <td colSpan={8} className="py-20 text-center px-6">
+                                                <div className="max-w-md mx-auto">
+                                                    <AlertTriangle size={40} className="mx-auto text-rose-500 mb-4 animate-pulse" />
+                                                    <p className="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] mb-2">Falha na Sincronização</p>
+                                                    <p className="text-xs font-bold text-slate-500 mb-6">{error}</p>
+                                                    <button
+                                                        onClick={() => loadAll()}
+                                                        className="px-8 py-3 bg-[#1c2d4f] text-white text-[10px] font-black uppercase rounded-[2rem] hover:bg-[#253a66] transition-all shadow-xl shadow-primary-900/20 active:scale-95 flex items-center gap-2 mx-auto"
+                                                    >
+                                                        <RefreshCw size={14} /> Tentar Reconectar
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : loading ? (
                                         <tr>
                                             <td colSpan={8} className="py-20 text-center">
                                                 <RefreshCw size={40} className="mx-auto text-primary-600 animate-spin mb-4" />
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sincronizando Estoque...</p>
                                             </td>
                                         </tr>
-                                    ) : paginatedItems.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={8} className="py-20 text-center">
-                                                <div className="w-16 h-16 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                                                    <Package size={24} className="text-slate-300" />
-                                                </div>
-                                                <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">Nenhum item localizado</p>
-                                            </td>
-                                        </tr>
                                     ) :
-                                        paginatedItems.map(item => {
-                                            const totalCost = calculateTotalCost(item);
-                                            const margin = calculateMargin(item);
-                                            return (
-                                                <tr key={item.id} className="bg-white hover:bg-primary-50/40 transition-all border-b border-slate-50 last:border-0 group">
-                                                    <td className="px-4 py-1.5">
-                                                        <div className="flex flex-col truncate max-w-[100px]">
-                                                            <span className="text-[10px] font-black text-primary-600 uppercase truncate">{item?.code || '---'}</span>
-                                                            {item?.externalCode && (
-                                                                <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1 truncate">
-                                                                    <Barcode size={10} className="shrink-0" /> {item.externalCode}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-1.5">
-                                                        <p className="text-[11px] font-bold text-slate-700 uppercase truncate max-w-[180px]">{item?.description || 'Item sem descrição'}</p>
-                                                        <div className="flex gap-1.5 overflow-hidden">
-                                                            <span className="text-[9px] text-slate-400 font-bold uppercase truncate">{item?.category || '-'}</span>
-                                                            <span className="text-[9px] text-slate-300 font-bold uppercase shrink-0">•</span>
-                                                            <span className="text-[9px] text-slate-400 font-bold uppercase shrink-0">{item?.unit || 'UN'}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{item?.location || '-'}</td>
-                                                    <td className="px-4 py-1.5 text-center">
-                                                        <div className="flex items-center justify-center gap-1.5">
-                                                            <span className={`text-[11px] font-black ${(item?.quantity || 0) <= (item?.minQuantity || 0) ? 'text-rose-500' : 'text-slate-700'}`}>{item?.quantity || 0}</span>
-                                                            {(item?.quantity || 0) <= (item?.minQuantity || 0) && <AlertTriangle size={12} className="text-rose-500 shrink-0" />}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-1.5 text-[10px] font-bold text-slate-500 text-right whitespace-nowrap">R$ {totalCost.toFixed(2)}</td>
-                                                    <td className="px-4 py-1.5 text-[10px] font-bold text-slate-700 text-right whitespace-nowrap">R$ {(item?.sellPrice || 0).toFixed(2)}</td>
-                                                    <td className="px-4 py-1.5">
-                                                        <div className={`flex items-center justify-center gap-1 text-[10px] font-black ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
-                                                            {margin >= 0 ? <TrendingUp size={12} className="shrink-0" /> : <TrendingDown size={12} className="shrink-0" />}
-                                                            {margin.toFixed(1)}%
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-1.5 text-right pr-4">
-                                                        <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-all">
-                                                            <button onClick={() => handleOpenModal(item)} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar">
-                                                                <Edit3 size={16} />
-                                                            </button>
-                                                            <button onClick={() => handleDelete(item.id)} className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-95" title="Excluir">
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
+                                        paginatedItems.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={8} className="py-20 text-center">
+                                                    <div className="w-16 h-16 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                                                        <Package size={24} className="text-slate-300" />
+                                                    </div>
+                                                    <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">Nenhum item localizado</p>
+                                                </td>
+                                            </tr>
+                                        ) :
+                                            paginatedItems.map(item => {
+                                                const totalCost = calculateTotalCost(item);
+                                                const margin = calculateMargin(item);
+                                                return (
+                                                    <tr key={item.id} className="bg-white hover:bg-primary-50/40 transition-all border-b border-slate-50 last:border-0 group">
+                                                        <td className="px-4 py-1.5">
+                                                            <div className="flex flex-col truncate max-w-[100px]">
+                                                                <span className="text-[10px] font-black text-primary-600 uppercase truncate">{item?.code || '---'}</span>
+                                                                {item?.externalCode && (
+                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1 truncate">
+                                                                        <Barcode size={10} className="shrink-0" /> {item.externalCode}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-1.5">
+                                                            <p className="text-[11px] font-bold text-slate-700 uppercase truncate max-w-[180px]">{item?.description || 'Item sem descrição'}</p>
+                                                            <div className="flex gap-1.5 overflow-hidden">
+                                                                <span className="text-[9px] text-slate-400 font-bold uppercase truncate">{item?.category || '-'}</span>
+                                                                <span className="text-[9px] text-slate-300 font-bold uppercase shrink-0">•</span>
+                                                                <span className="text-[9px] text-slate-400 font-bold uppercase shrink-0">{item?.unit || 'UN'}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{item?.location || '-'}</td>
+                                                        <td className="px-4 py-1.5 text-center">
+                                                            <div className="flex items-center justify-center gap-1.5">
+                                                                <span className={`text-[11px] font-black ${(item?.quantity || 0) <= (item?.minQuantity || 0) ? 'text-rose-500' : 'text-slate-700'}`}>{item?.quantity || 0}</span>
+                                                                {(item?.quantity || 0) <= (item?.minQuantity || 0) && <AlertTriangle size={12} className="text-rose-500 shrink-0" />}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-1.5 text-[10px] font-bold text-slate-500 text-right whitespace-nowrap">R$ {totalCost.toFixed(2)}</td>
+                                                        <td className="px-4 py-1.5 text-[10px] font-bold text-slate-700 text-right whitespace-nowrap">R$ {(item?.sellPrice || 0).toFixed(2)}</td>
+                                                        <td className="px-4 py-1.5">
+                                                            <div className={`flex items-center justify-center gap-1 text-[10px] font-black ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
+                                                                {margin >= 0 ? <TrendingUp size={12} className="shrink-0" /> : <TrendingDown size={12} className="shrink-0" />}
+                                                                {margin.toFixed(1)}%
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-1.5 text-right pr-4">
+                                                            <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-all">
+                                                                <button onClick={() => handleOpenModal(item)} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar">
+                                                                    <Edit3 size={16} />
+                                                                </button>
+                                                                <button onClick={() => handleDelete(item.id)} className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-95" title="Excluir">
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                 </tbody>
                             </table>
                         </div>

@@ -140,15 +140,23 @@ class Logger {
     }
 
     /**
-     * 🧹 Remove TODOS os console.* nativos em produção
+     * 🧹 Gerencia o silenciamento de logs em produção.
+     * MANTÉM console.error e console.warn ativos por padrão para diagnóstico.
      */
     disableNativeLogsInProduction() {
         if (this.isProduction) {
-            console.log = () => { };
+            // Silencia apenas informações triviais
+            console.log = (...args) => {
+                // Se o primeiro argumento for uma tag de sistema do Nexus, permite o log
+                if (typeof args[0] === 'string' && (args[0].includes('[SYSTEM]') || args[0].includes('[Supabase'))) {
+                    this.originalConsole.log(...args);
+                }
+            };
             console.debug = () => { };
             console.info = () => { };
-            console.warn = () => { };
-            // Mantém console.error para erros críticos
+
+            // console.warn e console.error CONTINUAM ATIVOS em produção
+            // para permitir diagnóstico de falhas silenciosas.
         }
     }
 }
