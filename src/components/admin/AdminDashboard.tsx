@@ -299,7 +299,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               placeholder="Pesquisar por protocolo, cliente ou descrição..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full h-10 bg-white border border-slate-200 rounded-md pl-10 pr-4 text-sm font-medium text-slate-700 placeholder-slate-400 outline-none focus:ring-4 focus:ring-slate-500/5 focus:border-slate-400 transition-all"
+              className="w-full h-11 bg-white border border-slate-200 rounded-xl pl-10 pr-4 text-sm font-medium text-slate-700 placeholder-slate-400 outline-none focus:ring-4 focus:ring-primary-500/5 focus:border-primary-500 transition-all shadow-sm"
             />
           </div>
 
