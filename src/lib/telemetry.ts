@@ -1,53 +1,77 @@
 
 // 📡 NEXUS TELEMETRY SYSTEM
-// Captura logs do console para diagnósticos em produção
+// Captura logs do console para diagnósticos em produção.
+// Este é o ÚNICO ponto de hijack do console do sistema.
 
 interface LogEntry {
-    type: 'log' | 'info' | 'warn' | 'error';
+    type: 'log' | 'info' | 'warn' | 'error' | 'debug';
     args: any[];
     timestamp: string;
 }
 
 class TelemetrySystem {
     private logs: LogEntry[] = [];
-    private maxLogs = 500;
-    private originalConsole = {
-        log: console.log,
-        info: console.info,
-        warn: console.warn,
-        error: console.error,
+    private maxLogs = 1000; // Aumentado para mais contexto
+    private isProduction = import.meta.env.PROD;
+
+    // Armazena as funções originais para uso interno
+    public originalConsole = {
+        log: console.log.bind(console),
+        info: console.info.bind(console),
+        warn: console.warn.bind(console),
+        error: console.error.bind(console),
+        debug: console.debug.bind(console),
     };
 
     constructor() {
         this.hijackConsole();
-        this.logSystem('🚀 Telemetry System Initialized');
+        this.logInternal('🚀 Telemetry Engine v2.5 Online');
     }
 
     private hijackConsole() {
-        console.log = (...args) => {
-            this.pushLog('log', args);
-            this.originalConsole.log(...args);
+        const self = this;
+
+        console.log = function (...args: any[]) {
+            self.capture('log', args);
+            // Em produção, silenciamos log comum a menos que tenha a tag [SYSTEM] ou [Supabase]
+            const shouldShow = !self.isProduction ||
+                (typeof args[0] === 'string' && (args[0].includes('[SYSTEM]') || args[0].includes('[Supabase')));
+            if (shouldShow) self.originalConsole.log(...args);
         };
-        console.info = (...args) => {
-            this.pushLog('info', args);
-            this.originalConsole.info(...args);
+
+        console.info = function (...args: any[]) {
+            self.capture('info', args);
+            if (!self.isProduction) self.originalConsole.info(...args);
         };
-        console.warn = (...args) => {
-            this.pushLog('warn', args);
-            this.originalConsole.warn(...args);
+
+        console.debug = function (...args: any[]) {
+            self.capture('debug', args);
+            if (!self.isProduction) self.originalConsole.debug(...args);
         };
-        console.error = (...args) => {
-            this.pushLog('error', args);
-            this.originalConsole.error(...args);
+
+        console.warn = function (...args: any[]) {
+            self.capture('warn', args);
+            // Avisos SEMPRE aparecem no console nativo para facilitar debug remoto
+            self.originalConsole.warn(...args);
+        };
+
+        console.error = function (...args: any[]) {
+            self.capture('error', args);
+            // Erros SEMPRE aparecem no console nativo
+            self.originalConsole.error(...args);
         };
     }
 
-    private pushLog(type: LogEntry['type'], args: any[]) {
+    private capture(type: LogEntry['type'], args: any[]) {
         try {
+            // Evita processar logs do próprio sistema de telemetria para não gerar loop
+            if (typeof args[0] === 'string' && args[0].includes('[Telemetry]')) return;
+
             this.logs.push({
                 type,
                 args: args.map(a => {
                     try {
+                        if (a instanceof Error) return { name: a.name, message: a.message, stack: a.stack };
                         return typeof a === 'object' ? JSON.parse(JSON.stringify(a)) : a;
                     } catch {
                         return String(a);
@@ -60,31 +84,41 @@ class TelemetrySystem {
                 this.logs.shift();
             }
         } catch (e) {
-            // Avoid infinite loop if logging fails
+            // Fail silent
         }
     }
 
-    private logSystem(msg: string) {
-        this.originalConsole.log(`%c[SYSTEM] ${msg}`, 'color: cyan; font-weight: bold');
+    private logInternal(msg: string) {
+        this.originalConsole.log(`%c[Telemetry] ${msg}`, 'color: #3b82f6; font-weight: bold');
     }
 
     public getRecentLogs() {
         return this.logs;
     }
 
+    public clearLogs() {
+        this.logs = [];
+        this.logInternal('Logs cleared.');
+    }
+
     public downloadLogs() {
-        const content = this.logs.map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`).join('\n');
+        const content = this.logs.map(l => {
+            const time = new Date(l.timestamp).toLocaleTimeString();
+            const argsStr = l.args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+            return `[${time}] [${l.type.toUpperCase()}] ${argsStr}`;
+        }).join('\n');
+
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `nexus_logs_${new Date().toISOString()}.txt`;
+        a.download = `nexus_diag_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+        document.body.appendChild(a);
         a.click();
-        this.logSystem('Logs downloaded successfully.');
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 }
 
 export const telemetry = new TelemetrySystem();
-
-// Expose to window for easy access
 (window as any).NexusTelemetry = telemetry;

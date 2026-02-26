@@ -195,27 +195,38 @@ export async function ensureValidSession(): Promise<boolean> {
     _lastSessionCheck = now;
 
     try {
-        // Just verify if session exists. Do NOT manually refresh if autoRefreshToken is on.
-        // Manual refresh creates race conditions with the auto-refresh mechanism.
         const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error || !session) {
-            console.warn('[SessionGuard] ⚠️ Nenhuma sessão ativa detectada.');
-            // Não forçamos refresh manual aqui para evitar conflito com autoRefreshToken do cliente.
-            // Se o token estiver expirado, o cliente Supabase já deve estar tentando renovar.
-            return false;
-        }
-
+        if (error || !session) return false;
         return true;
     } catch (err: any) {
-        // 🛡️ Ignora erros de aborto (normal em cancelamentos rápidos)
-        if (err.name === 'AbortError' || err?.message?.includes('aborted')) {
-            return false;
-        }
-        console.error('[SessionGuard] ❌ Exception during session check:', err);
         return false;
     }
 }
+
+/**
+ * 🛠️ Nexus Diagnostic Tools
+ */
+export const supabaseDiagnostics = {
+    /** Teste real de leitura no banco */
+    ping: async () => {
+        const start = Date.now();
+        const { data, error } = await supabase.from('users').select('id').limit(1);
+        const latency = Date.now() - start;
+        if (error) throw error;
+        return { success: true, latency, timestamp: new Date().toISOString() };
+    },
+
+    /** Status atual do Realtime */
+    checkRealtime: () => {
+        const channels = (supabase as any).realtime?.channels || [];
+        const activeChannels = channels.length;
+        return {
+            activeChannels,
+            status: activeChannels > 0 ? 'CONNECTED' : 'INACTIVE',
+            timestamp: new Date().toISOString()
+        };
+    }
+};
 
 // 🛡️ Secure Admin Proxy
 // Redireciona chamadas AUTH sensíveis para Edge Function segura.
