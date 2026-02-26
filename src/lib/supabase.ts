@@ -1,11 +1,11 @@
 // src/lib/supabase.ts
 // Thin wrapper that re‑exports the singleton client and provides a public client.
 import { createClient } from '@supabase/supabase-js';
-import { supabase } from './supabaseClient';
+import { supabase, ensureValidSession, supabaseDiagnostics } from './supabaseClient';
 import type { DbUserInsert } from '../types/database';
 
-// Export the main singleton for the application
-export { supabase };
+// Export the main singleton and resilience helpers for the application
+export { supabase, ensureValidSession, supabaseDiagnostics };
 
 // ---------------------------------------------------------------------
 // Public client – no persisted session, no auto‑refresh
