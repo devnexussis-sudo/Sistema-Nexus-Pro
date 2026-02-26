@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import './lib/telemetry'; // 📡 Initialize global logging system
+import './lib/idleLogout'; // Timer de inatividade (12h)
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

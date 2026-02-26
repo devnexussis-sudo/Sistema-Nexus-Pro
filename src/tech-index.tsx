@@ -5,6 +5,7 @@ import './styles/tech.css';
 import 'leaflet/dist/leaflet.css';
 import { TechAppV2 } from './apps/tech/v2/TechAppV2';
 import ErrorBoundary from './components/ErrorBoundary';
+import './lib/idleLogout'; // Timer de inatividade (12h)
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
