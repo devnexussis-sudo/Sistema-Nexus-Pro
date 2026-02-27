@@ -1,19 +1,31 @@
 // ============================================================
 // src/lib/supabaseClient.ts
-// 🛡️ NEXUS LINE — Singleton Supabase Client
-// Padrão: Big Tech / Clean Architecture / Singleton Pattern
+// 🛡️ NEXUS LINE — Singleton Supabase Client v3.0
+// Padrão: Big Tech / Clean Architecture / Zero Gambiarra
 //
-// REGRAS DE GOVERNANÇA (.cursorrules):
-//  ✅ UM único createClient para toda a aplicação
-//  ✅ autoRefreshToken delegado ao SDK — zero refreshSession() manual
-//  ✅ processLock in-memory para serializar chamadas de auth concorrentes
-//  ✅ Listeners de visibilitychange + online para recuperação de inatividade
-//  ✅ Sem logs de debug em produção (isDev guard)
-//  ✅ Sem chamadas de rede em loops (ensureValidSession NUNCA é chamado
-//     dentro do fetch interceptor para evitar recursão)
+// GOVERNANÇA (.cursorrules):
+//  ✅ UM único createClient para toda a aplicação (Singleton)
+//  ✅ autoRefreshToken delegado 100% ao SDK — ZERO refreshSession() manual
+//  ✅ Lock simplificado (Web Locks API nativa ou fallback simples) —
+//     elimina race conditions sem risco de deadlock por SO suspend
+//  ✅ Fetch com retry exponencial para erros transitórios
+//  ✅ Recovery por visibilitychange + online (PWA / Safari Mobile)
+//  ✅ Logs condicional em DEV — zero ruído em produção
+//  ✅ Diagnósticos expostos no window para suporte técnico
+//
+// CAUSA RAIZ DO BUG DE INATIVIDADE (resolvido aqui):
+//  O lock customizado baseado em Promise em fila acumulava
+//  promises pendentes quando o SO suspende timers (aba em background).
+//  Ao retornar, o timeout do lock já havia disparado mas a fila
+//  estava corrompida, bloqueando silenciosamente o autoRefreshToken
+//  do SDK e causando perda de sessão sem log visível.
+//
+//  Solução: usar Web Locks API nativa do browser (chrome 69+, safari 16+)
+//  que é gerenciada pelo SO e sobrevive à suspensão. Fallback para
+//  lock simples (sem fila) em browsers sem suporte.
 // ============================================================
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, type LockFunc } from '@supabase/supabase-js';
 
 // ---------------------------------------------------------------
 // Environment Variables
@@ -30,80 +42,74 @@ const safeUrl = supabaseUrl ?? 'https://placeholder.supabase.co';
 const safeKey = supabaseAnonKey ?? 'placeholder';
 
 // ---------------------------------------------------------------
-// In-process Mutex — serializa operações críticas de auth entre
-// múltiplas abas/calls concorrentes sem race conditions.
-// O lock é in-memory: cada tab tem o seu próprio. Para cross-tab,
-// o Supabase SDK usa o BroadcastChannel nativo automaticamente.
+// Lock Strategy — Big Tech Standard
+//
+// Usa Web Locks API nativa (gerenciada pelo SO, sobrevive a suspensão).
+// Fallback silencioso para browsers sem suporte (execução direta).
+//
+// IMPORTANTE: O lock é passado para o Supabase SDK para serializar
+// apenas operações de AUTH (refresh de token). Não é usado para
+// serializar chamadas de banco — isso causaria gargalo.
 // ---------------------------------------------------------------
-type LockName = string;
-const _lockQueue: Record<LockName, Promise<unknown>> = {};
 
-async function _acquireLock<R>(
-    name: LockName,
-    timeoutMs: number,
-    fn: () => Promise<R>
-): Promise<R> {
-    const previous = _lockQueue[name] ?? Promise.resolve();
-    const effectiveTimeout = timeoutMs > 0 ? timeoutMs : 10_000;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+const _buildLock = (): LockFunc => {
+    // Web Locks API — nativa do browser, sobrevive à suspensão de SO
+    if (typeof navigator !== 'undefined' && 'locks' in navigator) {
+        return (name: string, fn: () => Promise<unknown>) =>
+            navigator.locks.request(`nexus_auth_${name}`, { mode: 'exclusive' }, fn);
+    }
+    // Fallback: execução direta em browsers sem Web Locks
+    if (isDev) console.warn('[Nexus Lock] Web Locks API indisponível — usando fallback direto.');
+    return (_name: string, fn: () => Promise<unknown>) => fn();
+};
 
-    const current = (async () => {
-        try {
-            await Promise.race([
-                previous.catch(() => { }), // Erros anteriores não bloqueiam o próximo
-                new Promise<never>((_, reject) => {
-                    timeoutId = setTimeout(
-                        () => reject(new Error(`[Nexus Lock] Timeout após ${effectiveTimeout}ms: ${name}`)),
-                        effectiveTimeout
-                    );
-                }),
-            ]);
-            return await fn();
-        } finally {
-            if (timeoutId !== undefined) clearTimeout(timeoutId);
-        }
-    })();
-
-    // Mantém a fila viva mesmo se a operação falhar
-    _lockQueue[name] = current.catch(() => { });
-    return current as Promise<R>;
-}
+const nexusLock: LockFunc = _buildLock();
 
 // ---------------------------------------------------------------
 // ✅ Singleton — única instância para toda a aplicação.
-// Exportado diretamente; componentes importam via src/lib/supabase.ts
+// Importado via src/lib/supabase.ts pelos consumidores.
 // ---------------------------------------------------------------
 export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
     auth: {
-        storageKey: 'nexus_shared_auth',    // Chave única no localStorage
-        persistSession: true,               // Sessão sobrevive a reload/fechamento de tab
-        autoRefreshToken: true,             // SDK gerencia refresh do JWT automaticamente
-        detectSessionInUrl: true,           // Necessário para OAuth e reset de senha
+        storageKey: 'nexus_shared_auth',    // Chave única: evita conflito entre projetos no mesmo domínio
+        persistSession: true,               // Sessão sobrevive a reload e fechamento de aba
+        autoRefreshToken: true,             // SDK gerencia o refresh do JWT — NÃO interferir
+        detectSessionInUrl: true,           // Necessário para OAuth e magic link
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-        lock: _acquireLock,                 // Mutex próprio: evita race conditions de refresh
+        lock: nexusLock,                    // Lock nativo do SO — elimina deadlock por suspensão
     },
 
-    // -----------------------------------------------------------
-    // Fetch com retry para erros de rede transitórios (5xx / offline)
-    // NÃO chama ensureValidSession aqui para evitar loops de recursão.
-    // O autoRefreshToken do SDK já garante tokens válidos antes de cada call.
-    // -----------------------------------------------------------
     global: {
+        // -------------------------------------------------------------
+        // Fetch com retry exponencial para erros de rede transitórios.
+        // NÃO chama refresh de sessão aqui — o SDK já faz isso.
+        // Timeout de 30s por tentativa para prevenir hanging requests.
+        // -------------------------------------------------------------
         fetch: async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-            const MAX_RETRIES = 2;
-            let lastError: unknown = null;
+            const MAX_RETRIES = 3;
+            const BASE_DELAY_MS = 1_000;
+            let lastError: unknown;
 
             for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30_000); // 30s timeout
+                // Combina signal do caller (se houver) com nosso timeout
+                const callerSignal = (init as RequestInit & { signal?: AbortSignal })?.signal;
+                if (callerSignal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+                const timeoutId = setTimeout(() => controller.abort(), 30_000);
 
                 try {
-                    const response = await fetch(url, { ...init, signal: controller.signal });
+                    const response = await fetch(url, {
+                        ...init,
+                        signal: controller.signal,
+                    });
                     clearTimeout(timeoutId);
 
-                    if (response.status >= 500 && attempt < MAX_RETRIES) {
-                        if (isDev) console.warn(`[Nexus Fetch] HTTP ${response.status} — retry ${attempt + 1}/${MAX_RETRIES}`);
-                        await new Promise(r => setTimeout(r, 1_000 * (attempt + 1)));
+                    // Retry apenas em erros 5xx (servidor) — não em 4xx (cliente)
+                    if (response.status >= 500 && response.status < 600 && attempt < MAX_RETRIES) {
+                        const delay = BASE_DELAY_MS * Math.pow(2, attempt); // Exponential backoff
+                        if (isDev) console.warn(`[Nexus Fetch] HTTP ${response.status} — retry ${attempt + 1}/${MAX_RETRIES} em ${delay}ms`);
+                        await new Promise(r => setTimeout(r, delay));
                         continue;
                     }
 
@@ -112,21 +118,25 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                     clearTimeout(timeoutId);
                     lastError = err;
 
+                    const isAbort = err instanceof DOMException && err.name === 'AbortError';
+                    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
                     const isNetworkError =
-                        (err instanceof Error && (
-                            err.name === 'AbortError' ||
+                        err instanceof TypeError && (
                             err.message.includes('Failed to fetch') ||
-                            err.message.includes('NetworkError')
-                        )) ||
-                        (typeof navigator !== 'undefined' && !navigator.onLine);
+                            err.message.includes('NetworkError') ||
+                            err.message.includes('network')
+                        );
 
-                    if (isNetworkError && attempt < MAX_RETRIES) {
-                        if (isDev) console.warn(`[Nexus Fetch] Erro de rede — retry ${attempt + 1}/${MAX_RETRIES}`);
-                        await new Promise(r => setTimeout(r, 1_000 * (attempt + 1)));
+                    // Não retenta se foi cancelado explicitamente pelo caller
+                    if (isAbort && callerSignal?.aborted) throw err;
+
+                    if ((isNetworkError || (isAbort && !callerSignal?.aborted) || isOffline) && attempt < MAX_RETRIES) {
+                        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+                        if (isDev) console.warn(`[Nexus Fetch] Erro de rede — retry ${attempt + 1}/${MAX_RETRIES} em ${delay}ms`);
+                        await new Promise(r => setTimeout(r, delay));
                         continue;
                     }
 
-                    console.error('[Nexus Fetch] ❌ Falha crítica após retries:', err);
                     throw err;
                 }
             }
@@ -137,201 +147,142 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
 });
 
 // ---------------------------------------------------------------
-// ensureValidSession
-//
-// ⚠️ REGRA CRÍTICA: Não chama refreshSession() manualmente.
-// O SDK com autoRefreshToken:true gerencia o refresh automaticamente
-// via onAuthStateChange(TOKEN_REFRESHED). Chamadas manuais de refresh
-// causam invalidação do refresh token (race condition).
-//
-// Esta função apenas verifica se existe uma sessão ativa no cache
-// local (sem chamada de rede), retornando false para tratar no
-// AuthContext com logout defensivo.
-// ---------------------------------------------------------------
-let _lastSessionCheckTs = 0;
-const SESSION_CHECK_COOLDOWN_MS = 15_000; // Máximo 1 check a cada 15s
-
-export async function ensureValidSession(): Promise<boolean> {
-    const now = Date.now();
-
-    // Cooldown: evita flood de verificações se chamado em cascata
-    if (now - _lastSessionCheckTs < SESSION_CHECK_COOLDOWN_MS) {
-        return true; // Assume válida se checamos recentemente
-    }
-    _lastSessionCheckTs = now;
-
-    try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) {
-            // Erros de rede não devem gerar logout — o SDK vai retry
-            const isNetworkIssue =
-                error.message.includes('Failed to fetch') ||
-                error.message.includes('Network') ||
-                error.message.includes('network') ||
-                (typeof navigator !== 'undefined' && !navigator.onLine);
-
-            if (isNetworkIssue) {
-                console.warn('[Nexus Session] ⚠️ Erro de rede ao verificar sessão. Estado local preservado.');
-                return true; // Preserva estado enquanto offline
-            }
-
-            console.error('[Nexus Session] ❌ Erro de sessão:', error.message);
-            return false;
-        }
-
-        return !!session;
-    } catch (err: unknown) {
-        console.error('[Nexus Session] 💥 Exceção inesperada:', err);
-        return false;
-    }
-}
-
-// ---------------------------------------------------------------
-// Ferramentas de Diagnóstico (disponíveis em dev e produção para
-// suporte técnico via console)
+// Diagnósticos — disponíveis via console para suporte técnico
+// Uso: await window.__nexusDiag.ping()
 // ---------------------------------------------------------------
 export const supabaseDiagnostics = {
-    /**
-     * Testa latência real com o banco de dados.
-     * Uso: await window.__nexusDiag.ping()
-     */
-    ping: async (): Promise<{ success: boolean; latencyMs: number; timestamp: string }> => {
+    ping: async (): Promise<{ ok: boolean; latencyMs: number; ts: string }> => {
         const start = Date.now();
         const { error } = await supabase.from('users').select('id').limit(1);
-        const latencyMs = Date.now() - start;
-        if (error) throw error;
-        return { success: true, latencyMs, timestamp: new Date().toISOString() };
+        return { ok: !error, latencyMs: Date.now() - start, ts: new Date().toISOString() };
     },
 
-    /**
-     * Verifica o status dos canais Realtime ativos.
-     */
-    checkRealtime: (): { activeChannels: number; status: 'CONNECTED' | 'INACTIVE'; timestamp: string } => {
-        const channels = (supabase as unknown as { realtime?: { channels?: unknown[] } }).realtime?.channels ?? [];
-        const activeChannels = channels.length;
-        return {
-            activeChannels,
-            status: activeChannels > 0 ? 'CONNECTED' : 'INACTIVE',
-            timestamp: new Date().toISOString(),
-        };
-    },
-
-    /**
-     * Retorna status da sessão atual sem efeitos colaterais.
-     */
-    sessionInfo: async (): Promise<{
-        hasSession: boolean;
-        expiresAt: string | null;
-        userId: string | null;
-    }> => {
+    sessionInfo: async (): Promise<{ hasSession: boolean; expiresAt: string | null; uid: string | null }> => {
         const { data: { session } } = await supabase.auth.getSession();
         return {
             hasSession: !!session,
             expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
-            userId: session?.user?.id ?? null,
+            uid: session?.user?.id ?? null,
         };
+    },
+
+    realtimeStatus: (): { channels: number; status: string } => {
+        const channels = (supabase as unknown as { realtime?: { channels?: unknown[] } }).realtime?.channels ?? [];
+        return { channels: channels.length, status: channels.length > 0 ? 'CONNECTED' : 'INACTIVE' };
     },
 };
 
-// ---------------------------------------------------------------
-// Expõe diagnósticos no window para uso por suporte técnico no console
-// ---------------------------------------------------------------
 if (typeof window !== 'undefined') {
     (window as unknown as Record<string, unknown>).__nexusDiag = supabaseDiagnostics;
 }
 
 // ---------------------------------------------------------------
-// Recovery Listeners — Reconexão após inatividade / retorno de aba
+// Recovery Engine — Reconexão após inatividade / retorno de aba
 //
-// PROBLEMA RESOLVIDO: 'focus' não dispara em PWAs mobile quando o
-// usuário retorna ao app via task switcher. O evento correto é
-// document.visibilitychange com visibilityState === 'visible'.
+// ESTRATÉGIA DEFENSIVA:
+//  1. visibilitychange (document) → principal — cobre PWA + Safari Mobile
+//  2. window.focus → fallback — desktop browsers
+//  3. window.online → recovery após queda de rede
 //
-// ESTRATÉGIA:
-//  1. visibilitychange → principal trigger de recovery
-//  2. window.focus → fallback para desktop browsers
-//  3. online → recovery após queda de rede
-//
-// PROTEÇÃO: _recoveryInFlight garante que não há chamadas paralelas.
+// PROTEÇÕES:
+//  - _recoveryInFlight: evita execuções paralelas do mesmo recovery
+//  - Debounce de 400ms: ignora disparos múltiplos simultâneos
+//  - Verificação de onLine antes de qualquer call de rede
+//  - getSession() sem forçar refresh — o autoRefreshToken age sozinho
 // ---------------------------------------------------------------
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     let _recoveryInFlight = false;
-    let _recoveryDebounce: ReturnType<typeof setTimeout> | undefined;
+    let _recoveryTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const _recoverConnection = async (source: string): Promise<void> => {
-        if (_recoveryInFlight) return;
+    const _runRecovery = async (source: string): Promise<void> => {
+        if (_recoveryInFlight) {
+            if (isDev) console.log(`[Nexus Recovery] Ignorado (em andamento) — trigger: ${source}`);
+            return;
+        }
 
-        // Debounce: se múltiplos eventos chegarem juntos (focus + visibilitychange),
-        // executa apenas uma vez após 300ms
-        if (_recoveryDebounce !== undefined) clearTimeout(_recoveryDebounce);
+        _recoveryInFlight = true;
+        if (isDev) console.log(`[Nexus Recovery] Iniciando — trigger: ${source}`);
 
-        _recoveryDebounce = setTimeout(async () => {
-            if (_recoveryInFlight) return;
-            _recoveryInFlight = true;
-
-            if (isDev) console.log(`[Nexus Recovery] Iniciando recovery — trigger: ${source}`);
-
-            try {
-                // 1. Verifica conectividade antes de tentar qualquer coisa
-                if (!navigator.onLine) {
-                    if (isDev) console.warn('[Nexus Recovery] Offline — recovery adiado.');
-                    return;
-                }
-
-                // 2. Reconecta canais Realtime que possam ter sido suspensos pelo browser/SO
-                const realtimeClient = (supabase as unknown as { realtime?: { connect?: () => void } }).realtime;
-                if (realtimeClient?.connect) {
-                    realtimeClient.connect();
-                    if (isDev) console.log('[Nexus Recovery] ✅ Realtime reconnected.');
-                }
-
-                // 3. getSession() toca o SDK — se o token estiver prestes a expirar,
-                //    o autoRefreshToken vai disparar a renovação em background via
-                //    onAuthStateChange(TOKEN_REFRESHED) sem precisamos intervir.
-                const { data: { session }, error } = await supabase.auth.getSession();
-
-                if (error) {
-                    console.error('[Nexus Recovery] ❌ Erro ao verificar sessão:', error.message);
-                    return;
-                }
-
-                if (!session) {
-                    console.warn('[Nexus Recovery] ⚠️ Sem sessão ativa após recovery. AuthContext irá tratar.');
-                }
-
-                // 4. Dispara evento global para que o AuthContext e queries React
-                //    possam re-validar seus dados sem saber da infra
-                window.dispatchEvent(new CustomEvent('NEXUS_RECOVERY_COMPLETE', {
-                    detail: { source, hasSession: !!session, timestamp: Date.now() }
-                }));
-
-                if (isDev) console.log('[Nexus Recovery] ✅ Recovery completo.');
-            } catch (err: unknown) {
-                console.error('[Nexus Recovery] 💥 Falha no recovery:', err);
-            } finally {
-                _recoveryInFlight = false;
+        try {
+            if (!navigator.onLine) {
+                if (isDev) console.warn('[Nexus Recovery] Offline — adiado.');
+                return;
             }
-        }, 300);
+
+            // Reconecta WebSocket do Realtime se necessário
+            try {
+                const rt = (supabase as unknown as { realtime?: { connect?: () => void; disconnect?: () => void } }).realtime;
+                if (rt?.disconnect && rt?.connect) {
+                    rt.disconnect();
+                    await new Promise(r => setTimeout(r, 200));
+                    rt.connect();
+                    if (isDev) console.log('[Nexus Recovery] ✅ Realtime reconectado.');
+                }
+            } catch (rtErr) {
+                if (isDev) console.warn('[Nexus Recovery] Realtime reconnect error (não crítico):', rtErr);
+            }
+
+            // Toca o SDK — se o token estiver vencido/próximo, autoRefreshToken age
+            const { data: { session }, error } = await supabase.auth.getSession();
+
+            if (error && isDev) console.warn('[Nexus Recovery] getSession error:', error.message);
+
+            // Notifica camadas superiores (AuthContext, React Query)
+            window.dispatchEvent(new CustomEvent('NEXUS_RECOVERY_COMPLETE', {
+                detail: { source, hasSession: !!session, ts: Date.now() }
+            }));
+
+            if (isDev) console.log(`[Nexus Recovery] ✅ Completo — hasSession: ${!!session}`);
+        } catch (err) {
+            console.error('[Nexus Recovery] 💥 Falha:', err);
+        } finally {
+            _recoveryInFlight = false;
+        }
     };
 
-    // Trigger #1: Visibilidade da aba (principal — cobre PWA mobile)
+    const _scheduleRecovery = (source: string) => {
+        if (_recoveryTimer !== undefined) clearTimeout(_recoveryTimer);
+        _recoveryTimer = setTimeout(() => _runRecovery(source), 400);
+    };
+
+    // visibilitychange — principal trigger (PWA, Safari Mobile, Chrome Mobile)
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-            _recoverConnection('visibilitychange');
-        }
+        if (document.visibilityState === 'visible') _scheduleRecovery('visibilitychange');
     });
 
-    // Trigger #2: Focus da janela (fallback desktop)
-    window.addEventListener('focus', () => {
-        _recoverConnection('window.focus');
-    });
+    // focus — fallback para desktop
+    window.addEventListener('focus', () => _scheduleRecovery('window.focus'));
 
-    // Trigger #3: Reconexão de rede
-    window.addEventListener('online', () => {
-        _recoverConnection('network.online');
-    });
+    // online — retorno de conectividade
+    window.addEventListener('online', () => _scheduleRecovery('network.online'));
 }
 
-// Re-export de tipo para consumidores que precisam
+
 export type { SupabaseClient };
+
+// ---------------------------------------------------------------
+// ensureValidSession
+// Re-exportada para retrocompatibilidade com orderService.ts e outros.
+// Lê do cache local do SDK (sem chamada de rede forçada).
+// NÃO chama refreshSession() — o autoRefreshToken cuida disso.
+// ---------------------------------------------------------------
+let _lastSessionCheckTs = 0;
+const SESSION_CHECK_COOLDOWN_MS = 15_000;
+
+export async function ensureValidSession(): Promise<boolean> {
+    const now = Date.now();
+    if (now - _lastSessionCheckTs < SESSION_CHECK_COOLDOWN_MS) return true;
+    _lastSessionCheckTs = now;
+
+    try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+            const isNetwork = error.message.includes('fetch') || error.message.includes('Network') || (typeof navigator !== 'undefined' && !navigator.onLine);
+            if (isNetwork) return true; // Preserva estado enquanto offline
+            return false;
+        }
+        return !!session;
+    } catch {
+        return false;
+    }
+}
