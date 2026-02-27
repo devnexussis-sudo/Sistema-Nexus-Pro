@@ -306,16 +306,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     }
 
                     if (event === 'SIGNED_IN' && session?.user) {
-                        const user = await DataService.refreshUser().catch(() => null);
-                        if (user && isMountedRef.current) {
-                            setAuth({ user, isAuthenticated: true });
-                            lastActivityRef.current = Date.now();
-                            GlobalStorage.set('last_activity', lastActivityRef.current);
-                        } else if (!user) {
-                            // Autenticado no Supabase mas não cadastrado no Nexus
-                            logger.error('[Auth] 🛑 Usuário não autorizado no sistema Nexus.');
-                            await supabase.auth.signOut().catch(() => { });
-                            if (isMountedRef.current) setAuth({ user: null, isAuthenticated: false });
+                        try {
+                            const user = await DataService.refreshUser();
+                            if (user && isMountedRef.current) {
+                                setAuth({ user, isAuthenticated: true });
+                                lastActivityRef.current = Date.now();
+                                GlobalStorage.set('last_activity', lastActivityRef.current);
+                            } else if (user === undefined) {
+                                // 🛑 undefined significa: a query executou no banco e retornou PGRST116 (0 linhas)
+                                // Ou seja, usuário logou no SDK mas não tem registro no Nexus!
+                                logger.error('[Auth] 🛑 Usuário não autorizado no sistema Nexus.');
+                                await supabase.auth.signOut().catch(() => { });
+                                if (isMountedRef.current) setAuth({ user: null, isAuthenticated: false });
+                            }
+                        } catch (err) {
+                            // ⚠️ network timeout ou DB unreachable durante refresh
+                            // NÃO FAZEMOS LOGOUT AQUI. Mantemos a sessão. 
+                            logger.warn('[Auth] Erro transiente ao buscar perfil durante SIGNED_IN. Sessão mantida activa.', err);
+                            // Se a UI precisar, ela pode mostrar um erro e forçar retry manually,
+                            // mas o singleton do Supabase continua conectado.
                         }
                         if (isMountedRef.current) setIsInitializing(false);
                         return;
@@ -459,9 +468,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // ── API Pública ───────────────────────────────────────────────
     const refreshUser = useCallback(async (): Promise<User | undefined> => {
-        const user = await DataService.refreshUser();
-        if (user && isMountedRef.current) setAuth({ user, isAuthenticated: true });
-        return user;
+        try {
+            const user = await DataService.refreshUser();
+            if (user && isMountedRef.current) setAuth({ user, isAuthenticated: true });
+            return user;
+        } catch (err) {
+            logger.warn('[Auth] API refreshUser failed, ignoring exception', err);
+            return undefined; // ou devolve do cache local, se precisar
+        }
     }, []);
 
     return (
