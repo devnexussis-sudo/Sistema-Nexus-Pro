@@ -47,21 +47,19 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     const totalValue = useMemo(() => items.reduce((acc, curr) => acc + curr.total, 0), [items]);
 
-    // ---------------------------------------------------------------
-    // Helper: detecta se o ID é o Identificador Soberano (ORC-...) ou
-    // um UUID legado. Para UUIDs, exibe versão compacta (8 chars).
-    // ---------------------------------------------------------------
+    // Helper: retorna o melhor identificador visual para o orçamento.
+    // Prioridade: displayId (ORC-...) > id compacto (UUID legado)
     const getQuoteDisplayId = (quote: Quote): string => {
-        const { id } = quote;
-        const isSovereignId = id.startsWith('ORC-') || id.startsWith('orc-');
-        if (isSovereignId) return id; // Já é humanável—exibe completo
-        // UUID legado: exibe os primeiros 8 chars em uppercase
-        return `#${id.slice(0, 8).toUpperCase()}...`;
+        // displayId é o Identificador Soberano gerado pela app e salvo em display_id no banco
+        if (quote.displayId) return quote.displayId;
+        // Fallback para orçamentos legados sem display_id: exibe UUID compacto
+        return `#${quote.id.slice(0, 8).toUpperCase()}`;
     };
 
-    // 🚀 Preview de ID Soberano Nexus em Tempo Real (Padrão Sequencial)
+    // Preview do Identificador Soberano no modal de criação
     const previewId = useMemo(() => {
-        if (selectedQuote) return selectedQuote.id;
+        // Em edição: mostra o displayId existente (ou id legado)
+        if (selectedQuote) return selectedQuote.displayId || getQuoteDisplayId(selectedQuote);
         if (!customerName) return 'ORC-XXXXXX000';
 
         const customer = customers.find(c => c.name === customerName);
@@ -216,6 +214,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         const term = searchTerm.toLowerCase();
         return quotes.filter(q =>
             q.customerName.toLowerCase().includes(term) ||
+            // Busca pelo Identificador Soberano (ORC-...)
+            (q.displayId || '').toLowerCase().includes(term) ||
+            // Busca pelo UUID interno (fallback)
             q.id.toLowerCase().includes(term) ||
             (q.linkedOrderId || '').toLowerCase().includes(term)
         );
