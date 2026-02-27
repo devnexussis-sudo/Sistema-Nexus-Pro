@@ -53,12 +53,24 @@ const safeKey = supabaseAnonKey ?? 'placeholder';
 const _buildLock = (): LockFunc => {
     // Web Locks API — nativa do browser, sobrevive à suspensão de SO
     if (typeof navigator !== 'undefined' && 'locks' in navigator) {
-        return (name: string, fn: () => Promise<unknown>) =>
-            navigator.locks.request(`nexus_auth_${name}`, { mode: 'exclusive' }, fn);
+        // IMPORTANTE: O SDK do Supabase chama lock com 3 params: (name, acquireTimeout, fn)
+        // acquireTimeout: -1 = sem timeout, 0 = try-or-fail imediato, N = milliseconds
+        return (name: string, acquireTimeout: number, fn: () => Promise<unknown>) => {
+            if (acquireTimeout > 0) {
+                const ac = new AbortController();
+                setTimeout(() => ac.abort(), acquireTimeout);
+                return navigator.locks.request(`nexus_auth_${name}`, {
+                    mode: 'exclusive',
+                    signal: ac.signal,
+                }, fn);
+            }
+            // acquireTimeout <= 0: sem timeout (padrão do SDK)
+            return navigator.locks.request(`nexus_auth_${name}`, { mode: 'exclusive' }, fn);
+        };
     }
     // Fallback: execução direta em browsers sem Web Locks
     if (isDev) console.warn('[Nexus Lock] Web Locks API indisponível — usando fallback direto.');
-    return (_name: string, fn: () => Promise<unknown>) => fn();
+    return (_name: string, _acquireTimeout: number, fn: () => Promise<unknown>) => fn();
 };
 
 const nexusLock: LockFunc = _buildLock();
