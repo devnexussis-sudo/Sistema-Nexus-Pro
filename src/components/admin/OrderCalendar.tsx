@@ -219,39 +219,38 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
       {/* MODAL DE LISTAGEM POR DIA (QUANTIDADE -> LISTA) */}
       {selectedDayData && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-           <div className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[80vh]">
-              <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">
-                    {format(selectedDayData.day, "dd 'de' MMMM", { locale: ptBR })}
-                  </h3>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{selectedDayData.orders.length} Ordens de Serviço</p>
-                </div>
-                <button onClick={() => setSelectedDayData(null)} className="p-2 hover:bg-white rounded-xl text-slate-400 transition-all"><X size={18} /></button>
+          <div className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[80vh]">
+            <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">
+                  {format(selectedDayData.day, "dd 'de' MMMM", { locale: ptBR })}
+                </h3>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{selectedDayData.orders.length} Ordens de Serviço</p>
               </div>
+              <button onClick={() => setSelectedDayData(null)} className="p-2 hover:bg-white rounded-xl text-slate-400 transition-all"><X size={18} /></button>
+            </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-                {selectedDayData.orders.map(order => (
-                  <div 
-                    key={order.id}
-                    onClick={() => handleOrderClick(order)}
-                    className={`group flex items-center gap-4 p-4 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-95 ${getStatusStyle(order.status)}`}
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-black/5 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
-                      <Clock size={16} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-black uppercase truncate leading-none mb-1">{order.customerName}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[8px] font-bold bg-black/10 px-1 rounded uppercase tracking-tighter">#{order.displayId || 'S/N'}</span>
-                        <span className="text-[8px] font-black italic">{order.scheduledTime || '--:--'}</span>
-                      </div>
-                    </div>
-                    <ChevronRight size={14} className="opacity-30 group-hover:opacity-100 transition-all" />
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+              {selectedDayData.orders.map(order => (
+                <div
+                  key={order.id}
+                  onClick={() => handleOrderClick(order)}
+                  className={`group flex items-center gap-4 p-4 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-95 ${getStatusStyle(order.status)}`}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-black/5 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
+                    <Clock size={16} />
                   </div>
-                ))}
-              </div>
-           </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-black uppercase truncate leading-none mb-1">#{order.displayId || 'S/N'} - {techs.find(t => t.id === order.assignedTo)?.name || 'NÃO ATRIBUÍDO'}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-black italic">{order.scheduledTime || '--:--'}</span>
+                    </div>
+                  </div>
+                  <ChevronRight size={14} className="opacity-30 group-hover:opacity-100 transition-all" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
