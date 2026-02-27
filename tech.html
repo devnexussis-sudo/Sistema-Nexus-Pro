@@ -12,7 +12,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
-  <link rel="manifest" href="/tech-manifest.json">
   <meta name="theme-color" content="#05070a">
   <link rel="apple-touch-icon" href="/pwa-icon.png">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -82,28 +81,14 @@
   <script type="module" src="/src/tech-index.tsx"></script>
 
   <script>
-    // Gerenciador de Service Worker e Limpeza de Splash
+    // Remover Worker de PWA
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/tech-sw.js', { scope: '/' })
-          .then(reg => {
-            console.log('[Nexus Tech PWA] ✅ Service Worker registrado:', reg.scope);
-            window.__nexusTechSWRegistration = reg;
-
-            reg.addEventListener('updatefound', () => {
-              const newWorker = reg.installing;
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  window.dispatchEvent(new CustomEvent('nexus-sw-update-available'));
-                }
-              });
-            });
-          })
-          .catch(err => console.error('[Nexus Tech PWA] ❌ Erro ao registrar SW:', err));
-
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          window.location.reload();
-        });
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        for (let registration of registrations) {
+          registration.unregister().then(function (boolean) {
+            console.log('Tech Service worker unregistered:', boolean);
+          });
+        }
       });
     }
 
