@@ -15,6 +15,9 @@ export const QuoteService = {
         if (!data) return null;
         return {
             id: data.id,
+            // display_id: Identificador Soberano (ORC-...) gerado pela app.
+            // Separado da PK UUID para retrocompatibilidade.
+            displayId: data.display_id || null,
             publicToken: data.public_token,
             tenantId: data.tenant_id,
             customerName: data.customer_name,
@@ -76,7 +79,8 @@ export const QuoteService = {
     createQuote: async (quote: any): Promise<any> => {
         const tid = getCurrentTenantId();
         if (isCloudEnabled) {
-            // 🚀 Novo Gerador de ID Soberano Nexus: ORC + 2Dig Doc + YYMM + 3Dig Sequencer
+            // 🚀 Gerador de Identificador Soberano Nexus: ORC + 2Dig Doc + YYMM + 3Dig Sequencer
+            // Salvo em `display_id` (TEXT) — a PK `id` continua sendo UUID gerado pelo Postgres
             const docClean = (quote.customerDocument || '0000').replace(/\D/g, '');
             const docPart = docClean.substring(0, 2).padStart(2, '0');
 
@@ -84,7 +88,7 @@ export const QuoteService = {
             const yy = String(now.getFullYear()).substring(2);
             const mm = String(now.getMonth() + 1).padStart(2, '0');
 
-            // Busca a quantidade de orçamentos deste mês para o sequenciador (count only)
+            // Conta orçamentos deste mês para o sequenciador
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
             const { count } = await supabase.from('quotes')
                 .select('*', { count: 'exact', head: true })
@@ -92,10 +96,11 @@ export const QuoteService = {
                 .gte('created_at', startOfMonth);
 
             const sequencer = String((count || 0) + 1).padStart(3, '0');
-            const generatedId = `ORC-${docPart}${yy}${mm}${sequencer}`;
+            const sovereignId = `ORC-${docPart}${yy}${mm}${sequencer}`;
 
             const dbPayload = {
-                id: generatedId,
+                // Não inclui `id` — deixa o Postgres gerar o UUID automaticamente
+                display_id: sovereignId,   // ← Identificador Soberano aqui
                 tenant_id: tid,
                 customer_name: quote.customerName,
                 customer_address: quote.customerAddress,
