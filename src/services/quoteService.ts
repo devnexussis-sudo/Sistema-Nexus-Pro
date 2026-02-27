@@ -62,8 +62,7 @@ export const QuoteService = {
                     .limit(100);
 
                 if (error) {
-                    console.error("Erro ao buscar orçamentos:", error);
-                    return [];
+                    throw error;
                 }
                 const mapped = (data || []).map(d => QuoteService._mapQuoteFromDB(d));
                 CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min
