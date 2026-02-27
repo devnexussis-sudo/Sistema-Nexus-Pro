@@ -102,3 +102,30 @@ export const supabaseDiagnostics = {
 };
 
 export type { SupabaseClient };
+
+// ---------------------------------------------------------------------
+// Forçar Online no Focus
+// ---------------------------------------------------------------------
+if (typeof window !== 'undefined') {
+    window.addEventListener('focus', async () => {
+        console.log('--- TESTE DE FLUXO --- App focado, acordando conexões...');
+
+        if (navigator.onLine) {
+            // Re-instancia a checagem manual de sessão para reativar lazy client
+            await ensureValidSession();
+
+            // Re-conecta os canais realtime que o PWA pode ter suspendido
+            if (supabase.realtime) {
+                supabase.realtime.connect();
+            }
+        }
+    });
+
+    window.addEventListener('online', async () => {
+        console.log('--- TESTE DE FLUXO --- Conexão restaurada, acordando conexões...');
+        await ensureValidSession();
+        if (supabase.realtime) {
+            supabase.realtime.connect();
+        }
+    });
+}

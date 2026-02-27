@@ -138,6 +138,12 @@ self.addEventListener('fetch', (event) => {
 
     // Ignora requisições não-GET e padrões bloqueados
     if (request.method !== 'GET') return;
+
+    // Bypass explícito e absoluto para API Supabase (Network-Only)
+    if (url.hostname.includes('supabase.co')) {
+        return; // Retornar sem respondWith faz o browser ignorar o SW e ir rotear direto pela rede
+    }
+
     if (NEVER_CACHE_PATTERNS.some((p) => p.test(request.url))) return;
     if (url.protocol === 'chrome-extension:') return;
 
