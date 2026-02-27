@@ -72,9 +72,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     }, [customerName, customers, selectedQuote, quotes]);
 
     // Filtra as ordens do cliente selecionado para permitir vínculo manual
+    // Usa comparação case-insensitive e trim para evitar mismatches de capitalização
     const customerOrders = useMemo(() => {
         if (!customerName) return [];
-        return orders.filter(o => o.customerName === customerName);
+        const normalizedName = customerName.trim().toLowerCase();
+        return orders.filter(o => o.customerName?.trim().toLowerCase() === normalizedName);
     }, [orders, customerName]);
 
     const handleAddItem = () => {
@@ -189,9 +191,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     };
 
     const filteredQuotes = useMemo(() => {
+        const term = searchTerm.toLowerCase();
         return quotes.filter(q =>
-            q.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            q.id.toLowerCase().includes(searchTerm.toLowerCase())
+            q.customerName.toLowerCase().includes(term) ||
+            q.id.toLowerCase().includes(term) ||
+            (q.linkedOrderId || '').toLowerCase().includes(term)
         );
     }, [quotes, searchTerm]);
 
@@ -247,8 +251,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             {paginatedQuotes.map(quote => (
                                 <tr key={quote.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
                                     <td className="px-4 py-1.5">
-                                        <div className="flex flex-col truncate max-w-[120px]">
-                                            <span className="text-[11px] font-black uppercase italic text-primary-600 tracking-tighter truncate">{quote.id}</span>
+                                        <div className="flex flex-col truncate max-w-[140px]">
+                                            {/* quote.id É o Identificador Soberano (ORC-...) gerado no createQuote */}
+                                            <span className="text-[11px] font-black uppercase italic text-primary-600 tracking-tighter truncate" title={quote.id}>{quote.id}</span>
                                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">{quote.title}</span>
                                         </div>
                                     </td>
@@ -267,11 +272,19 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     </td>
                                     <td className="px-4 py-1.5 text-[11px] font-bold text-emerald-600 whitespace-nowrap">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                     <td className="px-4 py-1.5 text-[9px] font-bold uppercase whitespace-nowrap">
-                                        {quote.linkedOrderId ? (
-                                            <span className="px-1.5 py-0.5 bg-slate-50 text-[#1c2d4f] rounded-lg border border-slate-200 flex items-center gap-1 w-fit">
-                                                <Link2 size={10} /> {quote.linkedOrderId.slice(0, 8)}
-                                            </span>
-                                        ) : (
+                                        {quote.linkedOrderId ? (() => {
+                                            // Busca a OS vinculada para exibir o protocolo (displayId) em vez do UUID
+                                            const linkedOrder = orders.find(o =>
+                                                o.id === quote.linkedOrderId ||
+                                                o.displayId === quote.linkedOrderId
+                                            );
+                                            const label = linkedOrder?.displayId || linkedOrder?.id?.slice(0, 10) || quote.linkedOrderId.slice(0, 10);
+                                            return (
+                                                <span className="px-1.5 py-0.5 bg-slate-50 text-[#1c2d4f] rounded-lg border border-slate-200 flex items-center gap-1 w-fit" title={quote.linkedOrderId}>
+                                                    <Link2 size={10} /> {label}
+                                                </span>
+                                            );
+                                        })() : (
                                             <span className="text-slate-300">Sem Vínculo</span>
                                         )}
                                     </td>
@@ -455,9 +468,19 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
                                                 >
                                                     <option value="">Sem Vínculo</option>
-                                                    {customerOrders.map(o => (
-                                                        <option key={o.id} value={o.id}>{o.id}</option>
-                                                    ))}
+                                                    {customerOrders.length === 0 && customerName && (
+                                                        <option disabled value="">── Nenhuma OS para este cliente ──</option>
+                                                    )}
+                                                    {customerOrders.map(o => {
+                                                        // Usa Identificador Soberano (displayId) como label e value
+                                                        const label = o.displayId || o.id;
+                                                        const value = o.displayId || o.id;
+                                                        return (
+                                                            <option key={o.id} value={value}>
+                                                                {label} — {o.title}
+                                                            </option>
+                                                        );
+                                                    })}
                                                 </select>
                                             </div>
                                         </div>
