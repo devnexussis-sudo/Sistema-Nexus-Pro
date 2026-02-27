@@ -136,11 +136,18 @@ export const AuthService = {
             .eq('id', authId)
             .single();
 
+        if (error) {
+            // PGRST116 is the standard PostgREST code for single() returning exactly 0 rows.
+            if (error.code === 'PGRST116') {
+                logger.warn('Acesso Negado: Usuário autenticado mas não autorizado (sem registro na tabela users).', { authId, email });
+                return undefined;
+            }
+            // If it's a network error or 5xx, we MUST throw. 
+            // Returning undefined would cause AuthContext to forcefully signOut() the user!
+            throw new Error(`Falha transitória ao buscar usuário: ${error.message}`);
+        }
+
         if (!dbUser) {
-            // 🛑 SEGURANÇA BIG TECH: Bloqueio de acesso se não houver registro na tabela 'users'.
-            // Isso garante que apenas e-mails pré-autorizados pela empresa (via Admin) possam entrar,
-            // mesmo que consigam se autenticar no Google/Auth.
-            logger.warn('Acesso Negado: Usuário autenticado mas não autorizado (sem registro na tabela users).', { authId, email });
             return undefined;
         }
 
