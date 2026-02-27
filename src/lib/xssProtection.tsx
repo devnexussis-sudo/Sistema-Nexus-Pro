@@ -111,11 +111,11 @@ export function SafeHtml({ html, config, className, strict = false }: SafeHtmlPr
 
     return (
         <div
-      className= { className }
+            className= { className }
     dangerouslySetInnerHTML = {{ __html: sanitized }
 }
-    />
-  );
+        />
+    );
 }
 
 /**

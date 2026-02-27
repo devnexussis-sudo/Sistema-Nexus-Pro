@@ -8,7 +8,6 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0f172a">
   <link rel="apple-touch-icon" href="/pwa-icon.png">
   <style>
@@ -108,32 +107,12 @@
 
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
-          .then(reg => {
-            console.log('[Nexus PWA] ✅ Service Worker registrado:', reg.scope);
-            // Expõe o registro para o app React usar (push, sync, etc.)
-            window.__nexusSWRegistration = reg;
-
-            // Detecta nova versão disponível
-            reg.addEventListener('updatefound', () => {
-              const newWorker = reg.installing;
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('[Nexus PWA] 🔄 Nova versão disponível!');
-                  // Dispara evento para o app React mostrar banner de atualização
-                  window.dispatchEvent(new CustomEvent('nexus-sw-update-available'));
-                }
-              });
-            });
-          })
-          .catch(err => console.error('[Nexus PWA] ❌ Erro ao registrar SW:', err));
-
-        // Detecta quando o SW assume controle (útil para logs, mas evitamos reload forçado aqui para prevenir loops)
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          console.log('[Nexus PWA] 🔄 Novo Service Worker assumiu o controle.');
-          // window.location.reload(); // ⚠️ REMOVIDO: Evita loop infinito de recarregamento
-        });
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister().then(function(boolean) {
+            console.log('Service worker unregistered:', boolean);
+          });
+        }
       });
     }
 
