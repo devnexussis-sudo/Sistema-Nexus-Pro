@@ -53,9 +53,17 @@ const safeKey = supabaseAnonKey ?? 'placeholder';
 const _buildLock = (): LockFunc => {
     // Web Locks API — nativa do browser, sobrevive à suspensão de SO
     if (typeof navigator !== 'undefined' && 'locks' in navigator) {
-        // IMPORTANTE: O SDK do Supabase chama lock com 3 params: (name, acquireTimeout, fn)
-        // acquireTimeout: -1 = sem timeout, 0 = try-or-fail imediato, N = milliseconds
-        return (name: string, acquireTimeout: number, fn: () => Promise<unknown>) => {
+        // IMPORTANTE: O SDK do Supabase pode chamar com 2 ou 3 params dependendo da versão do gotrue-js
+        return (name: string, arg2: number | (() => Promise<unknown>), arg3?: () => Promise<unknown>) => {
+            const acquireTimeout = typeof arg2 === 'number' ? arg2 : 0;
+            const fn = typeof arg2 === 'function' ? arg2 : arg3;
+
+            if (typeof fn !== 'function') {
+                console.error(`[Nexus Lock] 💥 Falha crítica: Callback não recebido para '${name}'`);
+                // Evita crashar a aplicação inteira
+                return Promise.resolve(null as any);
+            }
+
             if (acquireTimeout > 0) {
                 const ac = new AbortController();
                 setTimeout(() => ac.abort(), acquireTimeout);
@@ -66,11 +74,15 @@ const _buildLock = (): LockFunc => {
             }
             // acquireTimeout <= 0: sem timeout (padrão do SDK)
             return navigator.locks.request(`nexus_auth_${name}`, { mode: 'exclusive' }, fn);
-        };
+        } as unknown as LockFunc; // cast para contornar tipagem estrita da interface atual
     }
+
     // Fallback: execução direta em browsers sem Web Locks
     if (isDev) console.warn('[Nexus Lock] Web Locks API indisponível — usando fallback direto.');
-    return (_name: string, _acquireTimeout: number, fn: () => Promise<unknown>) => fn();
+    return (_name: string, arg2: number | (() => Promise<unknown>), arg3?: () => Promise<unknown>) => {
+        const fn = typeof arg2 === 'function' ? arg2 : arg3;
+        return typeof fn === 'function' ? fn() : Promise.resolve(null as any);
+    } as unknown as LockFunc;
 };
 
 const nexusLock: LockFunc = _buildLock();
