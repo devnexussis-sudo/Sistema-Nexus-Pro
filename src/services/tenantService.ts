@@ -28,7 +28,11 @@ export const TenantService = {
                         .select('*')
                         .order('name');
 
-                    if (!viewError && viewData) {
+                    if (viewError) {
+                        throw viewError;
+                    }
+
+                    if (viewData) {
                         CacheManager.set(cacheKey, viewData, CacheManager.TTL.SHORT);
                         return viewData as DbTenantStats[];
                     }

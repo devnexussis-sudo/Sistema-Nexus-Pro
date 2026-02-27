@@ -44,8 +44,7 @@ export const EquipmentService = {
                     .limit(100);
 
                 if (error) {
-                    console.error("Erro ao buscar equipamentos:", error);
-                    return [];
+                    throw error;
                 }
                 const mapped = (data || []).map(d => EquipmentService._mapEquipmentFromDB(d));
                 CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min

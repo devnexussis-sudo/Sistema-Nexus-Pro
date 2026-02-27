@@ -136,7 +136,7 @@ export function useQuery<T>(
         }
 
         // 🛡️ Request Deduplication (com anti-deadlock)
-        const isPromiseStale = cached?.promiseTimestamp && (Date.now() - cached.promiseTimestamp > 15000); // 15s timeout
+        const isPromiseStale = cached?.promiseTimestamp && (Date.now() - cached.promiseTimestamp > 45000); // 45s timeout para acomodar retries do fetch
 
         if (cached?.promise && !isPromiseStale) {
             console.log(`[NexusQuery] ♻️ Reusing request: ${key}`);

@@ -103,14 +103,22 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
         lock: nexusLock,                    // Lock nativo do SO — elimina deadlock por suspensão
     },
 
+    realtime: {
+        params: {
+            eventsPerSecond: 10,
+        },
+        heartbeatIntervalMs: 15000,
+        timeout: 30000,
+    },
+
     global: {
         // -------------------------------------------------------------
         // Fetch com retry exponencial para erros de rede transitórios.
         // NÃO chama refresh de sessão aqui — o SDK já faz isso.
-        // Timeout de 30s por tentativa para prevenir hanging requests.
+        // Timeout de 12s por tentativa para prevenir hanging requests (Zombie Promises).
         // -------------------------------------------------------------
         fetch: async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-            const MAX_RETRIES = 3;
+            const MAX_RETRIES = 2; // Reduzido de 3 para agilizar fallback do Cache
             const BASE_DELAY_MS = 1_000;
             let lastError: unknown;
 
@@ -120,7 +128,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                 const callerSignal = (init as RequestInit & { signal?: AbortSignal })?.signal;
                 if (callerSignal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-                const timeoutId = setTimeout(() => controller.abort(), 30_000);
+                const timeoutId = setTimeout(() => controller.abort(), 12_000);
 
                 try {
                     const response = await fetch(url, {

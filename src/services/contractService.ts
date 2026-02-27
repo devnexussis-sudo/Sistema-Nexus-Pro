@@ -65,8 +65,7 @@ export const ContractService = {
                     .limit(100);
 
                 if (error) {
-                    console.error("Erro ao buscar contratos:", error);
-                    return [];
+                    throw error;
                 }
                 const mapped = (data || []).map(d => ContractService._mapContractFromDB(d));
                 CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min

@@ -54,8 +54,7 @@ export const CustomerService = {
                     .limit(100);
 
                 if (error) {
-                    console.error("Erro ao buscar clientes:", error);
-                    return [];
+                    throw error;
                 }
 
                 const mapped = (data || []).map(d => CustomerService._mapCustomerFromDB(d));
