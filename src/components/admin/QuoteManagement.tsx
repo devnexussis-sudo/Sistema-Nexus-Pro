@@ -337,21 +337,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 <Eye size={16} />
                                             </button>
 
-                                            {/* Copiar URL */}
-                                            <button
-                                                onClick={() => {
-                                                    const url = `${window.location.origin}/#/view-quote/${quote.publicToken || quote.id}`;
-                                                    console.log('[QuoteManagement] Copiando link público:', url);
-                                                    navigator.clipboard.writeText(url);
-                                                    alert('URL pública copiada para a área de transferência!');
-                                                }}
-                                                className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-primary-100 active:scale-95"
-                                                title="Copiar URL Pública"
-                                            >
-                                                <Link size={16} />
-                                            </button>
-
-                                            {/* Abrir em Nova Aba */}
+                                            {/* Abrir Link Público */}
                                             <button
                                                 onClick={() => {
                                                     const url = `${window.location.origin}/#/view-quote/${quote.publicToken || quote.id}`;
@@ -364,16 +350,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 <ExternalLink size={16} />
                                             </button>
 
-                                            {quote.status !== 'CONVERTIDO' && (
-                                                <button
-                                                    onClick={() => handleConvertToOrder(quote)}
-                                                    className="p-3 bg-amber-50/50 text-amber-500 hover:text-amber-700 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-amber-100 active:scale-95"
-                                                    title="Converter em O.S."
-                                                >
-                                                    <ArrowUpRight size={16} />
-                                                </button>
-                                            )}
-
+                                            {/* Editar */}
                                             <button
                                                 onClick={() => {
                                                     setSelectedQuote(quote);
@@ -391,6 +368,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 <Edit3 size={16} />
                                             </button>
 
+                                            {/* Excluir */}
                                             <button
                                                 onClick={() => onDeleteQuote(quote.id)}
                                                 className="p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-rose-100 active:scale-95"

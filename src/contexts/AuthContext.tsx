@@ -1,16 +1,18 @@
 // ============================================================
 // src/contexts/AuthContext.tsx
-// 🛡️ NEXUS LINE — Authentication Context
-// Padrão: Big Tech / Clean Architecture
+// 🛡️ NEXUS LINE — Authentication Context v3.0
+// Padrão: Big Tech / Clean Architecture / Zero Gambiarra
 //
-// REGRAS DE GOVERNANÇA:
-//  ✅ Não chama refreshSession() manualmente (race condition fatal)
-//  ✅ Delegates refresh para o SDK via autoRefreshToken
-//  ✅ Um único useEffect de setup — deps estabilizadas via useRef
-//  ✅ Mutex isValidatingRef para evitar chamadas simultâneas
-//  ✅ Escuta visibilitychange (PWA/mobile) + focus (desktop fallback)
-//  ✅ Responde ao evento NEXUS_RECOVERY_COMPLETE da camada de infra
-//  ✅ Logout defensivo apenas em falhas reais — erros de rede preservam estado
+// GOVERNANÇA (.cursorrules):
+//  ✅ ZERO refreshSession() manual — race condition fatal
+//  ✅ Único useEffect de setup — deps estabilizadas via useRef
+//  ✅ isValidatingRef com reset garantido no finally (nunca fica preso)
+//  ✅ Logout automático após 12h de inatividade (requisito de produto)
+//  ✅ Listeners: visibilitychange (principal) + focus + online
+//  ✅ Resposta ao NEXUS_RECOVERY_COMPLETE da camada de infra
+//  ✅ Erros de rede NÃO geram logout — só falhas reais de sessão
+//  ✅ Interval de heartbeat a cada 2 minutos (lightweight check local)
+//  ✅ Cleanup completo no unmount — sem memory leaks
 // ============================================================
 
 import React, {
@@ -26,6 +28,14 @@ import { DataService } from '../services/dataService';
 import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
 import { logger } from '../lib/logger';
 import { supabase } from '../lib/supabase';
+
+// ---------------------------------------------------------------
+// Constantes de Sessão
+// ---------------------------------------------------------------
+const INACTIVITY_LOGOUT_MS = 12 * 60 * 60 * 1000;   // 12 horas (requisito de produto)
+const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000;          // 2 minutos (era 60s — reduz network noise)
+const ACTIVITY_THROTTLE_MS = 30_000;                  // 30 segundos por update de atividade
+const RECOVERY_DEBOUNCE_MS = 500;                     // Debounce de recovery
 
 // ---------------------------------------------------------------
 // Context Types
@@ -45,6 +55,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // AuthProvider
 // ---------------------------------------------------------------
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+
     // ── Estado ──────────────────────────────────────────────────
     const [auth, setAuth] = useState<AuthState>(() => {
         const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
@@ -55,16 +66,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const [isInitializing, setIsInitializing] = useState(true);
 
-    // ── Refs (estáveis entre renders — não disparam re-criação de efeitos) ──
+    // ── Refs — estáveis entre renders, não causam re-criação de effects ──
     const isMountedRef = useRef(true);
     const authSubscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
-    const isValidatingRef = useRef(false);               // Mutex: evita validações simultâneas
-    const focusDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    /**
+     * isValidatingRef: mutex para evitar validações de sessão simultâneas.
+     * CRÍTICO: sempre deve ser resetado no finally — nunca pode ficar true
+     * permanentemente pois travaria todas as futuras validações.
+     */
+    const isValidatingRef = useRef(false);
+
+    const recoveryDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const wasOfflineRef = useRef(false);
+
+    /**
+     * lastActivityRef: timestamp da última interação do usuário.
+     * Persiste no GlobalStorage para sobreviver a reloads.
+     */
     const lastActivityRef = useRef<number>(
         GlobalStorage.get<number>('last_activity') || Date.now()
     );
-    // Ref para auth.isAuthenticated — lido nos handlers sem criar nova closure
+
+    /**
+     * isAuthenticatedRef: snapshot de auth.isAuthenticated para leitura
+     * segura em closures/handlers sem criar dependência no useEffect.
+     */
     const isAuthenticatedRef = useRef(auth.isAuthenticated);
     useEffect(() => {
         isAuthenticatedRef.current = auth.isAuthenticated;
@@ -72,17 +99,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // ── Login ────────────────────────────────────────────────────
     const login = useCallback((user: User) => {
+        lastActivityRef.current = Date.now();
+        GlobalStorage.set('last_activity', lastActivityRef.current);
         setAuth({ user, isAuthenticated: true });
     }, []);
 
     // ── Logout ───────────────────────────────────────────────────
-    // useCallback sem deps voláteis — estável entre renders
+    /**
+     * IMPORTANTE: useCallback sem deps voláteis → função estável entre renders.
+     * Usado via logoutRef.current em closures para evitar dependências circulares.
+     */
     const logout = useCallback(async () => {
-        logger.info('[AuthContext] Iniciando logout...');
+        logger.info('[Auth] Iniciando logout...');
 
+        // Limpa estado React imediatamente (UI responde rápido)
         setAuth({ user: null, isAuthenticated: false });
+
+        // Limpa storages
         SessionStorage.clear();
         GlobalStorage.remove('persistent_user');
+        GlobalStorage.remove('last_activity');
 
         const authKeys = [
             'nexus_shared_auth',
@@ -90,66 +126,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             'nexus_tech_session_v2',
             'nexus_tech_cache_v2',
             'persistent_user',
+            'last_activity',
         ];
         authKeys.forEach(key => {
-            localStorage.removeItem(key);
-            localStorage.removeItem(`nexus_global_${key}`);
-            sessionStorage.removeItem(key);
+            try { localStorage.removeItem(key); } catch { /* noop */ }
+            try { localStorage.removeItem(`nexus_global_${key}`); } catch { /* noop */ }
+            try { sessionStorage.removeItem(key); } catch { /* noop */ }
         });
 
+        // signOut do Supabase (invalida token no servidor)
         try {
             await supabase.auth.signOut();
+            logger.info('[Auth] ✅ signOut concluído.');
         } catch (err) {
-            console.error('[AuthContext] Erro no signOut:', err);
+            // signOut falhou (rede offline etc.) — estado local já foi limpo
+            console.error('[Auth] signOut error (não crítico — estado local limpo):', err);
         }
     }, []);
 
-    // Ref estável para logout — usada dentro de closures sem criar deps
     const logoutRef = useRef(logout);
     useEffect(() => { logoutRef.current = logout; }, [logout]);
 
     // ── validateAndRestoreSession ────────────────────────────────
-    // ⚠️ REGRA CRÍTICA: NÃO chama supabase.auth.refreshSession() manualmente.
-    // O SDK com autoRefreshToken:true emite TOKEN_REFRESHED via onAuthStateChange
-    // quando necessário. Refresh manual causa race condition e invalida o token.
-    //
-    // Esta função apenas lê a sessão do cache local (sem chamada de rede) e
-    // atualiza o estado React com os dados mais recentes do usuário no banco.
+    /**
+     * Valida a sessão atual e sincroniza o estado React.
+     *
+     * REGRAS CRÍTICAS:
+     *  1. NÃO chama supabase.auth.refreshSession() manualmente.
+     *     Causa race condition e invalida o refresh token.
+     *  2. getSession() lê do cache local do SDK.
+     *     Se o token estiver próximo do vencimento, o autoRefreshToken
+     *     dispara a renovação em background. Não interferimos.
+     *  3. isValidatingRef SEMPRE é resetado no finally.
+     *     Se ficar true permanentemente, trava o sistema.
+     *  4. Erros de rede NÃO geram logout.
+     *     Apenas ausência real de sessão gera logout.
+     */
     const validateAndRestoreSession = useCallback(async (silent = true): Promise<void> => {
+        // Mutex: evita validações simultâneas
         if (isValidatingRef.current) {
-            logger.info('[AuthContext] Validação já em andamento — ignorando chamada paralela.');
+            logger.info('[Auth] Validação já em andamento — ignorada.');
             return;
         }
-        isValidatingRef.current = true;
+        isValidatingRef.current = true; // ← SEMPRE resetado no finally
 
         try {
-            // 🕒 Logout por inatividade real de 24h (Big Tech Security)
+            // ── Verificação de Inatividade (12h) ────────────────
             const now = Date.now();
-            const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-            if (isAuthenticatedRef.current && (now - lastActivityRef.current > TWENTY_FOUR_HOURS_MS)) {
-                logger.warn('[AuthContext] ⏰ Inatividade de 24h — logout seguro.');
+            if (isAuthenticatedRef.current && (now - lastActivityRef.current > INACTIVITY_LOGOUT_MS)) {
+                logger.warn(`[Auth] ⏰ Inatividade de 12h detectada — logout automático.`);
+                isValidatingRef.current = false; // Reset antes do logout (que pode ser async longo)
                 await logoutRef.current();
                 window.location.reload();
                 return;
             }
 
-            // getSession() lê do cache do SDK — sem chamada de rede primária.
-            // Se o token estiver próximo do vencimento, o autoRefreshToken dispara
-            // a renovação em background. Não interferimos nesse processo.
+            // ── Leitura de Sessão (cache local, sem rede primária) ──
             const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error) {
+                // Classifica o erro antes de agir
                 const isNetworkError =
                     error.message.includes('Failed to fetch') ||
-                    error.message.includes('Network') ||
-                    error.message.includes('network');
+                    error.message.includes('NetworkError') ||
+                    error.message.includes('network') ||
+                    (typeof navigator !== 'undefined' && !navigator.onLine);
 
                 if (isNetworkError) {
-                    console.warn('[AuthContext] ⚠️ Erro de rede ao verificar sessão. Estado local preservado.');
-                    return; // Não desloga por erro de rede — pode ser queda temporária
+                    // Rede fora — preserva estado local, SDK vai retry
+                    logger.warn('[Auth] ⚠️ Erro de rede em getSession — estado preservado.');
+                    return;
                 }
 
-                console.error('[AuthContext] ❌ Erro de sessão:', error.message);
+                // Erro real de sessão (token inválido, revogado, etc.)
+                logger.error('[Auth] ❌ Sessão inválida:', error.message);
                 if (isMountedRef.current) {
                     setAuth({ user: null, isAuthenticated: false });
                     SessionStorage.remove('user');
@@ -159,50 +209,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
 
             if (!session) {
-                console.warn('[AuthContext] 🗝️ Sem sessão ativa. Limpando estado.');
-                if (isMountedRef.current) {
-                    setAuth({ user: null, isAuthenticated: false });
-                    SessionStorage.remove('user');
-                    GlobalStorage.remove('persistent_user');
+                // Sem sessão — limpa estado se estava autenticado
+                if (isAuthenticatedRef.current) {
+                    logger.warn('[Auth] 🗝️ Sem sessão ativa — limpando estado.');
+                    if (isMountedRef.current) {
+                        setAuth({ user: null, isAuthenticated: false });
+                        SessionStorage.remove('user');
+                        GlobalStorage.remove('persistent_user');
+                    }
                 }
                 return;
             }
 
-            // ✅ Sessão válida — atualiza dados do perfil
-            const refreshedUser = await DataService.refreshUser().catch(() => null);
+            // ── Sessão válida — atualiza perfil do usuário ───────
+            const refreshedUser = await DataService.refreshUser().catch(err => {
+                logger.warn('[Auth] refreshUser falhou (não crítico):', err?.message);
+                return null;
+            });
+
             if (refreshedUser && isMountedRef.current) {
                 setAuth({ user: refreshedUser, isAuthenticated: true });
                 if (!silent && wasOfflineRef.current) {
                     wasOfflineRef.current = false;
-                    logger.info('[AuthContext] ✅ Sessão restaurada após período offline.');
+                    logger.info('[Auth] ✅ Sessão restaurada após período offline.');
                 }
             }
+
         } catch (err: unknown) {
             const error = err as Error;
-            // Erros de Lock são esperados em abas concorrentes — não são fatais
+            // Erros de Lock (abas concorrentes) são esperados — retry com backoff
             if (error?.name === 'AbortError' || error?.message?.includes('Lock')) {
-                setTimeout(() => validateAndRestoreSession(true), 5_000);
+                logger.warn('[Auth] Lock concorrente detectado — retry em 5s.');
+                setTimeout(() => validateRef.current(true), 5_000);
             } else {
-                console.error('[AuthContext] 💥 Erro inesperado na validação:', err);
+                console.error('[Auth] 💥 Erro inesperado na validação:', err);
             }
         } finally {
+            // ⚠️ CRÍTICO: SEMPRE reseta o mutex — nunca pode ficar preso
             isValidatingRef.current = false;
         }
-    }, []); // ✅ DEPS VAZIAS: toda a lógica usa refs — re-cria apenas uma vez
+    }, []); // ✅ deps vazias: toda lógica usa refs
 
-    // Ref estável para validateAndRestoreSession
     const validateRef = useRef(validateAndRestoreSession);
     useEffect(() => { validateRef.current = validateAndRestoreSession; }, [validateAndRestoreSession]);
 
-    // ── Setup Principal (um único useEffect com deps estáveis) ───
+    // ── Setup Principal ──────────────────────────────────────────
     useEffect(() => {
         isMountedRef.current = true;
 
-        // Safety timeout: libera a UI se a inicialização travar por qualquer motivo
+        // Safety net: libera a UI se a inicialização travar
         const initTimeoutId = setTimeout(() => {
             setIsInitializing(prev => {
                 if (prev) {
-                    console.warn('[AuthContext] ⚠️ Init Timeout — liberando UI.');
+                    logger.warn('[Auth] ⚠️ Init timeout (3s) — liberando UI.');
                     return false;
                 }
                 return prev;
@@ -211,44 +270,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // ── Inicialização ────────────────────────────────────────
         const initAuth = async () => {
-            // Rotas públicas não precisam de validação de sessão
+            // Rotas públicas não requerem sessão
+            const hash = window.location.hash || '';
             const isPublicRoute =
-                window.location.hash.startsWith('#/view/') ||
-                window.location.hash.startsWith('#/view-quote/') ||
-                window.location.hash.includes('reset-password');
+                hash.startsWith('#/view/') ||
+                hash.startsWith('#/view-quote/') ||
+                hash.includes('reset-password');
 
             if (isPublicRoute) {
-                logger.info('[AuthContext] Rota pública detectada. Pulando validação.');
+                logger.info('[Auth] Rota pública — skip validação.');
                 if (isMountedRef.current) setIsInitializing(false);
                 return;
             }
 
+            // Valida sessão na inicialização
             await validateRef.current(true);
             if (isMountedRef.current) setIsInitializing(false);
 
-            // 🔔 Listener oficial do SDK para mudanças de autenticação.
-            // TOKEN_REFRESHED é emitido automaticamente pelo autoRefreshToken — não forçar.
+            // ── Listener oficial do SDK (onAuthStateChange) ──────
+            // TOKEN_REFRESHED é emitido pelo autoRefreshToken automaticamente.
+            // SIGNED_IN: login bem-sucedido ou restore de sessão.
+            // SIGNED_OUT: signOut() ou token revogado.
             const { data: { subscription } } = supabase.auth.onAuthStateChange(
                 async (event, session) => {
                     if (!isMountedRef.current) return;
-                    logger.info(`[AuthContext] Auth Event: ${event}`);
+                    logger.info(`[Auth] SDK Event: ${event}`);
 
-                    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-                        const refreshedUser = await DataService.refreshUser().catch(() => null);
-
-                        if (refreshedUser && isMountedRef.current) {
-                            setAuth({ user: refreshedUser, isAuthenticated: true });
-                        } else if (event === 'SIGNED_IN') {
-                            // Usuário autenticado no Provider mas não registrado no Nexus
-                            logger.error('[AuthContext] 🛑 Usuário não autorizado no sistema.');
-                            await supabase.auth.signOut().catch(() => { });
-                            if (isMountedRef.current) {
-                                setAuth({ user: null, isAuthenticated: false });
-                            }
+                    if (event === 'TOKEN_REFRESHED' && session?.user) {
+                        // Token renovado — atualiza perfil silenciosamente
+                        const user = await DataService.refreshUser().catch(() => null);
+                        if (user && isMountedRef.current) {
+                            setAuth({ user, isAuthenticated: true });
                         }
-                    } else if (event === 'SIGNED_OUT') {
-                        if (isMountedRef.current) setAuth({ user: null, isAuthenticated: false });
-                        SessionStorage.clear();
+                        return;
+                    }
+
+                    if (event === 'SIGNED_IN' && session?.user) {
+                        const user = await DataService.refreshUser().catch(() => null);
+                        if (user && isMountedRef.current) {
+                            setAuth({ user, isAuthenticated: true });
+                            lastActivityRef.current = Date.now();
+                            GlobalStorage.set('last_activity', lastActivityRef.current);
+                        } else if (!user) {
+                            // Autenticado no Supabase mas não cadastrado no Nexus
+                            logger.error('[Auth] 🛑 Usuário não autorizado no sistema Nexus.');
+                            await supabase.auth.signOut().catch(() => { });
+                            if (isMountedRef.current) setAuth({ user: null, isAuthenticated: false });
+                        }
+                        if (isMountedRef.current) setIsInitializing(false);
+                        return;
+                    }
+
+                    if (event === 'SIGNED_OUT') {
+                        if (isMountedRef.current) {
+                            setAuth({ user: null, isAuthenticated: false });
+                            SessionStorage.clear();
+                        }
+                        return;
                     }
 
                     if (isMountedRef.current) setIsInitializing(false);
@@ -258,97 +336,110 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             authSubscriptionRef.current = subscription;
         };
 
-        // ── Handler de Recovery (debounced) ─────────────────────
-        // Chamado quando o browser/SO devolve o controle para a aba (visibilitychange,
-        // focus) ou quando a rede é restaurada. Não chama refreshSession() — apenas
-        // re-valida via getSession() e atualiza o perfil.
-        const handleRecovery = (source: string) => {
+        // ── Handler de Recovery (usado pelos listeners de evento) ─
+        /**
+         * Debounced: agrupa múltiplos eventos simultâneos (focus + visibilitychange)
+         * em uma única execução. Não executa se não autenticado.
+         */
+        const _scheduleRecovery = (source: string) => {
             if (!isAuthenticatedRef.current) return;
 
-            if (focusDebounceRef.current) clearTimeout(focusDebounceRef.current);
-
-            focusDebounceRef.current = setTimeout(async () => {
-                logger.info(`[AuthContext] Recovery trigger: ${source}`);
+            if (recoveryDebounceRef.current) clearTimeout(recoveryDebounceRef.current);
+            recoveryDebounceRef.current = setTimeout(async () => {
+                logger.info(`[Auth] Recovery via: ${source}`);
                 await validateRef.current(true);
-                // Invalida cache de queries para forçar re-fetch de dados
-                DataService.forceGlobalRefresh?.();
+                // Invalida cache de React Query para forçar re-fetch de dados frescos
+                try { DataService.forceGlobalRefresh?.(); } catch { /* noop */ }
                 window.dispatchEvent(new CustomEvent('NEXUS_QUERY_INVALIDATE', { detail: { key: '*' } }));
-            }, 500); // Debounce 500ms: ignora disparos múltiplos do mesmo evento
+            }, RECOVERY_DEBOUNCE_MS);
         };
 
-        // ── Handlers específicos por evento ──────────────────────
+        // ── Handlers de Eventos ──────────────────────────────────
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                handleRecovery('visibilitychange'); // Principal: cobre PWA + Safari Mobile
-            }
+            if (document.visibilityState === 'visible') _scheduleRecovery('visibilitychange');
         };
-
-        const handleWindowFocus = () => {
-            handleRecovery('window.focus'); // Fallback: Desktop browsers
-        };
-
+        const handleFocus = () => _scheduleRecovery('window.focus');
         const handleOnline = () => {
             wasOfflineRef.current = false;
-            if (isAuthenticatedRef.current) validateRef.current(false);
+            _scheduleRecovery('network.online');
         };
+        const handleOffline = () => { wasOfflineRef.current = true; };
 
-        const handleOffline = () => {
-            wasOfflineRef.current = true;
-        };
-
-        // ── Listener do evento de recovery da camada de infra ────
-        // O supabaseClient.ts dispara NEXUS_RECOVERY_COMPLETE após reconectar.
-        // Aqui apenas sincronizamos o estado React com o que a infra já fez.
+        // ── Handler do Recovery da Infra (supabaseClient.ts) ────
+        /**
+         * O supabaseClient dispara NEXUS_RECOVERY_COMPLETE após reconectar o Realtime.
+         * Aqui apenas sincronizamos os dados do perfil se a sessão está ativa.
+         */
         const handleInfraRecovery = (e: Event) => {
-            const detail = (e as CustomEvent).detail as { hasSession: boolean; source: string };
-            logger.info(`[AuthContext] NEXUS_RECOVERY_COMPLETE recebido — source: ${detail?.source}, hasSession: ${detail?.hasSession}`);
-            if (detail?.hasSession && isAuthenticatedRef.current) {
-                // Atualiza dados do perfil silenciosamente
+            const detail = (e as CustomEvent<{ hasSession: boolean; source: string; ts: number }>).detail;
+            logger.info(`[Auth] NEXUS_RECOVERY_COMPLETE — source: ${detail?.source}, hasSession: ${detail?.hasSession}`);
+
+            if (detail?.hasSession && isAuthenticatedRef.current && isMountedRef.current) {
                 DataService.refreshUser()
                     .then(user => {
                         if (user && isMountedRef.current) {
                             setAuth({ user, isAuthenticated: true });
                         }
                     })
-                    .catch(() => { /* Silencioso: não crítico */ });
+                    .catch(() => { /* refresh de perfil não é crítico */ });
             }
         };
 
-        // ── Rastreamento de Atividade (throttled a 30s) ──────────
+        // ── Rastreamento de Atividade (throttled) ────────────────
+        /**
+         * Atualiza lastActivityRef quando o usuário interage com a UI.
+         * Persiste no GlobalStorage a cada ACTIVITY_THROTTLE_MS (30s).
+         * Usado para calcular inatividade de 12h.
+         */
         const updateActivity = () => {
             const now = Date.now();
-            if (now - lastActivityRef.current > 30_000) {
+            if (now - lastActivityRef.current > ACTIVITY_THROTTLE_MS) {
                 lastActivityRef.current = now;
                 GlobalStorage.set('last_activity', now);
             }
         };
-        const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'mousemove'] as const;
+        const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'pointermove'] as const;
 
-        // ── Verificação periódica de sessão (60s) ────────────────
-        // Apenas lê do cache local. O autoRefreshToken cuida da renovação.
-        const inactivityIntervalId = setInterval(() => {
-            if (isAuthenticatedRef.current) validateRef.current(true);
-        }, 60_000);
+        // ── Heartbeat — verificação periódica leve (a cada 2 min) ─
+        /**
+         * Valida a sessão periodicamente para garantir que o autoRefreshToken
+         * está funcionando e tocar o SDK se necessário.
+         *
+         * IMPORTANTE: Apenas lê do cache local (getSession sem rede).
+         * O autoRefreshToken do SDK age automaticamente quando necessário.
+         * Intervalo de 2 minutos: menos agressivo que o anterior (60s)
+         * mas suficiente para detectar problemas antes da expiração (1h padrão Supabase).
+         */
+        const heartbeatId = setInterval(() => {
+            if (isAuthenticatedRef.current && isMountedRef.current) {
+                validateRef.current(true)
+                    .catch(err => logger.warn('[Auth] Heartbeat error:', err?.message));
+            }
+        }, HEARTBEAT_INTERVAL_MS);
 
         // ── Registro de Listeners ────────────────────────────────
         document.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('focus', handleWindowFocus);
+        window.addEventListener('focus', handleFocus);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
         window.addEventListener('NEXUS_RECOVERY_COMPLETE', handleInfraRecovery);
         activityEvents.forEach(evt => window.addEventListener(evt, updateActivity, { passive: true }));
 
-        initAuth();
+        // Inicia auth
+        initAuth().catch(err => {
+            console.error('[Auth] 💥 Falha crítica na inicialização:', err);
+            if (isMountedRef.current) setIsInitializing(false);
+        });
 
         // ── Cleanup ─────────────────────────────────────────────
         return () => {
             isMountedRef.current = false;
             clearTimeout(initTimeoutId);
-            clearInterval(inactivityIntervalId);
-            if (focusDebounceRef.current) clearTimeout(focusDebounceRef.current);
+            clearInterval(heartbeatId);
+            if (recoveryDebounceRef.current) clearTimeout(recoveryDebounceRef.current);
 
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('focus', handleWindowFocus);
+            window.removeEventListener('focus', handleFocus);
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
             window.removeEventListener('NEXUS_RECOVERY_COMPLETE', handleInfraRecovery);
@@ -356,14 +447,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             authSubscriptionRef.current?.unsubscribe();
         };
-    }, []); // ✅ DEPS VAZIAS: toda mutabilidade gerenciada via refs — efeito roda uma única vez
+    }, []); // ✅ DEPS VAZIAS: toda mutabilidade via refs — efeito roda uma única vez
 
-    // ── refreshUser (API pública) ────────────────────────────────
-    const refreshUser = async (): Promise<User | undefined> => {
+    // ── API Pública ───────────────────────────────────────────────
+    const refreshUser = useCallback(async (): Promise<User | undefined> => {
         const user = await DataService.refreshUser();
         if (user && isMountedRef.current) setAuth({ user, isAuthenticated: true });
         return user;
-    };
+    }, []);
 
     return (
         <AuthContext.Provider value={{ auth, setAuth, isInitializing, login, logout, refreshUser }}>
@@ -372,7 +463,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 };
 
-// ── Hook de Consumo ──────────────────────────────────────────────
+// ── Hook de Consumo ────────────────────────────────────────────
 export const useAuth = (): AuthContextType => {
     const context = useContext(AuthContext);
     if (context === undefined) {
