@@ -47,6 +47,18 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     const totalValue = useMemo(() => items.reduce((acc, curr) => acc + curr.total, 0), [items]);
 
+    // ---------------------------------------------------------------
+    // Helper: detecta se o ID é o Identificador Soberano (ORC-...) ou
+    // um UUID legado. Para UUIDs, exibe versão compacta (8 chars).
+    // ---------------------------------------------------------------
+    const getQuoteDisplayId = (quote: Quote): string => {
+        const { id } = quote;
+        const isSovereignId = id.startsWith('ORC-') || id.startsWith('orc-');
+        if (isSovereignId) return id; // Já é humanável—exibe completo
+        // UUID legado: exibe os primeiros 8 chars em uppercase
+        return `#${id.slice(0, 8).toUpperCase()}...`;
+    };
+
     // 🚀 Preview de ID Soberano Nexus em Tempo Real (Padrão Sequencial)
     const previewId = useMemo(() => {
         if (selectedQuote) return selectedQuote.id;
@@ -93,10 +105,20 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const updateItem = (index: number, fields: Partial<QuoteItem>) => {
         const newItems = [...items];
 
-        // Se a descrição mudou, verifica se bate com algo no estoque para sugerir preço
-        if (fields.description) {
-            const matchedStock = stockItems.find(s => s.description.toLowerCase() === fields.description?.toLowerCase());
+        // Quando a descrição muda, busca correspondência no estoque (por descrição OU código)
+        // para preencher automaticamente o preço unitário
+        if (fields.description !== undefined) {
+            const searchTerm = fields.description.toLowerCase().trim();
+            const matchedStock = stockItems.find(s =>
+                s.description.toLowerCase() === searchTerm ||
+                s.code.toLowerCase() === searchTerm ||
+                // Corresponde ao formato exibido no datalist: "CÓDIGO - Descrição"
+                `${s.code.toLowerCase()} - ${s.description.toLowerCase()}` === searchTerm ||
+                s.description.toLowerCase().startsWith(searchTerm)
+            );
             if (matchedStock) {
+                // Preenche a descrição com o nome limpo e o preço com o sellPrice do estoque
+                fields.description = matchedStock.description;
                 fields.unitPrice = matchedStock.sellPrice;
             }
         }
@@ -252,8 +274,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 <tr key={quote.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
                                     <td className="px-4 py-1.5">
                                         <div className="flex flex-col truncate max-w-[140px]">
-                                            {/* quote.id É o Identificador Soberano (ORC-...) gerado no createQuote */}
-                                            <span className="text-[11px] font-black uppercase italic text-primary-600 tracking-tighter truncate" title={quote.id}>{quote.id}</span>
+                                            {/* getQuoteDisplayId: retorna ORC-... para soberanos, #XXXXXXXX... para UUIDs legados */}
+                                            <span className="text-[11px] font-black uppercase italic text-primary-600 tracking-tighter truncate" title={quote.id}>
+                                                {getQuoteDisplayId(quote)}
+                                            </span>
                                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">{quote.title}</span>
                                         </div>
                                     </td>
@@ -538,12 +562,26 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 <div key={item.id} className="grid grid-cols-12 gap-4 items-center p-3 bg-white rounded-xl border border-slate-100 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] hover:border-primary-300 transition-all group">
                                                     <div className="col-span-6">
                                                         <input
-                                                            placeholder="Digitar item ou escolher do estoque..."
+                                                            placeholder="Buscar no estoque ou descrever item..."
                                                             value={item.description}
                                                             list="stock-suggestions"
+                                                            autoComplete="off"
                                                             onChange={e => updateItem(index, { description: e.target.value })}
                                                             className="w-full bg-transparent border-none text-[10px] font-black uppercase outline-none text-slate-800 placeholder:text-slate-300"
                                                         />
+                                                        {/* datalist renderizado aqui para ficar no escopo correto do input */}
+                                                        <datalist id="stock-suggestions">
+                                                            {stockItems
+                                                                .filter(s => s.active !== false)
+                                                                .map(s => (
+                                                                    <option
+                                                                        key={s.id}
+                                                                        value={s.description}
+                                                                        label={`${s.code} — R$ ${s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${s.quantity} ${s.unit || 'UN'})`}
+                                                                    />
+                                                                ))
+                                                            }
+                                                        </datalist>
                                                     </div>
                                                     <div className="col-span-2">
                                                         <input
