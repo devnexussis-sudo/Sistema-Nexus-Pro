@@ -5,7 +5,9 @@ import 'leaflet/dist/leaflet.css';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import './lib/telemetry'; // 📡 Initialize global logging system
-import './lib/idleLogout'; // Timer de inatividade (12h)
+// ⛔ REMOVIDO: import './lib/idleLogout'
+// O timer de inatividade (12h) é gerenciado EXCLUSIVAMENTE pelo AuthContext.
+// Ter dois sistemas concorrentes causava race conditions e duplo signOut.
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

@@ -9,7 +9,7 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <meta name="theme-color" content="#0f172a">
-  <link rel="apple-touch-icon" href="/pwa-icon.png">
+
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -72,38 +72,11 @@
     }
   </style>
 
-  <script>
-    // 🛡️ FIX: Libera Web Locks travados do GoTrue (Supabase Auth)
-    // O SW anterior pode ter deixado locks exclusivos pendurados que impedem
-    // TODAS as operações do Supabase (fetch nunca é chamado).
-    (async function releaseStaleGoTrueLocks() {
-      if (!navigator.locks) return;
-      try {
-        const state = await navigator.locks.query();
-        const staleLocks = state.held.filter(function (l) {
-          // GoTrue locks sempre contêm o storage key do Supabase
-          return l.name && l.name.includes('nexus_shared_auth');
-        });
-        if (staleLocks.length > 0) {
-          console.warn('[Nexus] 🔓 Liberando ' + staleLocks.length + ' Web Lock(s) travado(s) do GoTrue:', staleLocks.map(function (l) { return l.name; }));
-          // Steal cada lock travado para liberá-lo
-          for (var i = 0; i < staleLocks.length; i++) {
-            try {
-              var ac = new AbortController();
-              // Solicita o lock com steal: true, que tira do holder atual
-              navigator.locks.request(staleLocks[i].name, { steal: true }, function () {
-                // Lock adquirido e imediatamente liberado (função retorna)
-                return Promise.resolve();
-              });
-            } catch (e) { /* ignore */ }
-          }
-          console.log('[Nexus] ✅ Locks liberados. Supabase pode inicializar normalmente.');
-        }
-      } catch (e) {
-        console.warn('[Nexus] navigator.locks.query() não disponível:', e);
-      }
-    })();
-  </script>
+  <!-- ⛔ REMOVIDO: GoTrue Lock Stealing Script
+       O script anterior usava navigator.locks.request() com steal:true
+       que podia interromper operações LEGÍTIMAS do SDK (refreshToken em andamento).
+       O Singleton Client v3.0 em supabaseClient.ts já gerencia locks corretamente
+       via Web Locks API nativa com fallback. -->
 
   <script>
     if ('serviceWorker' in navigator) {

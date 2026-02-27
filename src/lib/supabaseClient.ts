@@ -1,28 +1,26 @@
 // ============================================================
 // src/lib/supabaseClient.ts
-// 🛡️ NEXUS LINE — Singleton Supabase Client v3.0
+// 🛡️ NEXUS LINE — Singleton Supabase Client v4.0
 // Padrão: Big Tech / Clean Architecture / Zero Gambiarra
 //
-// GOVERNANÇA (.cursorrules):
+// GOVERNANÇA (.cursorrules / CONTEXT.md):
 //  ✅ UM único createClient para toda a aplicação (Singleton)
-//  ✅ autoRefreshToken delegado 100% ao SDK — ZERO refreshSession() manual
-//  ✅ Lock simplificado (Web Locks API nativa ou fallback simples) —
-//     elimina race conditions sem risco de deadlock por SO suspend
-//  ✅ Fetch com retry exponencial para erros transitórios
-//  ✅ Recovery por visibilitychange + online (PWA / Safari Mobile)
-//  ✅ Logs condicional em DEV — zero ruído em produção
+//  ✅ autoRefreshToken delegado ao SDK + Recovery ATIVO após inatividade
+//  ✅ Lock: Web Locks API nativa ou fallback direto
+//  ✅ Fetch com retry exponencial para erros transitórios (5xx / rede)
+//  ✅ Recovery por visibilitychange + online + focus
+//  ✅ Health Check ATIVO: se JWT expirou durante suspensão, força refresh uma vez
+//  ✅ Limpa Cache API do browser no recovery (previne stale data de SW antigo)
+//  ✅ Logs condicionais — warn/error SEMPRE, debug/info apenas DEV
 //  ✅ Diagnósticos expostos no window para suporte técnico
 //
-// CAUSA RAIZ DO BUG DE INATIVIDADE (resolvido aqui):
-//  O lock customizado baseado em Promise em fila acumulava
-//  promises pendentes quando o SO suspende timers (aba em background).
-//  Ao retornar, o timeout do lock já havia disparado mas a fila
-//  estava corrompida, bloqueando silenciosamente o autoRefreshToken
-//  do SDK e causando perda de sessão sem log visível.
-//
-//  Solução: usar Web Locks API nativa do browser (chrome 69+, safari 16+)
-//  que é gerenciada pelo SO e sobrevive à suspensão. Fallback para
-//  lock simples (sem fila) em browsers sem suporte.
+// MUDANÇAS v3 → v4:
+//  1. Recovery agora verifica expiração do JWT e chama refreshSession()
+//     se o token expirou durante suspensão do OS (autoRefreshToken não
+//     dispara se o timer de refresh estava freezed pelo SO)
+//  2. Limpa caches do browser no recovery para prevenir SW stale data
+//  3. ensureValidSession cooldown reduzido de 15s para 5s
+//  4. Removida dependência de lock stealing no index.html
 // ============================================================
 
 import { createClient, SupabaseClient, type LockFunc } from '@supabase/supabase-js';
@@ -73,7 +71,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
     auth: {
         storageKey: 'nexus_shared_auth',    // Chave única: evita conflito entre projetos no mesmo domínio
         persistSession: true,               // Sessão sobrevive a reload e fechamento de aba
-        autoRefreshToken: true,             // SDK gerencia o refresh do JWT — NÃO interferir
+        autoRefreshToken: true,             // SDK gerencia o refresh do JWT — complementado pelo Recovery ativo
         detectSessionInUrl: true,           // Necessário para OAuth e magic link
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         lock: nexusLock,                    // Lock nativo do SO — elimina deadlock por suspensão
@@ -157,11 +155,18 @@ export const supabaseDiagnostics = {
         return { ok: !error, latencyMs: Date.now() - start, ts: new Date().toISOString() };
     },
 
-    sessionInfo: async (): Promise<{ hasSession: boolean; expiresAt: string | null; uid: string | null }> => {
+    sessionInfo: async (): Promise<{
+        hasSession: boolean;
+        expiresAt: string | null;
+        isExpired: boolean;
+        uid: string | null;
+    }> => {
         const { data: { session } } = await supabase.auth.getSession();
+        const expiresAt = session?.expires_at ? session.expires_at * 1000 : null;
         return {
             hasSession: !!session,
-            expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
+            expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+            isExpired: expiresAt ? Date.now() > expiresAt : false,
             uid: session?.user?.id ?? null,
         };
     },
@@ -177,22 +182,46 @@ if (typeof window !== 'undefined') {
 }
 
 // ---------------------------------------------------------------
-// Recovery Engine — Reconexão após inatividade / retorno de aba
+// Recovery Engine v2.0 — Reconexão ATIVA após inatividade
 //
 // ESTRATÉGIA DEFENSIVA:
-//  1. visibilitychange (document) → principal — cobre PWA + Safari Mobile
+//  1. visibilitychange (document) → principal — cobre Safari Mobile
 //  2. window.focus → fallback — desktop browsers
 //  3. window.online → recovery após queda de rede
 //
+// NOVIDADE v4.0 — HEALTH CHECK ATIVO:
+//  - Verifica se o JWT expirou durante suspensão do SO
+//  - Se expirado: chama refreshSession() UMA VEZ com mutex
+//  - Se refresh falha: emite evento para AuthContext tratar com logout
+//  - Limpa Cache API do browser para prevenir stale data de SW antigo
+//
 // PROTEÇÕES:
-//  - _recoveryInFlight: evita execuções paralelas do mesmo recovery
+//  - _recoveryInFlight: mutex contra execuções paralelas
 //  - Debounce de 400ms: ignora disparos múltiplos simultâneos
 //  - Verificação de onLine antes de qualquer call de rede
-//  - getSession() sem forçar refresh — o autoRefreshToken age sozinho
 // ---------------------------------------------------------------
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     let _recoveryInFlight = false;
     let _recoveryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    /**
+     * Limpa caches do browser (Cache API) para prevenir stale data
+     * de Service Workers antigos que podem interceptar requests.
+     */
+    const _clearBrowserCaches = async (): Promise<void> => {
+        try {
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                if (cacheNames.length > 0) {
+                    if (isDev) console.log(`[Nexus Recovery] 🧹 Limpando ${cacheNames.length} cache(s) do browser:`, cacheNames);
+                    await Promise.all(cacheNames.map(name => caches.delete(name)));
+                }
+            }
+        } catch (err) {
+            // Cache API indisponível ou erro — não crítico
+            if (isDev) console.warn('[Nexus Recovery] Cache cleanup error:', err);
+        }
+    };
 
     const _runRecovery = async (source: string): Promise<void> => {
         if (_recoveryInFlight) {
@@ -209,7 +238,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
                 return;
             }
 
-            // Reconecta WebSocket do Realtime se necessário
+            // ── Step 1: Limpar caches do browser (proteção contra SW stale) ──
+            await _clearBrowserCaches();
+
+            // ── Step 2: Reconectar WebSocket do Realtime ──
             try {
                 const rt = (supabase as unknown as { realtime?: { connect?: () => void; disconnect?: () => void } }).realtime;
                 if (rt?.disconnect && rt?.connect) {
@@ -222,14 +254,49 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
                 if (isDev) console.warn('[Nexus Recovery] Realtime reconnect error (não crítico):', rtErr);
             }
 
-            // Toca o SDK — se o token estiver vencido/próximo, autoRefreshToken age
+            // ── Step 3: HEALTH CHECK ATIVO — Verifica e recupera JWT ──
             const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error && isDev) console.warn('[Nexus Recovery] getSession error:', error.message);
 
-            // Notifica camadas superiores (AuthContext, React Query)
+            // Verifica se o JWT expirou durante a suspensão do SO
+            if (session?.expires_at) {
+                const expiresAtMs = session.expires_at * 1000;
+                const now = Date.now();
+                const isExpired = now > expiresAtMs;
+                const isNearExpiry = (expiresAtMs - now) < 60_000; // Menos de 1 minuto para expirar
+
+                if (isExpired || isNearExpiry) {
+                    if (isDev) console.warn(`[Nexus Recovery] 🔑 JWT ${isExpired ? 'EXPIRADO' : 'PRÓXIMO DE EXPIRAR'} — forçando refresh ativo...`);
+
+                    try {
+                        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+                        if (refreshError) {
+                            // Refresh falhou — token revogado ou refresh_token expirado
+                            console.error('[Nexus Recovery] ❌ Refresh de sessão falhou:', refreshError.message);
+                            window.dispatchEvent(new CustomEvent('NEXUS_RECOVERY_COMPLETE', {
+                                detail: { source, hasSession: false, refreshFailed: true, ts: Date.now() }
+                            }));
+                            return;
+                        }
+
+                        if (refreshData.session) {
+                            if (isDev) console.log('[Nexus Recovery] ✅ JWT renovado com sucesso via refresh ativo.');
+                        }
+                    } catch (refreshErr) {
+                        console.error('[Nexus Recovery] 💥 Exceção no refresh:', refreshErr);
+                        window.dispatchEvent(new CustomEvent('NEXUS_RECOVERY_COMPLETE', {
+                            detail: { source, hasSession: false, refreshFailed: true, ts: Date.now() }
+                        }));
+                        return;
+                    }
+                }
+            }
+
+            // ── Step 4: Notifica camadas superiores ──
             window.dispatchEvent(new CustomEvent('NEXUS_RECOVERY_COMPLETE', {
-                detail: { source, hasSession: !!session, ts: Date.now() }
+                detail: { source, hasSession: !!session, refreshFailed: false, ts: Date.now() }
             }));
 
             if (isDev) console.log(`[Nexus Recovery] ✅ Completo — hasSession: ${!!session}`);
@@ -245,7 +312,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         _recoveryTimer = setTimeout(() => _runRecovery(source), 400);
     };
 
-    // visibilitychange — principal trigger (PWA, Safari Mobile, Chrome Mobile)
+    // visibilitychange — principal trigger (Safari Mobile, Chrome Mobile)
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') _scheduleRecovery('visibilitychange');
     });
@@ -264,10 +331,13 @@ export type { SupabaseClient };
 // ensureValidSession
 // Re-exportada para retrocompatibilidade com orderService.ts e outros.
 // Lê do cache local do SDK (sem chamada de rede forçada).
-// NÃO chama refreshSession() — o autoRefreshToken cuida disso.
+//
+// v4.0: Cooldown reduzido de 15s para 5s para recovery mais responsivo.
+// Se o token estiver expirado, o Recovery Engine v2.0 já terá forçado
+// o refresh antes desta função ser chamada.
 // ---------------------------------------------------------------
 let _lastSessionCheckTs = 0;
-const SESSION_CHECK_COOLDOWN_MS = 15_000;
+const SESSION_CHECK_COOLDOWN_MS = 5_000; // v4: reduzido de 15s para 5s
 
 export async function ensureValidSession(): Promise<boolean> {
     const now = Date.now();

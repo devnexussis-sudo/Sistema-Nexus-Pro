@@ -1,11 +1,25 @@
 /**
- * 🛡️ Nexus Secure Logger
- * 
- * Logger inteligente que:
- * - Desabilita logs automaticamente em produção
- * - Mascara dados sensíveis (IDs, emails, tokens)
- * - Fornece níveis de log (debug, info, warn, error)
- * 
+ * 🛡️ Nexus Secure Logger v3.1
+ *
+ * Logger inteligente com proteção contra silent failures.
+ *
+ * GOVERNANÇA:
+ *  ✅ NÃO faz hijack do console — essa responsabilidade é exclusiva do telemetry.ts
+ *  ✅ Usa referências ao console original salvas ANTES de qualquer hijack
+ *  ✅ Mascara dados sensíveis (IDs, emails, tokens)
+ *  ✅ Fornece níveis de log (debug, info, warn, error)
+ *  ✅ Em produção: debug/info são silenciados, warn/error SEMPRE logam
+ *
+ * CAUSA RAIZ DO BUG ANTERIOR:
+ *  O método disableNativeLogsInProduction() referenciava this.originalConsole
+ *  que nunca era definido, causando um throw silencioso que impedia TODOS
+ *  os logs em produção — inclusive erros críticos de conexão.
+ *
+ * SOLUÇÃO:
+ *  Salvar referências ao console original no constructor (antes do hijack
+ *  do telemetry.ts) e NUNCA substituir o console global aqui.
+ *  O hijack é responsabilidade EXCLUSIVA do telemetry.ts.
+ *
  * @example
  * logger.debug('User loaded', { userId: '123' }); // Only in dev
  * logger.info('Order created'); // Only in dev
@@ -18,15 +32,32 @@ class Logger {
     private isDevelopment: boolean;
     private isProduction: boolean;
 
+    /**
+     * Referências ao console nativo, salvas ANTES de qualquer hijack.
+     * Garante que os logs funcionem mesmo que outro sistema substitua o console.
+     */
+    private readonly _nativeLog: typeof console.log;
+    private readonly _nativeInfo: typeof console.info;
+    private readonly _nativeWarn: typeof console.warn;
+    private readonly _nativeError: typeof console.error;
+    private readonly _nativeDebug: typeof console.debug;
+
     constructor() {
         this.isDevelopment = import.meta.env.DEV;
         this.isProduction = import.meta.env.PROD;
+
+        // Captura ANTES do hijack do telemetry.ts
+        this._nativeLog = console.log.bind(console);
+        this._nativeInfo = console.info.bind(console);
+        this._nativeWarn = console.warn.bind(console);
+        this._nativeError = console.error.bind(console);
+        this._nativeDebug = console.debug.bind(console);
     }
 
     /**
      * Mascara dados sensíveis em objetos
      */
-    private sanitize(data: any): any {
+    private sanitize(data: unknown): unknown {
         if (!data) return data;
 
         if (typeof data === 'string') {
@@ -43,10 +74,9 @@ class Logger {
         }
 
         if (typeof data === 'object') {
-            const sanitized: any = Array.isArray(data) ? [] : {};
+            const sanitized: Record<string, unknown> = {};
 
-            for (const key in data) {
-                // Lista de campos sensíveis
+            for (const key in data as Record<string, unknown>) {
                 const sensitiveFields = [
                     'id', 'userId', 'user_id', 'tenantId', 'tenant_id',
                     'email', 'password', 'token', 'apiKey', 'api_key',
@@ -56,7 +86,7 @@ class Logger {
                 if (sensitiveFields.includes(key)) {
                     sanitized[key] = '***REDACTED***';
                 } else {
-                    sanitized[key] = this.sanitize(data[key]);
+                    sanitized[key] = this.sanitize((data as Record<string, unknown>)[key]);
                 }
             }
             return sanitized;
@@ -68,38 +98,34 @@ class Logger {
     /**
      * 🐛 DEBUG: Logs detalhados para debugging (NUNCA em produção)
      */
-    debug(message: string, ...args: any[]) {
+    debug(message: string, ...args: unknown[]): void {
         if (!this.isDevelopment) return;
-
         const sanitizedArgs = args.map(arg => this.sanitize(arg));
-        console.log(`🐛 [DEBUG] ${message}`, ...sanitizedArgs);
+        this._nativeDebug(`🐛 [DEBUG] ${message}`, ...sanitizedArgs);
     }
 
     /**
      * ℹ️ INFO: Logs informativos gerais (NUNCA em produção)
      */
-    info(message: string, ...args: any[]) {
+    info(message: string, ...args: unknown[]): void {
         if (!this.isDevelopment) return;
-
         const sanitizedArgs = args.map(arg => this.sanitize(arg));
-        console.log(`ℹ️ [INFO] ${message}`, ...sanitizedArgs);
+        this._nativeLog(`ℹ️ [INFO] ${message}`, ...sanitizedArgs);
     }
 
     /**
-     * ⚠️ WARN: Avisos importantes (somente em dev)
+     * ⚠️ WARN: Avisos importantes (SEMPRE logados — inclusive em produção)
+     * Necessários para diagnóstico remoto de silent failures.
      */
-    warn(message: string, ...args: any[]) {
-        if (!this.isDevelopment) return;
-
+    warn(message: string, ...args: unknown[]): void {
         const sanitizedArgs = args.map(arg => this.sanitize(arg));
-        console.warn(`⚠️ [WARN] ${message}`, ...sanitizedArgs);
+        this._nativeWarn(`⚠️ [WARN] ${message}`, ...sanitizedArgs);
     }
 
     /**
-     * ❌ ERROR: Erros críticos (sempre logados, mas sanitizados)
+     * ❌ ERROR: Erros críticos (SEMPRE logados, dados sanitizados)
      */
-    error(message: string, ...args: any[]) {
-        // Errors são sempre logados, mas com dados sensíveis removidos
+    error(message: string, ...args: unknown[]): void {
         const sanitizedArgs = args.map(arg => {
             if (arg instanceof Error) {
                 return {
@@ -112,21 +138,19 @@ class Logger {
             return this.sanitize(arg);
         });
 
-        console.error(`❌ [ERROR] ${message}`, ...sanitizedArgs);
+        this._nativeError(`❌ [ERROR] ${message}`, ...sanitizedArgs);
     }
 
     /**
      * 🚀 PRODUCTION ONLY: Log mínimo e seguro para produção
      * Útil para telemetria sem expor dados
      */
-    track(event: string, metadata?: Record<string, any>) {
+    track(event: string, metadata?: Record<string, unknown>): void {
         if (!this.isProduction) return;
 
-        // Em produção, apenas rastreia eventos sem dados sensíveis
         const safeMetadata = {
             timestamp: new Date().toISOString(),
             event,
-            // Não inclui dados do usuário, apenas métricas
             ...(metadata && {
                 count: metadata.count,
                 status: metadata.status,
@@ -134,36 +158,12 @@ class Logger {
             })
         };
 
-        // Aqui você poderia enviar para um serviço de analytics
-        // Ex: Sentry, LogRocket, Google Analytics, etc.
-        console.log('[TRACK]', safeMetadata);
-    }
-
-    /**
-     * 🧹 Gerencia o silenciamento de logs em produção.
-     * MANTÉM console.error e console.warn ativos por padrão para diagnóstico.
-     */
-    disableNativeLogsInProduction() {
-        if (this.isProduction) {
-            // Silencia apenas informações triviais
-            console.log = (...args) => {
-                // Se o primeiro argumento for uma tag de sistema do Nexus, permite o log
-                if (typeof args[0] === 'string' && (args[0].includes('[SYSTEM]') || args[0].includes('[Supabase'))) {
-                    this.originalConsole.log(...args);
-                }
-            };
-            console.debug = () => { };
-            console.info = () => { };
-
-            // console.warn e console.error CONTINUAM ATIVOS em produção
-            // para permitir diagnóstico de falhas silenciosas.
-        }
+        this._nativeLog('[TRACK]', safeMetadata);
     }
 }
 
 export const logger = new Logger();
 
-// Auto-disable native console in production on load
-if (import.meta.env.PROD) {
-    logger.disableNativeLogsInProduction();
-}
+// ⛔ REMOVIDO: disableNativeLogsInProduction()
+// A responsabilidade de gerenciar o console global é EXCLUSIVA do telemetry.ts
+// O logger apenas usa suas referências _native* salvas no constructor.
