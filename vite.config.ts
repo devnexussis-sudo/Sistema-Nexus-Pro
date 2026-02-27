@@ -52,9 +52,10 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true, // Remove console.log em produção
+        drop_console: false, // v4: NÃO dropar console — o telemetry.ts gerencia seletivamente
         drop_debugger: true,
-        pure_funcs: ['console.info', 'console.debug', 'console.warn'],
+        // Remove apenas logs de informação trivial — preserva warn/error para diagnóstico
+        pure_funcs: ['console.info', 'console.debug'],
       },
       mangle: {
         safari10: true,

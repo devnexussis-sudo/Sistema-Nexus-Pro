@@ -371,8 +371,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
          * Aqui apenas sincronizamos os dados do perfil se a sessão está ativa.
          */
         const handleInfraRecovery = (e: Event) => {
-            const detail = (e as CustomEvent<{ hasSession: boolean; source: string; ts: number }>).detail;
-            logger.info(`[Auth] NEXUS_RECOVERY_COMPLETE — source: ${detail?.source}, hasSession: ${detail?.hasSession}`);
+            const detail = (e as CustomEvent<{ hasSession: boolean; source: string; ts: number; refreshFailed?: boolean }>).detail;
+            logger.info(`[Auth] NEXUS_RECOVERY_COMPLETE — source: ${detail?.source}, hasSession: ${detail?.hasSession}, refreshFailed: ${detail?.refreshFailed}`);
+
+            // Se o refresh ativo falhou (JWT revogado ou refresh_token expirado),
+            // dispara logout automático — a sessão está irrecuperável.
+            if (detail?.refreshFailed && isMountedRef.current) {
+                logger.warn('[Auth] ⚠️ Recovery detectou refresh_token inválido — logout automático.');
+                logoutRef.current();
+                return;
+            }
 
             if (detail?.hasSession && isAuthenticatedRef.current && isMountedRef.current) {
                 DataService.refreshUser()
