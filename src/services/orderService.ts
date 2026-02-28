@@ -97,8 +97,8 @@ export const OrderService = {
             checkoutLocation: data.checkout_location,
             pauseReason: data.pause_reason,
             // 🖊️ Assinatura do cliente — coletada pelo técnico no encerramento da OS
-            signature: data.signature,
-            signatureName: data.signature_name,
+            signature: data.client_signature_url || data.signature_url,
+            signatureName: data.client_signature_name,
             signatureDoc: data.signature_doc
         };
     },
@@ -571,14 +571,12 @@ export const OrderService = {
             // 🖊️ Assinatura: salva nas colunas dedicadas da OS (para visibilidade pública via RPC)
             // Os dados FICAM também no form_data para compatibilidade retroativa
             if (processedData.signature) {
-                (updatePayload as any).signature = processedData.signature;
+                (updatePayload as any).client_signature_url = processedData.signature;
             }
             if (processedData.signatureName) {
-                (updatePayload as any).signature_name = processedData.signatureName;
+                (updatePayload as any).client_signature_name = processedData.signatureName;
             }
-            if (processedData.signatureDoc) {
-                (updatePayload as any).signature_doc = processedData.signatureDoc;
-            }
+            // `signatureDoc` não tem coluna correspondente listada, logo fica só no form_data.
         }
 
         // 🚀 L7 PATTERN: Interceptação para Service Visits (Encapsulamento)
