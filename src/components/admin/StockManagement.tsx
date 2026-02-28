@@ -127,13 +127,19 @@ export const StockManagement: React.FC = () => {
             setError(null);
         } catch (err: any) {
             if (signal.aborted) return;
-            console.error('Erro ao carregar estoque:', err);
 
-            if (err.name === 'AbortError' || err.message?.includes('Abort') || err.message?.includes('Killed by Nexus')) {
-                console.warn('♻️ [Stock] Falha transitória detectada, agendando retry automático silencioso...');
-                setTimeout(() => loadItems(page, search, category, status), 3000);
-                return;
+            // "Killed by Nexus Recovery" = Recovery Engine abortou o fetch no Wake Up.
+            // É normal e esperado. Silenciosamente ignoramos — o useEffect vai re-disparar
+            // o fetch automaticamente quando a sessão/estado estiver estável.
+            const isNexusKill = err?.message?.includes('Killed by Nexus') || err?.message?.includes('Nexus Recovery');
+            const isAbort = err?.name === 'AbortError' || err?.message?.includes('AbortError') || err?.message?.includes('Aborted');
+
+            if (isNexusKill || isAbort) {
+                console.log('[Stock] 🛑 Fetch interrompido pelo Recovery (normal). Aguardando re-trigger automático.');
+                return; // sem retry manual, sem erro no console
             }
+
+            console.error('Erro ao carregar estoque:', err);
             setError(err.message || 'Erro inesperado ao sincronizar estoque.');
         } finally {
             clearTimeout(timeoutId);
@@ -150,10 +156,8 @@ export const StockManagement: React.FC = () => {
             setCategories(data);
             setAvailableCategories(data);
         } catch (err: any) {
-            console.error('Erro ao carregar categorias:', err);
-            if (err.name === 'AbortError' || err.message?.includes('Abort') || err.message?.includes('Killed by Nexus')) {
-                setTimeout(loadCategories, 3000);
-            }
+            const isNexusKill = err?.message?.includes('Killed by Nexus') || err?.name === 'AbortError';
+            if (!isNexusKill) console.error('Erro ao carregar categorias:', err);
         }
     };
 
@@ -164,10 +168,8 @@ export const StockManagement: React.FC = () => {
             const data = await TenantService.getTenantUsers(tenantId);
             setTechs(data.filter((u: any) => u.role === 'TECHNICIAN' || u.role === 'ADMIN'));
         } catch (err: any) {
-            console.error('Erro ao carregar técnicos:', err);
-            if (err.name === 'AbortError' || err.message?.includes('Abort') || err.message?.includes('Killed by Nexus')) {
-                setTimeout(loadTechs, 3000);
-            }
+            const isNexusKill = err?.message?.includes('Killed by Nexus') || err?.name === 'AbortError';
+            if (!isNexusKill) console.error('Erro ao carregar técnicos:', err);
         }
     };
 
