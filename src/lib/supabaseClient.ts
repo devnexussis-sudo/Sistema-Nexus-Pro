@@ -119,7 +119,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
         storageKey: 'nexus_shared_auth',    // Chave única: evita conflito entre projetos no mesmo domínio
         persistSession: true,               // Sessão sobrevive a reload e fechamento de aba
         autoRefreshToken: true,             // SDK gerencia o refresh do JWT — complementado pelo Recovery ativo
-        detectSessionInUrl: true,           // Necessário para OAuth e magic link
+        detectSessionInUrl: typeof window !== 'undefined' ? window.location.pathname.includes('/login') || window.location.pathname === '/' : false, // Sessão URL só no login
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         lock: nexusLock,                    // Lock nativo do SO — elimina deadlock por suspensão
     },
@@ -139,7 +139,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
         // Timeout de 12s por tentativa para prevenir hanging requests (Zombie Promises).
         // -------------------------------------------------------------
         fetch: async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-            const MAX_RETRIES = 2; // Reduzido de 3 para agilizar fallback do Cache
+            const MAX_RETRIES = 4; // Aumentado para 4 para dar chance à conexão intermitente
             const BASE_DELAY_MS = 1_000;
             let lastError: unknown;
 
