@@ -338,7 +338,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
                 if (isDev) console.warn('[Nexus Recovery] Realtime reconnect error (não crítico):', rtErr);
             }
 
-            // ── Step 3: HEALTH CHECK ATIVO — Verifica e recupera JWT ──
+            // ── Step 3: HEALTH CHECK ATIVO — Verifica JWT (sem chamar refreshSession) ──
             const { data: { session }, error } = await supabase.auth.getSession();
 
             if (error && isDev) console.warn('[Nexus Recovery] getSession error:', error.message);
@@ -351,30 +351,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
                 const isNearExpiry = (expiresAtMs - now) < 60_000; // Menos de 1 minuto para expirar
 
                 if (isExpired || isNearExpiry) {
-                    if (isDev) console.warn(`[Nexus Recovery] 🔑 JWT ${isExpired ? 'EXPIRADO' : 'PRÓXIMO DE EXPIRAR'} — forçando refresh ativo...`);
-
-                    try {
-                        const { data: refreshData, error: refreshError } = await singleRefreshSession();
-
-                        if (refreshError) {
-                            // Refresh falhou — token revogado ou refresh_token expirado
-                            console.error('[Nexus Recovery] ❌ Refresh de sessão falhou:', refreshError.message);
-                            window.dispatchEvent(new CustomEvent('NEXUS_RECOVERY_COMPLETE', {
-                                detail: { source, hasSession: false, refreshFailed: true, ts: Date.now() }
-                            }));
-                            return;
-                        }
-
-                        if (refreshData.session) {
-                            if (isDev) console.log('[Nexus Recovery] ✅ JWT renovado com sucesso via refresh ativo.');
-                        }
-                    } catch (refreshErr) {
-                        console.error('[Nexus Recovery] 💥 Exceção no refresh:', refreshErr);
-                        window.dispatchEvent(new CustomEvent('NEXUS_RECOVERY_COMPLETE', {
-                            detail: { source, hasSession: false, refreshFailed: true, ts: Date.now() }
-                        }));
-                        return;
-                    }
+                    if (isDev) console.warn(`[Nexus Recovery] 🔑 JWT ${isExpired ? 'EXPIRADO' : 'PRÓXIMO DE EXPIRAR'} — confiando no autoRefreshToken do SDK.`);
+                    // O Client Nativo do Supabase com autoRefreshToken: true renova ativamente em background.
+                    // JAMAIS forçar supabase.auth.refreshSession() aqui!!! Isso causa Race Condition do Lock.
                 }
             }
 

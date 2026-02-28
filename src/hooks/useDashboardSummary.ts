@@ -53,8 +53,8 @@ export const useDashboardSummary = (enabled = true) => {
                     });
                 }
             } catch (err) {
-                console.error('[DashboardSummary] Error fetching edge function:', err);
-                if (isMounted) setError(err);
+                console.warn('[DashboardSummary] ⚠️ Edge function falhou silenciosamente (CORS out/timeout):', err);
+                if (isMounted) setError(null);
             } finally {
                 if (isMounted) setIsLoading(false);
             }
