@@ -33,7 +33,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     const isMounted = useRef(true);
-    const recoveryDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // ── O Maestro: Inicialização ÚNICA ─────────────────────────────
     useEffect(() => {
@@ -91,25 +90,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             initMaestro();
         }
 
-        // ── Debounce no Visibility (O "Respiro") ─────────────────
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                if (recoveryDebounceRef.current) clearTimeout(recoveryDebounceRef.current);
-                // 1000ms de respiro para o AutoRefreshToken do Supabase renovar silenciosamente
-                recoveryDebounceRef.current = setTimeout(() => {
-                    logger.info('[Auth Maestro] Disparando NEXUS_QUERY_INVALIDATE pós Focus (1000ms)');
-                    window.dispatchEvent(new CustomEvent('NEXUS_QUERY_INVALIDATE', { detail: { key: '*' } }));
-                }, 1000);
-            }
-        };
-
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('focus', handleVisibilityChange);
+        // NOTA: O Recovery Engine em supabaseClient.ts já escuta visibilitychange/focus
+        // e dispara NEXUS_RECOVERY_COMPLETE quando necessário.
+        // Não duplicamos listeners aqui para evitar condição de corrida.
 
         return () => {
             isMounted.current = false;
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('focus', handleVisibilityChange);
         };
     }, []);
 
