@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Search, Plus, FileText, DollarSign, Clock, CheckCircle,
     XCircle, MoreHorizontal, ArrowRight, Trash2, Edit3, Trash, Edit,
@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { Customer, OrderStatus, OrderPriority, ServiceOrder, StockItem, Quote, QuoteItem } from '../../types';
+import { usePagedQuotes } from '../../hooks/nexusHooks';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface QuoteManagementProps {
     quotes: Quote[];
@@ -34,7 +36,25 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [viewQuote, setViewQuote] = useState<Quote | null>(null);
 
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 12;
+    const PAGE_SIZE = 20;
+
+    // ── Server-Side Pagination (Big Tech Standard) ──────────────
+    // Busca APENAS os 20 orçamentos da página atual no Supabase.
+    // Filtros são enviados para o servidor antes do .range()
+    const { session, isAuthLoading } = useAuth();
+    const serverFilters = useMemo(() => ({
+        search: searchTerm.trim() || undefined,
+        status: undefined // status filter pode ser adicionado futuramente
+    }), [searchTerm]);
+
+    const {
+        data: pageResult,
+        isLoading: quotesLoading,
+    } = usePagedQuotes(currentPage, serverFilters, !isAuthLoading && !!session);
+
+    const pagedQuotes = pageResult?.data ?? [];
+    const totalQuotes = pageResult?.total ?? 0;
+    const totalPages = pageResult?.lastPage ?? 1;
 
     // Form States
     const [customerName, setCustomerName] = useState('');
@@ -58,7 +78,6 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     // Preview do Identificador Soberano no modal de criação
     const previewId = useMemo(() => {
-        // Em edição: mostra o displayId existente (ou id legado)
         if (selectedQuote) return selectedQuote.displayId || getQuoteDisplayId(selectedQuote);
         if (!customerName) return 'ORC-XXXXXX000';
 
@@ -69,17 +88,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         const now = new Date();
         const yy = String(now.getFullYear()).substring(2);
         const mm = String(now.getMonth() + 1).padStart(2, '0');
-
-        // Calcula o sequenciador local para o preview
-        const currentMonthQuotes = quotes.filter(q => {
-            const date = new Date(q.createdAt);
-            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-        });
-
-        const sequencer = String(currentMonthQuotes.length + 1).padStart(3, '0');
+        // Sequenciador local: usa totalQuotes como aproximação
+        const sequencer = String((totalQuotes % 999) + 1).padStart(3, '0');
 
         return `ORC-${docPart}${yy}${mm}${sequencer}`;
-    }, [customerName, customers, selectedQuote, quotes]);
+    }, [customerName, customers, selectedQuote, totalQuotes]);
 
     // Filtra as ordens do cliente selecionado para permitir vínculo manual
     // Usa comparação case-insensitive e trim para evitar mismatches de capitalização
@@ -210,28 +223,12 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         }
     };
 
-    const filteredQuotes = useMemo(() => {
-        const term = searchTerm.toLowerCase();
-        return quotes.filter(q =>
-            q.customerName.toLowerCase().includes(term) ||
-            // Busca pelo Identificador Soberano (ORC-...)
-            (q.displayId || '').toLowerCase().includes(term) ||
-            // Busca pelo UUID interno (fallback)
-            q.id.toLowerCase().includes(term) ||
-            (q.linkedOrderId || '').toLowerCase().includes(term)
-        );
-    }, [quotes, searchTerm]);
-
-    useMemo(() => {
+    // Reset page on filter change
+    useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm]);
 
-    const paginatedQuotes = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return filteredQuotes.slice(start, start + ITEMS_PER_PAGE);
-    }, [filteredQuotes, currentPage]);
-
-    const totalPages = Math.ceil(filteredQuotes.length / ITEMS_PER_PAGE);
+    // pagedQuotes e totalPages vêm do hook server-side acima
 
     return (
         <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
@@ -271,7 +268,16 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             </tr>
                         </thead>
                         <tbody>
-                            {paginatedQuotes.map(quote => (
+                            {quotesLoading ? (
+                                <tr>
+                                    <td colSpan={8} className="py-16 text-center">
+                                        <div className="flex flex-col items-center gap-3 text-slate-400">
+                                            <Loader2 size={28} className="animate-spin text-primary-400" />
+                                            <p className="text-[10px] font-black uppercase tracking-widest">Carregando orçamentos...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : pagedQuotes.map(quote => (
                                 <tr key={quote.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
                                     <td className="px-4 py-1.5">
                                         <div className="flex flex-col truncate max-w-[140px]">
@@ -386,8 +392,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
-                    totalItems={filteredQuotes.length}
-                    itemsPerPage={ITEMS_PER_PAGE}
+                    totalItems={totalQuotes}
+                    itemsPerPage={PAGE_SIZE}
                     onPageChange={setCurrentPage}
                 />
             </div>
