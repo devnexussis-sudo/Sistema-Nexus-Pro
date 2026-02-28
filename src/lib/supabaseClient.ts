@@ -116,13 +116,12 @@ const nexusLock: LockFunc = _buildLock();
 // ---------------------------------------------------------------
 export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
     auth: {
-        storageKey: 'nexus_shared_auth',    // Chave única: evita conflito entre projetos no mesmo domínio
+        storageKey: 'nexus-line-auth',      // Chave única revisada
         persistSession: true,               // Sessão sobrevive a reload e fechamento de aba
-        autoRefreshToken: true,             // SDK gerencia o refresh do JWT — complementado pelo Recovery ativo
-        detectSessionInUrl: false,          // Orchestrator: false, apenas app lida.
+        autoRefreshToken: true,             // SDK gerencia o refresh do JWT
+        detectSessionInUrl: false,          // Orchestrator: false
         flowType: 'pkce',                   // Arquitetura moderna Pkce
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-        lock: nexusLock,                    // Lock nativo do SO — elimina deadlock por suspensão
     },
 
     realtime: {
