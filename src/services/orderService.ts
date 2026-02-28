@@ -527,6 +527,22 @@ export const OrderService = {
             updatePayload.start_date = new Date().toISOString();
         } else if (status === OrderStatus.COMPLETED || status === OrderStatus.BLOCKED) {
             updatePayload.end_date = new Date().toISOString();
+
+            // 💰 BILLING AUTO-QUEUE: Se a OS for concluída com valor > 0,
+            // ela entra automaticamente na fila do financeiro como PENDING.
+            // OS sem cobrança (valor = 0) ficam sem billingStatus e não aparecem no financeiro.
+            if (status === OrderStatus.COMPLETED) {
+                const itemsValue = items?.reduce((acc, i) => acc + (i.total || 0), 0) ?? 0;
+                const formTotal = (processedData as any)?.totalValue || (processedData as any)?.price || 0;
+                const orderValue = itemsValue + Number(formTotal);
+
+                if (orderValue > 0) {
+                    updatePayload.billing_status = 'PENDING';
+                    console.log(`💰 [OrderService] OS ${id} finalizada com valor R$${orderValue.toFixed(2)} → billing_status=PENDING`);
+                } else {
+                    console.log(`ℹ️ [OrderService] OS ${id} finalizada sem valor → sem fila financeira`);
+                }
+            }
         }
 
         // 📍 Tratamento Especial para Campos de Fluxo (Extrai de 'data' se vier misturado)
