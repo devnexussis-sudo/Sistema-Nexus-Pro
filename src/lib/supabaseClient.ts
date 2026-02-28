@@ -312,50 +312,35 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
                 return;
             }
 
-            // ── Step 0: Matar todas as requisições nativas congeladas pelo sistema —
+            // ── Step 1: Abortar fetch requests congeladas (zumbis de suspensão do SO) ──
             if (activeNexusFetches.size > 0) {
-                if (isDev) console.log(`[Nexus Recovery] 🔪 Matando ${activeNexusFetches.size} conexões em voo presas devido suspensão...`);
+                if (isDev) console.log(`[Nexus Recovery] 🔪 Matando ${activeNexusFetches.size} fetches presos...`);
                 activeNexusFetches.forEach(ac => ac.abort(new Error('Killed by Nexus Recovery (Wake up)')));
                 activeNexusFetches.clear();
             }
 
-            // ── Step 1: Limpar caches do browser (proteção contra SW stale) ──
-            await _clearBrowserCaches();
-
-            // ── Step 2: Reconectar WebSocket do Realtime ──
+            // ── Step 2: Reconectar Realtime APENAS se WebSocket estiver MORTO ──
+            // Não destruimos canais ativos na troca normal de aba — isso quebra os listeners do AdminApp.
             try {
-                // Remove canais antigos (zumbis) para evitar eventos duplicados na volta do ambiente suspendido
-                try { supabase.removeAllChannels(); } catch (e) { }
+                const rt = (supabase as unknown as { realtime?: { conn?: { transport?: { ws?: { readyState?: number } } }; connect?: () => void } }).realtime;
+                const wsState = rt?.conn?.transport?.ws?.readyState;
+                // readyState: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
+                const isWsDead = wsState === 3 || wsState === 2 || wsState === undefined;
 
-                const rt = (supabase as unknown as { realtime?: { connect?: () => void; disconnect?: () => void } }).realtime;
-                if (rt?.disconnect && rt?.connect) {
-                    rt.disconnect();
-                    await new Promise(r => setTimeout(r, 200));
+                if (isWsDead && rt?.connect) {
+                    if (isDev) console.log(`[Nexus Recovery] 🔌 WebSocket morto (state=${wsState}) — reconectando SEM destruir canais...`);
+                    // Não chamamos removeAllChannels() — apenas reconecta o transporte
                     rt.connect();
-                    if (isDev) console.log('[Nexus Recovery] ✅ Realtime reconectado e channels limpos.');
+                } else {
+                    if (isDev) console.log(`[Nexus Recovery] 🟢 WebSocket vivo (state=${wsState}) — sem ação no Realtime.`);
                 }
             } catch (rtErr) {
-                if (isDev) console.warn('[Nexus Recovery] Realtime reconnect error (não crítico):', rtErr);
+                if (isDev) console.warn('[Nexus Recovery] Realtime check error (não crítico):', rtErr);
             }
 
-            // ── Step 3: HEALTH CHECK ATIVO — Verifica JWT (sem chamar refreshSession) ──
+            // ── Step 3: Leitura passiva da sessão (sem bater no servidor) ──
             const { data: { session }, error } = await supabase.auth.getSession();
-
             if (error && isDev) console.warn('[Nexus Recovery] getSession error:', error.message);
-
-            // Verifica se o JWT expirou durante a suspensão do SO
-            if (session?.expires_at) {
-                const expiresAtMs = session.expires_at * 1000;
-                const now = Date.now();
-                const isExpired = now > expiresAtMs;
-                const isNearExpiry = (expiresAtMs - now) < 60_000; // Menos de 1 minuto para expirar
-
-                if (isExpired || isNearExpiry) {
-                    if (isDev) console.warn(`[Nexus Recovery] 🔑 JWT ${isExpired ? 'EXPIRADO' : 'PRÓXIMO DE EXPIRAR'} — confiando no autoRefreshToken do SDK.`);
-                    // O Client Nativo do Supabase com autoRefreshToken: true renova ativamente em background.
-                    // JAMAIS forçar supabase.auth.refreshSession() aqui!!! Isso causa Race Condition do Lock.
-                }
-            }
 
             // ── Step 4: Notifica camadas superiores ──
             window.dispatchEvent(new CustomEvent('NEXUS_RECOVERY_COMPLETE', {
@@ -372,7 +357,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
     const _scheduleRecovery = (source: string) => {
         if (_recoveryTimer !== undefined) clearTimeout(_recoveryTimer);
-        _recoveryTimer = setTimeout(() => _runRecovery(source), 500); // 500ms delay para dar tempo ao silent refresh
+        // 800ms de respiro para o AutoRefreshToken do Supabase renovar silenciosamente
+        _recoveryTimer = setTimeout(() => _runRecovery(source), 800);
     };
 
     // visibilitychange — principal trigger (Safari Mobile, Chrome Mobile)
