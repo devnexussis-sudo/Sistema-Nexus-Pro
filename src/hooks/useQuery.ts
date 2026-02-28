@@ -2,7 +2,18 @@
 import { useState, useEffect, useRef } from 'react';
 
 // 🧠 Global Query Cache (Singleton)
-const queryCache = new Map<string, { data: any; timestamp: number; promise?: Promise<any>; promiseTimestamp?: number }>();
+const queryCache = new Map<string, { data: any; timestamp: number; promise?: Promise<any>; promiseTimestamp?: number; zombieRetries?: number }>();
+
+// 🐢 Global Request Queue (previne rajadas de fetches simultâneos no Wake Up / Load inicial)
+let globalFetchQueue: Promise<void> = Promise.resolve();
+const enqueueFetch = async () => {
+    const queuePromise = globalFetchQueue;
+    let resolveNext: () => void;
+    globalFetchQueue = new Promise(r => { resolveNext = r as any; });
+    await queuePromise;
+    // Espaçamento de 200ms entre as requisições
+    setTimeout(() => resolveNext(), 200);
+};
 
 // ⚙️ Default Options
 const DEFAULT_STALE_TIME = 1000 * 60 * 5; // 5 minutes
@@ -137,7 +148,7 @@ export function useQuery<T>(
         }
 
         // 🛡️ Request Deduplication (com anti-deadlock)
-        const isPromiseStale = cached?.promiseTimestamp && (Date.now() - cached.promiseTimestamp > 45000); // 45s timeout para acomodar retries do fetch
+        const isPromiseStale = cached?.promiseTimestamp && (Date.now() - cached.promiseTimestamp > 10000); // 10s timeout para acomodar retries do fetch e do CacheManager
 
         if (cached?.promise && !isPromiseStale) {
             console.log(`[NexusQuery] ♻️ Reusing request: ${key}`);
@@ -155,8 +166,15 @@ export function useQuery<T>(
 
         // Se promessa era velha (zumbi), ignoramos e iniciamos nova
         if (isPromiseStale && cached?.promise) {
-            console.warn(`[NexusQuery] 🧟 Zumbi Promise detectada em ${key}. Ignorando e refetching...`);
+            const zombieRetries = (cached?.zombieRetries || 0) + 1;
+            cached.zombieRetries = zombieRetries;
+            const delay = Math.min(1000 * Math.pow(2, zombieRetries), 10000);
+            console.warn(`[NexusQuery] 🧟 Zumbi Promise detectada em ${key}. Aguardando ${delay}ms (backoff) antes do refetch...`);
             cached.promise = undefined;
+            await new Promise(r => setTimeout(r, delay));
+            if (!isMounted.current) return;
+        } else if (cached) {
+            cached.zombieRetries = 0;
         }
 
         // 🟢 Vincula o AbortSignal ao ciclo de vida desta requisição
@@ -167,13 +185,16 @@ export function useQuery<T>(
         const signal = abortControllerRef.current.signal;
 
         // Start Fetch
-        console.log(`[NexusQuery] 🟢 Fetching: ${key}`);
+        console.log(`[NexusQuery] 🟢 Fetching: ${key} (Aguardando Fila...)`);
         setState(prev => ({
             ...prev,
             isLoading: !prev.data,
             isFetching: true,
             status: 'loading'
         }));
+
+        await enqueueFetch();
+        if (!isMounted.current) return; // Se abortou enquanto tava na fila
 
         try {
             const promise = queryFn(signal);
