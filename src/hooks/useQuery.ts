@@ -39,7 +39,7 @@ interface QueryResult<T> {
  */
 export function useQuery<T>(
     queryKey: string | string[],
-    queryFn: () => Promise<T>,
+    queryFn: (signal: AbortSignal) => Promise<T>,
     options: QueryOptions<T> = {}
 ): QueryResult<T> {
     const key = Array.isArray(queryKey) ? queryKey.join(':') : queryKey;
@@ -119,6 +119,7 @@ export function useQuery<T>(
 
     const isMounted = useRef(true);
     const retryCount = useRef(0);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     // 🔄 Fetch Logic
     const fetchData = async (forceRefetch = false) => {
@@ -158,6 +159,13 @@ export function useQuery<T>(
             cached.promise = undefined;
         }
 
+        // 🟢 Vincula o AbortSignal ao ciclo de vida desta requisição
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort('Nova requisição iniciada (Deduplicação)');
+        }
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
+
         // Start Fetch
         console.log(`[NexusQuery] 🟢 Fetching: ${key}`);
         setState(prev => ({
@@ -168,7 +176,7 @@ export function useQuery<T>(
         }));
 
         try {
-            const promise = queryFn();
+            const promise = queryFn(signal);
 
             // Store promise in cache
             if (cached) {
@@ -250,6 +258,10 @@ export function useQuery<T>(
 
         return () => {
             isMounted.current = false;
+            // 🚨 Abort the request if the component unmounts (Prevenção de Orphãs)
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort('Componente desmontado');
+            }
             window.removeEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
             window.removeEventListener('focus', handleFocus);
         };

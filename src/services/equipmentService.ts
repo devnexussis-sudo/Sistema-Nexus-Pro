@@ -27,7 +27,7 @@ export const EquipmentService = {
         };
     },
 
-    getEquipments: async (): Promise<Equipment[]> => {
+    getEquipments: async (signal?: AbortSignal): Promise<Equipment[]> => {
         if (isCloudEnabled) {
             const tenantId = getCurrentTenantId();
             if (!tenantId) return [];
@@ -36,12 +36,18 @@ export const EquipmentService = {
             const cached = CacheManager.get<Equipment[]>(cacheKey);
             if (cached) return cached;
 
-            return CacheManager.deduplicate(cacheKey, async () => {
-                const { data, error } = await supabase.from('equipments')
+            return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
+                let query = supabase.from('equipments')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('model')
                     .limit(100);
+
+                if (currentSignal || signal) {
+                    query = query.abortSignal((currentSignal || signal) as AbortSignal);
+                }
+
+                const { data, error } = await query;
 
                 if (error) {
                     throw error;
@@ -49,7 +55,7 @@ export const EquipmentService = {
                 const mapped = (data || []).map(d => EquipmentService._mapEquipmentFromDB(d));
                 CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min
                 return mapped;
-            });
+            }, signal);
         }
         return [];
     },

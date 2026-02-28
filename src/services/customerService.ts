@@ -32,7 +32,7 @@ export const CustomerService = {
         };
     },
 
-    getCustomers: async (): Promise<Customer[]> => {
+    getCustomers: async (signal?: AbortSignal): Promise<Customer[]> => {
         if (isCloudEnabled) {
             let tenantId = getCurrentTenantId();
 
@@ -46,12 +46,18 @@ export const CustomerService = {
             const cached = CacheManager.get<Customer[]>(cacheKey);
             if (cached) return cached;
 
-            return CacheManager.deduplicate(cacheKey, async () => {
-                const { data, error } = await supabase.from('customers')
+            return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
+                let query = supabase.from('customers')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('name')
                     .limit(100);
+
+                if (currentSignal || signal) {
+                    query = query.abortSignal((currentSignal || signal) as AbortSignal);
+                }
+
+                const { data, error } = await query;
 
                 if (error) {
                     throw error;
@@ -60,7 +66,7 @@ export const CustomerService = {
                 const mapped = (data || []).map(d => CustomerService._mapCustomerFromDB(d));
                 CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM);
                 return mapped;
-            });
+            }, signal);
         }
         return [];
     },

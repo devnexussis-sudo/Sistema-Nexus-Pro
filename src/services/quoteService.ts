@@ -45,7 +45,7 @@ export const QuoteService = {
         };
     },
 
-    getQuotes: async (): Promise<any[]> => {
+    getQuotes: async (signal?: AbortSignal): Promise<any[]> => {
         if (isCloudEnabled) {
             const tenantId = getCurrentTenantId();
             if (!tenantId) return [];
@@ -54,12 +54,18 @@ export const QuoteService = {
             const cached = CacheManager.get<any[]>(cacheKey);
             if (cached) return cached;
 
-            return CacheManager.deduplicate(cacheKey, async () => {
-                const { data, error } = await supabase.from('quotes')
+            return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
+                let query = supabase.from('quotes')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('created_at', { ascending: false })
                     .limit(100);
+
+                if (currentSignal || signal) {
+                    query = query.abortSignal((currentSignal || signal) as AbortSignal);
+                }
+
+                const { data, error } = await query;
 
                 if (error) {
                     throw error;
@@ -67,7 +73,7 @@ export const QuoteService = {
                 const mapped = (data || []).map(d => QuoteService._mapQuoteFromDB(d));
                 CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min
                 return mapped;
-            });
+            }, signal);
         }
         return [];
     },
