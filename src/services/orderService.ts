@@ -551,8 +551,6 @@ export const OrderService = {
 
         // 📍 Tratamento Especial para Campos de Fluxo (Extrai de 'data' se vier misturado)
         if (processedData) {
-            const specialFields = ['timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason'];
-
             if (processedData.timeline) {
                 updatePayload.timeline = processedData.timeline;
                 delete processedData.timeline;
@@ -568,6 +566,18 @@ export const OrderService = {
             if (processedData.pauseReason) {
                 updatePayload.pause_reason = processedData.pauseReason;
                 delete processedData.pauseReason;
+            }
+
+            // 🖊️ Assinatura: salva nas colunas dedicadas da OS (para visibilidade pública via RPC)
+            // Os dados FICAM também no form_data para compatibilidade retroativa
+            if (processedData.signature) {
+                (updatePayload as any).signature = processedData.signature;
+            }
+            if (processedData.signatureName) {
+                (updatePayload as any).signature_name = processedData.signatureName;
+            }
+            if (processedData.signatureDoc) {
+                (updatePayload as any).signature_doc = processedData.signatureDoc;
             }
         }
 
@@ -627,44 +637,47 @@ export const OrderService = {
 
     getPublicOrderById: async (id: string, signal?: AbortSignal, retryCount = 0): Promise<ServiceOrder | null> => {
         if (isCloudEnabled) {
-            // 🛡️ ESTRATÉGIA 1: Tentar RPC Seguro (Ideal)
+            // 🛡️ Estratégia 1: RPC com JOIN de customers (endereço fresco + assinatura)
             try {
-                let query = publicSupabase.rpc('get_public_order', { search_term: id });
-                if (signal) {
-                    query = query.abortSignal(signal);
-                }
+                let query = publicSupabase.rpc('get_public_order_full', { search_term: id });
+                if (signal) query = query.abortSignal(signal);
                 const { data, error } = await query;
 
-                if (!error && data && (Array.isArray(data) ? data.length > 0 : true)) {
+                if (!error && data) {
                     const orderData = Array.isArray(data) ? data[0] : data;
-                    return OrderService._mapOrderFromDB(orderData);
+                    if (orderData) return OrderService._mapOrderFromDB(orderData);
                 }
-
             } catch (err: any) {
                 if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
                     if (retryCount < 3) {
                         await new Promise(r => setTimeout(r, 1000 + (retryCount * 500)));
-                        return OrderService.getPublicOrderById(id, retryCount + 1);
+                        return OrderService.getPublicOrderById(id, undefined, retryCount + 1);
                     }
                 }
+                // Se get_public_order_full não existir ainda, cai para fallback abaixo
             }
 
-            // 🔄 ESTRATÉGIA 2: Fallback - Admin Bypassing RLS
+            // 🔄 Estratégia 2: RPC original (sem JOIN)
+            try {
+                let query = publicSupabase.rpc('get_public_order', { search_term: id });
+                if (signal) query = query.abortSignal(signal);
+                const { data, error } = await query;
+
+                if (!error && data) {
+                    const orderData = Array.isArray(data) ? data[0] : data;
+                    if (orderData) return OrderService._mapOrderFromDB(orderData);
+                }
+            } catch { /* continua para estratégia 3 */ }
+
+            // 🔄 Estratégia 3: Query direta (fallback final)
             try {
                 const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
                 let query = supabase.from('orders').select('*');
-
-                if (isUuid) {
-                    query = query.eq('public_token', id);
-                } else {
-                    query = query.eq('id', id);
-                }
-
-                if (signal) {
-                    query = query.abortSignal(signal);
-                }
+                if (isUuid) query = query.eq('public_token', id);
+                else query = query.eq('id', id);
+                if (signal) query = query.abortSignal(signal);
 
                 const { data, error } = await query.single();
                 if (error || !data) return null;
