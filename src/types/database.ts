@@ -146,9 +146,10 @@ export interface DbOrder {
     notes?: string;
     items?: DbOrderItem[];
     show_value_to_client?: boolean;
-    signature?: string;
-    signature_name?: string;
-    signature_doc?: string;
+    signature_url?: string;
+    client_signature_url?: string;
+    client_signature_name?: string;
+    signature_doc?: string; // deixado provisoriamente caso em algum momento exista
     billing_status?: DbBillingStatus;
     payment_method?: string;
     paid_at?: string;
