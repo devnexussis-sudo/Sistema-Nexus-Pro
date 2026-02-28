@@ -86,7 +86,7 @@ export const useUserGroups = (enabled = true) => {
 // ------------------------------------------------------------------
 
 export const useTechnicians = (enabled = true) => {
-    return useQuery('technicians', (signal) => TechnicianService.getAllTechnicians(signal), {
+    return useQuery('technicians', (signal) => TechnicianService.getAllTechnicians(undefined, signal), {
         enabled,
         staleTime: 1000 * 30 // 30 seconds
     });
@@ -127,8 +127,7 @@ export const useStockCategories = (enabled = true) => {
 
 export const useCombinedFinancials = (enabled = true) => {
     // This is a complex hook that might aggregate data. 
-    // For now, let's just fetch cash flow.
-    return useQuery('cash_flow', (signal) => FinancialService.getCashFlow(undefined, undefined, signal), {
+    return useQuery('cash_flow', (signal) => FinancialService.getCashFlow(signal as any), {
         enabled,
         staleTime: 1000 * 60 * 5
     });
