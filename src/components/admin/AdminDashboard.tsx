@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { OrderStatus, OrderPriority, type ServiceOrder, type User, type Customer } from '../../types';
 import { Button } from '../ui/Button';
 import { StatusBadge, PriorityBadge } from '../ui/StatusBadge';
@@ -7,7 +7,8 @@ import {
   Plus, Printer, X, FileText, CheckCircle2, ShieldCheck,
   Edit3, ExternalLink, Search, Filter, Calendar, Share2,
   Users, UserCheck, Clock, FileSpreadsheet, Download, Camera, ClipboardList, Ban, MapPin, Box,
-  DollarSign, Eye, EyeOff, LayoutDashboard, User as UserIcon, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight
+  DollarSign, Eye, EyeOff, LayoutDashboard, User as UserIcon, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
+  Loader2
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { CreateOrderModal } from './CreateOrderModal';
@@ -16,11 +17,14 @@ import { OrderTimeline } from '../shared/OrderTimeline';
 import { createPortal } from 'react-dom';
 import { DataService } from '../../services/dataService';
 import { useOrderExport } from '../../hooks/useOrderExport';
+import { usePagedOrders } from '../../hooks/nexusHooks';
+import { useAuth } from '../../contexts/AuthContext';
 
-
-
+// NOTA DE ARQUITETURA:
+// orders NÃO vem mais via prop — este componente busca seus próprios dados
+// via usePagedOrders (server-side pagination com .range() no Supabase).
+// techs e customers ainda vêm via prop pois são dados de referência pequenos.
 interface AdminDashboardProps {
-  orders: ServiceOrder[];
   techs: User[];
   customers: Customer[];
   startDate: string;
@@ -32,7 +36,7 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
-  orders, techs, customers, startDate, endDate, onDateChange, onUpdateOrders, onEditOrder, onCreateOrder
+  techs, customers, startDate, endDate, onDateChange, onUpdateOrders, onEditOrder, onCreateOrder
 }) => {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -43,9 +47,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit' | 'costs' | 'history'>('overview');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [orderVisits, setOrderVisits] = useState<any[]>([]);
-  const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
+  // Sort: campo e direção — passados para o servidor
+  const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 12;
+  const PAGE_SIZE = 20;
+
+  // ── Server-Side Pagination ─────────────────────────────────────────
+  const { session, isAuthLoading } = useAuth();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created'>('scheduled');
+  // techFilter armazena o techId (UUID), não o nome — enviado direto para o servidor
+  const [techFilter, setTechFilter] = useState<string>('ALL');
+  const [customerFilter, setCustomerFilter] = useState<string>('ALL');
+
+  // Filtros memorizados para evitar re-renders desnecessários
+  const serverFilters = useMemo(() => ({
+    status: statusFilter !== 'ALL' ? statusFilter : undefined,
+    technicianId: techFilter !== 'ALL' ? techFilter : undefined,
+    search: [
+      searchTerm.trim() || undefined,
+      customerFilter !== 'ALL' ? customerFilter : undefined
+    ].filter(Boolean).join(' ') || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  }), [statusFilter, techFilter, searchTerm, customerFilter, startDate, endDate]);
+
+  const {
+    data: pageResult,
+    isLoading: ordersLoading,
+    refetch: ordersRefetch,
+  } = usePagedOrders(currentPage, serverFilters, !isAuthLoading && !!session);
+
+  const pagedOrders: ServiceOrder[] = pageResult?.data ?? [];
+  const totalOrders = pageResult?.total ?? 0;
+  const totalPages = pageResult?.lastPage ?? 1;
+
 
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -66,9 +103,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const { handleExportExcel: exportToExcel } = useOrderExport();
 
   const handleExportExcel = () => {
+    // Exporta os itens da página atual (ou apenas os selecionados)
+    const base = pagedOrders;
     exportToExcel({
-      orders,
-      filteredOrders,
+      orders: base,
+      filteredOrders: selectedOrderIds.length > 0
+        ? pagedOrders.filter(o => selectedOrderIds.includes(o.id))
+        : pagedOrders,
       selectedOrderIds,
       techs
     });
@@ -111,25 +152,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setTimeout(cleanup, 5000);
     }, 1500);
   };
-
-  // States para Filtros
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created'>('scheduled');
-
-  const [techFilter, setTechFilter] = useState<string>('ALL');
-  const [customerFilter, setCustomerFilter] = useState<string>('ALL');
-  const [availableCustomerList, setAvailableCustomerList] = useState<string[]>([]);
-
-  useEffect(() => {
-    const uniqueCustomers = Array.from(new Set(orders.map(o => o.customerName))).sort();
-    setAvailableCustomerList(uniqueCustomers);
-  }, [orders]);
-
-  // Reset page on filter change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter, techFilter, customerFilter, startDate, endDate, dateTypeFilter]);
 
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
 
@@ -186,88 +208,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return date.toLocaleDateString('pt-BR');
   };
 
-  const filteredOrders = useMemo(() => {
-    const filtered = orders.filter(order => {
-      const term = searchTerm.toLowerCase();
-      const matchesSearch = (order.title || '').toLowerCase().includes(term) ||
-        (order.customerName || '').toLowerCase().includes(term) ||
-        (order.id || '').toLowerCase().includes(term) ||
-        (order.displayId || '').toLowerCase().includes(term);
+  // Client-side sort da página atual (20 items — rápido e sem custo)
+  const sortedPageOrders = useMemo(() => {
+    if (!sortConfig.key) return pagedOrders;
+    return [...pagedOrders].sort((a, b) => {
+      let aValue: any = (a as any)[sortConfig.key!];
+      let bValue: any = (b as any)[sortConfig.key!];
 
-      const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
-
-      const assignedTech = techs.find(t => t.id === order.assignedTo);
-      const techName = assignedTech ? assignedTech.name.toLowerCase() : '';
-      const matchesTech = techFilter === 'ALL' || techName.includes(techFilter.toLowerCase());
-
-      const matchesCustomer = customerFilter === 'ALL' || order.customerName.toLowerCase().includes(customerFilter.toLowerCase());
-
-      const sDate = order.scheduledDate ? order.scheduledDate.substring(0, 10) : null;
-      const cDate = order.createdAt ? order.createdAt.substring(0, 10) : null;
-      const targetDate = dateTypeFilter === 'scheduled' ? sDate : cDate;
-
-      let matchesTime = true;
-      if (startDate || endDate) {
-        if (!targetDate) {
-          matchesTime = false;
-        } else {
-          if (startDate && targetDate < startDate) matchesTime = false;
-          if (endDate && targetDate > endDate) matchesTime = false;
-        }
+      if (sortConfig.key === 'assignedTo') {
+        aValue = techs.find(t => t.id === a.assignedTo)?.name || '';
+        bValue = techs.find(t => t.id === b.assignedTo)?.name || '';
       }
 
-      return matchesSearch && matchesStatus && matchesTech && matchesCustomer && matchesTime;
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
     });
+  }, [pagedOrders, sortConfig, techs]);
 
-    if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        let aValue: any = (a as any)[sortConfig.key!];
-        let bValue: any = (b as any)[sortConfig.key!];
-
-        // Tratamento especial para nomes de técnicos
-        if (sortConfig.key === 'assignedTo') {
-          aValue = techs.find(t => t.id === a.assignedTo)?.name || '';
-          bValue = techs.find(t => t.id === b.assignedTo)?.name || '';
-        }
-
-        // Tratamento para nomes de clientes (evitar IDs se possível)
-        if (sortConfig.key === 'customerName') {
-          const custA = customers.find(c => c.name === a.customerName || c.document === a.customerName)?.name || a.customerName;
-          const custB = customers.find(c => c.name === b.customerName || c.document === b.customerName)?.name || b.customerName;
-          aValue = custA;
-          bValue = custB;
-        }
-
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return filtered;
-  }, [orders, techs, customers, searchTerm, statusFilter, startDate, endDate, techFilter, customerFilter, dateTypeFilter, sortConfig]);
-
-  const paginatedOrders = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredOrders.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredOrders, currentPage]);
-
-  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
-
-  const toggleSelection = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedOrderIds(prev =>
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedOrderIds.length === filteredOrders.length) {
-      setSelectedOrderIds([]);
+  // Select-all: seleciona apenas os itens da página atual (padrão Big Tech)
+  const toggleSelectAll = useCallback(() => {
+    const pageIds = sortedPageOrders.map(o => o.id);
+    const allSelected = pageIds.every(id => selectedOrderIds.includes(id));
+    if (allSelected) {
+      setSelectedOrderIds(prev => prev.filter(id => !pageIds.includes(id)));
     } else {
-      setSelectedOrderIds(filteredOrders.map(o => o.id));
+      setSelectedOrderIds(prev => Array.from(new Set([...prev, ...pageIds])));
     }
-  };
+  }, [sortedPageOrders, selectedOrderIds]);
 
   const handleFastFilter = (type: 'today' | 'week' | 'month') => {
     const now = new Date();
@@ -336,7 +304,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <UserCheck size={14} className="text-slate-400 mr-2" />
             <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
               <option value="ALL">Técnico: Todos</option>
-              {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              {/* value = techId — filtros server-side usam o UUID diretamente */}
+              {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
 
@@ -426,8 +395,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <input
                     type="checkbox"
                     className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
-                    checked={filteredOrders.length > 0 && selectedOrderIds.length === filteredOrders.length}
+                    checked={sortedPageOrders.length > 0 && sortedPageOrders.every(o => selectedOrderIds.includes(o.id))}
                     onChange={toggleSelectAll}
+                    title="Selecionar página atual"
                   />
                 </th>
                 <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
@@ -452,7 +422,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {paginatedOrders.length > 0 ? paginatedOrders.map(order => {
+              {ordersLoading ? (
+                <tr>
+                  <td colSpan={8} className="py-24 text-center">
+                    <div className="flex flex-col items-center gap-3 text-slate-400">
+                      <Loader2 size={28} className="animate-spin text-primary-400" />
+                      <p className="text-xs font-bold uppercase tracking-widest">Carregando ordens...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : sortedPageOrders.length > 0 ? sortedPageOrders.map(order => {
                 const isSelected = selectedOrderIds.includes(order.id);
                 const assignedTech = techs.find(t => t.id === order.assignedTo);
                 return (
@@ -461,7 +440,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className={`transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer ${isSelected ? 'bg-indigo-50/40' : 'bg-white hover:bg-slate-50'}`}
                     onClick={() => setSelectedOrder(order)}
                   >
-                    <td className="px-6 py-2 text-center shrink-0 w-12" onClick={(e) => toggleSelection(order.id, e)}>
+                    <td className="px-6 py-2 text-center shrink-0 w-12" onClick={(e) => { e.stopPropagation(); setSelectedOrderIds(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]); }}>
                       <input
                         type="checkbox"
                         className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
@@ -481,7 +460,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
                     </td>
                     <td className="px-6 py-2 font-bold text-sm text-slate-800 tracking-tight truncate max-w-[200px]">
-                      {customers.find(c => c.name === order.customerName || c.document === order.customerName)?.name || order.customerName}
+                      {order.customerName}
                     </td>
 
                     <td className="px-6 py-2">
@@ -508,7 +487,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }}
                           disabled={order.status === OrderStatus.CANCELED || order.status === OrderStatus.COMPLETED}
                           className="p-2 text-slate-600 bg-white hover:bg-emerald-500 hover:text-white rounded-lg border border-slate-200 hover:border-emerald-500 transition-all shadow-sm disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600"
-                          title={order.status === OrderStatus.COMPLETED ? "OS Concluída - Apenas Visualização" : "Editar"}
+                          title={order.status === OrderStatus.COMPLETED ? "OS Conluída - Apenas Visualização" : "Editar"}
                         >
                           <Edit3 size={16} />
                         </button>
@@ -541,8 +520,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
-          totalItems={filteredOrders.length}
-          itemsPerPage={ITEMS_PER_PAGE}
+          totalItems={totalOrders}
+          itemsPerPage={PAGE_SIZE}
           onPageChange={setCurrentPage}
         />
       </div>
@@ -1018,10 +997,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
-      {/* Batch Print Container */}
+      {/* Batch Print Container — usa os dados da página atual */}
       {isBatchPrinting && createPortal(
         <div id="batch-print-root" className="bg-white">
-          {orders
+          {pagedOrders
             .filter(o => selectedOrderIds.includes(o.id))
             .map((order) => (
               <div key={order.id} className="print:break-after-page last:print:break-after-auto w-full">
