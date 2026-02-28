@@ -377,22 +377,35 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 export type { SupabaseClient };
 
 // ---------------------------------------------------------------
-// Estado Global de Sessão (Passive Mode)
+// 🏆 FONTE DE VERDADE Única de Sessão (Singleton onAuthStateChange)
+//
+// REGRA DE OURO: Existe UMA, e apenas UMA, assinatura de
+// onAuthStateChange em toda a aplicação. Ela fica AQUI.
+// Outros módulos (AuthContext, hooks) ouvem via CustomEvent
+// 'NEXUS_AUTH_EVENT' — nunca chamam onAuthStateChange diretamente.
 // ---------------------------------------------------------------
+export let globalSession: any | null = null;
 export let globalSessionOk = false;
 
 if (typeof window !== 'undefined') {
-    // Escuta UMA VEZ na inicialização do app.
     supabase.auth.onAuthStateChange((event, session) => {
+        globalSession = session;
         globalSessionOk = !!session;
-        if (isDev) console.log(`[Auth Orchestrator] Evento: ${event}, Sessão válida: ${globalSessionOk}`);
+
+        if (isDev) console.log(`[Auth Singleton] 🔑 Event: ${event} | hasSession: ${globalSessionOk}`);
+
+        // Propaga para o AuthContext (e qualquer outro listener) via evento do DOM.
+        // Isso EVITA que o AuthContext registre sua própria assinatura e
+        // briga pelo lock com o autoRefreshToken do SDK.
+        window.dispatchEvent(new CustomEvent('NEXUS_AUTH_EVENT', {
+            detail: { event, session }
+        }));
     });
 }
 
 // ---------------------------------------------------------------
-// ensureValidSession — Agora PASSIVA (não briga por lock)
+// ensureValidSession — Passiva, sem briga de lock
 // ---------------------------------------------------------------
 export async function ensureValidSession(): Promise<boolean> {
-    // Retorna do "Bolso" imediatamente, sem bater no on-disk auth do Supabase
     return globalSessionOk;
 }

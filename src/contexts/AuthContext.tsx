@@ -1,20 +1,25 @@
 // ============================================================
 // src/contexts/AuthContext.tsx
-// 🛡️ NEXUS LINE — Authentication Context v4.0 (Maestro)
+// 🛡️ NEXUS LINE — Authentication Context v5.0 (Passive Listener)
+//
+// ARQUITETURA:
+//  - NÃO registra onAuthStateChange — o Singleton em supabaseClient.ts faz isso.
+//  - Escuta o CustomEvent 'NEXUS_AUTH_EVENT' emitido pelo Singleton.
+//  - Isso garante que NUNCA haverá duas assinaturas brigando pelo auth lock.
 // ============================================================
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AuthState, User } from '../types';
 import { DataService } from '../services/dataService';
 import SessionStorage, { GlobalStorage } from '../lib/sessionStorage';
-import { logger } from '../lib/logger';
+import { globalSession, globalSessionOk } from '../lib/supabaseClient';
 import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
     auth: AuthState;
     setAuth: React.Dispatch<React.SetStateAction<AuthState>>;
     isAuthLoading: boolean;
-    isInitializing: boolean; // Mantido por retrocompatibilidade
+    isInitializing: boolean; // Alias para retrocompatibilidade
     session: any | null;
     login: (user: User) => void;
     logout: () => Promise<void>;
@@ -24,8 +29,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [session, setSession] = useState<any | null>(null);
-    const [isAuthLoading, setIsAuthLoading] = useState(true);
+    // Inicializa do "bolso" global do Singleton — sem esperar assíncrono
+    const [session, setSession] = useState<any | null>(globalSession);
+    const [isAuthLoading, setIsAuthLoading] = useState(!globalSessionOk);
 
     const [auth, setAuth] = useState<AuthState>(() => {
         const stored = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
@@ -33,69 +39,83 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     const isMounted = useRef(true);
+    // Mutex para evitar N chamadas simultâneas de refreshUser
+    const isRefreshingUser = useRef(false);
 
-    // ── O Maestro: Inicialização ÚNICA ─────────────────────────────
+    // ── Setup: escuta eventos do Singleton (sem registrar novo onAuthStateChange) ──
     useEffect(() => {
         isMounted.current = true;
 
-        const initMaestro = async () => {
-            try {
-                // 1. Pede sessão (Lê do cache local/storage) UMA VEZ
-                const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        // ── Inicialização: sincroniza com o estado atual do Singleton ──
+        const bootstrap = async () => {
+            // Se o Singleton já tem sessão no "bolso", usa direto (zero latência)
+            if (globalSessionOk && globalSession) {
+                setSession(globalSession);
+                setIsAuthLoading(false);
 
-                if (isMounted.current) {
-                    setSession(currentSession);
-                    setIsAuthLoading(false);
-
-                    if (currentSession?.user) {
-                        // Sincroniza o usuário interno do Nexus
-                        DataService.refreshUser().then(rUser => {
-                            if (rUser && isMounted.current) {
-                                setAuth({ user: rUser, isAuthenticated: true });
-                            }
-                        }).catch(() => { });
-                    } else if (error || !currentSession) {
-                        setAuth({ user: null, isAuthenticated: false });
+                if (!isRefreshingUser.current) {
+                    isRefreshingUser.current = true;
+                    const rUser = await DataService.refreshUser().catch(() => null);
+                    isRefreshingUser.current = false;
+                    if (rUser && isMounted.current) {
+                        setAuth({ user: rUser, isAuthenticated: true });
                     }
                 }
+                return;
+            }
 
-                // 2. Escuta mudanças na sessão (renovação, logout) UMA VEZ
-                supabase.auth.onAuthStateChange(async (event, newSession) => {
-                    if (!isMounted.current) return;
-                    logger.info(`[Auth Maestro] Event: ${event}`);
+            // Sem sessão no bolso — pode ser rota pública ou sessão expirada
+            if (window.location.hash.startsWith('#/view')) {
+                setIsAuthLoading(false);
+                return;
+            }
 
-                    setSession(newSession);
-
-                    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && newSession?.user) {
-                        const rUser = await DataService.refreshUser().catch(() => null);
-                        if (rUser && isMounted.current) {
-                            setAuth({ user: rUser, isAuthenticated: true });
-                        } else if (rUser === undefined && event === 'SIGNED_IN') {
-                            setAuth({ user: null, isAuthenticated: false });
-                        }
-                    } else if (event === 'SIGNED_OUT') {
-                        setAuth({ user: null, isAuthenticated: false });
-                    }
-                });
-
-            } catch (err) {
-                console.error('[Auth Maestro] Falha na inicialização:', err);
+            // Leitura passiva (não chama getSession na rede, lê do localStorage)
+            // O Singleton já vai disparar NEXUS_AUTH_EVENT quando o SDK inicializar
+            // Apenas libera a UI após 1s de segurança
+            const safetyTimer = setTimeout(() => {
                 if (isMounted.current) setIsAuthLoading(false);
+            }, 1500);
+
+            return () => clearTimeout(safetyTimer);
+        };
+
+        bootstrap();
+
+        // ── Listener do Singleton — ÚNICA fonte de verdade de auth ──
+        const handleAuthEvent = async (e: Event) => {
+            if (!isMounted.current) return;
+
+            const { event, session: newSession } = (e as CustomEvent).detail;
+            console.log(`[AuthContext] 📡 NEXUS_AUTH_EVENT: ${event}`);
+
+            setSession(newSession);
+            setIsAuthLoading(false);
+
+            if (event === 'SIGNED_IN' && newSession?.user) {
+                // Apenas no login inicial — carrega o perfil Nexus do usuário
+                if (!isRefreshingUser.current) {
+                    isRefreshingUser.current = true;
+                    const rUser = await DataService.refreshUser().catch(() => null);
+                    isRefreshingUser.current = false;
+                    if (rUser && isMounted.current) {
+                        setAuth({ user: rUser, isAuthenticated: true });
+                    }
+                }
+            } else if (event === 'TOKEN_REFRESHED' && newSession?.user) {
+                // Token renovado: atualiza sessão sem re-buscar perfil do banco
+                // (o usuário não mudou, só o JWT expirou e foi renovado)
+                setAuth(prev => prev.isAuthenticated ? prev : { user: null, isAuthenticated: false });
+            } else if (event === 'SIGNED_OUT') {
+                setAuth({ user: null, isAuthenticated: false });
             }
         };
 
-        if (window.location.hash.startsWith('#/view')) {
-            setIsAuthLoading(false); // Rota pública não precisa travar
-        } else {
-            initMaestro();
-        }
-
-        // NOTA: O Recovery Engine em supabaseClient.ts já escuta visibilitychange/focus
-        // e dispara NEXUS_RECOVERY_COMPLETE quando necessário.
-        // Não duplicamos listeners aqui para evitar condição de corrida.
+        window.addEventListener('NEXUS_AUTH_EVENT', handleAuthEvent);
 
         return () => {
             isMounted.current = false;
+            window.removeEventListener('NEXUS_AUTH_EVENT', handleAuthEvent);
         };
     }, []);
 
@@ -111,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             await supabase.auth.signOut();
         } catch (err) {
-            console.error('[Auth Maestro] signOut error:', err);
+            console.error('[AuthContext] signOut error:', err);
         }
     }, []);
 
@@ -126,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             auth,
             setAuth,
             isAuthLoading,
-            isInitializing: isAuthLoading, // Alias
+            isInitializing: isAuthLoading,
             session,
             login,
             logout,
