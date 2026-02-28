@@ -3,7 +3,7 @@ import { ServiceOrder, User } from '../../types';
 import {
   Calendar, MapPin, Printer, Hexagon, Box, User as UserIcon, Tag,
   CheckCircle2, FileText, ShieldAlert, Mail, Phone, DollarSign,
-  ChevronDown, ChevronUp, Clock, Wrench, Package, ClipboardList, Image as ImageIcon
+  ChevronDown, ChevronUp, Clock, Wrench, Package, ClipboardList
 } from 'lucide-react';
 import { StatusBadge } from '../ui/StatusBadge';
 import { DataService } from '../../services/dataService';
@@ -44,36 +44,50 @@ const CollapsibleFormSection: React.FC<{
 }> = ({ formData, order, onImageClick }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Filtra apenas campos de texto (perguntas/respostas do formulário)
-  // Exclui imagens, assinaturas e metadados internos
-  const SKIP_KEYS = ['signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+  // Chaves internas do sistema — nunca são perguntas do formulário
+  const SYSTEM_KEYS = new Set([
+    'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
     'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-    'impediment_reason', 'impediment_photos', 'totalValue', 'price'];
+    'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+    'finishedAt', 'technical_report', 'parts_used'
+  ]);
 
-  const textEntries = Object.entries(formData).filter(([key, val]) => {
-    if (SKIP_KEYS.includes(key)) return false;
-    if (Array.isArray(val)) return false;
-    if (typeof val === 'string' && (val.startsWith('data:image') || val.startsWith('http'))) return false;
-    // Campos de assinatura/CPF/nascimento são mostrados no bloco de assinaturas
-    if (
-      key.toLowerCase().includes('assinatura') ||
-      key.toLowerCase().includes('cpf') ||
-      key.toLowerCase().includes('nascimento') ||
-      key.toLowerCase().includes('signature')
-    ) return false;
-    return true;
-  });
+  const isSignatureKey = (k: string) =>
+    k.toLowerCase().includes('assinatura') ||
+    k.toLowerCase().includes('signature') ||
+    k.toLowerCase().includes('cpf') ||
+    k.toLowerCase().includes('nascimento');
 
-  const photoGroups: { key: string; urls: string[] }[] = Object.entries(formData)
-    .filter(([key]) => !key.toLowerCase().includes('assinatura') && !key.toLowerCase().includes('signature'))
-    .flatMap(([key, val]) => {
+  const isImageVal = (v: any) =>
+    typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'));
+
+  // Monta lista de itens do formulário: cada item pode ter texto e/ou fotos
+  // Preserva a ORDEM original das perguntas
+  const formItems = Object.entries(formData)
+    .filter(([key]) => !SYSTEM_KEYS.has(key) && !isSignatureKey(key))
+    .map(([key, val]) => {
+      let text: string | null = null;
       let photos: string[] = [];
-      if (Array.isArray(val)) photos = val.filter(v => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image')));
-      else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) photos = [val];
-      return photos.length > 0 ? [{ key, urls: photos }] : [];
-    });
 
-  if (textEntries.length === 0 && photoGroups.length === 0) return null;
+      if (Array.isArray(val)) {
+        // Arrays podem ter mix de strings e fotos
+        const textParts = val.filter((v: any) => typeof v === 'string' && !isImageVal(v));
+        photos = val.filter((v: any) => isImageVal(v));
+        if (textParts.length > 0) text = textParts.join(', ');
+      } else if (isImageVal(val)) {
+        photos = [val as string];
+      } else if (val !== null && val !== undefined && val !== '') {
+        text = String(val);
+      }
+
+      return { key, text, photos };
+    })
+    .filter(({ text, photos }) => text !== null || photos.length > 0);
+
+  if (formItems.length === 0) return null;
+
+  const photoCount = formItems.reduce((acc, i) => acc + i.photos.length, 0);
+  const textCount = formItems.filter(i => i.text !== null).length;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -89,7 +103,7 @@ const CollapsibleFormSection: React.FC<{
           <div className="text-left">
             <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Formulário Técnico</p>
             <p className="text-[9px] text-slate-400 font-medium mt-0.5">
-              {textEntries.length} campos · {photoGroups.reduce((a, g) => a + g.urls.length, 0)} fotos
+              {textCount} {textCount === 1 ? 'resposta' : 'respostas'}{photoCount > 0 ? ` · ${photoCount} foto${photoCount > 1 ? 's' : ''}` : ''}
             </p>
           </div>
         </div>
@@ -99,56 +113,50 @@ const CollapsibleFormSection: React.FC<{
         </div>
       </button>
 
-      {/* Expanded content */}
+      {/* Expanded content — cada item do formulário com texto + fotos juntos */}
       {isOpen && (
-        <div className="border-t border-slate-100 px-6 sm:px-8 py-6 space-y-8 animate-fade-in">
-
-          {/* Text fields — two columns */}
-          {textEntries.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {textEntries.map(([key, val]) => (
-                <div key={key} className="flex flex-col gap-1.5 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{!isNaN(Number(key)) ? `Pergunta nº ${key}` : key}</span>
-                  <span className={`text-sm font-bold leading-snug ${String(val).toLowerCase() === 'sim' || String(val).toLowerCase() === 'ok'
-                    ? 'text-emerald-600 flex items-center gap-1'
-                    : 'text-slate-800 uppercase'
+        <div className="border-t border-slate-100 px-6 sm:px-8 py-6 space-y-4 animate-fade-in">
+          {formItems.map(({ key, text, photos }) => (
+            <div key={key} className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+              {/* Pergunta + Resposta */}
+              <div className="px-4 pt-4 pb-3">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  {!isNaN(Number(key)) ? `Pergunta nº ${key}` : key}
+                </p>
+                {text !== null && (
+                  <p className={`text-sm font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
+                    ? 'text-emerald-600'
+                    : 'text-slate-800'
                     }`}>
-                    {(String(val).toLowerCase() === 'sim' || String(val).toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
-                    {String(val)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Photos grouped by field */}
-          {photoGroups.length > 0 && (
-            <div className="space-y-6">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                <ImageIcon size={12} /> Evidências Fotográficas
-              </p>
-              {photoGroups.map(({ key, urls }) => (
-                <div key={key} className="space-y-3">
-                  <p className="text-[10px] font-black text-[#1c2d4f] uppercase tracking-wide flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-[#2a457a] rounded-full inline-block" />
-                    {key}
+                    {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
+                    {text}
                   </p>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                    {urls.map((url, i) => (
-                      <div
-                        key={i}
-                        className="aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-zoom-in group shadow-sm hover:shadow-md transition-all"
-                        onClick={() => onImageClick(url)}
-                      >
-                        <img src={url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={key} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                )}
+                {text === null && photos.length > 0 && (
+                  <p className="text-[10px] font-bold text-slate-400 italic">Evidência fotográfica</p>
+                )}
+              </div>
 
+              {/* Fotos da mesma pergunta */}
+              {photos.length > 0 && (
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 px-3 pb-3">
+                  {photos.map((url, i) => (
+                    <div
+                      key={i}
+                      className="aspect-square rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all"
+                      onClick={() => onImageClick(url)}
+                    >
+                      <img
+                        src={url}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        alt={key}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -357,15 +365,29 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
             <SectionHeader icon={<UserIcon size={15} />} title="Dados do Cliente" />
-            <div className="space-y-4">
+            <div className="space-y-3">
+              {/* Nome do cliente */}
               <p className="text-lg font-black text-slate-900 uppercase leading-tight">{order.customerName}</p>
-              <p className="text-sm font-medium text-slate-600 uppercase leading-relaxed">{order.customerAddress}</p>
+
+              {/* Endereço — abaixo do nome */}
+              {order.customerAddress ? (
+                <div className="flex items-start gap-2">
+                  <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-slate-500 leading-snug">{order.customerAddress}</p>
+                </div>
+              ) : (
+                <p className="text-[10px] text-slate-300 uppercase tracking-widest italic">Endereço não informado</p>
+              )}
+
+              {/* Tipo de atendimento */}
               {order.operationType && (
-                <div className="flex items-center gap-2 mt-1">
-                  <Tag size={12} className="text-[#3e5b99]" />
+                <div className="flex items-center gap-2">
+                  <Tag size={11} className="text-[#3e5b99]" />
                   <span className="text-[10px] font-bold text-[#3e5b99] uppercase tracking-widest bg-[#3e5b99]/10 px-2 py-0.5 rounded-full">{order.operationType}</span>
                 </div>
               )}
+
+              {/* Datas */}
               <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-4">
                 <InfoPill label="Abertura" value={fmt(order.createdAt)} />
                 <InfoPill label="Agendado" value={order.scheduledDate ? `${fmt(order.scheduledDate)}${order.scheduledTime ? ' · ' + order.scheduledTime : ''}` : '—'} />
@@ -527,9 +549,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             return found ? found[1] : null;
           };
 
-          const clientSig = fd.signature || findFd('assinaturadocliente') || findFd('assinatura');
-          const clientName = fd.signatureName || findFd('assinaturadoclientenome') || findFd('responsavel') || findFd('nome') || order.customerName;
-          const clientDoc = fd.signatureDoc || findFd('assinaturadoclientecpf') || findFd('cpf');
+          // 🎯 PRIORIDADE: order.signature (nível raiz) é o campo correto pós-finalização
+          // O técnico coleta: nome do responsável + assinatura no app antes de encerrar
+          const clientSig = (order as any).signature ||
+            fd.signature ||
+            findFd('assinaturadocliente') ||
+            findFd('assinatura');
+
+          // 🎯 Nome: SEMPRE o que o responsável digitou no app antes de assinar
+          // Nunca usar customerName como fallback (seria o nome cadastrado, não quem assinou)
+          const clientName = (order as any).signatureName ||
+            fd.signatureName ||
+            findFd('assinaturadoclientenome') ||
+            findFd('responsavelpelorecebi') ||
+            findFd('responsavel');
+
+          const clientDoc = (order as any).signatureDoc ||
+            fd.signatureDoc ||
+            findFd('assinaturadoclientecpf') ||
+            findFd('cpf');
 
           return (
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
@@ -551,29 +589,38 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   </div>
                 </div>
 
-                {/* Cliente */}
+                {/* Cliente / Responsável que assinou */}
                 <div className="flex flex-col items-center text-center p-6 bg-slate-50 rounded-xl border border-slate-100 gap-4">
+                  {/* Assinatura digital */}
                   {clientSig ? (
                     <div
-                      className="w-full h-24 flex items-center justify-center bg-white rounded-xl border border-slate-200 cursor-zoom-in"
+                      className="w-full h-28 flex items-center justify-center bg-white rounded-xl border border-slate-200 cursor-zoom-in hover:border-[#3e5b99]/30 transition-colors"
                       onClick={() => setFullscreenImage(clientSig)}
                     >
                       <img
                         src={clientSig}
-                        className="max-h-20 max-w-full object-contain mix-blend-multiply"
-                        alt="Assinatura do cliente"
+                        className="max-h-24 max-w-full object-contain mix-blend-multiply"
+                        alt="Assinatura"
                       />
                     </div>
                   ) : (
-                    <div className="w-full h-24 flex items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-200">
+                    <div className="w-full h-28 flex flex-col items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-200 gap-2">
+                      <div className="w-8 h-8 rounded-full bg-slate-100" />
                       <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Sem assinatura registrada</p>
                     </div>
                   )}
+
+                  {/* Nome de quem assinou (digitado no app) */}
                   <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cliente / Responsável</p>
-                    <p className="text-sm font-black text-slate-900 uppercase">{clientName}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Responsável pela Assinatura</p>
+                    {clientName ? (
+                      <p className="text-sm font-black text-slate-900 uppercase">{clientName}</p>
+                    ) : (
+                      <p className="text-[10px] font-bold text-slate-300 uppercase italic">Nome não informado</p>
+                    )}
                     {clientDoc && <p className="text-[9px] text-slate-400 font-mono mt-0.5">Doc: {clientDoc}</p>}
                   </div>
+
                   <div className="w-full border-t-2 border-dashed border-slate-200 pt-3">
                     <p className="text-[8px] text-slate-300 uppercase tracking-widest">Assinatura do Cliente</p>
                   </div>
