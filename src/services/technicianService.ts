@@ -15,7 +15,7 @@ const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.V
 
 export const TechnicianService = {
 
-    getAllTechnicians: async (tenantIdOverride?: string): Promise<any[]> => {
+    getAllTechnicians: async (tenantIdOverride?: string | null, signal?: AbortSignal): Promise<any[]> => {
         if (isCloudEnabled) {
             const tenantId = tenantIdOverride || getCurrentTenantId();
             if (!tenantId) return [];
@@ -25,19 +25,25 @@ export const TechnicianService = {
             if (cached) return cached;
 
             // 🔄 Deduplication: Se já houver uma requisição em voo, espera por ela
-            return CacheManager.deduplicate(cacheKey, async () => {
-                const { data, error } = await supabase.from('technicians')
+            return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
+                let query = supabase.from('technicians')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('name')
                     .limit(100);
+
+                if (currentSignal || signal) {
+                    query = query.abortSignal((currentSignal || signal) as AbortSignal);
+                }
+
+                const { data, error } = await query;
 
                 if (error) throw error;
                 const result = (data || []).map(d => ({ ...d, tenantId: d.tenant_id }));
 
                 CacheManager.set(cacheKey, result, CacheManager.TTL.MEDIUM); // 5 min
                 return result;
-            });
+            }, signal);
         }
         // Fallback local removido para focar na arquitetura cloud-first, mas poderia manter se necessário
         return [];
@@ -221,13 +227,13 @@ export const TechnicianService = {
                 // Desabilita o técnico - bane a conta
                 await adminAuthProxy.admin.updateUserById(tech.id, {
                     ban_duration: '876000h' // ~100 anos = banimento permanente
-                });
+                } as any);
                 console.log("🚫 Técnico bloqueado no sistema de autenticação");
             } else {
                 // Reabilita o técnico - remove o banimento
                 await adminAuthProxy.admin.updateUserById(tech.id, {
                     ban_duration: 'none'
-                });
+                } as any);
                 console.log("✅ Técnico reabilitado no sistema de autenticação");
             }
 

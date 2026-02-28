@@ -39,6 +39,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const safeUrl = supabaseUrl ?? 'https://placeholder.supabase.co';
 const safeKey = supabaseAnonKey ?? 'placeholder';
 
+// Registro global de fetches em andamento para matá-los no Wake Up do SO
+const activeNexusFetches = new Set<AbortController>();
+
 // ---------------------------------------------------------------
 // Lock Strategy — Big Tech Standard
 //
@@ -64,22 +67,22 @@ const _buildLock = (): LockFunc => {
                 return Promise.resolve(null as any);
             }
 
-            if (acquireTimeout > 0) {
-                const ac = new AbortController();
-                setTimeout(() => ac.abort(), acquireTimeout);
-                return navigator.locks.request(`nexus_auth_${name}`, {
-                    mode: 'exclusive',
-                    signal: ac.signal,
-                }, fn).catch(err => {
-                    if (err.name === 'AbortError') {
-                        console.warn('[Auth] Lock concorrente detectado ou timeout rebaixado. Ignorando tentativa cruzada para não travar a UI.');
-                        return null; // Resolve silenciosamente para abortar o fluxo extra
-                    }
-                    throw err;
-                });
-            }
-            // acquireTimeout <= 0: sem timeout (padrão do SDK)
-            return navigator.locks.request(`nexus_auth_${name}`, { mode: 'exclusive' }, fn);
+            const ac = new AbortController();
+            const actualTimeout = acquireTimeout > 0 ? acquireTimeout : 15000; // Force 15s max lock wait to prevent infinity sleep hang
+
+            setTimeout(() => ac.abort(new Error('Nexus Lock Timeout')), actualTimeout);
+
+            return navigator.locks.request(`nexus_auth_${name}`, {
+                mode: 'exclusive',
+                signal: ac.signal,
+            }, fn).catch(err => {
+                const isAbort = err.name === 'AbortError' || err.message === 'Nexus Lock Timeout';
+                if (isAbort) {
+                    console.warn(`[Auth] Lock concorrente ou timeout de ${actualTimeout}ms ('${name}'). Ignorando para não travar a UI.`);
+                    return null; // Resolve silenciosamente para abortar o fluxo extra
+                }
+                throw err;
+            });
         };
         return webLockFn as unknown as LockFunc; // cast para contornar tipagem estrita da interface atual
     }
@@ -146,6 +149,8 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                 const callerSignal = (init as RequestInit & { signal?: AbortSignal })?.signal;
                 if (callerSignal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
+                activeNexusFetches.add(controller);
+
                 // Garante que se o componente abortar, o timeout interno também morre
                 const onAbort = () => controller.abort(callerSignal?.reason || new Error('Caller Aborted'));
                 if (callerSignal) callerSignal.addEventListener('abort', onAbort);
@@ -162,6 +167,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                     });
                     clearTimeout(timeoutId);
                     if (callerSignal) callerSignal.removeEventListener('abort', onAbort);
+                    activeNexusFetches.delete(controller);
 
                     // Retry apenas em erros 5xx (servidor) — não em 4xx (cliente)
                     if (response.status >= 500 && response.status < 600 && attempt < MAX_RETRIES) {
@@ -174,6 +180,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                     return response;
                 } catch (err: unknown) {
                     clearTimeout(timeoutId);
+                    activeNexusFetches.delete(controller);
                     lastError = err;
 
                     const isAbort = err instanceof DOMException && err.name === 'AbortError';
@@ -296,6 +303,13 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
             if (!navigator.onLine) {
                 if (isDev) console.warn('[Nexus Recovery] Offline — adiado.');
                 return;
+            }
+
+            // ── Step 0: Matar todas as requisições nativas congeladas pelo sistema —
+            if (activeNexusFetches.size > 0) {
+                if (isDev) console.log(`[Nexus Recovery] 🔪 Matando ${activeNexusFetches.size} conexões em voo presas devido suspensão...`);
+                activeNexusFetches.forEach(ac => ac.abort(new Error('Killed by Nexus Recovery (Wake up)')));
+                activeNexusFetches.clear();
             }
 
             // ── Step 1: Limpar caches do browser (proteção contra SW stale) ──
