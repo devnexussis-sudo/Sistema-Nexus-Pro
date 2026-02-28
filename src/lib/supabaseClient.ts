@@ -68,7 +68,7 @@ const _buildLock = (): LockFunc => {
             }
 
             const ac = new AbortController();
-            const actualTimeout = acquireTimeout > 0 ? acquireTimeout : 2000; // Reduzido para 2s para bater o timeout de 3s da UI
+            const actualTimeout = acquireTimeout > 0 ? acquireTimeout : 15000; // Reduzido para bater o timeout do Auth caso trave na queue
 
             setTimeout(() => ac.abort(new Error('Nexus Lock Timeout')), actualTimeout);
 
@@ -78,8 +78,8 @@ const _buildLock = (): LockFunc => {
             }, fn).catch(err => {
                 const isAbort = err.name === 'AbortError' || err.message === 'Nexus Lock Timeout';
                 if (isAbort) {
-                    console.warn(`[Auth] Lock concorrente ou timeout de ${actualTimeout}ms ('${name}'). Executando bypass sem lock para não travar a inicialização.`);
-                    return fn(); // Executa ignorando o Lock para destrancar a UI
+                    console.warn(`[Auth] Lock concorrente ou timeout de ${actualTimeout}ms ('${name}'). Retornando null para evitar derrubar a conexão global (bypass removido).`);
+                    return null; // Bypass removido pois trazia problemas em chamadas concorrentes do SDK
                 }
                 throw err;
             });
