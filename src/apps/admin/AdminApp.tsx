@@ -59,7 +59,6 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [overviewDateRange, setOverviewDateRange] = useState(getInitialDateRange());
     const [activitiesDateRange, setActivitiesDateRange] = useState(getInitialDateRange());
-    const [isRefreshing, setIsRefreshing] = useState(false);
 
     // 🧠 Route-Based Lazy Loading Logic
     const isDashboard = location.pathname === '/admin' || location.pathname === '/admin/';
@@ -231,22 +230,6 @@ export const AdminApp: React.FC<AdminAppProps> = ({
         }
     };
 
-    const handleManualRefresh = async () => {
-        if (isRefreshing) return;
-        setIsRefreshing(true);
-        console.log('[AdminApp] 🔄 Sincronização Manual Iniciada...');
-        const safetyTimer = setTimeout(() => setIsRefreshing(false), 5000);
-        try {
-            await NexusQueryClient.invalidateAll(); // Clear all cache
-            await fetchGlobalData();
-            console.log('[AdminApp] ✅ Sincronização concluída.');
-        } catch (e) {
-            console.error('[AdminApp] ❌ Erro na sincronização:', e);
-        } finally {
-            clearTimeout(safetyTimer);
-            setTimeout(() => setIsRefreshing(false), 500);
-        }
-    };
 
     if (!auth.isAuthenticated) {
         return <AdminLogin onLogin={onLogin} onToggleMaster={onToggleMaster} />;
@@ -258,8 +241,6 @@ export const AdminApp: React.FC<AdminAppProps> = ({
             isImpersonating={isImpersonating}
             onLogout={onLogout}
             systemNotifications={systemNotifications}
-            onManualRefresh={handleManualRefresh}
-            isRefreshing={isRefreshing || isFetchingAny}
             onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             isSidebarCollapsed={isSidebarCollapsed}
         >

@@ -3,7 +3,7 @@ import React, { useState, useCallback } from 'react';
 import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
-    Settings, LogOut, Bell, RefreshCw, Package, ArrowRight,
+    Settings, LogOut, Bell, Package, ArrowRight,
     AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -21,14 +21,12 @@ interface AdminLayoutProps {
     isImpersonating: boolean;
     onLogout: () => void;
     systemNotifications: any[];
-    onManualRefresh: () => Promise<void>;
-    isRefreshing: boolean;
     onToggleSidebar: () => void;
     isSidebarCollapsed: boolean;
 }
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
-    children, user, isImpersonating, onLogout, systemNotifications, onManualRefresh, isRefreshing, onToggleSidebar, isSidebarCollapsed
+    children, user, isImpersonating, onLogout, systemNotifications, onToggleSidebar, isSidebarCollapsed
 }) => {
     const location = useLocation();
     const [showInbox, setShowInbox] = useState(false);
@@ -85,12 +83,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         <h2 className="text-sm font-semibold text-slate-900 capitalize tracking-tight">
                             {activeItem?.label || 'Dashboard'}
                         </h2>
-                        {(isRefreshing) && (
-                            <div className="flex items-center gap-2 px-2 py-1 bg-slate-50 text-slate-400 rounded border border-slate-200">
-                                <RefreshCw size={12} className="animate-spin" />
-                                <span className="text-[10px] font-medium uppercase tracking-wider">Sincronizando</span>
-                            </div>
-                        )}
                     </div>
                 </div>
 
@@ -100,14 +92,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">Administrador</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={onManualRefresh}
-                            disabled={isRefreshing}
-                            className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all"
-                            title="Sincronizar Tudo"
-                        >
-                            <RefreshCw size={20} className={isRefreshing ? 'animate-spin text-[#1c2d4f]' : ''} />
-                        </button>
                         <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all relative">
                             <Bell size={20} />
                             {systemNotifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>}
