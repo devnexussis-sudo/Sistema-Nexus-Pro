@@ -26,7 +26,8 @@ interface QueryOptions<T> {
     cacheTime?: number; // Time in ms before data is garbage collected
     onSuccess?: (data: T) => void;
     onError?: (error: Error) => void;
-    refetchOnWindowFocus?: boolean; // TODO: Implement focus refetching
+    refetchOnWindowFocus?: boolean;
+    refetchOnReconnect?: boolean;
 }
 
 interface QueryResult<T> {
@@ -60,7 +61,9 @@ export function useQuery<T>(
         retry = 2,
         staleTime = DEFAULT_STALE_TIME,
         onSuccess,
-        onError
+        onError,
+        refetchOnWindowFocus = false,
+        refetchOnReconnect = false
     } = options;
 
     // 💾 Persistência Local Helper
@@ -216,8 +219,8 @@ export function useQuery<T>(
                 queryCache.set(key, { data, timestamp, promise: undefined });
                 try {
                     localStorage.setItem(`NEXUS_CACHE_${key}`, JSON.stringify({ data, timestamp }));
-                } catch (e) {
-                    console.warn('[NexusQuery] Failed to persist cache', e);
+                } catch (err) {
+                    console.warn('[NexusQuery] Failed to persist cache', err);
                 }
 
                 if (isMounted.current) {
@@ -283,11 +286,17 @@ export function useQuery<T>(
 
         window.addEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
 
-        // 💓 Window Focus Refetch (Big Tech Standard)
+        // 💓 Window Focus Refetch (Disabled by default)
         const handleFocus = () => {
-            fetchData(); // fetchData already checks for staleTime internally
+            if (refetchOnWindowFocus) fetchData();
         };
         window.addEventListener('focus', handleFocus);
+
+        // 🌐 Reconnect Refetch
+        const handleOnline = () => {
+            if (refetchOnReconnect) fetchData();
+        };
+        window.addEventListener('online', handleOnline);
 
         return () => {
             isMounted.current = false;
@@ -297,6 +306,7 @@ export function useQuery<T>(
             }
             window.removeEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
             window.removeEventListener('focus', handleFocus);
+            window.removeEventListener('online', handleOnline);
         };
     }, [key, enabled]); // Re-run when key or enabled changes
 
