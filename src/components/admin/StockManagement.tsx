@@ -27,6 +27,7 @@ export const StockManagement: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalItemsCount, setTotalItemsCount] = useState(0);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const isFetching = useRef<boolean>(false);
     const ITEMS_PER_PAGE = 20;
 
     // --- Categories State ---
@@ -68,13 +69,17 @@ export const StockManagement: React.FC = () => {
 
     // --- Loaders ---
     const loadItems = async (page: number, search: string, category: string, status: string) => {
+        if (isFetching.current) return;
+
         if (abortControllerRef.current) {
             abortControllerRef.current.abort('New pagination fetch');
         }
+
         const controller = new AbortController();
         abortControllerRef.current = controller;
         const signal = controller.signal;
 
+        isFetching.current = true;
         setLoading(true);
         setError(null);
 
@@ -121,6 +126,7 @@ export const StockManagement: React.FC = () => {
             setError(err.message || 'Erro inesperado ao sincronizar estoque.');
         } finally {
             clearTimeout(timeoutId);
+            isFetching.current = false;
             if (!signal.aborted) {
                 setLoading(false);
             }
@@ -393,7 +399,13 @@ export const StockManagement: React.FC = () => {
             loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
         }, 200);
 
-        return () => clearTimeout(timer);
+        return () => {
+            clearTimeout(timer);
+            isFetching.current = false;
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort('Component Unmount / Effect Cleanup');
+            }
+        };
     }, [currentPage, searchTerm, categoryFilter, statusFilter, activeTab]);
 
     useEffect(() => {
