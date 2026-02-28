@@ -95,7 +95,11 @@ export const OrderService = {
             timeline: data.timeline ?? {},
             checkinLocation: data.checkin_location,
             checkoutLocation: data.checkout_location,
-            pauseReason: data.pause_reason
+            pauseReason: data.pause_reason,
+            // 🖊️ Assinatura do cliente — coletada pelo técnico no encerramento da OS
+            signature: data.signature,
+            signatureName: data.signature_name,
+            signatureDoc: data.signature_doc
         };
     },
 

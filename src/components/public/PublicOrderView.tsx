@@ -199,21 +199,22 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         if (!tenantId) return;
         const { data } = await import('../../lib/supabase').then(m => m.supabase
           .from('customers')
-          .select('address, number, complement, city, state, zip')
+          .select('address, number, complement, neighborhood, city, state')
           .eq('tenant_id', tenantId)
           .ilike('name', order.customerName.trim())
           .limit(1)
           .single()
         );
         if (data) {
-          const parts = [
-            data.address,
-            data.number,
-            data.complement,
-            data.city,
-            data.state ? `/${data.state}` : ''
-          ].filter(Boolean);
-          setFreshCustomerAddress(parts.join(', ').replace(', /', '/'));
+          // Filtra campos válidos: exclui null, undefined, string vazia e literal 'null'
+          const clean = (v: any) => v && String(v).toLowerCase() !== 'null' && String(v).trim() !== '';
+          const street = [data.address, data.number].filter(clean).join(', ');
+          const neighborhood = clean(data.neighborhood) ? data.neighborhood : '';
+          const city = clean(data.city) ? data.city : '';
+          const state = clean(data.state) ? data.state : '';
+          const cityState = [city, state].filter(Boolean).join('/');
+          const addr = [street, neighborhood, cityState].filter(Boolean).join(' - ');
+          if (addr.trim()) setFreshCustomerAddress(addr);
         }
       } catch {
         // Se não encontrar, usa o endereço da OS
@@ -246,8 +247,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   const totalItems = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
   const hasForm = order.formData && Object.keys(order.formData).length > 0;
-  // Endereço exibido: fresco do cadastro (se encontrado) ou o gravado na OS
-  const displayAddress = freshCustomerAddress || order.customerAddress;
+  // Endereço exibido: fresco do cadastro ou gravado na OS
+  // Guard contra literal 'null' que pode vir do banco
+  const sanitize = (v?: string | null) => v && String(v).toLowerCase() !== 'null' && v.trim() !== '' ? v.trim() : null;
+  const displayAddress = sanitize(freshCustomerAddress) || sanitize(order.customerAddress);
 
   // ── PRINT LAYOUT (unchanged, clean) ────────────────────────────────────────
   if (isPrint) {
@@ -449,7 +452,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 </div>
                 <div className="pt-3 border-t border-slate-100">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Local do Atendimento</p>
-                  <p className="text-sm font-medium text-slate-600 uppercase">{order.customerAddress}</p>
+                  {displayAddress
+                    ? <p className="text-sm font-medium text-slate-600 uppercase">{displayAddress}</p>
+                    : <p className="text-[10px] text-slate-300 italic uppercase">Não informado</p>}
                 </div>
               </div>
             ) : (
@@ -457,7 +462,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Equipamento não especificado</p>
                 <div className="pt-2 border-t border-slate-100">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Local do Atendimento</p>
-                  <p className="text-sm font-medium text-slate-700 uppercase">{order.customerAddress}</p>
+                  {displayAddress
+                    ? <p className="text-sm font-medium text-slate-700 uppercase">{displayAddress}</p>
+                    : <p className="text-[10px] text-slate-300 italic uppercase">Não informado</p>}
                 </div>
               </div>
             )}
