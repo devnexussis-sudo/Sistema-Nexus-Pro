@@ -119,7 +119,8 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
         storageKey: 'nexus_shared_auth',    // Chave única: evita conflito entre projetos no mesmo domínio
         persistSession: true,               // Sessão sobrevive a reload e fechamento de aba
         autoRefreshToken: true,             // SDK gerencia o refresh do JWT — complementado pelo Recovery ativo
-        detectSessionInUrl: typeof window !== 'undefined' ? window.location.pathname.includes('/login') || window.location.pathname === '/' : false, // Sessão URL só no login
+        detectSessionInUrl: false,          // Orchestrator: false, apenas app lida.
+        flowType: 'pkce',                   // Arquitetura moderna Pkce
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         lock: nexusLock,                    // Lock nativo do SO — elimina deadlock por suspensão
     },
@@ -140,7 +141,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
         // -------------------------------------------------------------
         fetch: async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
             const MAX_RETRIES = 4; // Aumentado para 4 para dar chance à conexão intermitente
-            const BASE_DELAY_MS = 1_000;
+            const BASE_DELAY_MS = 3_000; // Zombie Backoff: 3000ms base delay
             let lastError: unknown;
 
             for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -393,7 +394,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
     const _scheduleRecovery = (source: string) => {
         if (_recoveryTimer !== undefined) clearTimeout(_recoveryTimer);
-        _recoveryTimer = setTimeout(() => _runRecovery(source), 400);
+        _recoveryTimer = setTimeout(() => _runRecovery(source), 500); // 500ms delay para dar tempo ao silent refresh
     };
 
     // visibilitychange — principal trigger (Safari Mobile, Chrome Mobile)
@@ -412,31 +413,22 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 export type { SupabaseClient };
 
 // ---------------------------------------------------------------
-// ensureValidSession
-// Re-exportada para retrocompatibilidade com orderService.ts e outros.
-// Lê do cache local do SDK (sem chamada de rede forçada).
-//
-// v4.0: Cooldown reduzido de 15s para 5s para recovery mais responsivo.
-// Se o token estiver expirado, o Recovery Engine v2.0 já terá forçado
-// o refresh antes desta função ser chamada.
+// Estado Global de Sessão (Passive Mode)
 // ---------------------------------------------------------------
-let _lastSessionCheckTs = 0;
-const SESSION_CHECK_COOLDOWN_MS = 5_000; // v4: reduzido de 15s para 5s
+export let globalSessionOk = false;
 
+if (typeof window !== 'undefined') {
+    // Escuta UMA VEZ na inicialização do app.
+    supabase.auth.onAuthStateChange((event, session) => {
+        globalSessionOk = !!session;
+        if (isDev) console.log(`[Auth Orchestrator] Evento: ${event}, Sessão válida: ${globalSessionOk}`);
+    });
+}
+
+// ---------------------------------------------------------------
+// ensureValidSession — Agora PASSIVA (não briga por lock)
+// ---------------------------------------------------------------
 export async function ensureValidSession(): Promise<boolean> {
-    const now = Date.now();
-    if (now - _lastSessionCheckTs < SESSION_CHECK_COOLDOWN_MS) return true;
-    _lastSessionCheckTs = now;
-
-    try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-            const isNetwork = error.message.includes('fetch') || error.message.includes('Network') || (typeof navigator !== 'undefined' && !navigator.onLine);
-            if (isNetwork) return true; // Preserva estado enquanto offline
-            return false;
-        }
-        return !!session;
-    } catch {
-        return false;
-    }
+    // Retorna do "Bolso" imediatamente, sem bater no on-disk auth do Supabase
+    return globalSessionOk;
 }

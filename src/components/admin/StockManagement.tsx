@@ -92,11 +92,11 @@ export const StockManagement: React.FC = () => {
         }, 15000);
 
         try {
-            const { supabase } = await import('../../lib/supabase');
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            const { ensureValidSession } = await import('../../lib/supabase');
+            const sessionOk = await ensureValidSession();
 
-            if (sessionError || !session) {
-                console.warn('[Stock] 🔒 Lock de sessão detectado ou sessão ausente. Aguardando liberação do Nexus...');
+            if (!sessionOk) {
+                console.warn('[Stock] 🔒 Sessão ausente (Bolso global). Aguardando liberação...');
                 setTimeout(() => loadItems(page, search, category, status), 500);
                 setLoading(false);
                 return;
