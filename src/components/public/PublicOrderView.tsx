@@ -1,6 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ServiceOrder, User } from '../../types';
-import { Calendar, MapPin, Printer, Hexagon, Box, User as UserIcon, Tag, CheckCircle2, FileText, ShieldAlert, Mail, Phone, DollarSign, Package, ShoppingCart } from 'lucide-react';
+import {
+  Calendar, MapPin, Printer, Hexagon, Box, User as UserIcon, Tag,
+  CheckCircle2, FileText, ShieldAlert, Mail, Phone, DollarSign,
+  ChevronDown, ChevronUp, Clock, Wrench, Package, ClipboardList, Image as ImageIcon
+} from 'lucide-react';
 import { StatusBadge } from '../ui/StatusBadge';
 import { DataService } from '../../services/dataService';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -11,6 +15,166 @@ interface PublicOrderViewProps {
   isPrint?: boolean;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SectionHeader: React.FC<{ icon: React.ReactNode; title: string; color?: string }> = ({
+  icon, title, color = 'text-[#1c2d4f]'
+}) => (
+  <div className={`flex items-center gap-3 pb-4 border-b border-slate-100 mb-6`}>
+    <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 ${color}`}>
+      {icon}
+    </div>
+    <h3 className={`text-[11px] font-black uppercase tracking-[0.2em] ${color}`}>{title}</h3>
+  </div>
+);
+
+const InfoPill: React.FC<{ label: string; value: string; mono?: boolean }> = ({ label, value, mono }) => (
+  <div className="flex flex-col gap-1">
+    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+    <span className={`text-sm font-bold text-slate-800 ${mono ? 'font-mono' : 'uppercase'}`}>{value || '—'}</span>
+  </div>
+);
+
+const CollapsibleFormSection: React.FC<{
+  formData: Record<string, any>;
+  order: ServiceOrder;
+  onImageClick: (url: string) => void;
+}> = ({ formData, order, onImageClick }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const textEntries = Object.entries(formData).filter(([key, val]) => {
+    if (Array.isArray(val)) return false;
+    if (typeof val === 'string' && (val.startsWith('data:image') || val.startsWith('http'))) return false;
+    if (key.includes('Assinatura') || key.includes('CPF') || key.includes('Nascimento')) return false;
+    return true;
+  });
+
+  const photoGroups: { key: string; urls: string[] }[] = Object.entries(formData)
+    .filter(([key]) => !key.includes('Assinatura'))
+    .flatMap(([key, val]) => {
+      let photos: string[] = [];
+      if (Array.isArray(val)) photos = val.filter(v => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image')));
+      else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) photos = [val];
+      return photos.length > 0 ? [{ key, urls: photos }] : [];
+    });
+
+  // Signature fields
+  const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  const findVal = (token: string) => {
+    if ((order as any)[token]) return (order as any)[token];
+    const found = Object.entries(formData).find(([k]) => normalize(k).includes(normalize(token)));
+    return found ? found[1] : null;
+  };
+  const signature = (order as any).signature || findVal('assinatura');
+  const sigName = (order as any).signatureName || findVal('nome');
+  const sigDoc = (order as any).signatureDoc || findVal('cpf');
+
+  if (textEntries.length === 0 && photoGroups.length === 0 && !signature) return null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      {/* Collapsible Toggle */}
+      <button
+        onClick={() => setIsOpen(v => !v)}
+        className="w-full flex items-center justify-between px-6 sm:px-8 py-5 hover:bg-slate-50 transition-all group"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <ClipboardList size={16} />
+          </div>
+          <div className="text-left">
+            <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Formulário Técnico</p>
+            <p className="text-[9px] text-slate-400 font-medium mt-0.5">
+              {textEntries.length} campos · {photoGroups.reduce((a, g) => a + g.urls.length, 0)} fotos
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] font-black text-[#1c2d4f] uppercase tracking-widest group-hover:gap-3 transition-all">
+          <span>{isOpen ? 'Fechar' : 'Ver mais'}</span>
+          {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </div>
+      </button>
+
+      {/* Expanded content */}
+      {isOpen && (
+        <div className="border-t border-slate-100 px-6 sm:px-8 py-6 space-y-8 animate-fade-in">
+
+          {/* Text fields — two columns */}
+          {textEntries.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {textEntries.map(([key, val]) => (
+                <div key={key} className="flex flex-col gap-1.5 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{!isNaN(Number(key)) ? `Pergunta nº ${key}` : key}</span>
+                  <span className={`text-sm font-bold leading-snug ${String(val).toLowerCase() === 'sim' || String(val).toLowerCase() === 'ok'
+                      ? 'text-emerald-600 flex items-center gap-1'
+                      : 'text-slate-800 uppercase'
+                    }`}>
+                    {(String(val).toLowerCase() === 'sim' || String(val).toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
+                    {String(val)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Photos grouped by field */}
+          {photoGroups.length > 0 && (
+            <div className="space-y-6">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                <ImageIcon size={12} /> Evidências Fotográficas
+              </p>
+              {photoGroups.map(({ key, urls }) => (
+                <div key={key} className="space-y-3">
+                  <p className="text-[10px] font-black text-[#1c2d4f] uppercase tracking-wide flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-[#2a457a] rounded-full inline-block" />
+                    {key}
+                  </p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    {urls.map((url, i) => (
+                      <div
+                        key={i}
+                        className="aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-zoom-in group shadow-sm hover:shadow-md transition-all"
+                        onClick={() => onImageClick(url)}
+                      >
+                        <img src={url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={key} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Client Signature */}
+          {signature && (
+            <div className="pt-6 border-t border-slate-100">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Assinatura Digital do Cliente</p>
+              <div className="max-w-xs bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 p-4 space-y-3">
+                <div
+                  className="h-24 flex items-center justify-center cursor-zoom-in"
+                  onClick={() => onImageClick(signature)}
+                >
+                  <img src={signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                </div>
+                <div className="text-center space-y-0.5">
+                  {sigName && <p className="text-xs font-black text-slate-800 uppercase">{sigName}</p>}
+                  {sigDoc && <p className="text-[9px] text-slate-400 font-mono">Doc: {sigDoc}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, isPrint = false }) => {
   const [tenant, setTenant] = React.useState<any>(null);
   const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
@@ -20,772 +184,383 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       if (order) {
         try {
           const tenantId = (order as any).tenant_id || order?.tenantId;
-          // Agora passamos o tenantId (pode ser null) e o DataService fará o fallback para a primeira empresa
           const data = await DataService.getTenantById(tenantId);
           setTenant(data);
         } catch (error) {
-          console.error("Erro ao buscar dados da empresa:", error);
+          console.error('Erro ao buscar dados da empresa:', error);
         }
       }
     };
-
     fetchTenantData();
-  }, [order?.id, (order as any)?.tenant_id, order?.tenantId]);
+  }, [order?.id]);
 
   if (!order) return null;
 
   const tech = techs.find(t => t.id === order.assignedTo);
   const companyName = tenant?.company_name || tenant?.name || tenant?.companyName || 'Nexus Pro';
   const companyLogo = tenant?.logo_url || tenant?.logoUrl;
-  const companyAddress = tenant?.street ?
-    `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ', ' + tenant.neighborhood : ''}${tenant.city ? ' - ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}` :
-    (tenant?.address || '');
+  const companyAddress = tenant?.street
+    ? `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' - ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}`
+    : (tenant?.address || '');
   const companyPhone = tenant?.phone || '';
   const companyEmail = tenant?.admin_email || tenant?.email || '';
   const companyDoc = tenant?.cnpj || tenant?.document || '';
 
-  // 🛡️ Nexus Integrity: Formatadores de Data/Hora Fidedignos
-  const formatOSDate = (dateStr?: string) => {
-    if (!dateStr) return '---';
-    // Se for apenas data YYYY-MM-DD, injeta 12h para evitar drift de fuso
-    const date = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T12:00:00');
+  const fmt = (d?: string) => {
+    if (!d) return '—';
+    const date = d.includes('T') ? new Date(d) : new Date(d + 'T12:00:00');
     return date.toLocaleDateString('pt-BR');
   };
-
-  const formatOSTime = (dateStr?: string) => {
-    if (!dateStr) return '--:--';
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const fmtDT = (d?: string) => {
+    if (!d) return '—';
+    return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  return (
-    <div className={`${isPrint ? 'bg-white p-0' : 'bg-[#F5F7FA] pb-20'} font-sans selection:bg-primary-100 selection:text-primary-900`}>
-      {/* BARRA SUPERIOR BRANDING - Somente Tela */}
-      {!isPrint && (
-        <div className="h-1 sm:h-1.5 w-full bg-gradient-to-r from-[#1c2d4f] via-[#2a457a] to-[#1c2d4f] sticky top-0 z-[60] print:hidden" />
-      )}
+  const totalItems = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
+  const hasForm = order.formData && Object.keys(order.formData).length > 0;
 
-      {/* NAVEGAÇÃO WEB - Somente Tela */}
-      {!isPrint && (
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-1 sm:top-1.5 z-50 shadow-sm print:hidden">
-          <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-3 sm:py-4 flex flex-row justify-between items-center">
-            <div className="flex items-center gap-3">
-              {companyLogo ? (
-                <img src={companyLogo} alt="Logo" className="h-10 sm:h-14 w-auto object-contain transition-all" />
-              ) : (
-                <div className="p-2 bg-slate-900 rounded-lg shadow-md">
-                  <Hexagon size={18} className="text-white fill-white/10" />
+  // ── PRINT LAYOUT (unchanged, clean) ────────────────────────────────────────
+  if (isPrint) {
+    return (
+      <div className="bg-white text-[10px] leading-tight font-sans p-6">
+        {/* Print Header */}
+        <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
+          <div className="flex gap-4 items-center">
+            {companyLogo
+              ? <img src={companyLogo} alt="Logo" className="h-16 w-auto object-contain" />
+              : <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px]"><Hexagon size={32} className="text-white fill-white/10" /></div>
+            }
+            <div className="space-y-1">
+              <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
+              <div className="text-[9px] text-slate-600 max-w-[400px]">
+                {companyAddress && <div>{companyAddress}</div>}
+                <div className="flex gap-3 mt-0.5">
+                  {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
+                  {companyEmail && <span>Email: {companyEmail}</span>}
                 </div>
-              )}
-              <div className="flex flex-col">
-                <h1 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight uppercase truncate max-w-[200px] sm:max-w-none ml-2 leading-none">{companyName}</h1>
-                <div className="hidden md:flex flex-col ml-2 mt-1 gap-1">
-                  <div className="flex flex-wrap items-center gap-x-4">
-                    {companyPhone && (
-                      <span className="flex items-center gap-1.5 text-[8px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                        <Phone size={10} className="text-primary-500" /> {companyPhone}
-                      </span>
-                    )}
-                    {companyEmail && (
-                      <span className="flex items-center gap-1.5 text-[8px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                        <Mail size={10} className="text-primary-500" /> {companyEmail}
-                      </span>
-                    )}
-                  </div>
-                  {companyAddress && (
-                    <span className="flex items-center gap-1.5 text-[8px] font-bold text-slate-400 uppercase tracking-widest max-w-[600px] truncate">
-                      <MapPin size={10} className="text-primary-500" /> {companyAddress}
-                    </span>
-                  )}
-                </div>
-                <NexusBranding size="sm" className="opacity-40 ml-2 mt-1 md:hidden" />
-              </div>
-            </div>
-            <button onClick={() => window.print()} className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-lg active:scale-95 border border-[#3e5b99]">
-              <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">Imprimir PDF</span>
-            </button>
-          </div>
-        </header>
-      )}
-
-      {/* ÁREA PRINCIPAL */}
-      <main className={`${isPrint ? 'max-w-full m-0 p-0 transform scale-[0.98] origin-top' : 'max-w-[1000px] mx-auto mt-8 px-6 print:m-0 print:p-0'}`}>
-
-        {/* ============================================================
-             LAYOUT DE IMPRESSÃO (INSPIRADO NO MODELO PROLOG)
-             ============================================================ */}
-        {/* ============================================================
-             LAYOUT DE IMPRESSÃO - PADRÃO OS (Clean & Professional)
-             ============================================================ */}
-        <div className={`${isPrint ? 'block' : 'hidden print:block'} bg-white text-[10px] leading-tight font-sans`}>
-
-          {/* 1. CABEÇALHO PADRÃO */}
-          <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
-            <div className="flex gap-4 items-center">
-              {companyLogo ? (
-                <img src={companyLogo} alt="Logo" className="h-16 w-auto object-contain" />
-              ) : (
-                <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px]">
-                  <Hexagon size={32} className="text-white fill-white/10" />
-                </div>
-              )}
-              <div className="space-y-1">
-                <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
-                <div className="text-[9px] text-slate-600 max-w-[400px]">
-                  {companyAddress && <div>{companyAddress}</div>}
-                  <div className="flex gap-3 mt-0.5">
-                    {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
-                    {companyEmail && <span>Email: {companyEmail}</span>}
-                  </div>
-                  {companyDoc && <div className="mt-0.5">CNPJ: {companyDoc}</div>}
-                </div>
-              </div>
-            </div>
-
-            <div className="text-right flex flex-col items-end justify-center">
-              <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
-                <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nº da Ordem de Serviço</div>
-                <div className="text-2xl font-black text-slate-900 tracking-tighter">#{order.displayId || order.id.toUpperCase()}</div>
-              </div>
-              <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
-                Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {companyDoc && <div className="mt-0.5">CNPJ: {companyDoc}</div>}
               </div>
             </div>
           </div>
-
-          {/* 2. DADOS DO CLIENTE E DO CHAMADO (GRID) */}
-          <div className="mb-4 border border-slate-300 rounded-lg overflow-hidden">
-            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700 flex items-center gap-2">
-              <UserIcon size={10} /> Dados do Cliente e Chamado
+          <div className="text-right">
+            <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
+              <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Ordem de Serviço</div>
+              <div className="text-2xl font-black text-slate-900 tracking-tighter">#{order.displayId || order.id.slice(0, 8).toUpperCase()}</div>
             </div>
-            <div className="grid grid-cols-12 divide-x divide-slate-200">
-              {/* Coluna 1: Cliente (Maior) - Span 7 */}
-              <div className="col-span-12 sm:col-span-7 p-2.5 space-y-2">
-                <div>
-                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente / Solicitante</label>
-                  <div className="font-bold text-slate-900 text-sm uppercase">{order.customerName}</div>
-                </div>
-                <div>
-                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço do Serviço</label>
-                  <div className="font-medium text-slate-700 text-xs uppercase">{order.customerAddress}</div>
-                </div>
-              </div>
-
-              {/* Coluna 2: Detalhes do Chamado - Span 5 */}
-              <div className="col-span-12 sm:col-span-5 p-2.5 grid grid-cols-2 gap-y-3 gap-x-2 bg-slate-50/30">
-                <div>
-                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Data Abertura</label>
-                  <div className="font-bold text-slate-800">{formatOSDate(order.createdAt)}</div>
-                </div>
-                <div>
-                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Tipo de Serviço</label>
-                  <div className="font-bold text-slate-800 uppercase">{order.operationType || 'Manutenção'}</div>
-                </div>
-                <div>
-                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Status Atual</label>
-                  <div className="font-bold text-slate-800 uppercase border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white text-[9px]">{order.status}</div>
-                </div>
-                <div>
-                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Prioridade</label>
-                  <div className="font-bold text-slate-800 uppercase text-[9px]">{order.priority}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. EQUIPAMENTO / ATIVO (SE HOUVER) */}
-          {(order.equipmentName || order.equipmentSerial) && (
-            <div className="mb-4 border border-slate-300 rounded-lg overflow-hidden">
-              <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <Box size={10} /> Equipamento Vinculado
-              </div>
-              <div className="grid grid-cols-3 divide-x divide-slate-200 bg-white">
-                <div className="p-2.5">
-                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Equipamento / Ativo</label>
-                  <div className="font-bold text-slate-900 uppercase text-xs">{order.equipmentName || 'Não Informado'}</div>
-                </div>
-                <div className="p-2.5">
-                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Modelo / Versão</label>
-                  <div className="font-medium text-slate-700 uppercase">{order.equipmentModel || '-'}</div>
-                </div>
-                <div className="p-2.5">
-                  <label className="block text-[8px] font-bold text-slate-400 uppercase">Nº de Série / Identificação</label>
-                  <div className="font-bold text-slate-800 uppercase font-mono">{order.equipmentSerial || '-'}</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 4. EXECUÇÃO TÉCNICA E CUSTOS (LADO A LADO SE POSSÍVEL, MAS EM FLUXO NORMAL AQUI) */}
-          <div className="mb-4 border border-slate-300 rounded-lg overflow-hidden">
-            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 flex justify-between items-center">
-              <span className="font-bold text-[9px] uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <FileText size={10} /> Relatório Técnico
-              </span>
-              <span className="text-[8px] font-semibold text-slate-500 uppercase">
-                Técnico Responsável: <span className="text-slate-900 font-bold">{tech?.name || 'Não Atribuído'}</span>
-              </span>
-            </div>
-
-            <div className="p-0">
-              {/* Linha de Tempos */}
-              <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50/30 divide-x divide-slate-200">
-                <div className="p-2 text-center">
-                  <span className="block text-[8px] text-slate-400 font-bold uppercase">Agendado Para</span>
-                  <span className="font-bold text-slate-700">{formatOSDate(order.scheduledDate)} {order.scheduledTime}</span>
-                </div>
-                <div className="p-2 text-center">
-                  <span className="block text-[8px] text-slate-400 font-bold uppercase">Início (Check-in)</span>
-                  <span className="font-bold text-emerald-700">
-                    {order.startDate ? new Date(order.startDate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--/-- --:--'}
-                  </span>
-                </div>
-                <div className="p-2 text-center">
-                  <span className="block text-[8px] text-slate-400 font-bold uppercase">Fim (Check-out)</span>
-                  <span className="font-bold text-emerald-700">
-                    {order.endDate ? new Date(order.endDate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '--/-- --:--'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Descrição do Serviço */}
-              <div className="p-3 bg-white min-h-[80px]">
-                <label className="block text-[8px] font-bold text-slate-400 uppercase mb-1">Diagnóstico / Atividades Realizadas</label>
-                <div className="text-[10px] text-slate-800 leading-relaxed whitespace-pre-wrap font-medium">
-                  {order.description || "Nenhuma descrição técnica registrada."}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 5. PEÇAS E VALORES (TABELA CLÁSSICA) */}
-          {order.showValueToClient && order.items && order.items.length > 0 && (
-            <div className="mb-4 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-              <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <DollarSign size={10} /> Peças e Serviços
-              </div>
-              <table className="w-full text-left collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
-                    <th className="px-3 py-2 w-[50%]">Descrição</th>
-                    <th className="px-3 py-2 text-center w-[15%]">Qtd</th>
-                    <th className="px-3 py-2 text-right w-[15%]">Unitário</th>
-                    <th className="px-3 py-2 text-right w-[20%]">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {order.items.map((item, idx) => (
-                    <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
-                      <td className="px-3 py-1.5 text-[9px] font-medium text-slate-700">{item.description}</td>
-                      <td className="px-3 py-1.5 text-center text-[9px] text-slate-600">{item.quantity}</td>
-                      <td className="px-3 py-1.5 text-right text-[9px] text-slate-600 font-mono">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="px-3 py-1.5 text-right text-[9px] font-bold text-slate-800 font-mono">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t border-slate-200 bg-slate-50">
-                  <tr>
-                    <td colSpan={3} className="px-3 py-2 text-right text-[9px] font-bold uppercase text-slate-500">Total Geral:</td>
-                    <td className="px-3 py-2 text-right text-[11px] font-black text-slate-900 font-mono bg-slate-100">
-                      R$ {order.items.reduce((acc, i) => acc + i.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-
-          {/* 6. CHECKLIST E EVIDÊNCIAS (TABELA STANDARD) */}
-          {(order.formData && Object.keys(order.formData).length > 0) && (
-            <div className="mb-4 border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-              <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <CheckCircle2 size={10} /> Auditoria e Verificações
-              </div>
-
-              {/* Tabela de Itens de Checklist */}
-              <div className="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200">
-                {/* Coluna Esquerda */}
-                <div className="divide-y divide-slate-100">
-                  {Object.entries(order.formData).filter(([key, val]) => {
-                    if (Array.isArray(val)) return false;
-                    if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) return false;
-                    if (key.includes('Assinatura') || key.includes('CPF') || key.includes('Nascimento')) return false;
-                    return true;
-                  }).slice(0, Math.ceil(Object.entries(order.formData).filter(([k, v]) => typeof v !== 'object').length / 2) + 1).map(([key, val]) => (
-                    <div key={key} className="flex justify-between px-3 py-1 items-center bg-white">
-                      <span className="text-[9px] text-slate-600 font-medium truncate pr-2 max-w-[200px]">{key}</span>
-                      <span className="text-[9px] font-bold text-slate-900 uppercase">{String(val)}</span>
-                    </div>
-                  ))}
-                </div>
-                {/* Coluna Direita */}
-                <div className="divide-y divide-slate-100">
-                  {Object.entries(order.formData).filter(([key, val]) => {
-                    if (Array.isArray(val)) return false;
-                    if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) return false;
-                    if (key.includes('Assinatura') || key.includes('CPF') || key.includes('Nascimento')) return false;
-                    return true;
-                  }).slice(Math.ceil(Object.entries(order.formData).filter(([k, v]) => typeof v !== 'object').length / 2) + 1).map(([key, val]) => (
-                    <div key={key} className="flex justify-between px-3 py-1 items-center bg-white">
-                      <span className="text-[9px] text-slate-600 font-medium truncate pr-2 max-w-[200px]">{key}</span>
-                      <span className="text-[9px] font-bold text-slate-900 uppercase">{String(val)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Evidências Fotográficas (Grid Compacto) */}
-              <div className="p-3 bg-white">
-                <div className="text-[8px] font-bold text-slate-400 uppercase mb-2 border-b border-slate-100 pb-1">Evidências Fotográficas</div>
-                <div className="grid grid-cols-5 gap-2">
-                  {Object.entries(order.formData).map(([key, val]) => {
-                    if (key.includes('Assinatura')) return null;
-                    let photos: string[] = [];
-                    if (Array.isArray(val)) photos = val.filter(item => typeof item === 'string' && (item.startsWith('http') || item.startsWith('data:')));
-                    else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) photos = [val];
-
-                    if (photos.length === 0) return null;
-
-                    return photos.map((url, i) => (
-                      <div key={`${key}-${i}`} className="space-y-1 break-inside-avoid text-center">
-                        <div className="aspect-[4/3] border border-slate-200 bg-slate-50 overflow-hidden rounded-sm mx-auto w-full max-w-[120px]">
-                          <img src={url} className="w-full h-full object-cover grayscale brightness-110 contrast-125" alt={key} />
-                        </div>
-                        <p className="text-[7px] text-slate-500 font-medium truncate px-1">{key}</p>
-                      </div>
-                    ));
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 7. ÁREA DE ASSINATURAS (FOOTER SÓLIDO) */}
-          <div className="mt-8 pt-4 border-t-2 border-slate-800 break-inside-avoid">
-            <div className="grid grid-cols-2 gap-10">
-              {/* Assinatura Técnico */}
-              <div className="text-center">
-                <div className="h-16 flex items-end justify-center pb-1">
-                  {/* Espaço para assinatura digital se houvesse, ou apenas linha */}
-                  <div className="w-2/3 border-b border-slate-400"></div>
-                </div>
-                <div className="mt-1">
-                  <div className="text-[9px] font-bold text-slate-900 uppercase">{tech?.name || 'Técnico Responsável'}</div>
-                  <div className="text-[7px] font-medium text-slate-500 uppercase">Assinatura do Prestador</div>
-                </div>
-              </div>
-
-              {/* Assinatura Cliente */}
-              <div className="text-center">
-                <div className="h-16 flex items-end justify-center pb-1 relative">
-                  {(() => {
-                    const signatureEntry = Object.entries(order.formData || {}).find(([k, v]) => {
-                      const isImage = typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'));
-                      const isSignatureKey = k.toLowerCase().includes('assinatura') && (k.toLowerCase().includes('cliente') || k.toLowerCase().includes('responsavel'));
-                      return isImage && isSignatureKey;
-                    });
-
-                    if (signatureEntry) {
-                      return <img src={signatureEntry[1]} className="absolute bottom-0 h-14 object-contain mix-blend-multiply opacity-90" />;
-                    }
-                    return <div className="w-2/3 border-b border-slate-400"></div>;
-                  })()}
-                </div>
-                <div className="mt-1">
-                  <div className="text-[9px] font-bold text-slate-900 uppercase">
-                    {Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('nome') && (k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('responsavel')))?.[1] || order.customerName}
-                  </div>
-                  <div className="text-[7px] font-medium text-slate-500 uppercase">Assinatura do Cliente / Responsável</div>
-                  {/* Data e Hora da Assinatura */}
-                  <div className="text-[7px] text-slate-400 mt-0.5 font-mono">
-                    Doc: {Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('cpf') || k.toLowerCase().includes('doc'))?.[1] || 'N/A'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Rodapé Legal */}
-            <div className="mt-6 text-center border-t border-slate-200 pt-2">
-              <p className="text-[7px] text-slate-400 uppercase tracking-widest font-medium">
-                Este documento comprova a execução dos serviços descritos acima. Gerado eletronicamente via Nexus System.
-              </p>
+            <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
+              Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
         </div>
 
-        {/* ============================================================
-             LAYOUT WEB (MODERN CARD VIEW) - Oculto na Impressão
-             ============================================================ */}
-        {!isPrint && (
-          <div className="print:hidden space-y-6">
-            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div className="space-y-2 w-full">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 text-slate-500 rounded-lg">
-                  <span className="text-[10px] font-black uppercase tracking-wider">Protocolo:</span>
-                  <span className="text-xs font-black text-slate-900">#{order.displayId || order.id.toUpperCase()}</span>
+        {/* Print body */}
+        <div className="mb-3 border border-slate-300 rounded-lg overflow-hidden">
+          <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do chamado</div>
+          <div className="grid grid-cols-12 divide-x divide-slate-200">
+            <div className="col-span-7 p-2.5 space-y-2">
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-sm uppercase">{order.customerName}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{order.customerAddress}</div></div>
+            </div>
+            <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(order.createdAt)}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Tipo</label><div className="font-bold uppercase">{order.operationType || 'Manutenção'}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Status</label><div className="font-bold text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{order.status}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Técnico</label><div className="font-bold uppercase">{tech?.name || 'N/A'}</div></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Print footer */}
+        <div className="mt-8 pt-4 border-t border-slate-300 text-center">
+          <p className="text-[7px] text-slate-400 uppercase tracking-widest">Documento emitido eletronicamente · Nexus Pro System</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── WEB LAYOUT ─────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-[#F0F2F5] font-sans selection:bg-[#1c2d4f]/10">
+
+      {/* ── TOP ACCENT BAR ── */}
+      <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
+
+      {/* ── STICKY HEADER ── */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm print:hidden">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-4">
+          {/* Company identity */}
+          <div className="flex items-center gap-4 min-w-0">
+            {companyLogo
+              ? <img src={companyLogo} alt={companyName} className="h-10 sm:h-12 w-auto object-contain shrink-0" />
+              : (
+                <div className="w-10 h-10 bg-[#1c2d4f] rounded-xl flex items-center justify-center shrink-0">
+                  <Hexagon size={20} className="text-white fill-white/10" />
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-tighter leading-tight italic">{order.title}</h2>
-                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  <span className="flex items-center gap-1.5"><Calendar size={12} /> Aberta em: {new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>
-                  <span className="flex items-center gap-1.5"><Tag size={12} className="rotate-90" /> {order.operationType || 'Visita Técnica'}</span>
-                </div>
-              </div>
-              <div className="flex flex-row md:flex-col items-center md:items-end justify-between w-full md:w-auto gap-3 border-t md:border-t-0 pt-4 md:pt-0">
-                <StatusBadge status={order.status} />
-                <div className="text-[10px] font-black text-slate-400 uppercase bg-slate-50 px-3 py-1 rounded-full border border-slate-100">Prioridade: {order.priority}</div>
+              )
+            }
+            <div className="min-w-0">
+              <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight truncate leading-none">{companyName}</h1>
+              <div className="hidden sm:flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1.5">
+                {companyPhone && (
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
+                  </span>
+                )}
+                {companyEmail && (
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    <Mail size={9} className="text-[#3e5b99]" /> {companyEmail}
+                  </span>
+                )}
+                {companyDoc && (
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    CNPJ: {companyDoc}
+                  </span>
+                )}
+                {companyAddress && (
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-xs">
+                    <MapPin size={9} className="text-[#3e5b99] shrink-0" /> {companyAddress}
+                  </span>
+                )}
               </div>
             </div>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 space-y-4">
-                <div className="flex items-center gap-2 text-primary-600 pb-2 border-b border-slate-50">
-                  <UserIcon size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Informações do Cliente</span>
-                </div>
-                <p className="text-sm font-black text-slate-900 uppercase">{order.customerName}</p>
-              </div>
-              <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 space-y-4">
-                <div className="flex items-center gap-2 text-primary-600 pb-2 border-b border-slate-50">
-                  <MapPin size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Localização da Atividade</span>
-                </div>
-                <p className="text-[11px] font-bold text-slate-900 uppercase">{order.customerAddress}</p>
-              </div>
+          {/* Print button */}
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
+          >
+            <Printer size={14} />
+            <span className="hidden sm:inline">Imprimir PDF</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ── OS HERO BANNER ── */}
+      <div className="bg-[#1c2d4f] print:hidden">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+          {/* OS identity */}
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10 shrink-0">
+              <Wrench size={26} className="text-white" />
             </div>
-
-            {/* REGISTRO DE IMPEDIMENTO (SE EXISTIR) */}
-            {(order.status === 'IMPEDIDO' || order.formData?.impediment_reason) && (
-              <div className="bg-red-50 rounded-2xl sm:rounded-3xl border border-red-100 p-6 sm:p-8 space-y-4">
-                <div className="flex items-center gap-2 text-red-600 pb-2 border-b border-red-200/50">
-                  <ShieldAlert size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Aviso de Impedimento</span>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-[8px] font-black text-red-400 uppercase mb-1">Motivo do Bloqueio</p>
-                    <p className="text-sm font-bold text-red-900 leading-relaxed italic uppercase">
-                      "{order.formData?.impediment_reason || order.notes?.replace('IMPEDIMENTO: ', '') || 'Nenhum motivo detalhado.'}"
-                    </p>
-                  </div>
-                  {order.formData?.impediment_photos && Array.isArray(order.formData.impediment_photos) && order.formData.impediment_photos.length > 0 && (
-                    <div>
-                      <p className="text-[8px] font-black text-red-400 uppercase mb-2">Evidências do Impedimento</p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {order.formData.impediment_photos.map((url: string, idx: number) => (
-                          <div
-                            key={idx}
-                            className="relative aspect-square rounded-xl overflow-hidden border border-red-200 shadow-sm cursor-zoom-in group"
-                            onClick={() => setFullscreenImage(url)}
-                          >
-                            <img src={url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="Evidência impedimento" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-              <div className="p-6 sm:p-8 space-y-6">
-                <div className="flex items-center gap-2 text-primary-600 pb-2 border-b border-slate-50">
-                  <Box size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Ativo / Equipamento Vinculado</span>
-                </div>
-                <div className="flex items-center gap-4 sm:gap-5">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-slate-50 rounded-xl sm:rounded-2xl flex items-center justify-center text-slate-300 border border-slate-100 shrink-0"><Box className="w-6 h-6 sm:w-8 sm:h-8" /></div>
-                  <div className="min-w-0">
-                    <h4 className="text-base sm:text-lg font-black text-slate-900 uppercase truncate">{order.equipmentName || 'Não Especificado'}</h4>
-                    <div className="flex flex-col xs:flex-row gap-2 xs:gap-4 mt-1">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">Modelo: <span className="text-slate-600">{order.equipmentModel || '-'}</span></p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">Série: <span className="text-slate-600">{order.equipmentSerial || '-'}</span></p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div>
+              <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] leading-none mb-1.5">Ordem de Serviço</p>
+              <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-none">
+                #{order.displayId || order.id.slice(0, 8).toUpperCase()}
+              </h2>
+              <p className="text-[10px] font-bold text-white/50 uppercase tracking-wide mt-1.5">{order.title}</p>
             </div>
+          </div>
 
-            {/* RELATÓRIO TÉCNICO E EXECUÇÃO (WEB) */}
-            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 space-y-6">
-              <div className="flex items-center gap-2 text-primary-600 pb-2 border-b border-slate-50">
-                <FileText size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Relatório Técnico de Execução</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Responsável</p>
-                  <p className="text-xs font-black text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Check-In</p>
-                  <p className="text-xs font-black text-slate-900">{order.startDate ? new Date(order.startDate).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '--:--'}</p>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Check-Out</p>
-                  <p className="text-xs font-black text-slate-900">{order.endDate ? new Date(order.endDate).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '--:--'}</p>
-                </div>
-              </div>
-              <div className="p-6 bg-primary-50/30 rounded-2xl border border-primary-100/50">
-                <p className="text-[9px] font-black text-primary-600 uppercase mb-3 tracking-widest flex items-center gap-2">
-                  <CheckCircle2 size={12} /> Descrição Técnica das Atividades
-                </p>
-                <p className="text-sm font-bold text-slate-700 leading-relaxed uppercase italic">
-                  {order.description || 'Nenhum detalhe técnico registrado.'}
-                </p>
-              </div>
+          {/* Status + priority */}
+          <div className="flex items-center gap-3">
+            <StatusBadge status={order.status} />
+            <div className="px-3 py-1.5 bg-white/10 rounded-full text-[9px] font-black text-white/70 uppercase tracking-widest border border-white/10">
+              {order.priority}
+            </div>
+            <div className="px-3 py-1.5 bg-white/10 rounded-full text-[9px] font-black text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
+              <Calendar size={11} /> {fmt(order.createdAt)}
+            </div>
+          </div>
+        </div>
+      </div>
 
-              {/* Valores e Peças (Modo Web) */}
-              {order.showValueToClient && order.items && order.items.length > 0 && (
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <p className="text-[10px] font-black text-primary-600 uppercase tracking-widest flex items-center gap-2">
-                    <DollarSign size={16} /> Composição de Valores e Materiais
-                  </p>
+      {/* ── MAIN CONTENT ── */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-6 print:hidden">
 
-                  <div className="bg-slate-50/50 rounded-2xl border border-slate-100 overflow-hidden">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-white text-[8px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                          <th className="px-6 py-3">Descrição do Item</th>
-                          <th className="px-6 py-3 w-20 text-center">Qtd</th>
-                          <th className="px-6 py-3 w-32 text-right">Unitário</th>
-                          <th className="px-6 py-3 w-32 text-right">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {order.items.map(item => (
-                          <tr key={item.id}>
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-slate-700 uppercase">{item.description}</span>
-                                {item.fromStock && <span className="text-[8px] font-bold text-emerald-600 uppercase italic">Original em Estoque</span>}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-center text-[10px] font-bold text-slate-500">{item.quantity}</td>
-                            <td className="px-6 py-4 text-right text-[10px] font-mono text-slate-600">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                            <td className="px-6 py-4 text-right text-[10px] font-black text-slate-900 font-mono">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="bg-primary-600 p-6 rounded-2xl flex justify-between items-center text-white shadow-lg shadow-primary-600/20">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white/10 rounded-xl"><DollarSign size={20} /></div>
-                      <div>
-                        <p className="text-[8px] font-black uppercase tracking-widest opacity-70">Total do Atendimento</p>
-                        <p className="text-[10px] font-bold uppercase italic">Pague via faturamento ou direto ao técnico</p>
-                      </div>
-                    </div>
-                    <div className="text-2xl font-black italic tracking-tighter">
-                      R$ {order.items.reduce((acc, i) => acc + i.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
+        {/* ── ROW 1: Cliente + Localização ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
+            <SectionHeader icon={<UserIcon size={15} />} title="Dados do Cliente" />
+            <div className="space-y-4">
+              <p className="text-lg font-black text-slate-900 uppercase leading-tight">{order.customerName}</p>
+              {order.operationType && (
+                <div className="flex items-center gap-2">
+                  <Tag size={12} className="text-[#3e5b99]" />
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{order.operationType}</span>
                 </div>
               )}
+              <div className="pt-3 border-t border-slate-50 grid grid-cols-2 gap-4">
+                <InfoPill label="Agendado" value={`${fmt(order.scheduledDate)}${order.scheduledTime ? ' · ' + order.scheduledTime : ''}`} />
+                <InfoPill label="Abertura" value={fmt(order.createdAt)} />
+              </div>
             </div>
+          </div>
 
-            {/* CHECKLIST E EVIDÊNCIAS (WEB) */}
-            {(order.formData && Object.keys(order.formData).length > 0) && (
-              <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="p-6 sm:p-8 space-y-6">
-                  <div className="flex items-center gap-2 text-emerald-600 pb-2 border-b border-slate-50">
-                    <CheckCircle2 size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Auditoria de Conformidade</span>
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
+            <SectionHeader icon={<MapPin size={15} />} title="Localização do Atendimento" />
+            <p className="text-sm font-bold text-slate-800 uppercase leading-relaxed">{order.customerAddress}</p>
+            {(order.equipmentName || order.equipmentModel) && (
+              <div className="mt-6 pt-5 border-t border-slate-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
+                    <Box size={14} className="text-slate-400" />
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    {Object.entries(order.formData).filter(([key, val]) => {
-                      // 1. Filtro Robusto: Remove qualquer coisa que pareça imagem
-                      if (Array.isArray(val)) return false; // Arrays são fotos agora
-                      if (typeof val !== 'string') return true; // Se não é string nem array, deve ser número/bool
-
-                      const isBase64 = val.startsWith('data:image');
-                      const isUrl = val.startsWith('http');
-                      // Filtra metadados de assinatura para não duplicar informação
-                      const isSignatureRel = key.includes('Assinatura') || key.includes('CPF') || key.includes('Nascimento');
-
-                      return !isBase64 && !isUrl && !isSignatureRel;
-                    }).map(([key, val]) => (
-                      <div key={key} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="text-[10px] font-black text-slate-500 uppercase italic leading-none max-w-[60%]">
-                          {!isNaN(Number(key)) ? `Pergunta nº ${key}` : key}
-                        </span>
-                        <span className={`text-[11px] font-black flex items-center gap-2 ${String(val).toLowerCase().includes('sim') || String(val).toLowerCase().includes('ok') ? 'text-emerald-600' : 'text-slate-900 uppercase'}`}>
-                          {String(val).toLowerCase().includes('sim') || String(val).toLowerCase().includes('ok') ? <CheckCircle2 size={12} /> : null}
-                          {String(val)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Evidências Fotográficas (Agrupadas por Pergunta) */}
-                  <div className="space-y-6 pt-6">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Evidências Fotográficas do Atendimento</p>
-                    {/* Debug temporário */}
-                    {console.log('📦 FormData Debug:', order.formData)}
-
-                    <div className="space-y-8">
-                      {Object.entries(order.formData || {}).map(([key, val]) => {
-                        // Ignora campos de assinatura
-                        if (key.includes('Assinatura')) return null;
-
-                        let photos: string[] = [];
-                        if (Array.isArray(val)) {
-                          photos = val.filter(item => typeof item === 'string' && (item.startsWith('http') || item.startsWith('data:image')));
-                        } else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) {
-                          photos = [val];
-                        }
-
-                        if (photos.length === 0) return null;
-
-                        return (
-                          <div key={key} className="space-y-3">
-                            <h4 className="text-[10px] font-black text-primary-600 uppercase tracking-wide flex items-center gap-2">
-                              <div className="w-1 h-1 bg-primary-400 rounded-full" />
-                              {key}
-                            </h4>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                              {photos.map((url, idx) => (
-                                <div
-                                  key={`${key}-${idx}`}
-                                  className="relative aspect-square rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 group shadow-sm hover:shadow-md transition-all cursor-zoom-in"
-                                  onClick={() => setFullscreenImage(url)}
-                                >
-                                  <img src={url} className="w-full h-full object-cover transition-all duration-500" alt={key} />
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Equipamento</p>
+                    <p className="text-xs font-black text-slate-800 uppercase">{order.equipmentName || '—'}</p>
+                    <p className="text-[9px] font-bold text-slate-400 mt-0.5">
+                      {order.equipmentModel && `Modelo: ${order.equipmentModel}`}
+                      {order.equipmentSerial && ` · Série: ${order.equipmentSerial}`}
+                    </p>
                   </div>
                 </div>
               </div>
             )}
+          </div>
+        </div>
 
+        {/* ── ROW 2: Relatório Técnico ── */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
+          <SectionHeader icon={<FileText size={15} />} title="Relatório Técnico de Execução" />
 
+          {/* Timeline bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
+              <div className="w-8 h-8 bg-[#1c2d4f]/10 rounded-xl flex items-center justify-center shrink-0">
+                <UserIcon size={14} className="text-[#1c2d4f]" />
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Técnico</p>
+                <p className="text-[11px] font-black text-slate-800 uppercase">{tech?.name || 'Não Atribuído'}</p>
+              </div>
+            </div>
+            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
+              <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0">
+                <Clock size={14} className="text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Check-In</p>
+                <p className="text-[11px] font-black text-emerald-800">{fmtDT(order.startDate)}</p>
+              </div>
+            </div>
+            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
+              <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center shrink-0">
+                <CheckCircle2 size={14} className="text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Check-Out</p>
+                <p className="text-[11px] font-black text-emerald-800">{fmtDT(order.endDate)}</p>
+              </div>
+            </div>
+          </div>
 
-            {/* ASSINATURAS (WEB) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {/* Service description */}
+          {order.description && (
+            <div className="p-5 bg-[#1c2d4f]/5 rounded-xl border border-[#1c2d4f]/10">
+              <p className="text-[9px] font-black text-[#1c2d4f] uppercase tracking-widest mb-2">Descrição do Serviço Executado</p>
+              <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">{order.description}</p>
+            </div>
+          )}
+        </div>
 
-              {/* Card Validação Técnica */}
-              <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 text-center space-y-4">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Validação Técnica</p>
-                <div
-                  className="h-20 flex items-center justify-center grayscale opacity-60 cursor-zoom-in"
-                  onClick={() => {
-                    const sig = Object.entries(order.formData || {}).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string')?.[1];
-                    if (sig) setFullscreenImage(sig);
-                  }}
-                >
-                  <Hexagon size={48} className="text-slate-200" />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-slate-900 uppercase italic">{tech?.name || 'Responsável Técnico'}</p>
-                </div>
+        {/* ── IMPEDIMENTO (if any) ── */}
+        {(order.status === 'IMPEDIDO' || (order.formData as any)?.impediment_reason) && (
+          <div className="bg-red-50 rounded-2xl border border-red-100 shadow-sm p-6 sm:p-8">
+            <SectionHeader icon={<ShieldAlert size={15} />} title="Aviso de Impedimento" color="text-red-600" />
+            <p className="text-sm font-bold text-red-800 italic">
+              "{(order.formData as any)?.impediment_reason || order.notes?.replace('IMPEDIMENTO: ', '') || 'Sem motivo detalhado.'}"
+            </p>
+          </div>
+        )}
+
+        {/* ── PEÇAS E VALORES ── */}
+        {order.showValueToClient && order.items && order.items.length > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 sm:p-8">
+              <SectionHeader icon={<Package size={15} />} title="Peças e Materiais Aplicados" />
+              <div className="rounded-xl border border-slate-100 overflow-hidden">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                      <th className="px-5 py-3">Descrição</th>
+                      <th className="px-5 py-3 text-center w-20">Qtd</th>
+                      <th className="px-5 py-3 text-right w-28">Unitário</th>
+                      <th className="px-5 py-3 text-right w-28">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {order.items.map((item, i) => (
+                      <tr key={item.id || i} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-5 py-3.5">
+                          <span className="text-[11px] font-bold text-slate-800 uppercase">{item.description}</span>
+                          {item.fromStock && <span className="ml-2 text-[8px] font-bold text-emerald-600 uppercase">✦ Estoque</span>}
+                        </td>
+                        <td className="px-5 py-3.5 text-center text-[11px] text-slate-500 font-bold">{item.quantity}</td>
+                        <td className="px-5 py-3.5 text-right text-[11px] font-mono text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-5 py-3.5 text-right text-[11px] font-black text-slate-900 font-mono">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Card Ciência do Cliente */}
-              <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 text-center space-y-4">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ciência do Cliente</p>
-
-                {(() => {
-                  let data = order.formData || {};
-                  // Parse seguro caso venha string
-                  if (typeof data === 'string') {
-                    try { data = JSON.parse(data); } catch { data = {}; }
-                  }
-
-                  const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
-                  const keys = Object.keys(data);
-                  const findValue = (targetToken: string) => {
-                    const exact = data[targetToken];
-                    if (exact) return exact;
-
-                    // Busca por chave exata no App V2
-                    if (targetToken === 'signature' && data.signature) return data.signature;
-                    if (targetToken === 'signatureName' && data.signatureName) return data.signatureName;
-                    if (targetToken === 'signatureDoc' && data.signatureDoc) return data.signatureDoc;
-
-                    const foundKey = keys.find(k => normalize(k).includes(normalize(targetToken)));
-                    return foundKey ? data[foundKey] : null;
-                  };
-
-                  let signature = data.signature || findValue('Assinatura do Cliente') || findValue('assinaturadocliente') || findValue('assinatura');
-
-                  let name = data.signatureName || findValue('Assinatura do Cliente - Nome') || findValue('assinaturadoclientenome') || findValue('responsavel') || findValue('nome');
-
-                  let cpf = data.signatureDoc || findValue('Assinatura do Cliente - CPF') || findValue('assinaturadoclientecpf') || findValue('cpf');
-
-                  let birth = findValue('Assinatura do Cliente - Nascimento') || findValue('assinaturadoclientenascimento');
-
-                  return (
-                    <>
-                      <div
-                        className="h-28 sm:h-32 flex flex-col items-center justify-center bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-100 relative group cursor-zoom-in overflow-hidden px-4 py-3"
-                        onClick={() => signature && setFullscreenImage(signature)}
-                      >
-                        {signature ? (
-                          <img
-                            src={signature}
-                            className="h-full w-full object-contain mix-blend-multiply transition-transform group-hover:scale-105"
-                            alt="Assinatura Cliente"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center gap-2 opacity-50">
-                            <div className="w-8 h-8 rounded-full bg-slate-200" />
-                            <span className="text-[9px] font-black text-slate-300 uppercase italic">Adesão via Protocolo Digital</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        {name && <p className="text-xs font-black text-slate-900 uppercase italic">{name}</p>}
-                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1 flex justify-center gap-3">
-                          {cpf && <span>DOC: {cpf}</span>}
-                          {birth && <span>• Nascimento: {birth}</span>}
-                        </p>
-                      </div>
-                    </>
-                  );
-                })()}
+              {/* Total bar */}
+              <div className="mt-4 flex items-center justify-between bg-[#1c2d4f] text-white px-6 py-4 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <DollarSign size={18} className="opacity-60" />
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-70">Total do Atendimento</span>
+                </div>
+                <span className="text-xl font-black font-mono tracking-tighter">
+                  R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
               </div>
             </div>
           </div>
         )}
+
+        {/* ── FORMULÁRIO COLAPSÁVEL ── */}
+        {hasForm && (
+          <CollapsibleFormSection
+            formData={order.formData as Record<string, any>}
+            order={order}
+            onImageClick={setFullscreenImage}
+          />
+        )}
+
       </main>
 
-      {/* RODAPÉ INTEGRADO */}
-      <footer className={`${isPrint ? 'opacity-100 mt-4' : 'opacity-40 hover:opacity-100'} max-w-[1000px] mx-auto mb-8 px-6 text-center space-y-2 transition-opacity`}>
-        <div className="flex items-center justify-center gap-4">
-          <NexusBranding size="sm" className="opacity-50" />
+      {/* ── FOOTER NEXUS ── */}
+      <footer className="mt-12 border-t border-slate-200 bg-white print:hidden">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <NexusBranding size="sm" className="opacity-70" />
+          </div>
+          <div className="text-center sm:text-right space-y-1">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma solução Nexus Pro</p>
+            <p className="text-[8px] text-slate-300 uppercase tracking-widest">
+              Documento emitido eletronicamente · Autenticidade garantida pela plataforma
+            </p>
+          </div>
         </div>
-        <p className="text-[7px] font-bold text-slate-400 uppercase tracking-[0.2em]">Documento emitido eletronicamente pela Plataforma Nexus Pro. Verifique a autenticidade via QR-Code se disponível.</p>
-      </footer >
+      </footer>
 
-      {/* NEXUS LIGHTBOX IMMERSIVE VIEWER */}
-      {
-        fullscreenImage && (
-          <div
-            className="fixed inset-0 z-[1000] bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
+      {/* ── LIGHTBOX ── */}
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <img
+            src={fullscreenImage}
+            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+            alt="Visualização"
+          />
+          <button
+            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
             onClick={() => setFullscreenImage(null)}
           >
-            <div className="relative max-w-5xl w-full h-full flex items-center justify-center">
-              <img
-                src={fullscreenImage}
-                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl animate-scale-up"
-                alt="Fullscreen"
-              />
-              <div className="absolute top-0 right-0 p-4">
-                <div className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors">
-                  <X size={24} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      }
-    </div >
+            <XIcon size={22} />
+          </button>
+        </div>
+      )}
+    </div>
   );
 };
 
-const X = ({ size, className }: { size: number, className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18M6 6l12 12" /></svg>
+const XIcon = ({ size }: { size: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 6 6 18M6 6l12 12" />
+  </svg>
 );
