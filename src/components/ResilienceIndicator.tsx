@@ -149,7 +149,7 @@ export const ResilienceIndicator: React.FC = () => {
                                     <div className="flex-1 p-4 rounded-2xl bg-white/5 border border-white/5 flex flex-col items-center justify-center text-center gap-2">
                                         <Layers size={18} className="text-purple-400" />
                                         <span className="text-[10px] font-black text-white uppercase tracking-widest">Realtime Status</span>
-                                        <span className="text-[9px] font-bold text-purple-300 opacity-60 uppercase">{supabaseDiagnostics.checkRealtime().status}</span>
+                                        <span className="text-[9px] font-bold text-purple-300 opacity-60 uppercase">{typeof supabaseDiagnostics.checkRealtime === 'function' ? supabaseDiagnostics.checkRealtime().status : 'Não Disponível'}</span>
                                     </div>
                                 </div>
                             </div>
@@ -165,7 +165,7 @@ export const ResilienceIndicator: React.FC = () => {
                                             <div key={i} className="flex gap-3 border-b border-white/5 pb-2 last:border-0 truncate">
                                                 <span className="text-primary-500 font-bold shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
                                                 <span className={`uppercase font-black px-1 rounded text-[8px] h-fit shrink-0 ${log.type === 'error' ? 'bg-rose-500/20 text-rose-400' :
-                                                        log.type === 'warn' ? 'bg-amber-500/20 text-amber-400' : 'bg-white/10 text-white/40'
+                                                    log.type === 'warn' ? 'bg-amber-500/20 text-amber-400' : 'bg-white/10 text-white/40'
                                                     }`}>
                                                     {log.type}
                                                 </span>

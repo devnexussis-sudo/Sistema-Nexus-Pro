@@ -134,125 +134,132 @@ export function useQuery<T>(
 
     // 🔄 Fetch Logic
     const fetchData = async (forceRefetch = false) => {
-        if (!enabled && !forceRefetch) return;
-
-        const cached = queryCache.get(key);
-        const isStale = !cached || (Date.now() - cached.timestamp > staleTime);
-
-        // Se tiver dados em cache e não estiver stale, e não for forçado, retorna
-        if (cached && !isStale && !forceRefetch) {
-            if (state.data !== cached.data) {
-                setState(prev => ({ ...prev, data: cached.data, isLoading: false, isFetching: false, status: 'success' }));
-            }
-            return;
-        }
-
-        // 🛡️ Request Deduplication (com anti-deadlock)
-        const isPromiseStale = cached?.promiseTimestamp && (Date.now() - cached.promiseTimestamp > 10000); // 10s timeout para acomodar retries do fetch e do CacheManager
-
-        if (cached?.promise && !isPromiseStale) {
-            console.log(`[NexusQuery] ♻️ Reusing request: ${key}`);
-            setState(prev => ({ ...prev, isFetching: true }));
-            try {
-                const data = await cached.promise;
-                if (isMounted.current) {
-                    setState(prev => ({ ...prev, data, isLoading: false, isFetching: false, status: 'success', error: null }));
-                }
-            } catch (err) {
-                // Ignore error from deduplication
-            }
-            return;
-        }
-
-        // Se promessa era velha (zumbi), ignoramos e iniciamos nova
-        if (isPromiseStale && cached?.promise) {
-            const zombieRetries = (cached?.zombieRetries || 0) + 1;
-            cached.zombieRetries = zombieRetries;
-            const delay = Math.min(1000 * Math.pow(2, zombieRetries), 10000);
-            console.warn(`[NexusQuery] 🧟 Zumbi Promise detectada em ${key}. Aguardando ${delay}ms (backoff) antes do refetch...`);
-            cached.promise = undefined;
-            await new Promise(r => setTimeout(r, delay));
-            if (!isMounted.current) return;
-        } else if (cached) {
-            cached.zombieRetries = 0;
-        }
-
-        // 🟢 Vincula o AbortSignal ao ciclo de vida desta requisição
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort('Nova requisição iniciada (Deduplicação)');
-        }
-        abortControllerRef.current = new AbortController();
-        const signal = abortControllerRef.current.signal;
-
-        // Start Fetch
-        console.log(`[NexusQuery] 🟢 Fetching: ${key} (Aguardando Fila...)`);
-        setState(prev => ({
-            ...prev,
-            isLoading: !prev.data,
-            isFetching: true,
-            status: 'loading'
-        }));
-
-        await enqueueFetch();
-        if (!isMounted.current) return; // Se abortou enquanto tava na fila
-
         try {
-            const promise = queryFn(signal);
+            if (!enabled && !forceRefetch) return;
 
-            // Store promise in cache
-            if (cached) {
-                cached.promise = promise;
-                cached.promiseTimestamp = Date.now();
-            } else {
-                queryCache.set(key, { data: undefined as any, timestamp: 0, promise, promiseTimestamp: Date.now() });
-            }
+            const cached = queryCache.get(key);
+            const isStale = !cached || (Date.now() - cached.timestamp > staleTime);
 
-            const data = await promise;
-            console.log(`[NexusQuery] ✅ Success: ${key}`);
-
-            // Update Cache (Memory + Disk)
-            const timestamp = Date.now();
-            queryCache.set(key, { data, timestamp, promise: undefined });
-            try {
-                localStorage.setItem(`NEXUS_CACHE_${key}`, JSON.stringify({ data, timestamp }));
-            } catch (e) {
-                console.warn('[NexusQuery] Failed to persist cache', e);
-            }
-
-            if (isMounted.current) {
-                setState({
-                    data,
-                    isLoading: false,
-                    isFetching: false,
-                    error: null,
-                    status: 'success'
-                });
-                retryCount.current = 0;
-                onSuccess?.(data);
-            }
-        } catch (err: any) {
-            // Remove promise from cache to allow retry
-            const currentCache = queryCache.get(key);
-            if (currentCache) currentCache.promise = undefined;
-
-            if (retryCount.current < retry) {
-                retryCount.current++;
-                const delay = Math.min(1000 * Math.pow(2, retryCount.current), 30000);
-                setTimeout(() => {
-                    if (isMounted.current) fetchData(true);
-                }, delay);
+            // Se tiver dados em cache e não estiver stale, e não for forçado, retorna
+            if (cached && !isStale && !forceRefetch) {
+                if (state.data !== cached.data) {
+                    setState(prev => ({ ...prev, data: cached.data, isLoading: false, isFetching: false, status: 'success' }));
+                }
                 return;
             }
 
+            // 🛡️ Request Deduplication (com anti-deadlock)
+            const isPromiseStale = cached?.promiseTimestamp && (Date.now() - cached.promiseTimestamp > 10000); // 10s timeout para acomodar retries do fetch e do CacheManager
+
+            if (cached?.promise && !isPromiseStale) {
+                console.log(`[NexusQuery] ♻️ Reusing request: ${key}`);
+                setState(prev => ({ ...prev, isFetching: true }));
+                try {
+                    const data = await cached.promise;
+                    if (isMounted.current) {
+                        setState(prev => ({ ...prev, data, isLoading: false, isFetching: false, status: 'success', error: null }));
+                    }
+                } catch (err) {
+                    // Ignore error from deduplication
+                }
+                return;
+            }
+
+            // Se promessa era velha (zumbi), ignoramos e iniciamos nova
+            if (isPromiseStale && cached?.promise) {
+                const zombieRetries = (cached?.zombieRetries || 0) + 1;
+                cached.zombieRetries = zombieRetries;
+                const delay = Math.min(1000 * Math.pow(2, zombieRetries), 10000);
+                console.warn(`[NexusQuery] 🧟 Zumbi Promise detectada em ${key}. Aguardando ${delay}ms (backoff) antes do refetch...`);
+                cached.promise = undefined;
+                await new Promise(r => setTimeout(r, delay));
+                if (!isMounted.current) return;
+            } else if (cached) {
+                cached.zombieRetries = 0;
+            }
+
+            // 🟢 Vincula o AbortSignal ao ciclo de vida desta requisição
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort('Nova requisição iniciada (Deduplicação)');
+            }
+            abortControllerRef.current = new AbortController();
+            const signal = abortControllerRef.current.signal;
+
+            // Start Fetch
+            console.log(`[NexusQuery] 🟢 Fetching: ${key} (Aguardando Fila...)`);
+            setState(prev => ({
+                ...prev,
+                isLoading: !prev.data,
+                isFetching: true,
+                status: 'loading'
+            }));
+
+            await enqueueFetch();
+            if (!isMounted.current) return; // Se abortou enquanto tava na fila
+
+            try {
+                const promise = queryFn(signal);
+
+                // Store promise in cache
+                if (cached) {
+                    cached.promise = promise;
+                    cached.promiseTimestamp = Date.now();
+                } else {
+                    queryCache.set(key, { data: undefined as any, timestamp: 0, promise, promiseTimestamp: Date.now() });
+                }
+
+                const data = await promise;
+                console.log(`[NexusQuery] ✅ Success: ${key}`);
+
+                // Update Cache (Memory + Disk)
+                const timestamp = Date.now();
+                queryCache.set(key, { data, timestamp, promise: undefined });
+                try {
+                    localStorage.setItem(`NEXUS_CACHE_${key}`, JSON.stringify({ data, timestamp }));
+                } catch (e) {
+                    console.warn('[NexusQuery] Failed to persist cache', e);
+                }
+
+                if (isMounted.current) {
+                    setState({
+                        data,
+                        isLoading: false,
+                        isFetching: false,
+                        error: null,
+                        status: 'success'
+                    });
+                    retryCount.current = 0;
+                    onSuccess?.(data);
+                }
+            } catch (err: any) {
+                // Remove promise from cache to allow retry
+                const currentCache = queryCache.get(key);
+                if (currentCache) currentCache.promise = undefined;
+
+                if (retryCount.current < retry) {
+                    retryCount.current++;
+                    const delay = Math.min(1000 * Math.pow(2, retryCount.current), 30000);
+                    setTimeout(() => {
+                        if (isMounted.current) fetchData(true);
+                    }, delay);
+                    return;
+                }
+
+                if (isMounted.current) {
+                    setState(prev => ({
+                        ...prev,
+                        isLoading: false,
+                        isFetching: false,
+                        error: err,
+                        status: 'error'
+                    }));
+                    onError?.(err);
+                }
+            }
+        } catch (fatalError) {
+            console.error(`[NexusQuery] 💥 Fatal Error in fetchData for ${key}:`, fatalError);
             if (isMounted.current) {
-                setState(prev => ({
-                    ...prev,
-                    isLoading: false,
-                    isFetching: false,
-                    error: err,
-                    status: 'error'
-                }));
-                onError?.(err);
+                setState(prev => ({ ...prev, isLoading: false, isFetching: false, error: fatalError as Error, status: 'error' }));
             }
         }
     };
