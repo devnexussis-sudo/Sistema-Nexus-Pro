@@ -238,7 +238,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 </p>
                 <div className="p-4 sm:p-6 bg-slate-50 rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 mb-8">
                     <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Código do Orçamento</p>
-                    <p className="text-lg sm:text-xl font-black text-primary-600 italic tracking-tighter">{quote.id}</p>
+                    <p className="text-lg sm:text-xl font-black text-primary-600 italic tracking-tighter">{quote.displayId || quote.id}</p>
                 </div>
                 <div className="flex items-center justify-center gap-2 opacity-50">
                     <NexusBranding size="sm" />
@@ -318,7 +318,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             </div>
                             <div>
                                 <p className="text-[10px] text-white/50 font-black uppercase tracking-widest leading-none mb-2">Proposta Comercial nº</p>
-                                <h2 className="text-2xl sm:text-3xl font-black text-white uppercase italic tracking-tighter leading-none">{quote.id}</h2>
+                                <h2 className="text-2xl sm:text-3xl font-black text-white uppercase italic tracking-tighter leading-none">{quote.displayId || `ORC-${quote.id.slice(0, 8).toUpperCase()}`}</h2>
                             </div>
                         </div>
 
@@ -641,17 +641,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                 <div className="space-y-4">
                                     <div><p className="text-[8px] font-black text-slate-400 uppercase">Assinado por</p><p className="text-xs font-black text-slate-700 italic">{quote.approvedByName || 'Aprovador Online'}</p></div>
                                     <div><p className="text-[8px] font-black text-slate-400 uppercase">Documento / Data</p><p className="text-xs font-black text-slate-700 italic">{quote.approvalDocument} • {quote.approvedAt ? new Date(quote.approvedAt).toLocaleString() : 'Data não disponível'}</p></div>
-                                    {/* Debug Info - Remove depois */}
-                                    <div className="p-2 bg-yellow-50 rounded text-[8px] font-mono">
-                                        <p><strong>Debug:</strong></p>
-                                        <p>Signature exists: {quote.approvalSignature ? 'YES' : 'NO'}</p>
-                                        {quote.approvalSignature && (
-                                            <>
-                                                <p>Type: {quote.approvalSignature.startsWith('data:') ? 'BASE64' : 'URL'}</p>
-                                                <p className="truncate">Value: {quote.approvalSignature.substring(0, 80)}...</p>
-                                            </>
-                                        )}
-                                    </div>
+
                                 </div>
                                 <div className="bg-white p-4 sm:p-6 rounded-2xl border-2 border-primary-200 shadow-md flex flex-col items-center justify-center min-h-[120px] gap-2">
                                     {quote.approvalSignature ? (
