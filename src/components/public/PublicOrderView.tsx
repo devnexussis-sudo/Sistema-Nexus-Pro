@@ -44,15 +44,28 @@ const CollapsibleFormSection: React.FC<{
 }> = ({ formData, order, onImageClick }) => {
   const [isOpen, setIsOpen] = useState(false);
 
+  // Filtra apenas campos de texto (perguntas/respostas do formulário)
+  // Exclui imagens, assinaturas e metadados internos
+  const SKIP_KEYS = ['signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+    'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+    'impediment_reason', 'impediment_photos', 'totalValue', 'price'];
+
   const textEntries = Object.entries(formData).filter(([key, val]) => {
+    if (SKIP_KEYS.includes(key)) return false;
     if (Array.isArray(val)) return false;
     if (typeof val === 'string' && (val.startsWith('data:image') || val.startsWith('http'))) return false;
-    if (key.includes('Assinatura') || key.includes('CPF') || key.includes('Nascimento')) return false;
+    // Campos de assinatura/CPF/nascimento são mostrados no bloco de assinaturas
+    if (
+      key.toLowerCase().includes('assinatura') ||
+      key.toLowerCase().includes('cpf') ||
+      key.toLowerCase().includes('nascimento') ||
+      key.toLowerCase().includes('signature')
+    ) return false;
     return true;
   });
 
   const photoGroups: { key: string; urls: string[] }[] = Object.entries(formData)
-    .filter(([key]) => !key.includes('Assinatura'))
+    .filter(([key]) => !key.toLowerCase().includes('assinatura') && !key.toLowerCase().includes('signature'))
     .flatMap(([key, val]) => {
       let photos: string[] = [];
       if (Array.isArray(val)) photos = val.filter(v => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image')));
@@ -60,18 +73,7 @@ const CollapsibleFormSection: React.FC<{
       return photos.length > 0 ? [{ key, urls: photos }] : [];
     });
 
-  // Signature fields
-  const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-  const findVal = (token: string) => {
-    if ((order as any)[token]) return (order as any)[token];
-    const found = Object.entries(formData).find(([k]) => normalize(k).includes(normalize(token)));
-    return found ? found[1] : null;
-  };
-  const signature = (order as any).signature || findVal('assinatura');
-  const sigName = (order as any).signatureName || findVal('nome');
-  const sigDoc = (order as any).signatureDoc || findVal('cpf');
-
-  if (textEntries.length === 0 && photoGroups.length === 0 && !signature) return null;
+  if (textEntries.length === 0 && photoGroups.length === 0) return null;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -108,8 +110,8 @@ const CollapsibleFormSection: React.FC<{
                 <div key={key} className="flex flex-col gap-1.5 p-4 bg-slate-50 rounded-xl border border-slate-100">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{!isNaN(Number(key)) ? `Pergunta nº ${key}` : key}</span>
                   <span className={`text-sm font-bold leading-snug ${String(val).toLowerCase() === 'sim' || String(val).toLowerCase() === 'ok'
-                      ? 'text-emerald-600 flex items-center gap-1'
-                      : 'text-slate-800 uppercase'
+                    ? 'text-emerald-600 flex items-center gap-1'
+                    : 'text-slate-800 uppercase'
                     }`}>
                     {(String(val).toLowerCase() === 'sim' || String(val).toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
                     {String(val)}
@@ -147,24 +149,6 @@ const CollapsibleFormSection: React.FC<{
             </div>
           )}
 
-          {/* Client Signature */}
-          {signature && (
-            <div className="pt-6 border-t border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Assinatura Digital do Cliente</p>
-              <div className="max-w-xs bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 p-4 space-y-3">
-                <div
-                  className="h-24 flex items-center justify-center cursor-zoom-in"
-                  onClick={() => onImageClick(signature)}
-                >
-                  <img src={signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
-                </div>
-                <div className="text-center space-y-0.5">
-                  {sigName && <p className="text-xs font-black text-slate-800 uppercase">{sigName}</p>}
-                  {sigDoc && <p className="text-[9px] text-slate-400 font-mono">Doc: {sigDoc}</p>}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -375,36 +359,45 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <SectionHeader icon={<UserIcon size={15} />} title="Dados do Cliente" />
             <div className="space-y-4">
               <p className="text-lg font-black text-slate-900 uppercase leading-tight">{order.customerName}</p>
+              <p className="text-sm font-medium text-slate-600 uppercase leading-relaxed">{order.customerAddress}</p>
               {order.operationType && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mt-1">
                   <Tag size={12} className="text-[#3e5b99]" />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{order.operationType}</span>
+                  <span className="text-[10px] font-bold text-[#3e5b99] uppercase tracking-widest bg-[#3e5b99]/10 px-2 py-0.5 rounded-full">{order.operationType}</span>
                 </div>
               )}
-              <div className="pt-3 border-t border-slate-50 grid grid-cols-2 gap-4">
-                <InfoPill label="Agendado" value={`${fmt(order.scheduledDate)}${order.scheduledTime ? ' · ' + order.scheduledTime : ''}`} />
+              <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-4">
                 <InfoPill label="Abertura" value={fmt(order.createdAt)} />
+                <InfoPill label="Agendado" value={order.scheduledDate ? `${fmt(order.scheduledDate)}${order.scheduledTime ? ' · ' + order.scheduledTime : ''}` : '—'} />
               </div>
             </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
-            <SectionHeader icon={<MapPin size={15} />} title="Localização do Atendimento" />
-            <p className="text-sm font-bold text-slate-800 uppercase leading-relaxed">{order.customerAddress}</p>
-            {(order.equipmentName || order.equipmentModel) && (
-              <div className="mt-6 pt-5 border-t border-slate-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
-                    <Box size={14} className="text-slate-400" />
+            <SectionHeader icon={<Box size={15} />} title="Dados do Equipamento" />
+            {(order.equipmentName || order.equipmentModel || order.equipmentSerial) ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
+                    <Box size={20} className="text-slate-300" />
                   </div>
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Equipamento</p>
-                    <p className="text-xs font-black text-slate-800 uppercase">{order.equipmentName || '—'}</p>
-                    <p className="text-[9px] font-bold text-slate-400 mt-0.5">
-                      {order.equipmentModel && `Modelo: ${order.equipmentModel}`}
-                      {order.equipmentSerial && ` · Série: ${order.equipmentSerial}`}
-                    </p>
+                  <div className="space-y-1">
+                    <p className="text-base font-black text-slate-900 uppercase leading-snug">{order.equipmentName || '—'}</p>
+                    {order.equipmentModel && <p className="text-[10px] font-bold text-slate-500 uppercase">Modelo: {order.equipmentModel}</p>}
+                    {order.equipmentSerial && <p className="text-[10px] font-bold text-slate-400 font-mono">N° Série: {order.equipmentSerial}</p>}
                   </div>
+                </div>
+                <div className="pt-3 border-t border-slate-100">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Local do Atendimento</p>
+                  <p className="text-sm font-medium text-slate-600 uppercase">{order.customerAddress}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Equipamento não especificado</p>
+                <div className="pt-2 border-t border-slate-100">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Local do Atendimento</p>
+                  <p className="text-sm font-medium text-slate-700 uppercase">{order.customerAddress}</p>
                 </div>
               </div>
             )}
@@ -440,7 +433,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 <CheckCircle2 size={14} className="text-emerald-600" />
               </div>
               <div>
-                <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Check-Out</p>
+                <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Concluído</p>
                 <p className="text-[11px] font-black text-emerald-800">{fmtDT(order.endDate)}</p>
               </div>
             </div>
@@ -518,6 +511,78 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             onImageClick={setFullscreenImage}
           />
         )}
+
+        {/* ── ASSINATURAS (sempre visível no final) ── */}
+        {(() => {
+          const fd: Record<string, any> = typeof order.formData === 'string'
+            ? (() => { try { return JSON.parse(order.formData); } catch { return {}; } })()
+            : (order.formData || {});
+
+          const normalize = (s: string) =>
+            s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+
+          const findFd = (token: string) => {
+            if (fd[token] !== undefined) return fd[token];
+            const found = Object.entries(fd).find(([k]) => normalize(k).includes(normalize(token)));
+            return found ? found[1] : null;
+          };
+
+          const clientSig = fd.signature || findFd('assinaturadocliente') || findFd('assinatura');
+          const clientName = fd.signatureName || findFd('assinaturadoclientenome') || findFd('responsavel') || findFd('nome') || order.customerName;
+          const clientDoc = fd.signatureDoc || findFd('assinaturadoclientecpf') || findFd('cpf');
+
+          return (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
+              <SectionHeader icon={<CheckCircle2 size={15} />} title="Validação e Assinaturas" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+                {/* Técnico */}
+                <div className="flex flex-col items-center text-center p-6 bg-slate-50 rounded-xl border border-slate-100 gap-4">
+                  <div className="w-14 h-14 bg-[#1c2d4f]/10 rounded-2xl flex items-center justify-center">
+                    <UserIcon size={24} className="text-[#1c2d4f]" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Técnico Responsável</p>
+                    <p className="text-sm font-black text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
+                    {tech?.email && <p className="text-[9px] text-slate-400 mt-0.5">{tech.email}</p>}
+                  </div>
+                  <div className="w-full border-t-2 border-dashed border-slate-200 pt-3">
+                    <p className="text-[8px] text-slate-300 uppercase tracking-widest">Assinatura do Prestador</p>
+                  </div>
+                </div>
+
+                {/* Cliente */}
+                <div className="flex flex-col items-center text-center p-6 bg-slate-50 rounded-xl border border-slate-100 gap-4">
+                  {clientSig ? (
+                    <div
+                      className="w-full h-24 flex items-center justify-center bg-white rounded-xl border border-slate-200 cursor-zoom-in"
+                      onClick={() => setFullscreenImage(clientSig)}
+                    >
+                      <img
+                        src={clientSig}
+                        className="max-h-20 max-w-full object-contain mix-blend-multiply"
+                        alt="Assinatura do cliente"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full h-24 flex items-center justify-center bg-white rounded-xl border-2 border-dashed border-slate-200">
+                      <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Sem assinatura registrada</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cliente / Responsável</p>
+                    <p className="text-sm font-black text-slate-900 uppercase">{clientName}</p>
+                    {clientDoc && <p className="text-[9px] text-slate-400 font-mono mt-0.5">Doc: {clientDoc}</p>}
+                  </div>
+                  <div className="w-full border-t-2 border-dashed border-slate-200 pt-3">
+                    <p className="text-[8px] text-slate-300 uppercase tracking-widest">Assinatura do Cliente</p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          );
+        })()}
 
       </main>
 
