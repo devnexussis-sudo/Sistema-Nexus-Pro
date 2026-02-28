@@ -71,36 +71,45 @@ export class CacheManager {
 
     /**
      * Decorator para deduplicação de requisições.
-     * Se uma requisição idêntica já estiver em andamento, retorna a Promise existente.
+     * Recebe um signal opcional que permite o cancelamento repassado.
      */
-    static deduplicate<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+    static deduplicate<T>(key: string, fetcher: (signal?: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> {
         if (this.inflightRequests.has(key)) {
             // Se já existe uma requisição em voo, retorna ela (Deduplicação)
+            // Se o signal abortar, a requisição atual que está em voo continuará se não repassamos o cancel.
+            // Para simplicidade, apenas retornamos a promise.
             return this.inflightRequests.get(key) as Promise<T>;
         }
 
-        // Cria uma promise wrapper que controla tanto o fetch quanto o timeout
+        // Setup Timeout Safety longo (45s) para lidar com cold starts e redes lentas sem criar Zumbis precoces
         const promise = new Promise<T>((resolve, reject) => {
-            // Setup Timeout Safety (20s)
             const safetyTimeout = setTimeout(() => {
-                console.warn(`⚠️ [CacheManager] Safety Timeout (20s) - Limpando requisição travada: ${key}`);
+                console.warn(`⚠️ [CacheManager] Safety Timeout (45s) - Limpando requisição travada: ${key}`);
                 this.inflightRequests.delete(key);
-                reject(new Error(`Timeout de requisição (${key})`));
-            }, 20000);
+                reject(new Error(`Timeout de requisição CacheManager (${key})`));
+            }, 45000);
 
-            // Executa o fetch real
-            fetcher()
+            // Executa o fetch real passando o signal
+            fetcher(signal)
                 .then(data => {
                     clearTimeout(safetyTimeout);
                     resolve(data);
                 })
                 .catch(err => {
                     clearTimeout(safetyTimeout);
+                    // Clear automático se for Network error ou Abort, para não cachear erros de infraestrutura
+                    const isAbort = err.name === 'AbortError' || err.message?.includes('Abort');
+                    const isNetwork = err.message?.includes('Network') || err.message?.includes('fetch');
+
+                    if (isAbort || isNetwork) {
+                        console.warn(`🧹 [CacheManager] Limpando inflight cache por erro transitório (${isAbort ? 'Abort' : 'Network'}): ${key}`);
+                        this.inflightRequests.delete(key);
+                        this.storage.delete(key);
+                    }
+
                     reject(err);
                 })
                 .finally(() => {
-                    // Sempre limpa o mapa de voo ao terminar (sucesso ou erro)
-                    // Mas apenas se ainda estiver lá (o timeout pode ter limpado antes)
                     if (this.inflightRequests.get(key) === promise) {
                         this.inflightRequests.delete(key);
                     }

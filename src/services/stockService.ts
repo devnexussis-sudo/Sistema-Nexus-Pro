@@ -35,13 +35,19 @@ export const StockService = {
     },
 
     // --- Categorias de Estoque ---
-    getCategories: async (): Promise<Category[]> => {
+    getCategories: async (signal?: AbortSignal): Promise<Category[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled) {
-            const { data, error } = await supabase.from('stock_categories')
+            let query = supabase.from('stock_categories')
                 .select('*')
                 .eq('tenant_id', tenantId)
                 .order('name');
+
+            if (signal) {
+                query = query.abortSignal(signal);
+            }
+
+            const { data, error } = await query;
 
             if (error) {
                 console.error("❌ [StockService] Erro ao buscar categorias:", error.message);
@@ -103,14 +109,20 @@ export const StockService = {
     },
 
     // --- Estoque (items) ---
-    getStockItems: async (): Promise<StockItem[]> => {
+    getStockItems: async (signal?: AbortSignal): Promise<StockItem[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled) {
-            const { data, error } = await supabase.from('stock_items')
+            let query = supabase.from('stock_items')
                 .select('*')
                 .eq('tenant_id', tenantId)
                 .order('description')
                 .limit(100);
+
+            if (signal) {
+                query = query.abortSignal(signal);
+            }
+
+            const { data, error } = await query;
 
             if (error) {
                 console.error("❌ [StockService] Erro ao buscar itens:", error.message);

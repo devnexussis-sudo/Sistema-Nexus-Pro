@@ -70,7 +70,13 @@ const _buildLock = (): LockFunc => {
                 return navigator.locks.request(`nexus_auth_${name}`, {
                     mode: 'exclusive',
                     signal: ac.signal,
-                }, fn);
+                }, fn).catch(err => {
+                    if (err.name === 'AbortError') {
+                        console.warn('[Auth] Lock concorrente detectado ou timeout rebaixado. Ignorando tentativa cruzada para não travar a UI.');
+                        return null; // Resolve silenciosamente para abortar o fluxo extra
+                    }
+                    throw err;
+                });
             }
             // acquireTimeout <= 0: sem timeout (padrão do SDK)
             return navigator.locks.request(`nexus_auth_${name}`, { mode: 'exclusive' }, fn);
@@ -80,9 +86,21 @@ const _buildLock = (): LockFunc => {
 
     // Fallback: execução direta em browsers sem Web Locks
     if (isDev) console.warn('[Nexus Lock] Web Locks API indisponível — usando fallback direto.');
-    const fallbackFn = (_name: string, arg2: number | (() => Promise<unknown>), arg3?: () => Promise<unknown>) => {
+    let fallbackLockPromise: Promise<unknown> | null = null;
+    const fallbackFn = async (_name: string, arg2: number | (() => Promise<unknown>), arg3?: () => Promise<unknown>) => {
         const fn = typeof arg2 === 'function' ? arg2 : arg3;
-        return typeof fn === 'function' ? fn() : Promise.resolve(null as any);
+        if (typeof fn !== 'function') return Promise.resolve(null as any);
+
+        // Fila rudimentar para garantir serialidade do Lock
+        while (fallbackLockPromise) {
+            await fallbackLockPromise;
+        }
+
+        fallbackLockPromise = fn().finally(() => {
+            fallbackLockPromise = null;
+        });
+
+        return fallbackLockPromise;
     };
     return fallbackFn as unknown as LockFunc;
 };
@@ -128,7 +146,14 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                 const callerSignal = (init as RequestInit & { signal?: AbortSignal })?.signal;
                 if (callerSignal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-                const timeoutId = setTimeout(() => controller.abort(), 12_000);
+                // Garante que se o componente abortar, o timeout interno também morre
+                const onAbort = () => controller.abort(callerSignal?.reason || new Error('Caller Aborted'));
+                if (callerSignal) callerSignal.addEventListener('abort', onAbort);
+
+                // Timeout de 40s (aumentado de 12s) para evitar abortos prematuros
+                const timeoutId = setTimeout(() => {
+                    controller.abort(new Error('Nexus Fetch Timeout (40s)'));
+                }, 40_000);
 
                 try {
                     const response = await fetch(url, {
@@ -136,6 +161,7 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
                         signal: controller.signal,
                     });
                     clearTimeout(timeoutId);
+                    if (callerSignal) callerSignal.removeEventListener('abort', onAbort);
 
                     // Retry apenas em erros 5xx (servidor) — não em 4xx (cliente)
                     if (response.status >= 500 && response.status < 600 && attempt < MAX_RETRIES) {
@@ -277,12 +303,15 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
             // ── Step 2: Reconectar WebSocket do Realtime ──
             try {
+                // Remove canais antigos (zumbis) para evitar eventos duplicados na volta do ambiente suspendido
+                try { supabase.removeAllChannels(); } catch (e) { }
+
                 const rt = (supabase as unknown as { realtime?: { connect?: () => void; disconnect?: () => void } }).realtime;
                 if (rt?.disconnect && rt?.connect) {
                     rt.disconnect();
                     await new Promise(r => setTimeout(r, 200));
                     rt.connect();
-                    if (isDev) console.log('[Nexus Recovery] ✅ Realtime reconectado.');
+                    if (isDev) console.log('[Nexus Recovery] ✅ Realtime reconectado e channels limpos.');
                 }
             } catch (rtErr) {
                 if (isDev) console.warn('[Nexus Recovery] Realtime reconnect error (não crítico):', rtErr);

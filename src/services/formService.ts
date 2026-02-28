@@ -29,18 +29,24 @@ export const FormService = {
         }
     },
 
-    getServiceTypes: async (): Promise<any[]> => {
+    getServiceTypes: async (signal?: AbortSignal): Promise<any[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled) {
             if (!tenantId) return [];
 
             try {
-                const { data, error } = await supabase
+                let query = supabase
                     .from('service_types')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('name')
                     .limit(100);
+
+                if (signal) {
+                    query = query.abortSignal(signal);
+                }
+
+                const { data, error } = await query;
 
                 if (error) {
                     console.error('[FormService] Erro ao buscar service_types:', error);
@@ -65,27 +71,39 @@ export const FormService = {
         return [];
     },
 
-    getFormTemplates: async (): Promise<FormTemplate[]> => {
+    getFormTemplates: async (signal?: AbortSignal): Promise<FormTemplate[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled) {
             if (!tenantId) return [];
 
             try {
-                let result = await supabase
+                let query = supabase
                     .from('form_templates')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('created_at', { ascending: false })
                     .limit(100);
 
+                if (signal) {
+                    query = query.abortSignal(signal);
+                }
+
+                let result = await query;
+
                 // Se falhou por falta de coluna created_at, tenta novamente sem ordenar
                 if (result.error && (result.error.message.includes('created_at') || result.error.code === '42703')) {
                     console.warn('[FormService] Coluna created_at ausente em form_templates, tentando sem ordenação.');
-                    result = await supabase
+                    let fallbackQuery = supabase
                         .from('form_templates')
                         .select('*')
                         .eq('tenant_id', tenantId)
                         .limit(100);
+
+                    if (signal) {
+                        fallbackQuery = fallbackQuery.abortSignal(signal);
+                    }
+
+                    result = await fallbackQuery;
                 }
 
                 const { data, error } = result;
@@ -235,27 +253,39 @@ export const FormService = {
         }
     },
 
-    getActivationRules: async (): Promise<any[]> => {
+    getActivationRules: async (signal?: AbortSignal): Promise<any[]> => {
         if (isCloudEnabled) {
             const tenantId = getCurrentTenantId();
             if (!tenantId) return [];
 
             try {
-                let result = await supabase
+                let query = supabase
                     .from('activation_rules')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('created_at', { ascending: false })
                     .limit(100);
 
+                if (signal) {
+                    query = query.abortSignal(signal);
+                }
+
+                let result = await query;
+
                 // Se falhou por falta de coluna created_at, tenta novamente sem ordenar
                 if (result.error && (result.error.message.includes('created_at') || result.error.code === '42703')) {
                     console.warn('[FormService] Coluna created_at ausente em activation_rules, tentando sem ordenação.');
-                    result = await supabase
+                    let fallbackQuery = supabase
                         .from('activation_rules')
                         .select('*')
                         .eq('tenant_id', tenantId)
                         .limit(100);
+
+                    if (signal) {
+                        fallbackQuery = fallbackQuery.abortSignal(signal);
+                    }
+
+                    result = await fallbackQuery;
                 }
 
                 const { data, error } = result;

@@ -155,7 +155,7 @@ export const OrderService = {
      * 📊 Nexus Stats Engine - Lightweight Fetch
      * Fetches orders optimized for dashboard statistics (up to 5000 records).
      */
-    getOrdersForStats: async (startDate?: string, endDate?: string): Promise<ServiceOrder[]> => {
+    getOrdersForStats: async (startDate?: string, endDate?: string, signal?: AbortSignal): Promise<ServiceOrder[]> => {
         if (isCloudEnabled) {
             const tenantId = getCurrentTenantId();
             if (!tenantId) return [];
@@ -171,6 +171,10 @@ export const OrderService = {
 
                 if (startDate) query = query.gte('created_at', startDate);
                 if (endDate) query = query.lte('created_at', endDate);
+
+                if (signal) {
+                    query = query.abortSignal(signal);
+                }
 
                 const { data, error } = await query;
 
@@ -208,7 +212,7 @@ export const OrderService = {
         return [];
     },
 
-    getOrders: async (): Promise<ServiceOrder[]> => {
+    getOrders: async (unusedToken?: any, signal?: AbortSignal): Promise<ServiceOrder[]> => {
         if (isCloudEnabled) {
             const MAX_RETRIES = 2;
 
@@ -241,7 +245,7 @@ export const OrderService = {
                         .eq('tenant_id', tenantId)
                         .order('created_at', { ascending: false })
                         .limit(100)
-                        .abortSignal(controller.signal);
+                        .abortSignal(signal || controller.signal);
 
                     clearTimeout(timeoutId);
 
@@ -302,8 +306,9 @@ export const OrderService = {
     getOrdersPaginated: async (
         page: number = 1,
         limit: number = 5,
-        technicianId?: string,
-        filters?: { status?: OrderStatus; startDate?: string; endDate?: string }
+        unusedToken?: any,
+        filters?: { status?: OrderStatus; startDate?: string; endDate?: string },
+        signal?: AbortSignal
     ): Promise<{ orders: ServiceOrder[]; total: number }> => {
         if (isCloudEnabled) {
             const tenantId = getCurrentTenantId();
@@ -322,8 +327,8 @@ export const OrderService = {
                 .eq('tenant_id', tenantId);
 
             // Filtra por técnico se especificado
-            if (technicianId) {
-                query = query.eq('assigned_to', technicianId);
+            if (unusedToken) {
+                query = query.eq('assigned_to', unusedToken);
             }
 
             // 🔍 Filtros Avançados
@@ -335,6 +340,10 @@ export const OrderService = {
             }
             if (filters?.endDate) {
                 query = query.lte('scheduled_date', filters.endDate);
+            }
+
+            if (signal) {
+                query = query.abortSignal(signal);
             }
 
             const { data, error, count } = await query
@@ -596,11 +605,15 @@ export const OrderService = {
         }
     },
 
-    getPublicOrderById: async (id: string, retryCount = 0): Promise<ServiceOrder | null> => {
+    getPublicOrderById: async (id: string, signal?: AbortSignal, retryCount = 0): Promise<ServiceOrder | null> => {
         if (isCloudEnabled) {
             // 🛡️ ESTRATÉGIA 1: Tentar RPC Seguro (Ideal)
             try {
-                const { data, error } = await publicSupabase.rpc('get_public_order', { search_term: id });
+                let query = publicSupabase.rpc('get_public_order', { search_term: id });
+                if (signal) {
+                    query = query.abortSignal(signal);
+                }
+                const { data, error } = await query;
 
                 if (!error && data && (Array.isArray(data) ? data.length > 0 : true)) {
                     const orderData = Array.isArray(data) ? data[0] : data;
@@ -627,6 +640,10 @@ export const OrderService = {
                     query = query.eq('public_token', id);
                 } else {
                     query = query.eq('id', id);
+                }
+
+                if (signal) {
+                    query = query.abortSignal(signal);
                 }
 
                 const { data, error } = await query.single();

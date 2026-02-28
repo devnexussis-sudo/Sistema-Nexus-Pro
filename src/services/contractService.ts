@@ -48,7 +48,7 @@ export const ContractService = {
         };
     },
 
-    getContracts: async (): Promise<ContractExtended[]> => {
+    getContracts: async (signal?: AbortSignal): Promise<ContractExtended[]> => {
         if (isCloudEnabled) {
             const tenantId = getCurrentTenantId();
             if (!tenantId) return [];
@@ -57,12 +57,18 @@ export const ContractService = {
             const cached = CacheManager.get<ContractExtended[]>(cacheKey);
             if (cached) return cached;
 
-            return CacheManager.deduplicate(cacheKey, async () => {
-                const { data, error } = await supabase.from('contracts')
+            return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
+                let query = supabase.from('contracts')
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('created_at', { ascending: false })
                     .limit(100);
+
+                if (currentSignal || signal) {
+                    query = query.abortSignal((currentSignal || signal) as AbortSignal);
+                }
+
+                const { data, error } = await query;
 
                 if (error) {
                     throw error;
@@ -70,7 +76,7 @@ export const ContractService = {
                 const mapped = (data || []).map(d => ContractService._mapContractFromDB(d));
                 CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min
                 return mapped;
-            });
+            }, signal);
         }
         return [];
     },

@@ -119,7 +119,7 @@ export const TenantService = {
             console.log("🚀 Provisionando Nexus Tenant:", processedTenant);
 
             // 1. Criar a empresa no Banco — supabase (anon) com RLS
-            const { data, error } = await supabase.from('tenants').insert([processedTenant]).select().single();
+            const { data, error } = await supabase.from('tenants').insert([processedTenant as DbTenantInsert]).select().single();
 
             if (error) {
                 console.error("❌ Nexus Tenant Create Error:", error);
@@ -131,9 +131,9 @@ export const TenantService = {
             // 2. Criar grupos padrão e admin
             await TenantService._provisionGroups(tenantId, processedTenant, initialPass);
 
-            return data;
+            return data as any;
         }
-        return tenant;
+        return tenant as any;
     },
 
     _provisionGroups: async (tenantId: string, processedTenant: any, initialPass: string) => {
@@ -248,7 +248,7 @@ export const TenantService = {
 
             const { data, error } = await supabase
                 .from('tenants')
-                .update(processedUpdate)
+                .update(processedUpdate as Partial<DbTenantInsert>)
                 .eq('id', id)
                 .select()
                 .maybeSingle();
@@ -256,9 +256,9 @@ export const TenantService = {
             if (error) throw error;
             if (!data) throw new Error("Não foi possível localizar o registro da empresa para atualização.");
 
-            return data;
+            return data as any;
         }
-        return tenant;
+        return tenant as any;
     },
 
     deleteTenant: async (tenantId: string): Promise<void> => {
@@ -299,15 +299,21 @@ export const TenantService = {
 
     // --- USER MANAGEMENT (TENANT LEVEL) ---
 
-    getTenantUsers: async (tenantId: string): Promise<User[]> => {
+    getTenantUsers: async (tenantId: string, signal?: AbortSignal): Promise<User[]> => {
         if (!tenantId) return [];
         if (isCloudEnabled) {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('users')
                 .select('*')
                 .eq('tenant_id', tenantId)
                 .order('created_at', { ascending: false })
                 .limit(100);
+
+            if (signal) {
+                query = query.abortSignal(signal);
+            }
+
+            const { data, error } = await query;
 
             if (error) {
                 console.error("Error fetching tenant users:", error);
@@ -321,22 +327,28 @@ export const TenantService = {
                 role: u.role as UserRole,
                 active: u.active,
                 avatar: u.avatar,
-                groupId: u.group_id,
-                tenantId: u.tenant_id,
-                permissions: u.permissions
+                groupId: u.group_id as string,
+                tenantId: u.tenant_id as string,
+                permissions: u.permissions as any
             }));
         }
         return [];
     },
 
-    getUserGroups: async (tenantId: string): Promise<UserGroup[]> => {
+    getUserGroups: async (tenantId: string, signal?: AbortSignal): Promise<UserGroup[]> => {
         if (!tenantId) return [];
         if (isCloudEnabled) {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('user_groups')
                 .select('*')
                 .eq('tenant_id', tenantId)
                 .order('name');
+
+            if (signal) {
+                query = query.abortSignal(signal);
+            }
+
+            const { data, error } = await query;
 
             if (error) {
                 console.error("Error fetching user groups:", error);
@@ -356,7 +368,7 @@ export const TenantService = {
 
     createUserGroup: async (groupData: Omit<UserGroup, 'id'>): Promise<UserGroup> => {
         if (isCloudEnabled) {
-            const dbGroup: DbUserGroupInsert = {
+            const dbGroup: any = {
                 name: groupData.name,
                 description: groupData.description,
                 permissions: groupData.permissions,
@@ -385,7 +397,7 @@ export const TenantService = {
 
     updateUserGroup: async (groupData: Pick<UserGroup, 'id' | 'name' | 'description' | 'permissions'>): Promise<UserGroup> => {
         if (isCloudEnabled) {
-            const dbGroup: Pick<DbUserGroupInsert, 'name' | 'description' | 'permissions'> = {
+            const dbGroup: any = {
                 name: groupData.name,
                 description: groupData.description,
                 permissions: groupData.permissions
@@ -441,7 +453,7 @@ export const TenantService = {
             if (!authUser.user) throw new Error("Falha ao criar usuário de autenticação.");
 
             // 2. Create DB User Entry
-            const dbUser = {
+            const dbUser: any = {
                 id: authUser.user.id,
                 name: userData.name,
                 email: userData.email,
@@ -460,14 +472,14 @@ export const TenantService = {
                 .single();
 
             if (error) throw error;
-            return data;
+            return data as any;
         }
-        return userData;
+        return userData as any;
     },
 
     updateUser: async (userData: Partial<User> & { id: string; password?: string; groupId?: string }): Promise<DbUser> => {
         if (isCloudEnabled) {
-            const dbUser = {
+            const dbUser: any = {
                 name: userData.name,
                 active: userData.active,
                 group_id: userData.groupId,
