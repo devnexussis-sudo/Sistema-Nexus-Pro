@@ -279,19 +279,19 @@ export const OrderService = {
                     return mapped;
 
                 } catch (err: any) {
-                    if (err?.name === 'AbortError') {
+                    if (err?.name === 'AbortError' || err?.message?.includes('Killed by Nexus')) {
                         if (attempt < MAX_RETRIES - 1) continue;
-                        return [];
+                        throw err; // Lança para o useQuery (NexusHooks) fazer retry
                     }
                     // Generic error on last attempt
                     if (attempt >= MAX_RETRIES - 1) {
                         console.error("❌ Erro ao buscar ordens:", err.message);
                         const cached = localStorage.getItem(STORAGE_KEYS.ORDERS);
                         if (cached) {
-                            console.warn("⚠️ Usando dados em cache devido a erro.");
+                            console.warn("⚠️ Usando dados em cache devido a erro (Fallback secundário).");
                             return JSON.parse(cached);
                         }
-                        return [];
+                        throw err; // Lança para o useQuery engatilhar retry invés de retornar vazio falso
                     }
                 }
             }

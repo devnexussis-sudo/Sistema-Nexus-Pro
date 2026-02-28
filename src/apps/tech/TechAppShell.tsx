@@ -95,9 +95,9 @@ export const TechAppShell: React.FC = () => {
                         refreshedUser = await DataService.refreshUser();
                     } catch (refreshErr: any) {
                         console.warn('[TechAppShell] Falha no refresh do user:', refreshErr);
-                        // Se for erro de abort/network, tentamos seguir com o usuário da sessão se tivermos metadados suficientes
-                        // Mas idealmente precisamos do refresh. Vamos silenciar o erro fatal se for "abort"
-                        if (refreshErr.message?.includes('aborted')) {
+                        // Se for erro de abort/network, tentamos seguir com o usuário da sessão
+                        const isTransient = refreshErr.name === 'AbortError' || refreshErr.message?.includes('aborted') || refreshErr.message?.includes('Killed by Nexus');
+                        if (isTransient) {
                             // Ignora abort e tenta seguir
                         }
                     }
@@ -143,7 +143,8 @@ export const TechAppShell: React.FC = () => {
                             } catch (e: any) {
                                 console.warn('[TechAppShell] AuthState Change Refresh Error:', e);
                                 // Tenta fallback do storage se abortar
-                                if (e.message?.includes('aborted')) {
+                                const isTransient = e.name === 'AbortError' || e.message?.includes('aborted') || e.message?.includes('Killed by Nexus');
+                                if (isTransient) {
                                     user = TechSessionStorage.get<User>();
                                 }
                             }
@@ -166,9 +167,10 @@ export const TechAppShell: React.FC = () => {
             } catch (err: any) {
                 console.error('[TechAppShell] Init error:', err);
                 if (isMounted) {
-                    // Ignora erros de abort na inicialização geral também, se já tivermos auth
-                    if (err.message?.includes('aborted') && TechSessionStorage.get()) {
-                        console.warn('Silencing init abort error because we have cache');
+                    // Ignora erros de abort/suspensao na inicialização geral se já tivermos auth
+                    const isTransient = err.name === 'AbortError' || err.message?.includes('aborted') || err.message?.includes('Killed by Nexus');
+                    if (isTransient && TechSessionStorage.get()) {
+                        console.warn('Silencing init abort/wakeup error to continue with cache');
                         setIsInitializing(false);
                         return;
                     }
