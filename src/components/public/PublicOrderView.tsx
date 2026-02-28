@@ -44,12 +44,14 @@ const CollapsibleFormSection: React.FC<{
 }> = ({ formData, order, onImageClick }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Chaves internas do sistema — nunca são perguntas do formulário
+  // Chaves internas do sistema — NUNCA são perguntas do formulário
   const SYSTEM_KEYS = new Set([
     'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
     'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
     'impediment_reason', 'impediment_photos', 'totalValue', 'price',
-    'finishedAt', 'technical_report', 'parts_used'
+    'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+    'clientName', 'customerName', 'customerAddress', 'tenantId',
+    'assignedTo', 'formId', 'billingStatus', 'paymentMethod'
   ]);
 
   const isSignatureKey = (k: string) =>
@@ -170,6 +172,8 @@ const CollapsibleFormSection: React.FC<{
 export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, isPrint = false }) => {
   const [tenant, setTenant] = React.useState<any>(null);
   const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
+  // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)
+  const [freshCustomerAddress, setFreshCustomerAddress] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const fetchTenantData = async () => {
@@ -185,6 +189,38 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     };
     fetchTenantData();
   }, [order?.id]);
+
+  // Busca endereço atualizado do cliente na tabela customers
+  React.useEffect(() => {
+    const fetchCustomerAddress = async () => {
+      if (!order?.customerName) return;
+      try {
+        const tenantId = (order as any).tenant_id || order?.tenantId;
+        if (!tenantId) return;
+        const { data } = await import('../../lib/supabase').then(m => m.supabase
+          .from('customers')
+          .select('address, number, complement, city, state, zip')
+          .eq('tenant_id', tenantId)
+          .ilike('name', order.customerName.trim())
+          .limit(1)
+          .single()
+        );
+        if (data) {
+          const parts = [
+            data.address,
+            data.number,
+            data.complement,
+            data.city,
+            data.state ? `/${data.state}` : ''
+          ].filter(Boolean);
+          setFreshCustomerAddress(parts.join(', ').replace(', /', '/'));
+        }
+      } catch {
+        // Se não encontrar, usa o endereço da OS
+      }
+    };
+    fetchCustomerAddress();
+  }, [order?.customerName, order?.id]);
 
   if (!order) return null;
 
@@ -210,6 +246,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   const totalItems = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
   const hasForm = order.formData && Object.keys(order.formData).length > 0;
+  // Endereço exibido: fresco do cadastro (se encontrado) ou o gravado na OS
+  const displayAddress = freshCustomerAddress || order.customerAddress;
 
   // ── PRINT LAYOUT (unchanged, clean) ────────────────────────────────────────
   if (isPrint) {
@@ -369,11 +407,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               {/* Nome do cliente */}
               <p className="text-lg font-black text-slate-900 uppercase leading-tight">{order.customerName}</p>
 
-              {/* Endereço — abaixo do nome */}
-              {order.customerAddress ? (
+              {/* Endereço — abaixo do nome, atualizado do cadastro do cliente */}
+              {displayAddress ? (
                 <div className="flex items-start gap-2">
                   <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
-                  <p className="text-sm text-slate-500 leading-snug">{order.customerAddress}</p>
+                  <p className="text-sm text-slate-500 leading-snug">{displayAddress}</p>
                 </div>
               ) : (
                 <p className="text-[10px] text-slate-300 uppercase tracking-widest italic">Endereço não informado</p>
@@ -635,12 +673,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
       {/* ── FOOTER NEXUS ── */}
       <footer className="mt-12 border-t border-slate-200 bg-white print:hidden">
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          {/* Logo Nexus — mesmo tamanho da logo da empresa no header */}
           <div className="flex items-center gap-3">
-            <NexusBranding size="sm" className="opacity-70" />
+            <NexusBranding size="md" className="opacity-80" />
           </div>
           <div className="text-center sm:text-right space-y-1">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma solução Nexus Pro</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma solução Nexus Line</p>
             <p className="text-[8px] text-slate-300 uppercase tracking-widest">
               Documento emitido eletronicamente · Autenticidade garantida pela plataforma
             </p>
