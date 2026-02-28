@@ -87,7 +87,16 @@ export const StockManagement: React.FC = () => {
         }, 15000);
 
         try {
-            await import('../../lib/supabase').then(m => m.ensureValidSession());
+            const { supabase } = await import('../../lib/supabase');
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+            if (sessionError || !session) {
+                console.warn('[Stock] 🔒 Lock de sessão detectado ou sessão ausente. Aguardando liberação do Nexus...');
+                setTimeout(() => loadItems(page, search, category, status), 500);
+                setLoading(false);
+                return;
+            }
+
             const { data, count, error } = await DataService.getStockItemsPaginated(
                 page,
                 ITEMS_PER_PAGE,
