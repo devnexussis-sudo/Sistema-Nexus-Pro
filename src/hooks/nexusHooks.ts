@@ -13,6 +13,10 @@ import { TenantService } from '../services/tenantService';
 import { DataService } from '../services/dataService';
 import { CacheManager } from '../lib/cache';
 import { OrderStatus } from '../types';
+import {
+    getOrdersPage, getQuotesPage, getContractsPage,
+    type OrderFilters, type QuoteFilters, type ContractFilters
+} from '../services/paginationService';
 
 // ------------------------------------------------------------------
 // 📦 ORDERS HOOKS
@@ -41,11 +45,55 @@ export const useOrder = (id: string, enabled = true) => {
     });
 };
 
+// ------------------------------------------------------------------
+// 📦 SERVER-SIDE PAGINATED HOOKS — Big Tech Standard
+// busca do Supabase apenas os N itens da página atual via .range()
+// ------------------------------------------------------------------
+
+/**
+ * Hook de OS paginadas — busca 20 itens por página direto do Supabase.
+ * Muda de página = novo fetch. Filtros no servidor.
+ */
+export const usePagedOrders = (page: number, filters: OrderFilters = {}, enabled = true) => {
+    const filtersKey = JSON.stringify(filters);
+    const key = ['orders_paged', page.toString(), filtersKey];
+    return useQuery(
+        key,
+        (signal) => getOrdersPage(page, filters, signal),
+        { enabled, staleTime: 1000 * 30 }
+    );
+};
+
+/**
+ * Hook de Orçamentos paginados — busca 20 itens por página direto do Supabase.
+ */
+export const usePagedQuotes = (page: number, filters: QuoteFilters = {}, enabled = true) => {
+    const filtersKey = JSON.stringify(filters);
+    const key = ['quotes_paged', page.toString(), filtersKey];
+    return useQuery(
+        key,
+        (signal) => getQuotesPage(page, filters, signal),
+        { enabled, staleTime: 1000 * 30 }
+    );
+};
+
+/**
+ * Hook de Contratos paginados — busca 20 itens por página direto do Supabase.
+ */
+export const usePagedContracts = (page: number, filters: ContractFilters = {}, enabled = true) => {
+    const filtersKey = JSON.stringify(filters);
+    const key = ['contracts_paged', page.toString(), filtersKey];
+    return useQuery(
+        key,
+        (signal) => getContractsPage(page, filters, signal),
+        { enabled, staleTime: 1000 * 30 }
+    );
+};
+
 export const usePaginatedOrders = (page: number, limit: number, filters?: any) => {
     const key = ['orders', 'page', page.toString(), JSON.stringify(filters)];
     return useQuery(key, (signal) => OrderService.getOrdersPaginated(page, limit, undefined, filters, signal), {
         staleTime: 1000 * 60 * 5,
-        // keepPreviousData: true // TODO: Implement in useQuery
     });
 };
 
