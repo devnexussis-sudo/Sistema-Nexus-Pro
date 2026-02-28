@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Package, Search, Plus, Edit3, Trash2, X, Save, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Scale, Box, Barcode, Filter, Wand2, Layers, Tag, LayoutGrid, List, RefreshCw, ChevronLeft } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { StockItem, Category } from '../../types';
@@ -25,7 +25,9 @@ export const StockManagement: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 12;
+    const [totalItemsCount, setTotalItemsCount] = useState(0);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const ITEMS_PER_PAGE = 20;
 
     // --- Categories State ---
     const [categories, setCategories] = useState<Category[]>([]);
@@ -65,35 +67,54 @@ export const StockManagement: React.FC = () => {
     const [transferData, setTransferData] = useState({ itemId: '', techId: '', quantity: '', direction: 'transfer' });
 
     // --- Loaders ---
-    const loadItems = async () => {
+    const loadItems = async (page: number, search: string, category: string, status: string) => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort('New pagination fetch');
+        }
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+        const signal = controller.signal;
+
         setLoading(true);
         setError(null);
 
         const timeoutId = setTimeout(() => {
-            if (loading) {
+            if (abortControllerRef.current === controller && loading) {
                 console.warn('[Stock] ⚠️ Load timeout - check Supabase logs');
                 setError('A conexão está demorando mais que o esperado. Verifique sua internet.');
                 setLoading(false);
             }
-        }, 15000); // 15s is more professional than 30s
+        }, 15000);
 
         try {
             await import('../../lib/supabase').then(m => m.ensureValidSession());
-            const data = await DataService.getStockItems();
-            setItems(data);
+            const { data, count, error } = await DataService.getStockItemsPaginated(
+                page,
+                ITEMS_PER_PAGE,
+                { searchTerm: search, categoryFilter: category, statusFilter: status },
+                signal
+            );
+
+            if (signal.aborted) return;
+
+            setItems(data || []);
+            setTotalItemsCount(count || 0);
             setError(null);
         } catch (err: any) {
+            if (signal.aborted) return;
             console.error('Erro ao carregar estoque:', err);
-            // Retomada contínua automática
+
             if (err.name === 'AbortError' || err.message?.includes('Abort') || err.message?.includes('Killed by Nexus')) {
                 console.warn('♻️ [Stock] Falha transitória detectada, agendando retry automático silencioso...');
-                setTimeout(loadItems, 3000);
+                setTimeout(() => loadItems(page, search, category, status), 3000);
                 return;
             }
             setError(err.message || 'Erro inesperado ao sincronizar estoque.');
         } finally {
             clearTimeout(timeoutId);
-            setLoading(false);
+            if (!signal.aborted) {
+                setLoading(false);
+            }
         }
     };
 
@@ -137,7 +158,7 @@ export const StockManagement: React.FC = () => {
     };
 
     const loadAll = async () => {
-        loadItems();
+        loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
         loadCategories();
         loadTechs();
         loadMovements();
@@ -349,39 +370,28 @@ export const StockManagement: React.FC = () => {
             setRestockSearch('');
             setSelectedRestockItem(null);
             alert(`Estoque atualizado! Nova quantidade: ${updatedItem.quantity}`);
-            loadItems();
+            loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
             loadMovements();
         } catch (error) {
             alert('Erro ao atualizar estoque.');
         }
     };
-    const filteredItems = useMemo(() => {
-        return items.filter(i => {
-            const matchesSearch = i.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                i.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (i.externalCode && i.externalCode.toLowerCase().includes(searchTerm.toLowerCase()));
+    // Use Effect for filtering debounce and pagination
+    useEffect(() => {
+        if (activeTab !== 'items') return;
 
-            const matchesCategory = categoryFilter === 'ALL' || i.category === categoryFilter;
+        const timer = setTimeout(() => {
+            loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
+        }, 200);
 
-            let matchesStatus = true;
-            if (statusFilter === 'LOW') matchesStatus = i.quantity <= i.minQuantity && i.quantity > 0;
-            else if (statusFilter === 'OUT') matchesStatus = i.quantity === 0;
-            else if (statusFilter === 'GOOD') matchesStatus = i.quantity > i.minQuantity;
-
-            return matchesSearch && matchesCategory && matchesStatus;
-        });
-    }, [items, searchTerm, categoryFilter, statusFilter]);
+        return () => clearTimeout(timer);
+    }, [currentPage, searchTerm, categoryFilter, statusFilter, activeTab]);
 
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm, categoryFilter, statusFilter, activeTab]);
 
-    const paginatedItems = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return filteredItems.slice(start, start + ITEMS_PER_PAGE);
-    }, [filteredItems, currentPage]);
-
-    const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(totalItemsCount / ITEMS_PER_PAGE);
 
     const calculateTotalCost = (item: any) => {
         const cost = Number(item.costPrice) || 0;
@@ -519,7 +529,7 @@ export const StockManagement: React.FC = () => {
                                             </td>
                                         </tr>
                                     ) :
-                                        paginatedItems.length === 0 ? (
+                                        items.length === 0 ? (
                                             <tr>
                                                 <td colSpan={8} className="py-20 text-center">
                                                     <div className="w-16 h-16 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-slate-100">
@@ -529,7 +539,7 @@ export const StockManagement: React.FC = () => {
                                                 </td>
                                             </tr>
                                         ) :
-                                            paginatedItems.map(item => {
+                                            items.map(item => {
                                                 const totalCost = calculateTotalCost(item);
                                                 const margin = calculateMargin(item);
                                                 return (
@@ -586,7 +596,7 @@ export const StockManagement: React.FC = () => {
                         <Pagination
                             currentPage={currentPage}
                             totalPages={totalPages}
-                            totalItems={filteredItems.length}
+                            totalItems={totalItemsCount}
                             itemsPerPage={ITEMS_PER_PAGE}
                             onPageChange={setCurrentPage}
                         />
