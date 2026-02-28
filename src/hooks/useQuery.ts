@@ -236,9 +236,14 @@ export function useQuery<T>(
                 const currentCache = queryCache.get(key);
                 if (currentCache) currentCache.promise = undefined;
 
-                if (retryCount.current < retry) {
-                    retryCount.current++;
-                    const delay = Math.min(1000 * Math.pow(2, retryCount.current), 30000);
+                const isAbort = err.name === 'AbortError' || err.message?.includes('Abort') || err.message?.includes('Killed by Nexus');
+
+                if (retryCount.current < retry || isAbort) {
+                    if (!isAbort) retryCount.current++;
+                    const delay = isAbort ? 3000 : Math.min(1000 * Math.pow(2, retryCount.current), 30000);
+
+                    if (isAbort) console.warn(`♻️ [NexusQuery] Resuming interrupted connection for ${key}...`);
+
                     setTimeout(() => {
                         if (isMounted.current) fetchData(true);
                     }, delay);

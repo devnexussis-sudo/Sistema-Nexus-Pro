@@ -317,7 +317,7 @@ export const TenantService = {
 
             if (error) {
                 console.error("Error fetching tenant users:", error);
-                return [];
+                throw error;
             }
 
             return (data as DbUser[]).map(u => ({
@@ -352,7 +352,7 @@ export const TenantService = {
 
             if (error) {
                 console.error("Error fetching user groups:", error);
-                return [];
+                throw error;
             }
             return (data as DbUserGroup[]).map(g => ({
                 id: g.id,

@@ -84,6 +84,12 @@ export const StockManagement: React.FC = () => {
             setError(null);
         } catch (err: any) {
             console.error('Erro ao carregar estoque:', err);
+            // Retomada contínua automática
+            if (err.name === 'AbortError' || err.message?.includes('Abort') || err.message?.includes('Killed by Nexus')) {
+                console.warn('♻️ [Stock] Falha transitória detectada, agendando retry automático silencioso...');
+                setTimeout(loadItems, 3000);
+                return;
+            }
             setError(err.message || 'Erro inesperado ao sincronizar estoque.');
         } finally {
             clearTimeout(timeoutId);
@@ -96,8 +102,11 @@ export const StockManagement: React.FC = () => {
             const data = await DataService.getCategories();
             setCategories(data);
             setAvailableCategories(data);
-        } catch (error) {
-            console.error('Erro ao carregar categorias:', error);
+        } catch (err: any) {
+            console.error('Erro ao carregar categorias:', err);
+            if (err.name === 'AbortError' || err.message?.includes('Abort') || err.message?.includes('Killed by Nexus')) {
+                setTimeout(loadCategories, 3000);
+            }
         }
     };
 
@@ -107,8 +116,11 @@ export const StockManagement: React.FC = () => {
             if (!tenantId) return;
             const data = await TenantService.getTenantUsers(tenantId);
             setTechs(data.filter((u: any) => u.role === 'TECHNICIAN' || u.role === 'ADMIN'));
-        } catch (error) {
-            console.error('Erro ao carregar técnicos:', error);
+        } catch (err: any) {
+            console.error('Erro ao carregar técnicos:', err);
+            if (err.name === 'AbortError' || err.message?.includes('Abort') || err.message?.includes('Killed by Nexus')) {
+                setTimeout(loadTechs, 3000);
+            }
         }
     };
 
@@ -116,8 +128,11 @@ export const StockManagement: React.FC = () => {
         try {
             const data = await DataService.getMovements();
             setMovements(data);
-        } catch (error) {
-            console.error('Erro ao carregar movimentações:', error);
+        } catch (err: any) {
+            console.error('Erro ao carregar movimentações:', err);
+            if (err.name === 'AbortError' || err.message?.includes('Abort') || err.message?.includes('Killed by Nexus')) {
+                setTimeout(loadMovements, 3000);
+            }
         }
     };
 
