@@ -290,6 +290,13 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         }
     };
 
+    let _refreshPromise: Promise<any> | null = null;
+    const singleRefreshSession = () => {
+        if (_refreshPromise) return _refreshPromise;
+        _refreshPromise = supabase.auth.refreshSession().finally(() => { _refreshPromise = null; });
+        return _refreshPromise;
+    };
+
     const _runRecovery = async (source: string): Promise<void> => {
         if (_recoveryInFlight) {
             if (isDev) console.log(`[Nexus Recovery] Ignorado (em andamento) — trigger: ${source}`);
@@ -347,7 +354,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
                     if (isDev) console.warn(`[Nexus Recovery] 🔑 JWT ${isExpired ? 'EXPIRADO' : 'PRÓXIMO DE EXPIRAR'} — forçando refresh ativo...`);
 
                     try {
-                        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+                        const { data: refreshData, error: refreshError } = await singleRefreshSession();
 
                         if (refreshError) {
                             // Refresh falhou — token revogado ou refresh_token expirado

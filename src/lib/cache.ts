@@ -81,13 +81,13 @@ export class CacheManager {
             return this.inflightRequests.get(key) as Promise<T>;
         }
 
-        // Setup Timeout Safety longo (45s) para lidar com cold starts e redes lentas sem criar Zumbis precoces
+        // Setup Timeout Safety de 10s
         const promise = new Promise<T>((resolve, reject) => {
             const safetyTimeout = setTimeout(() => {
-                console.warn(`⚠️ [CacheManager] Safety Timeout (45s) - Limpando requisição travada: ${key}`);
+                console.warn(`⚠️ [CacheManager] Safety Timeout (10s) - Limpando requisição travada: ${key}`);
                 this.inflightRequests.delete(key);
                 reject(new Error(`Timeout de requisição CacheManager (${key})`));
-            }, 45000);
+            }, 10000);
 
             // Executa o fetch real passando o signal
             fetcher(signal)
