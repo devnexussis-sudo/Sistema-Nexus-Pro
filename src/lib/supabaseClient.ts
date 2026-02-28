@@ -68,7 +68,7 @@ const _buildLock = (): LockFunc => {
             }
 
             const ac = new AbortController();
-            const actualTimeout = acquireTimeout > 0 ? acquireTimeout : 15000; // Force 15s max lock wait to prevent infinity sleep hang
+            const actualTimeout = acquireTimeout > 0 ? acquireTimeout : 2000; // Reduzido para 2s para bater o timeout de 3s da UI
 
             setTimeout(() => ac.abort(new Error('Nexus Lock Timeout')), actualTimeout);
 
@@ -78,8 +78,8 @@ const _buildLock = (): LockFunc => {
             }, fn).catch(err => {
                 const isAbort = err.name === 'AbortError' || err.message === 'Nexus Lock Timeout';
                 if (isAbort) {
-                    console.warn(`[Auth] Lock concorrente ou timeout de ${actualTimeout}ms ('${name}'). Ignorando para não travar a UI.`);
-                    return null; // Resolve silenciosamente para abortar o fluxo extra
+                    console.warn(`[Auth] Lock concorrente ou timeout de ${actualTimeout}ms ('${name}'). Executando bypass sem lock para não travar a inicialização.`);
+                    return fn(); // Executa ignorando o Lock para destrancar a UI
                 }
                 throw err;
             });
