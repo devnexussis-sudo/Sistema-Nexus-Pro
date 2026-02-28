@@ -100,36 +100,42 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 technician: 'Administrador'
             }));
 
-        // OS Concluídas
-        const completedOrders = orders.filter(o => o.status === OrderStatus.COMPLETED).map(order => {
-            const itemsValue = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
-            let value = itemsValue || (order.formData as any)?.totalValue || (order.formData as any)?.price || 0;
+        // OS Concluídas — apenas as que têm valor a cobrar (> 0)
+        // Lógica de negócio: OS de atendimento simples sem itens/peças não geram
+        // entrada financeira. Apenas OS com valor > 0 ficam na fila de faturamento.
+        const completedOrders = orders
+            .filter(o => o.status === OrderStatus.COMPLETED)
+            .map(order => {
+                const itemsValue = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
+                let value = itemsValue || (order.formData as any)?.totalValue || (order.formData as any)?.price || 0;
 
-            // Somar valores de orçamentos vinculados
-            if (order.linkedQuotes && order.linkedQuotes.length > 0) {
-                const linkedValues = order.linkedQuotes.reduce((acc, qId) => {
-                    const quote = quotes.find(q => q.id === qId);
-                    return acc + (Number(quote?.totalValue) || 0);
-                }, 0);
-                value += linkedValues;
-            }
+                // Somar valores de orçamentos vinculados
+                if (order.linkedQuotes && order.linkedQuotes.length > 0) {
+                    const linkedValues = order.linkedQuotes.reduce((acc, qId) => {
+                        const quote = quotes.find(q => q.id === qId);
+                        return acc + (Number(quote?.totalValue) || 0);
+                    }, 0);
+                    value += linkedValues;
+                }
 
-            const techObj = techs.find(t => t.id === order.assignedTo);
+                const techObj = techs.find(t => t.id === order.assignedTo);
 
-            return {
-                type: 'ORDER' as const,
-                id: order.id,
-                customerName: order.customerName,
-                customerAddress: order.customerAddress,
-                title: order.title,
-                description: order.description,
-                date: order.updatedAt,
-                value: Number(value),
-                status: (order.billingStatus || 'PENDING').toUpperCase(), // Normalizar para uppercase
-                original: order,
-                technician: techObj?.name || order.assignedTo || 'N/A'
-            };
-        });
+                return {
+                    type: 'ORDER' as const,
+                    id: order.id,
+                    customerName: order.customerName,
+                    customerAddress: order.customerAddress,
+                    title: order.title,
+                    description: order.description,
+                    date: order.updatedAt,
+                    value: Number(value),
+                    status: (order.billingStatus || 'PENDING').toUpperCase(),
+                    original: order,
+                    technician: techObj?.name || order.assignedTo || 'N/A'
+                };
+            })
+            // 🔑 REGRA DE NEGÓCIO: Só exibir OS com valor a faturar
+            .filter(item => item.value > 0);
 
         const allItems = [...approvedQuotes, ...completedOrders].sort((a, b) =>
             new Date(b.date).getTime() - new Date(a.date).getTime()
