@@ -7,8 +7,12 @@ import { DataService } from '../../services/dataService';
 import { TenantService } from '../../services/tenantService';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { useAuth } from '../../contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 export const StockManagement: React.FC = () => {
+    const { isAuthLoading, session } = useAuth();
+
     // Application State
     const [activeTab, setActiveTab] = useState<'items' | 'categories' | 'techs' | 'movements'>('items');
 
@@ -92,6 +96,13 @@ export const StockManagement: React.FC = () => {
         }, 15000);
 
         try {
+            if (isAuthLoading || !session) {
+                console.warn('[Stock] 🔒 Fetch bloqueado: Auth ainda carregando ou sem sessão.');
+                isFetching.current = false;
+                setLoading(false);
+                return;
+            }
+
             const { ensureValidSession } = await import('../../lib/supabase');
             const sessionOk = await ensureValidSession();
 
@@ -254,14 +265,14 @@ export const StockManagement: React.FC = () => {
                 costPrice: Number(formData.costPrice) || 0,
                 sellPrice: Number(formData.sellPrice) || 0,
                 freightCost: Number(formData.freightCost) || 0,
-                // Calculate actual tax cost for saving to DB (or keep percentage if DB supports it. 
-                // Based on StockItem type, it expects taxCost (number). 
-                // So we should calculate the absolute value here for persistence? 
-                // OR we should store the percentage? 
-                // StockItem has taxCost?: number. 
-                // If I change the UI to use %, I should probably calculate the cost before save, 
-                // OR ideally add taxPercent to the schema. 
-                // Given constraints, I will calculate the cost value on save, 
+                // Calculate actual tax cost for saving to DB (or keep percentage if DB supports it.
+                // Based on StockItem type, it expects taxCost (number).
+                // So we should calculate the absolute value here for persistence?
+                // OR we should store the percentage?
+                // StockItem has taxCost?: number.
+                // If I change the UI to use %, I should probably calculate the cost before save,
+                // OR ideally add taxPercent to the schema.
+                // Given constraints, I will calculate the cost value on save,
                 // BUT for UI state I need to persist the percentage to restore it properly on edit?
                 // If I save only taxCost, when I edit, I have to reverse calculate %: (Tax / Cost) * 100.
                 // That works.
@@ -406,13 +417,34 @@ export const StockManagement: React.FC = () => {
                 abortControllerRef.current.abort('Component Unmount / Effect Cleanup');
             }
         };
-    }, [currentPage, searchTerm, categoryFilter, statusFilter, activeTab]);
+    }, [currentPage, searchTerm, categoryFilter, statusFilter, activeTab, isAuthLoading, session]);
 
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm, categoryFilter, statusFilter, activeTab]);
 
     const totalPages = Math.ceil(totalItemsCount / ITEMS_PER_PAGE);
+
+    // 🔒 Auth Guard Render
+    if (isAuthLoading) {
+        return (
+            <div className="flex items-center justify-center p-8 h-full">
+                <Loader2 className="animate-spin text-primary-500 w-8 h-8" />
+                <span className="ml-3 text-slate-500 font-medium">Validando sessão segura...</span>
+            </div>
+        );
+    }
+
+    if (!session) {
+        return (
+            <div className="flex flex-col items-center justify-center p-8 h-full">
+                <AlertTriangle className="text-rose-500 w-12 h-12 mb-4" />
+                <h3 className="text-lg font-bold text-slate-800">Sessão Expirada</h3>
+                <p className="text-sm text-slate-500 mb-6">Sua sessão caiu ou você não tem acesso a esta página.</p>
+                <Button variant="primary" onClick={() => window.location.reload()}>Fazer Login</Button>
+            </div>
+        );
+    }
 
     const calculateTotalCost = (item: any) => {
         const cost = Number(item.costPrice) || 0;
