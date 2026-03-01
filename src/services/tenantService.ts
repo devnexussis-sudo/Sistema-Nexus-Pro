@@ -1,5 +1,5 @@
 
-import { supabase, adminAuthProxy } from '../lib/supabase';
+import { supabase, adminAuthProxy, publicSupabase } from '../lib/supabase';
 import { CacheManager } from '../lib/cache';
 import { UserRole, User, UserGroup } from '../types';
 import type { DbTenant, DbTenantStats, DbTenantInsert, DbUser, DbUserInsert, DbUserGroup, DbUserGroupInsert } from '../types/database';
@@ -55,7 +55,7 @@ export const TenantService = {
             if (!tid || tid === 'default' || tid === 'null') {
                 try {
                     // Tenta primeiro com cliente normal
-                    const { data, error } = await supabase
+                    const { data, error } = await publicSupabase
                         .from('tenants')
                         .select('*')
                         .limit(1)
@@ -74,7 +74,7 @@ export const TenantService = {
 
             // Busca tenant específico
             try {
-                const { data, error } = await supabase
+                const { data, error } = await publicSupabase
                     .from('tenants')
                     .select('*')
                     .eq('id', tid)

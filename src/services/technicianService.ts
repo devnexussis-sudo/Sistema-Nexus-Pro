@@ -77,7 +77,7 @@ export const TechnicianService = {
 
             // 🔄 ESTRATÉGIA 2: Fallback (supabase anon — RLS via public_token ou função pública)
             try {
-                const { data, error } = await supabase
+                const { data, error } = await publicSupabase
                     .from('technicians')
                     .select('id, name, avatar, tenant_id')
                     .eq('tenant_id', tenantId)
