@@ -22,3 +22,6 @@ root.render(
     </ErrorBoundary>
   </React.StrictMode>
 );
+
+// Remove the HTML splash screen
+window.dispatchEvent(new Event('nexus-ready'));
