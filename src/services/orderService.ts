@@ -635,7 +635,28 @@ export const OrderService = {
 
     getPublicOrderById: async (id: string, signal?: AbortSignal, retryCount = 0): Promise<ServiceOrder | null> => {
         if (isCloudEnabled) {
-            // 🛡️ Estratégia 1: RPC com JOIN de customers (endereço fresco + assinatura)
+            // 🚀 Estratégia Primária de Alta Performance (Sem cascatas de erro)
+            try {
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
+                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+                let query = supabase.from('orders').select('*');
+                if (isUuid) query = query.eq('public_token', id);
+                else query = query.eq('id', id);
+
+                if (signal) query = query.abortSignal(signal);
+
+                const { data, error } = await query.single();
+
+                if (!error && data) {
+                    return OrderService._mapOrderFromDB(data);
+                }
+            } catch (err: any) {
+                if (err?.name === 'AbortError') return null;
+                // silencioso para cair nos fallbacks
+            }
+
+            // 🔄 Fallback 1: RPC com JOIN
             try {
                 let query = publicSupabase.rpc('get_public_order_full', { search_term: id });
                 if (signal) query = query.abortSignal(signal);
@@ -646,16 +667,10 @@ export const OrderService = {
                     if (orderData) return OrderService._mapOrderFromDB(orderData);
                 }
             } catch (err: any) {
-                if (err?.name === 'AbortError' || err?.message?.includes('Lock')) {
-                    if (retryCount < 3) {
-                        await new Promise(r => setTimeout(r, 1000 + (retryCount * 500)));
-                        return OrderService.getPublicOrderById(id, undefined, retryCount + 1);
-                    }
-                }
-                // Se get_public_order_full não existir ainda, cai para fallback abaixo
+                if (err?.name === 'AbortError') return null;
             }
 
-            // 🔄 Estratégia 2: RPC original (sem JOIN)
+            // 🔄 Fallback 2: RPC original
             try {
                 let query = publicSupabase.rpc('get_public_order', { search_term: id });
                 if (signal) query = query.abortSignal(signal);
@@ -665,24 +680,7 @@ export const OrderService = {
                     const orderData = Array.isArray(data) ? data[0] : data;
                     if (orderData) return OrderService._mapOrderFromDB(orderData);
                 }
-            } catch { /* continua para estratégia 3 */ }
-
-            // 🔄 Estratégia 3: Query direta (fallback final)
-            try {
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
-                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-
-                let query = supabase.from('orders').select('*');
-                if (isUuid) query = query.eq('public_token', id);
-                else query = query.eq('id', id);
-                if (signal) query = query.abortSignal(signal);
-
-                const { data, error } = await query.single();
-                if (error || !data) return null;
-                return OrderService._mapOrderFromDB(data);
-            } catch (fallbackErr) {
-                return null;
-            }
+            } catch { /* erro silent */ }
         }
         return null;
     },
