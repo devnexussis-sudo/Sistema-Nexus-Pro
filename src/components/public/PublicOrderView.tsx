@@ -450,22 +450,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     {order.equipmentSerial && <p className="text-[10px] font-bold text-slate-400 font-mono">N° Série: {order.equipmentSerial}</p>}
                   </div>
                 </div>
-                <div className="pt-3 border-t border-slate-100">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Local do Atendimento</p>
-                  {displayAddress
-                    ? <p className="text-sm font-medium text-slate-600 uppercase">{displayAddress}</p>
-                    : <p className="text-[10px] text-slate-300 italic uppercase">Não informado</p>}
-                </div>
+
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Equipamento não especificado</p>
-                <div className="pt-2 border-t border-slate-100">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Local do Atendimento</p>
-                  {displayAddress
-                    ? <p className="text-sm font-medium text-slate-700 uppercase">{displayAddress}</p>
-                    : <p className="text-[10px] text-slate-300 italic uppercase">Não informado</p>}
-                </div>
+
               </div>
             )}
           </div>
