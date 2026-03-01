@@ -387,8 +387,33 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
 
           {/* Status + priority */}
-          <div className="flex items-center gap-3">
-            <StatusBadge status={order.status} />
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border flex items-center gap-2 ${{
+                'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+                'ATRIBUÍDO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+                'EM DESLOCAMENTO': 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
+                'NO LOCAL': 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+                'EM ANDAMENTO': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+                'PAUSADO': 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+                'CONCLUÍDO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                'CANCELADO': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+                'IMPEDIDO': 'bg-red-500/20 text-red-300 border-red-500/30'
+              }[order.status] || 'bg-white/10 text-white/70 border-white/10'
+              }`}>
+              <span className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${{
+                  'PENDENTE': 'bg-slate-400',
+                  'ATRIBUÍDO': 'bg-sky-400',
+                  'EM DESLOCAMENTO': 'bg-fuchsia-400',
+                  'NO LOCAL': 'bg-teal-400',
+                  'EM ANDAMENTO': 'bg-indigo-400',
+                  'PAUSADO': 'bg-amber-400',
+                  'CONCLUÍDO': 'bg-emerald-400',
+                  'CANCELADO': 'bg-rose-400',
+                  'IMPEDIDO': 'bg-red-400'
+                }[order.status] || 'bg-white/50'
+                }`} />
+              {order.status}
+            </div>
             <div className="px-3 py-1.5 bg-white/10 rounded-full text-[9px] font-black text-white/70 uppercase tracking-widest border border-white/10">
               {order.priority}
             </div>
