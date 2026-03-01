@@ -75,26 +75,42 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     }, [isApproveMode, isRejectMode]);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchQuote = async () => {
             try {
+                // 1. Fetch Rápido do Orçamento
                 const data = await DataService.getPublicQuoteById(id);
-                console.log('✍️ URL da assinatura:', data?.approvalSignature?.substring(0, 100));
-                setQuote(data);
+                if (!isMounted) return;
 
-                // 🏢 Fetch Tenant Data
                 if (data) {
+                    console.log('✍️ URL da assinatura:', data.approvalSignature?.substring(0, 100));
+                    setQuote(data);
+                    setLoading(false); // Libera IMEDIATAMENTE a UI principal
+
+                    // 2. Fetch Assíncrono do Tenant (Background)
                     const tenantId = data.tenant_id || data.tenantId;
-                    const tenantData = await DataService.getTenantById(tenantId);
-                    setTenant(tenantData);
+                    if (tenantId) {
+                        try {
+                            const tenantData = await DataService.getTenantById(tenantId);
+                            if (isMounted) setTenant(tenantData);
+                        } catch (tenantErr) {
+                            console.warn("Erro ao buscar dados da empresa em background", tenantErr);
+                        }
+                    }
+                } else {
+                    setError('Orçamento não localizado ou expirado.');
+                    setLoading(false);
                 }
             } catch (err) {
                 console.error(err);
-                setError('Orçamento não localizado ou expirado.');
-            } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setError('Orçamento não localizado ou expirado.');
+                    setLoading(false);
+                }
             }
         };
         fetchQuote();
+        return () => { isMounted = false; };
     }, [id]);
 
     const captureDeviceMetadata = () => {

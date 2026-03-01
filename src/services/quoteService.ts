@@ -182,28 +182,27 @@ export const QuoteService = {
 
     getPublicQuoteById: async (id: string): Promise<any> => {
         if (isCloudEnabled) {
-            // Tenta buscar pelo Token Seguro (UUID) primeiro, ou pelo ID (legado)
-            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+            try {
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
+                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-            let query = supabase.from('quotes').select('*');
+                let query = supabase.from('quotes').select('*');
 
-            if (isUuid) {
-                query = query.eq('public_token', id);
-            } else {
-                query = query.eq('id', id);
-            }
-
-            const { data, error } = await query.single();
-            if (error) {
-                if ((error as any).name === 'AbortError' || error.message?.includes('Lock') || error.message?.includes('aborted')) {
-                    console.warn("⚠️ Lock Detectado no Orçamento. Tentando novamente...");
-                    await new Promise(r => setTimeout(r, 1000));
-                    return QuoteService.getPublicQuoteById(id);
+                if (isUuid) {
+                    query = query.eq('public_token', id);
+                } else {
+                    query = query.eq('id', id);
                 }
-                console.error("Erro ao buscar Orçamento público:", error);
-                return null;
+
+                const { data, error } = await query.single();
+
+                if (!error && data) {
+                    return QuoteService._mapQuoteFromDB(data);
+                }
+            } catch (err: any) {
+                if (err?.name === 'AbortError') return null;
+                console.error("Erro silencioso buscar orcamento:", err);
             }
-            return QuoteService._mapQuoteFromDB(data);
         }
         return null;
     },
