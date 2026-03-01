@@ -186,7 +186,7 @@ export const QuoteService = {
                 const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
                     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-                let query = supabase.from('quotes').select('*');
+                let query = publicSupabase.from('quotes').select('*');
 
                 if (isUuid) {
                     query = query.eq('public_token', id);
