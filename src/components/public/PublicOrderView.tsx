@@ -872,9 +872,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {/* ── FOOTER NEXUS ── */}
         <footer className="mt-12 border-t border-slate-200 bg-white print:hidden">
           <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            {/* Logo Nexus — Aumentado consideravelmente */}
+            {/* Logo Nexus — Ajustada conforme solicitação (redução de 45%) */}
             <div className="flex items-center gap-3">
-              <NexusBranding size="lg" className="opacity-80 transform scale-125 sm:scale-[1.8] sm:ml-4 sm:my-2" />
+              <NexusBranding size="lg" className="opacity-80 transform scale-75 sm:scale-[0.9] origin-left sm:my-1" />
             </div>
             <div className="text-center sm:text-right space-y-1">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma solução Nexus Line</p>
