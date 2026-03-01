@@ -18,22 +18,32 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
 
     useEffect(() => {
         if (publicOrderId) {
+            let isMounted = true;
             (async () => {
                 try {
                     setIsFetchingPublicOrder(true);
+
+                    // 1. Fetch da OS isolado e super rápido
                     const order = await DataService.getPublicOrderById(publicOrderId);
 
-                    if (order && order.tenantId) {
-                        const t = await DataService.getPublicTechnicians(order.tenantId);
-                        setTechs(t);
+                    if (isMounted) {
+                        setFetchedPublicOrder(order);
+                        setIsFetchingPublicOrder(false); // Libera o "loading" giratório IMEDIATAMENTE após pegar a OS
                     }
-                    setFetchedPublicOrder(order);
+
+                    // 2. Fetch secundário de Técnicos que não bloqueia a UI
+                    if (order && order.tenantId && isMounted) {
+                        try {
+                            const t = await DataService.getPublicTechnicians(order.tenantId);
+                            if (isMounted) setTechs(t);
+                        } catch (e) { console.warn("Erro ao buscar técnicos secundários", e); }
+                    }
                 } catch (e) {
                     console.error(e);
-                } finally {
-                    setIsFetchingPublicOrder(false);
+                    if (isMounted) setIsFetchingPublicOrder(false);
                 }
             })();
+            return () => { isMounted = false; }
         }
     }, [publicOrderId]);
 
