@@ -353,22 +353,22 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     {/* Status + priority */}
                     <div className="flex items-center gap-3 flex-wrap">
                         <div className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border flex items-center gap-2 ${{
-                                'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
-                                'ABERTO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
-                                'APROVADO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-                                'CONVERTIDO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-                                'REJEITADO': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
-                                'VENCIDO': 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                            }[quote.status] || 'bg-white/10 text-white/70 border-white/10'
+                            'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+                            'ABERTO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+                            'APROVADO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                            'CONVERTIDO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                            'REJEITADO': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+                            'VENCIDO': 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                        }[quote.status] || 'bg-white/10 text-white/70 border-white/10'
                             }`}>
                             <span className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${{
-                                    'PENDENTE': 'bg-slate-400',
-                                    'ABERTO': 'bg-sky-400',
-                                    'APROVADO': 'bg-emerald-400',
-                                    'CONVERTIDO': 'bg-emerald-400',
-                                    'REJEITADO': 'bg-rose-400',
-                                    'VENCIDO': 'bg-amber-400'
-                                }[quote.status] || 'bg-white/50'
+                                'PENDENTE': 'bg-slate-400',
+                                'ABERTO': 'bg-sky-400',
+                                'APROVADO': 'bg-emerald-400',
+                                'CONVERTIDO': 'bg-emerald-400',
+                                'REJEITADO': 'bg-rose-400',
+                                'VENCIDO': 'bg-amber-400'
+                            }[quote.status] || 'bg-white/50'
                                 }`} />
                             {quote.status}
                         </div>
@@ -696,14 +696,20 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
             </main>
 
-            {/* ── FOOTER ── */}
-            <footer className="mt-auto py-8 text-center print:hidden border-t border-slate-200/50">
-                <div className="flex items-center justify-center gap-2 opacity-50 hover:opacity-100 transition-opacity mb-2">
-                    <NexusBranding size="md" />
+            {/* ── FOOTER NEXUS ── */}
+            <footer className="mt-8 sm:mt-12 lg:mt-auto border-t border-slate-200 bg-white print:hidden w-full">
+                <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    {/* Logo Nexus — idêntica à da OS */}
+                    <div className="flex items-center gap-3">
+                        <NexusBranding size="lg" className="opacity-80 transform scale-[0.6] sm:scale-[0.85] origin-left -my-2 sm:-my-1" />
+                    </div>
+                    <div className="text-center sm:text-right space-y-0.5 sm:space-y-1 mt-[-10px] sm:mt-0">
+                        <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma Solução Nexus Line</p>
+                        <p className="text-[7px] sm:text-[8px] text-slate-300 uppercase tracking-widest">
+                            Ambientes Seguros · Documento emitido eletronicamente
+                        </p>
+                    </div>
                 </div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">
-                    Uma Solução Nexus Line • Ambientes Seguros
-                </p>
             </footer>
 
         </div>
