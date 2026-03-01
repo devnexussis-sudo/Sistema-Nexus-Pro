@@ -180,7 +180,7 @@ export const QuoteService = {
         return false;
     },
 
-    getPublicQuoteById: async (id: string): Promise<any> => {
+    getPublicQuoteById: async (id: string, signal?: AbortSignal): Promise<any> => {
         if (isCloudEnabled) {
             try {
                 const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
@@ -189,10 +189,12 @@ export const QuoteService = {
                 let query = publicSupabase.from('quotes').select('*');
 
                 if (isUuid) {
-                    query = query.eq('public_token', id);
+                    query = query.or(`public_token.eq.${id},id.eq.${id}`);
                 } else {
-                    query = query.eq('id', id);
+                    query = query.or(`display_id.eq.${id},id.eq.${id}`);
                 }
+
+                if (signal) query = query.abortSignal(signal);
 
                 const { data, error } = await query.single();
 
@@ -202,6 +204,22 @@ export const QuoteService = {
             } catch (err: any) {
                 if (err?.name === 'AbortError') return null;
                 console.error("Erro silencioso buscar orcamento:", err);
+            }
+
+            // Fallback: RPC get_public_document
+            try {
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+                if (isUuid) {
+                    let rpcQuery = publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'quote' });
+                    if (signal) rpcQuery = rpcQuery.abortSignal(signal);
+
+                    const { data, error } = await rpcQuery;
+                    if (!error && data) {
+                        return QuoteService._mapQuoteFromDB(data);
+                    }
+                }
+            } catch (err: any) {
+                if (err?.name === 'AbortError') return null;
             }
         }
         return null;
