@@ -65,7 +65,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
 
             // Sem sessão no bolso — pode ser rota pública ou sessão expirada
-            if (window.location.hash.startsWith('#/view')) {
+            // Usamos .href.includes pois pode ser hash ou path parameter
+            if (window.location.href.includes('/view')) {
                 setIsAuthLoading(false);
                 return;
             }
