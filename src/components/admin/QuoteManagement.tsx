@@ -320,14 +320,21 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         )}
                                     </td>
                                     <td className="px-4 py-1.5 text-center whitespace-nowrap">
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase ${quote.status === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
-                                            quote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                quote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
-                                                    'bg-rose-50 text-rose-500 border border-rose-100'
-                                            }`}>
-                                            <span className={`w-1 h-1 rounded-full animate-pulse ${quote.status === 'ABERTO' ? 'bg-primary-600' : quote.status === 'APROVADO' ? 'bg-emerald-600' : quote.status === 'CONVERTIDO' ? 'bg-emerald-400' : 'bg-rose-500'}`} />
-                                            {quote.status}
-                                        </div>
+                                        {quote.billingStatus === 'PAID' ? (
+                                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase bg-emerald-900 text-emerald-300 border border-emerald-700">
+                                                <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                                                Faturado
+                                            </div>
+                                        ) : (
+                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase ${quote.status === 'ABERTO' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
+                                                quote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                    quote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
+                                                        'bg-rose-50 text-rose-500 border border-rose-100'
+                                                }`}>
+                                                <span className={`w-1 h-1 rounded-full animate-pulse ${quote.status === 'ABERTO' ? 'bg-primary-600' : quote.status === 'APROVADO' ? 'bg-emerald-600' : quote.status === 'CONVERTIDO' ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                                                {quote.status}
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-2 text-right pr-6">
                                         <div className="flex justify-end gap-1.5 transition-all">
