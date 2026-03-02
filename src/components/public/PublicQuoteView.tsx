@@ -103,6 +103,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 }
             } catch (err) {
                 console.error(err);
+                console.error('Nexus: Erro ao buscar orçamento público:', err);
                 if (isMounted) {
                     setError('Orçamento não localizado ou expirado.');
                     setLoading(false);
@@ -296,137 +297,179 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     const companyDoc = tenant?.cnpj || tenant?.document || '';
 
     // ── PRINT LAYOUT COMPONENT ──
+    // ── PRINT LAYOUT COMPONENT ──
     const PrintLayout = () => (
-        <div className="bg-white text-[10px] leading-tight font-sans p-6 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-            {/* Print Header */}
-            <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
-                <div className="flex gap-4 items-center">
+        <div className="bg-white text-[12px] leading-relaxed font-sans p-8 print:break-inside-avoid min-h-[297mm] w-[210mm] mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+            {/* Header: Company & Quote Info */}
+            <div className="flex justify-between items-start pb-6 border-b-4 border-[#1c2d4f] mb-6">
+                <div className="flex gap-6 items-center">
                     {companyLogo
-                        ? <img src={companyLogo} alt="Logo" className="h-16 w-auto object-contain" />
-                        : <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px] text-white"><Hexagon size={32} className="text-white fill-white/10" /></div>
+                        ? <img src={companyLogo} alt="Logo" className="max-h-24 w-auto object-contain" />
+                        : <div className="bg-[#1c2d4f] p-4 rounded-xl flex items-center justify-center min-w-[80px] min-h-[80px]"><Hexagon size={40} className="text-white fill-white/10" /></div>
                     }
                     <div className="space-y-1">
-                        <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
-                        <div className="text-[9px] text-slate-600 max-w-[400px]">
+                        <h1 className="text-2xl font-black text-[#1c2d4f] uppercase tracking-tighter">{companyName}</h1>
+                        <div className="text-[10px] text-slate-600 max-w-[300px] font-medium uppercase leading-snug">
                             {companyAddress && <div>{companyAddress}</div>}
-                            <div className="flex gap-3 mt-0.5">
-                                {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
-                                {companyEmail && <span>Email: {companyEmail}</span>}
+                            <div className="mt-1">
+                                {companyPhone && <span>TEL: {companyPhone}</span>}
+                                {companyPhone && companyEmail && <span className="mx-2">•</span>}
+                                {companyEmail && <span>{companyEmail}</span>}
                             </div>
-                            {companyDoc && <div className="mt-0.5">CNPJ: {companyDoc}</div>}
+                            {companyDoc && <div className="mt-1">CNPJ: {companyDoc}</div>}
                         </div>
                     </div>
                 </div>
-                <div className="text-right">
-                    <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
-                        <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Proposta Comercial</div>
-                        <div className="text-2xl font-black text-slate-900 tracking-tighter">#{quote.displayId || quote.id.slice(0, 8).toUpperCase()}</div>
+                <div className="text-right flex flex-col items-end">
+                    <div className="bg-slate-50 border-2 border-slate-200 px-6 py-3 rounded-xl min-w-[200px] text-center">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Orçamento N°</div>
+                        <div className="text-3xl font-black text-[#1c2d4f] tracking-tighter leading-none">
+                            {quote.displayId || quote.id.slice(0, 8).toUpperCase()}
+                        </div>
                     </div>
-                    <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
-                        Emissão: {new Date(quote.createdAt).toLocaleDateString()}
+                    <div className="text-[10px] font-bold text-slate-500 mt-3 uppercase">
+                        Emitido em: {new Date(quote.createdAt).toLocaleDateString()}
+                    </div>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase mt-1">
+                        Validade: {quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'A combinar'}
                     </div>
                 </div>
             </div>
 
-            <div className="space-y-4">
-                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Cliente</div>
-                    <div className="grid grid-cols-12 divide-x divide-slate-200">
-                        <div className="col-span-8 p-2.5 space-y-2">
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-sm uppercase">{quote.customerName}</div></div>
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{quote.customerAddress || 'N/A'}</div></div>
-                        </div>
-                        <div className="col-span-4 p-2.5 grid grid-cols-1 gap-3 bg-slate-50/30">
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Validade da Proposta</label><div className="font-bold">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'Não informada'}</div></div>
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Status</label><div className="font-bold text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{quote.status}</div></div>
-                        </div>
+            {/* Customer Information */}
+            <div className="border border-slate-300 rounded-xl overflow-hidden mb-6 break-inside-avoid shadow-sm">
+                <div className="bg-slate-100 px-4 py-2 border-b border-slate-300">
+                    <h3 className="font-black text-[11px] uppercase tracking-widest text-slate-700">Dados do Cliente / Solicitante</h3>
+                </div>
+                <div className="p-4 grid grid-cols-2 gap-4 bg-white">
+                    <div>
+                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Identificação do Cliente</span>
+                        <span className="font-bold text-slate-900 text-sm uppercase">{quote.customerName}</span>
+                    </div>
+                    <div>
+                        <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Local de Execução / Faturamento</span>
+                        <span className="font-medium text-slate-700 text-xs uppercase">{quote.customerAddress || 'Não Informado'}</span>
                     </div>
                 </div>
+            </div>
 
-                {quote.description && (
-                    <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Objeto / Escopo Técnico</div>
-                        <div className="p-3 bg-white text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
-                            {quote.description}
-                        </div>
+            {/* Object/Description */}
+            {quote.description && (
+                <div className="border border-slate-300 rounded-xl overflow-hidden mb-6 break-inside-avoid">
+                    <div className="bg-slate-100 px-4 py-2 border-b border-slate-300">
+                        <h3 className="font-black text-[11px] uppercase tracking-widest text-slate-700">Objeto e Escopo Técnico</h3>
                     </div>
-                )}
+                    <div className="p-4 bg-white text-xs text-slate-800 font-medium whitespace-pre-wrap leading-relaxed italic">
+                        {quote.description}
+                    </div>
+                </div>
+            )}
 
-                {quote.items && quote.items.length > 0 && (
-                    <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Composição (Peças e Serviços)</div>
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="bg-slate-50 text-[8px] font-black text-slate-500 uppercase border-b border-slate-200">
-                                    <th className="px-3 py-2">Descrição do Item</th>
-                                    <th className="px-3 py-2 text-center w-16">Qtd</th>
-                                    <th className="px-3 py-2 text-right w-24">V. Unitário</th>
-                                    <th className="px-3 py-2 text-right w-24">Total</th>
+            {/* Items Table */}
+            {quote.items && quote.items.length > 0 && (
+                <div className="border border-slate-300 rounded-xl overflow-hidden mb-8 break-inside-avoid shadow-sm">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-[#1c2d4f] text-[10px] font-black text-white uppercase tracking-wider">
+                                <th className="px-4 py-3 w-12 text-center border-r border-white/20">Item</th>
+                                <th className="px-4 py-3 border-r border-white/20">Descrição dos Serviços / Peças</th>
+                                <th className="px-4 py-3 text-center w-20 border-r border-white/20">Qtd</th>
+                                <th className="px-4 py-3 text-right w-32 border-r border-white/20">V. Unitárió</th>
+                                <th className="px-4 py-3 text-right w-32">Total Item</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 bg-white">
+                            {quote.items.map((it: any, i: number) => (
+                                <tr key={i}>
+                                    <td className="px-4 py-3 text-center font-bold text-slate-400 text-[10px] border-r border-slate-200 bg-slate-50/30">{String(i + 1).padStart(2, '0')}</td>
+                                    <td className="px-4 py-3 text-xs uppercase font-bold text-slate-800 border-r border-slate-200 leading-snug">{it.description || it.title}</td>
+                                    <td className="px-4 py-3 text-xs text-center font-bold text-slate-600 border-r border-slate-200">{it.quantity}</td>
+                                    <td className="px-4 py-3 text-xs text-right text-slate-600 font-mono border-r border-slate-200">
+                                        R$ {(it.unitPrice || it.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs text-right font-black text-[#1c2d4f] font-mono bg-slate-50/50">
+                                        R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200 bg-white">
-                                {quote.items.map((it: any, i: number) => (
-                                    <tr key={i}>
-                                        <td className="px-3 py-2 text-[10px] uppercase font-bold text-slate-800">{it.description || it.title}</td>
-                                        <td className="px-3 py-2 text-[10px] text-center font-bold text-slate-600">{it.quantity}</td>
-                                        <td className="px-3 py-2 text-[10px] text-right text-slate-600 font-mono">R$ {(it.unitPrice || it.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                        <td className="px-3 py-2 text-[10px] text-right font-black text-slate-900 font-mono">R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        <div className="bg-slate-800 text-white px-3 py-2 flex justify-end gap-6 items-center border-t border-slate-800">
-                            <span className="text-[9px] uppercase font-black tracking-widest text-slate-300">Total da Proposta</span>
-                            <span className="text-[16px] font-black tracking-tighter">R$ {(quote.totalValue || quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            ))}
+                        </tbody>
+                    </table>
+
+                    <div className="flex bg-[#1c2d4f] text-white">
+                        <div className="flex-1 p-4 border-r border-white/20 flex flex-col justify-center">
+                            <span className="text-[10px] font-bold text-white/70 uppercase mb-1">Notas sobre Condições Financeiras:</span>
+                            <span className="text-[9px] font-medium text-white/90 uppercase tracking-tighter italic">Valores expressos em Reais (BRL). O aceite eletrônico via portal possui validade jurídica para processamento de faturamento e ordens de serviço.</span>
+                        </div>
+                        <div className="w-64 p-4 flex flex-col justify-center items-end bg-[#132039]">
+                            <span className="text-[10px] uppercase font-black tracking-widest text-[#a8b8d8] mb-1">Investimento Total</span>
+                            <span className="text-2xl font-black tracking-tighter">
+                                R$ {(quote.totalValue || quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
                         </div>
                     </div>
-                )}
+                </div>
+            )}
 
-                {quote.status === 'APROVADO' && (
-                    <div className="border border-emerald-300 rounded-lg overflow-hidden break-inside-avoid shadow-sm mt-8">
-                        <div className="bg-emerald-100 px-3 py-1.5 border-b border-emerald-300 font-bold text-[9px] uppercase tracking-wider text-emerald-800">Assinatura e Validação Digital do Cliente</div>
-                        <div className="grid grid-cols-2 divide-x divide-emerald-200 bg-white text-center">
-                            <div className="p-4 flex flex-col items-center justify-center gap-3 bg-emerald-50/30">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Aprovador</p>
-                                <div className="h-[80px] flex flex-col items-center justify-center gap-2">
-                                    <p className="text-[12px] font-black text-slate-900 uppercase text-emerald-900">{quote.approvedByName}</p>
-                                    <p className="text-[10px] font-bold text-emerald-700/80 uppercase">Doc: {quote.approvalDocument}</p>
-                                </div>
-                            </div>
-                            <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Assinatura Digital</p>
-                                <div className="h-[80px] flex items-center justify-center">
-                                    {quote.approvalSignature ? (
-                                        <img src={quote.approvalSignature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
-                                    ) : (
-                                        <span className="text-slate-300 italic text-[10px] font-bold uppercase">Assinatura Indisponível</span>
-                                    )}
-                                </div>
-                            </div>
+            {/* Approval / Signature Area */}
+            {quote.status === 'APROVADO' ? (
+                <div className="border-2 border-emerald-500 rounded-xl overflow-hidden break-inside-avoid mb-6 bg-emerald-50/20">
+                    <div className="bg-emerald-50 px-4 py-2 border-b border-emerald-200 flex items-center gap-2">
+                        <CheckCircle size={16} className="text-emerald-600" />
+                        <span className="font-black text-[11px] uppercase tracking-widest text-emerald-800">Protocolo de Aceite Digital Validado</span>
+                    </div>
+                    <div className="p-6 grid grid-cols-2 gap-6 bg-white">
+                        <div className="flex flex-col gap-2">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Responsável pela Aprovação</span>
+                            <span className="text-sm font-black text-slate-900 uppercase">{quote.approvedByName}</span>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Documento: {quote.approvalDocument}</span>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Timestamp: {new Date(quote.approvedAt).toLocaleString('pt-BR')}</span>
                         </div>
-                        <div className="bg-emerald-50/50 flex justify-end px-3 py-1.5 border-t border-emerald-100 text-[8px] font-bold text-emerald-600/60 uppercase">
-                            Aprovado em: {new Date(quote.approvedAt).toLocaleString('pt-BR')}
+                        <div className="border border-slate-200 rounded-lg h-24 flex items-center justify-center relative bg-slate-50/50">
+                            {quote.approvalSignature ? (
+                                <img src={quote.approvalSignature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                            ) : (
+                                <span className="text-slate-300 italic text-[10px] font-bold uppercase">Token de Assinatura Certificada</span>
+                            )}
+                            <div className="absolute bottom-1 right-2 text-[6px] text-slate-400 uppercase tracking-widest">Nexus Pro Secure Approval</div>
                         </div>
                     </div>
-                )}
-
-                {quote.status === 'REJEITADO' && (
-                    <div className="border border-rose-300 rounded-lg overflow-hidden break-inside-avoid shadow-sm text-rose-900 mt-8">
-                        <div className="bg-rose-100 px-3 py-1.5 border-b border-rose-300 font-bold text-[9px] uppercase tracking-wider text-rose-700">Aviso de Recusa</div>
-                        <div className="p-3 bg-rose-50 text-[11px] font-medium whitespace-pre-wrap italic">
-                            Motivo: {quote.rejectionReason || 'Recusada pelo cliente.'}
-                        </div>
+                </div>
+            ) : quote.status === 'REJEITADO' ? (
+                <div className="border-2 border-rose-500 rounded-xl overflow-hidden break-inside-avoid mb-6 bg-rose-50/20">
+                    <div className="bg-rose-50 px-4 py-2 border-b border-rose-200 flex items-center gap-2">
+                        <XCircle size={16} className="text-rose-600" />
+                        <span className="font-black text-[11px] uppercase tracking-widest text-rose-800">Recusa do Orçamento Formalizada</span>
                     </div>
-                )}
-            </div>
+                    <div className="p-6 bg-white text-rose-900 font-bold italic text-sm uppercase tracking-tight">
+                        Motivo Registrado: {quote.rejectionReason || 'Recusa efetuada via link público pelo cliente.'}
+                    </div>
+                </div>
+            ) : (
+                <div className="mt-12 pt-12 border-t-2 border-dashed border-slate-300 grid grid-cols-2 gap-12 break-inside-avoid">
+                    <div className="flex flex-col items-center">
+                        <div className="w-full border-b border-slate-800 mb-2"></div>
+                        <span className="text-[11px] font-black text-slate-800 uppercase text-center truncate w-full">{companyName}</span>
+                        <span className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">Autorizante / Comercial</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                        <div className="w-full border-b border-slate-800 mb-2"></div>
+                        <span className="text-[11px] font-black text-slate-800 uppercase text-center truncate w-full">{quote.customerName}</span>
+                        <span className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">De Acordo / Carimbo e Assinatura</span>
+                    </div>
+                </div>
+            )}
 
-            <div className="mt-8 pt-4 border-t-2 border-slate-800 flex justify-between items-center text-slate-500">
-                <div className="flex items-center gap-2">
-                    <NexusBranding size="lg" className="opacity-80 origin-left scale-75" />
+            {/* Print Footer */}
+            <div className="mt-12 pt-4 border-t-2 border-[#1c2d4f] flex justify-between items-start opacity-70">
+                <div className="flex flex-col gap-1">
+                    <NexusBranding size="lg" className="scale-75 origin-left -translate-y-2" />
+                    <p className="text-[7px] font-black text-slate-500 uppercase leading-none">Intelligence for Service Flow Systems</p>
                 </div>
                 <div className="text-right">
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-[#1c2d4f]">Nexus Line • Commercial Intelligence</p>
-                    <p className="text-[7px] uppercase tracking-tight mt-0.5">Documento comercial gerado e auditável na plataforma central.</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-[#1c2d4f] mb-0.5">Escritura Digital Nexus v5.2</p>
+                    <p className="text-[7px] uppercase tracking-tight font-medium text-slate-500 max-w-xs ml-auto leading-tight italic">
+                        Documento gerado eletronicamente através de provisionamento seguro em nuvem. A assinatura digital contida neste documento ou o registro de aceite no servidor central constituem prova formal de concordância comercial.
+                    </p>
                 </div>
             </div>
         </div>

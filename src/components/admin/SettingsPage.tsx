@@ -320,7 +320,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in">
+    <div className="p-2 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in">
       {/* Toolbar */}
       <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
         {/* Tabs */}
@@ -343,11 +343,7 @@ export const SettingsPage: React.FC = () => {
 
         {/* Middle Spacer / Status */}
         <div className="flex-1 w-full flex items-center justify-end md:justify-center gap-4">
-          <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 rounded-xl border border-amber-100 shadow-sm">
-            <Lock size={12} className="text-amber-600" />
-            <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest hidden md:inline">Somente Leitura (Nexus Global)</span>
-            <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest md:hidden">Read-Only</span>
-          </div>
+
           {saved && (
             <div className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl border border-emerald-100 font-black text-[9px] uppercase tracking-widest animate-bounce">
               Salvo!
@@ -368,176 +364,170 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
-        <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar">
-          <form id="settings-form" onSubmit={handleSave} className="max-w-6xl mx-auto space-y-10">
+      <div className="bg-white border border-slate-100 rounded-2xl flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar">
+          <form id="settings-form" onSubmit={handleSave} className="max-w-7xl mx-auto space-y-4">
 
             {activeTab === 'company' ? (
-              <div className="space-y-10 animate-fade-in">
+              <div className="space-y-4 animate-fade-in">
                 {/* SEÇÃO PRINCIPAL - IGUAL AO SUPER ADMIN */}
-                <section className="bg-white p-10 rounded-[4rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-12">
-                  <div className="flex items-center gap-6 border-b border-gray-50 pb-8">
-                    <div className="p-5 bg-primary-600 text-white rounded-[1.5rem] shadow-xl shadow-primary-600/20">
-                      <Building2 size={32} />
+                <section className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xl shadow-gray-200/30 space-y-4">
+                  <div className="flex items-center gap-4 border-b border-gray-50 pb-4">
+                    <div className="p-3 bg-primary-600 text-white rounded-xl shadow-lg shadow-primary-600/10">
+                      <Building2 size={24} />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-black text-gray-900 uppercase italic tracking-tighter">Dados da Organização</h2>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Informações vinculadas ao provisionamento Master.</p>
+                      <h2 className="text-xl font-black text-gray-900 uppercase italic tracking-tighter leading-none">Dados da Organização</h2>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Configurações globais de identidade corporativa.</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <div className="md:col-span-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="md:col-span-2 lg:col-span-3">
                       <Input
                         label="Razão Social Completa"
-                        disabled
                         value={company.name}
-                        className="rounded-2xl py-5 font-black text-lg border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                        onChange={e => setCompany({ ...company, name: e.target.value })}
+                        className="rounded-2xl py-2 font-black text-lg border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
                       />
                     </div>
-                    <Input
-                      label="Nome Fantasia"
-                      disabled
-                      value={company.tradingName}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed"
-                    />
-                    <Input
-                      label="Identificador do Sistema (Slug)"
-                      disabled
-                      value={dbInfo?.slug || ''}
-                      icon={<Lock size={16} />}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-100 opacity-60 italic"
-                    />
-                    <Input
-                      label="CNPJ"
-                      disabled
-                      icon={<CreditCard size={16} />}
-                      value={company.cnpj}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed"
-                    />
-                    <Input
-                      label="Inscrição Estadual"
-                      disabled
-                      icon={<Hash size={16} />}
-                      value={company.stateRegistration}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed"
-                    />
-
-                    <Input
-                      label="E-mail de Contato"
-                      disabled
-                      icon={<Mail size={16} />}
-                      value={company.email}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-                    <Input
-                      label="Telefone Comercial"
-                      disabled
-                      icon={<Phone size={16} />}
-                      value={company.phone}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-                    <Input
-                      label="Website"
-                      disabled
-                      icon={<Globe size={16} />}
-                      value={company.website}
-                      className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                    />
-
                     <div className="lg:col-span-1">
                       <Input
-                        label="CEP"
+                        label="Identificador do Sistema (Slug)"
                         disabled
-                        value={company.zip || ''}
-                        icon={<MapPin size={16} />}
-                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                        value={dbInfo?.slug || ''}
+                        icon={<Lock size={16} />}
+                        className="rounded-2xl py-2 font-bold border-gray-100 bg-gray-100 opacity-60 italic cursor-not-allowed"
                       />
                     </div>
 
                     <div className="lg:col-span-2">
                       <Input
-                        label="Logradouro"
-                        disabled
-                        value={company.street || company.address || ''}
-                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                        label="Nome Fantasia"
+                        value={company.tradingName}
+                        onChange={e => setCompany({ ...company, tradingName: e.target.value })}
+                        className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50"
+                      />
+                    </div>
+                    <Input
+                      label="CNPJ"
+                      icon={<CreditCard size={16} />}
+                      value={company.cnpj}
+                      onChange={e => setCompany({ ...company, cnpj: formatCNPJ(e.target.value) })}
+                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50"
+                    />
+                    <Input
+                      label="Inscrição Estadual"
+                      icon={<Hash size={16} />}
+                      value={company.stateRegistration}
+                      onChange={e => setCompany({ ...company, stateRegistration: e.target.value })}
+                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50"
+                    />
+
+                    <Input
+                      label="E-mail de Contato"
+                      icon={<Mail size={16} />}
+                      value={company.email}
+                      onChange={e => setCompany({ ...company, email: e.target.value })}
+                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                    />
+                    <Input
+                      label="Telefone Comercial"
+                      icon={<Phone size={16} />}
+                      value={company.phone}
+                      onChange={e => setCompany({ ...company, phone: formatPhone(e.target.value) })}
+                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                    />
+                    <div className="lg:col-span-2">
+                      <Input
+                        label="Website"
+                        icon={<Globe size={16} />}
+                        value={company.website}
+                        onChange={e => setCompany({ ...company, website: e.target.value })}
+                        className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
                       />
                     </div>
 
+                    <div className="lg:col-span-1">
+                      <Input
+                        label="CEP"
+                        value={company.zip || ''}
+                        onChange={e => { const v = formatCEP(e.target.value); setCompany({ ...company, zip: v }); handleCepSearch(v); }}
+                        icon={<MapPin size={16} />}
+                        className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                      />
+                    </div>
+                    <div className="lg:col-span-2">
+                      <Input
+                        label="Logradouro"
+                        value={company.street || company.address || ''}
+                        onChange={e => setCompany({ ...company, street: e.target.value, address: e.target.value })}
+                        className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                      />
+                    </div>
                     <div className="lg:col-span-1">
                       <Input
                         label="Número"
-                        disabled
                         value={company.number || ''}
-                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
+                        onChange={e => setCompany({ ...company, number: e.target.value })}
+                        className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
                       />
                     </div>
 
-                    <div className="lg:col-span-1">
-                      <Input
-                        label="Bairro"
-                        disabled
-                        value={company.neighborhood || ''}
-                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                      />
-                    </div>
-
-                    <div className="lg:col-span-1">
-                      <Input
-                        label="Cidade"
-                        disabled
-                        value={company.city || ''}
-                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                      />
-                    </div>
-
-                    <div className="lg:col-span-1">
-                      <Input
-                        label="Estado (UF)"
-                        disabled
-                        value={company.state || ''}
-                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                      />
-                    </div>
-
-                    <div className="lg:col-span-3">
-                      <Input
-                        label="Complemento"
-                        disabled
-                        value={company.complement || ''}
-                        className="rounded-2xl py-5 font-bold border-gray-100 bg-gray-50/50 opacity-80 cursor-not-allowed shadow-inner"
-                      />
-                    </div>
+                    <Input
+                      label="Bairro"
+                      value={company.neighborhood || ''}
+                      onChange={e => setCompany({ ...company, neighborhood: e.target.value })}
+                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                    />
+                    <Input
+                      label="Cidade"
+                      value={company.city || ''}
+                      onChange={e => setCompany({ ...company, city: e.target.value })}
+                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                    />
+                    <Input
+                      label="Estado (UF)"
+                      value={company.state || ''}
+                      onChange={e => setCompany({ ...company, state: e.target.value })}
+                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                    />
+                    <Input
+                      label="Complemento"
+                      value={company.complement || ''}
+                      onChange={e => setCompany({ ...company, complement: e.target.value })}
+                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                    />
                   </div>
 
-                  <div className="pt-8 border-t border-gray-50 flex flex-col md:flex-row items-center gap-10">
-                    <div className="space-y-2 text-center md:text-left">
-                      <div className="flex items-center gap-2 justify-center md:justify-start">
-                        <h4 className="text-xs font-black text-gray-900 uppercase">Logotipo da Empresa</h4>
-                        <UploadCloud size={12} className="text-primary-500" />
+                  <div className="pt-6 border-t border-gray-50 flex items-center gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-[10px] font-black text-gray-900 uppercase">Logo Oficial</h4>
+                        <UploadCloud size={10} className="text-primary-500" />
                       </div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase leading-tight w-48 italic">
-                        Clique na imagem para trocar a Logotipo oficial da sua instância.
+                      <p className="text-[9px] font-bold text-gray-400 uppercase leading-tight w-40 italic">
+                        WebP/PNG transparente (máx 300kb)
                       </p>
                     </div>
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-4">
                       <div
                         onClick={() => fileInputRef.current?.click()}
-                        className={`w-32 h-32 rounded-[2.5rem] border-2 border-dashed flex items-center justify-center transition-all relative overflow-hidden group shadow-inner cursor-pointer ${company.logoUrl
+                        className={`w-20 h-20 rounded-2xl border-2 border-dashed flex items-center justify-center transition-all relative overflow-hidden group shadow-inner cursor-pointer ${company.logoUrl
                           ? 'border-primary-100 bg-primary-50/30'
                           : 'border-gray-300 bg-gray-50 hover:border-primary-400 hover:bg-white'}`}
                       >
                         {company.logoUrl ? (
                           <>
-                            <img src={company.logoUrl} alt="Company Logo" className="w-full h-full object-contain p-4" />
+                            <img src={company.logoUrl} alt="Company Logo" className="w-full h-full object-contain p-2" />
                             <div className="absolute inset-0 bg-primary-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Camera size={28} className="text-white" />
+                              <Camera size={20} className="text-white" />
                             </div>
                           </>
                         ) : (
-                          <div className="flex flex-col items-center gap-1 text-gray-400 group-hover:text-primary-500">
-                            <UploadCloud size={32} />
-                            <span className="text-[9px] font-black uppercase">Subir Logo</span>
+                          <div className="flex flex-col items-center gap-0.5 text-gray-400 group-hover:text-primary-500">
+                            <UploadCloud size={24} />
+                            <span className="text-[8px] font-black uppercase">Subir</span>
                           </div>
                         )}
                       </div>
@@ -545,10 +535,10 @@ export const SettingsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={removeLogo}
-                          className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors"
-                          title="Remover Logotipo"
+                          className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
+                          title="Remover"
                         >
-                          <X size={18} />
+                          <X size={14} />
                         </button>
                       )}
                       <input
@@ -563,152 +553,155 @@ export const SettingsPage: React.FC = () => {
                 </section>
 
                 {/* SEÇÃO DE OS - IGUAL AO SUPER ADMIN */}
-                <section className="bg-[#0f172a] p-10 rounded-[4rem] border border-white/5 shadow-2xl space-y-10 text-white relative overflow-hidden">
+                <section className="bg-[#0f172a] p-4 rounded-xl border border-white/5 shadow-2xl space-y-4 text-white relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-primary-600/10 blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
 
-                  <div className="flex items-center gap-6 border-b border-white/5 pb-8 relative z-10">
-                    <div className="p-5 bg-primary-500 text-white rounded-[1.5rem] shadow-xl shadow-primary-500/20">
-                      <ListOrdered size={32} />
+                  <div className="flex items-center gap-4 border-b border-white/5 pb-4 relative z-10">
+                    <div className="p-3 bg-primary-500 text-white rounded-xl shadow-xl shadow-primary-500/10">
+                      <ListOrdered size={24} />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-black uppercase italic tracking-tighter">Regras de Protocolos (O.S.)</h2>
-                      <p className="text-[10px] font-black text-primary-400 uppercase tracking-widest mt-1">Configuração de numeração e identificação.</p>
+                      <h2 className="text-xl font-black uppercase italic tracking-tighter leading-none">Regras de Protocolos (O.S.)</h2>
+                      <p className="text-[9px] font-black text-primary-400 uppercase tracking-widest mt-1">Configuração de numeração e identificação.</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10">
-                    <div className="space-y-4">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">
-                        Prefixo do Código <Lock size={10} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">
+                        Prefixo Código <Lock size={8} />
                       </label>
                       <Input
-                        disabled
                         value={params.osPrefix}
-                        className="rounded-2xl py-5 font-black border-gray-100 bg-gray-50/50 text-gray-500 cursor-not-allowed text-lg shadow-inner"
+                        onChange={e => setParams({ ...params, osPrefix: e.target.value })}
+                        className="rounded-xl py-1.5 font-black border-gray-100 bg-gray-50/10 text-gray-300 text-lg shadow-inner"
                       />
                     </div>
-                    <div className="space-y-4">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">
-                        Número Inicial <Lock size={10} />
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">
+                        Próximo Número <Lock size={8} />
                       </label>
                       <Input
-                        disabled
                         type="number"
                         value={params.osInitialNumber}
-                        className="rounded-2xl py-5 font-black border-gray-100 bg-gray-50/50 text-gray-500 cursor-not-allowed text-lg shadow-inner"
+                        onChange={e => setParams({ ...params, osInitialNumber: Number(e.target.value) })}
+                        className="rounded-xl py-1.5 font-black border-gray-100 bg-gray-50/10 text-gray-300 text-lg shadow-inner"
                       />
                     </div>
                   </div>
 
-                  <div className="p-8 bg-primary-600/10 rounded-[2.5rem] border border-primary-500/20 flex gap-6 items-center relative z-10">
-                    <ShieldAlert className="text-primary-400 flex-shrink-0" size={32} />
-                    <p className="text-xs font-bold text-gray-300 leading-relaxed italic">
-                      Nota Técnica: Estas regras definem como os novos protocolos serão gerados. Alterações impactam apenas futuras ordens de serviço.
+                  <div className="p-4 bg-primary-600/5 rounded-xl border border-primary-500/10 flex gap-4 items-center relative z-10">
+                    <ShieldAlert className="text-primary-400 flex-shrink-0" size={24} />
+                    <p className="text-[10px] font-bold text-gray-400 leading-relaxed italic">
+                      Nota: Alterações impactam apenas futuras ordens de serviço.
                     </p>
                   </div>
                 </section>
               </div>
             ) : (
-
-              <div className="space-y-10 animate-fade-in">
-                <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-8">
-                  <div className="flex items-center gap-4 border-b border-gray-50 pb-6">
-                    <div className="p-3 bg-primary-50 text-primary-600 rounded-2xl">
-                      <Languages size={24} />
+              <div className="space-y-4 animate-fade-in">
+                <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
+                  <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+                    <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
+                      <Languages size={20} />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">Localização e Regional</h2>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Idiomas e fuso horário da plataforma.</p>
+                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Localização</h2>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Idioma e fuso horário.</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="w-full">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2 block">Idioma do Sistema</label>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Idioma</label>
                       <select
-                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-primary-100 appearance-none shadow-sm"
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-black text-gray-900 focus:ring-2 focus:ring-primary-100 appearance-none shadow-sm"
                         value={params.language}
                         onChange={e => setParams({ ...params, language: e.target.value as any })}
                       >
                         <option value="pt-BR">🇧🇷 Português (Brasil)</option>
-                        <option value="en-US">🇺🇸 English (United States)</option>
-                        <option value="es-ES">🇪🇸 Español (España)</option>
+                        <option value="en-US">🇺🇸 English (US)</option>
+                        <option value="es-ES">🇪🇸 Español</option>
                       </select>
                     </div>
                     <div className="w-full">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 mb-2 block">Fuso Horário Operacional</label>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Fuso Horário</label>
                       <select
-                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-4 focus:ring-primary-100 appearance-none shadow-sm"
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-black text-gray-900 focus:ring-2 focus:ring-primary-100 appearance-none shadow-sm"
                         defaultValue="UTC-3"
                       >
                         <option value="UTC-3">(UTC-03:00) Brasília</option>
-                        <option value="UTC-5">(UTC-05:00) Eastern Time</option>
-                        <option value="UTC+1">(UTC+01:00) Madrid/Paris</option>
+                        <option value="UTC-5">(UTC-05:00) Eastern</option>
+                        <option value="UTC+1">(UTC+01:00) Madrid</option>
                       </select>
                     </div>
                   </div>
                 </section>
 
-                <section className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-2xl shadow-gray-200/50 space-y-10">
-                  <div className="flex items-center gap-4 border-b border-gray-50 pb-6">
-                    <div className="p-3 bg-primary-50 text-primary-600 rounded-2xl">
-                      <Smartphone size={24} />
+                <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
+                  <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+                    <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
+                      <Smartphone size={20} />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">Operações e Segurança</h2>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Controles técnicos e de acesso.</p>
+                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Segurança</h2>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Conformidade e sessões.</p>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-                      <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.useGps ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                        <Navigation size={28} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center mb-2">
-                          <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">GPS em Tempo Real</h4>
-                          <button
-                            type="button"
-                            onClick={() => setParams({ ...params, useGps: !params.useGps })}
-                            className={`w-14 h-7 rounded-full relative transition-colors ${params.useGps ? 'bg-primary-600' : 'bg-gray-300'}`}
-                          >
-                            <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.useGps ? 'left-8' : 'left-1'}`}></div>
-                          </button>
-                        </div>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Registrar geolocalização exata nos eventos de check-in/out.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-                      <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.notifyClient ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                        <BellRing size={28} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center mb-2">
-                          <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">Notificar Clientes</h4>
-                          <button
-                            type="button"
-                            onClick={() => setParams({ ...params, notifyClient: !params.notifyClient })}
-                            className={`w-14 h-7 rounded-full relative transition-colors ${params.notifyClient ? 'bg-primary-600' : 'bg-gray-300'}`}
-                          >
-                            <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.notifyClient ? 'left-8' : 'left-1'}`}></div>
-                          </button>
-                        </div>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Enviar WhatsApp automático ao iniciar o deslocamento técnico.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </section>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Controles técnicos e de acesso.</p>
               </div>
-            )}
-          </form>
+                  </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+            <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.useGps ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+              <Navigation size={28} />
+            </div>
+            <div className="flex-1">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">GPS em Tempo Real</h4>
+                <button
+                  type="button"
+                  onClick={() => setParams({ ...params, useGps: !params.useGps })}
+                  className={`w-14 h-7 rounded-full relative transition-colors ${params.useGps ? 'bg-primary-600' : 'bg-gray-300'}`}
+                >
+                  <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.useGps ? 'left-8' : 'left-1'}`}></div>
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400 font-bold uppercase leading-relaxed">
+                Registrar geolocalização exata nos eventos de check-in/out.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+            <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.notifyClient ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+              <BellRing size={28} />
+            </div>
+            <div className="flex-1">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">Notificar Clientes</h4>
+                <button
+                  type="button"
+                  onClick={() => setParams({ ...params, notifyClient: !params.notifyClient })}
+                  className={`w-14 h-7 rounded-full relative transition-colors ${params.notifyClient ? 'bg-primary-600' : 'bg-gray-300'}`}
+                >
+                  <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.notifyClient ? 'left-8' : 'left-1'}`}></div>
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400 font-bold uppercase leading-relaxed">
+                Enviar WhatsApp automático ao iniciar o deslocamento técnico.
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
+  )
+}
+          </form >
+        </div >
+      </div >
+    </div >
   );
 };

@@ -39,17 +39,34 @@ export interface DbTenant {
     slug: string;
     name: string;
     company_name?: string;
+    trading_name?: string;
     document?: string;
+    cnpj?: string;
     email?: string;
     phone?: string;
+    website?: string;
     address?: string;
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+    cep?: string;
+    zip?: string;
+    state_registration?: string;
+    ie?: string;
     logo_url?: string;
+    logoUrl?: string; // Para compatibilidade com CamelCase legado
     admin_email?: string;
     admin_name?: string;
     status: DbTenantStatus;
     os_prefix?: string;
     os_start_number?: number;
+    osPrefix?: string; // Para compatibilidade legacy
+    osStartNumber?: number; // Para compatibilidade legacy
     enabled_modules?: Record<string, boolean>;
+    metadata?: Record<string, any>; // Para campos extras flexíveis
     created_at: string;
     updated_at?: string;
 }

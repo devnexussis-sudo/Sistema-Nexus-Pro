@@ -54,8 +54,8 @@ export const TenantService = {
             // Se não houver ID ou for 'default', tenta buscar a primeira empresa cadastrada
             if (!tid || tid === 'default' || tid === 'null') {
                 try {
-                    // Tenta primeiro com cliente normal
-                    const { data, error } = await publicSupabase
+                    // Tenta primeiro com cliente logado
+                    const { data, error } = await supabase
                         .from('tenants')
                         .select('*')
                         .limit(1)
@@ -74,7 +74,7 @@ export const TenantService = {
 
             // Busca tenant específico
             try {
-                const { data, error } = await publicSupabase
+                const { data, error } = await supabase
                     .from('tenants')
                     .select('*')
                     .eq('id', tid)
