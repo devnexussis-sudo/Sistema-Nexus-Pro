@@ -351,6 +351,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(order.createdAt)}</div></div>
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Tipo</label><div className="font-bold uppercase">{order.operationType || 'Manutenção'}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Início</label><div className="font-bold">{fmtDT(order.startDate)}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Conclusão</label><div className="font-bold">{fmtDT(order.endDate)}</div></div>
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Status</label><div className="font-bold text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{order.status}</div></div>
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Técnico</label><div className="font-bold uppercase">{tech?.name || 'N/A'}</div></div>
             </div>
