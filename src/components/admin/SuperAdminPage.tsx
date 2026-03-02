@@ -204,8 +204,6 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         city: formData.city,
         state: formData.state,
         cep: formData.cep,
-        website: (formData as any).website || '',
-        state_registration: (formData as any).stateRegistration || 'ISENTO',
         logo_url: formData.logoUrl,
         enabled_modules: formData.enabled_modules || (formData as any).enabledModules
       };
@@ -504,8 +502,6 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                           tradingName: tenant.trading_name || tenant.company_name || tenant.name || tenant.tradingName,
                           adminEmail: tenant.admin_email || tenant.email || tenant.adminEmail,
                           cnpj: tenant.cnpj || tenant.document || tenant.cnpj,
-                          stateRegistration: (tenant as any).state_registration || (tenant as any).stateRegistration,
-                          website: (tenant as any).website,
                           id: tenant.slug || tenant.id,
                           // Carrega as colunas individuais ou do metadata
                           street: (tenant as any).street || (tenant as any).metadata?.street,
@@ -515,7 +511,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                           city: (tenant as any).city || (tenant as any).metadata?.city,
                           state: (tenant as any).state || (tenant as any).metadata?.state,
                           cep: (tenant as any).cep || (tenant as any).metadata?.cep,
-                          website: (tenant as any).website || '',
+                          website: (tenant as any).website || (tenant as any).metadata?.website || '',
                           stateRegistration: (tenant as any).state_registration || (tenant as any).stateRegistration || 'ISENTO',
                           logoUrl: (tenant as any).logo_url || (tenant as any).logoUrl || null,
                           enabled_modules: tenant.enabled_modules || (tenant as any).enabledModules || {
