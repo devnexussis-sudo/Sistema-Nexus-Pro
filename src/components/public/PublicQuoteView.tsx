@@ -529,15 +529,13 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
                             {/* Print button */}
                             <button
-                                type="button"
                                 onClick={() => {
                                     const originalTitle = document.title;
-                                    const quoteId = quote.displayId || quote.id.slice(0, 8).toUpperCase();
-                                    document.title = `Proposta-${quoteId}`;
+                                    document.title = `Proposta-${quote.displayId || quote.id.slice(0, 8).toUpperCase()}`;
                                     window.print();
                                     document.title = originalTitle;
                                 }}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0 cursor-pointer relative z-[70]"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
                             >
                                 <Printer size={14} />
                                 <span className="hidden sm:inline">Imprimir PDF</span>
