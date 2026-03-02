@@ -528,10 +528,10 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                         {/* Print button */}
                         <button
                             onClick={() => {
-                                const originalTitle = document.title;
-                                document.title = `Proposta-${quote.displayId || quote.id.slice(0, 8).toUpperCase()}`;
+                                const originalTitle = window.document.title;
+                                window.document.title = `Proposta-${quote.displayId || quote.id.slice(0, 8).toUpperCase()}`;
                                 window.print();
-                                document.title = originalTitle;
+                                window.document.title = originalTitle;
                             }}
                             className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
                         >
