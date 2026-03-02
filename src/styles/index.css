@@ -36,6 +36,12 @@ body {
 }
 
 @media print {
+  html, body {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+  }
 
   /* Hide the entire application UI ONLY when batch printing from Dashboard */
   body.is-printing>#root,
