@@ -479,469 +479,466 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
     return (
         <>
-            <div className="hidden print:block">
+            <div className="hidden print:!block">
                 <PrintLayout />
             </div>
 
-            <div className="min-h-screen bg-[#F0F2F5] font-sans selection:bg-[#1c2d4f]/10">
-                {/* ── MAIN CONTENT WRAPPER (HIDDEN ON PRINT) ── */}
-                <div className="print:hidden">
-                    {/* ── TOP ACCENT BAR ── */}
-                    <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
+            <div className="min-h-screen bg-[#F0F2F5] font-sans selection:bg-[#1c2d4f]/10 print:hidden">
+                {/* ── TOP ACCENT BAR ── */}
+                <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 
-                    {/* ── STICKY HEADER ── */}
-                    <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
-                        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-4">
-                            {/* Company identity */}
-                            <div className="flex items-center gap-4 min-w-0">
-                                {companyLogo
-                                    ? <img src={companyLogo} alt={companyName} className="h-10 sm:h-12 w-auto object-contain shrink-0" />
-                                    : (
-                                        <div className="w-10 h-10 bg-[#1c2d4f] rounded-xl flex items-center justify-center shrink-0">
-                                            <Hexagon size={20} className="text-white fill-white/10" />
-                                        </div>
-                                    )
-                                }
-                                <div className="min-w-0">
-                                    <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight truncate leading-none">{companyName}</h1>
-                                    <div className="hidden sm:flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1.5">
-                                        {companyPhone && (
-                                            <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                                                <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
-                                            </span>
-                                        )}
-                                        {companyEmail && (
-                                            <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                                                <Mail size={9} className="text-[#3e5b99]" /> {companyEmail}
-                                            </span>
-                                        )}
-                                        {companyDoc && (
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                                                CNPJ: {companyDoc}
-                                            </span>
-                                        )}
+                {/* ── STICKY HEADER ── */}
+                <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm print:hidden">
+                    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-4">
+                        {/* Company identity */}
+                        <div className="flex items-center gap-4 min-w-0">
+                            {companyLogo
+                                ? <img src={companyLogo} alt={companyName} className="h-10 sm:h-12 w-auto object-contain shrink-0" />
+                                : (
+                                    <div className="w-10 h-10 bg-[#1c2d4f] rounded-xl flex items-center justify-center shrink-0">
+                                        <Hexagon size={20} className="text-white fill-white/10" />
                                     </div>
-                                    <div className="mt-1 flex sm:hidden">
-                                        <NexusBranding size="sm" className="opacity-40" />
-                                    </div>
+                                )
+                            }
+                            <div className="min-w-0">
+                                <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight truncate leading-none">{companyName}</h1>
+                                <div className="hidden sm:flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1.5">
+                                    {companyPhone && (
+                                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                                            <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
+                                        </span>
+                                    )}
+                                    {companyEmail && (
+                                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                                            <Mail size={9} className="text-[#3e5b99]" /> {companyEmail}
+                                        </span>
+                                    )}
+                                    {companyDoc && (
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                                            CNPJ: {companyDoc}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="mt-1 flex sm:hidden">
+                                    <NexusBranding size="sm" className="opacity-40" />
                                 </div>
                             </div>
-
-                            {/* Print button */}
-                            <button
-                                onClick={() => {
-                                    const originalTitle = document.title;
-                                    document.title = `Proposta-${quote.displayId || quote.id.slice(0, 8).toUpperCase()}`;
-                                    window.print();
-                                    document.title = originalTitle;
-                                }}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
-                            >
-                                <Printer size={14} />
-                                <span className="hidden sm:inline">Imprimir PDF</span>
-                            </button>
                         </div>
-                    </header>
 
-                    {/* ── QUOTE HERO BANNER ── */}
-                    <div className={`${quote.status === 'APROVADO' || quote.status === 'CONVERTIDO' ? 'bg-emerald-700' : 'bg-[#1c2d4f]'} transition-colors`}>
-                        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-                            {/* Quote identity */}
-                            <div className="flex items-center gap-5">
-                                <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10 shrink-0">
-                                    <Calculator size={26} className="text-white" />
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] leading-none mb-1.5">Proposta Comercial</p>
-                                    <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-none">
-                                        #{quote.displayId || `ORC-${quote.id.slice(0, 8).toUpperCase()}`}
-                                    </h2>
-                                    {quote.title && <p className="text-[10px] font-bold text-white/50 uppercase tracking-wide mt-1.5">{quote.title}</p>}
-                                </div>
+                        {/* Print button */}
+                        <button
+                            onClick={() => {
+                                const originalTitle = document.title;
+                                document.title = `Proposta-${quote.displayId || quote.id.slice(0, 8).toUpperCase()}`;
+                                window.print();
+                                document.title = originalTitle;
+                            }}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
+                        >
+                            <Printer size={14} />
+                            <span className="hidden sm:inline">Imprimir PDF</span>
+                        </button>
+                    </div>
+                </header>
+
+                {/* ── QUOTE HERO BANNER ── */}
+                <div className={`${quote.status === 'APROVADO' || quote.status === 'CONVERTIDO' ? 'bg-emerald-700' : 'bg-[#1c2d4f]'} transition-colors`}>
+                    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+                        {/* Quote identity */}
+                        <div className="flex items-center gap-5">
+                            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10 shrink-0">
+                                <Calculator size={26} className="text-white" />
                             </div>
+                            <div>
+                                <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] leading-none mb-1.5">Proposta Comercial</p>
+                                <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-none">
+                                    #{quote.displayId || `ORC-${quote.id.slice(0, 8).toUpperCase()}`}
+                                </h2>
+                                {quote.title && <p className="text-[10px] font-bold text-white/50 uppercase tracking-wide mt-1.5">{quote.title}</p>}
+                            </div>
+                        </div>
 
-                            {/* Status + priority */}
-                            <div className="flex items-center gap-3 flex-wrap">
-                                <div className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border flex items-center gap-2 ${{
-                                    'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
-                                    'ABERTO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
-                                    'APROVADO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-                                    'CONVERTIDO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-                                    'REJEITADO': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
-                                    'VENCIDO': 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                                }[quote.status] || 'bg-white/10 text-white/70 border-white/10'
-                                    }`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${{
-                                        'PENDENTE': 'bg-slate-400',
-                                        'ABERTO': 'bg-sky-400',
-                                        'APROVADO': 'bg-emerald-400',
-                                        'CONVERTIDO': 'bg-emerald-400',
-                                        'REJEITADO': 'bg-rose-400',
-                                        'VENCIDO': 'bg-amber-400'
-                                    }[quote.status] || 'bg-white/50'
-                                        }`} />
-                                    {quote.status}
-                                </div>
-                                <div className="px-3 py-1.5 bg-white/10 rounded-full text-[9px] font-black text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
-                                    <Calendar size={11} /> Emissão: {new Date(quote.createdAt).toLocaleDateString()}
-                                </div>
+                        {/* Status + priority */}
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <div className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border flex items-center gap-2 ${{
+                                'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+                                'ABERTO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+                                'APROVADO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                                'CONVERTIDO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                                'REJEITADO': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+                                'VENCIDO': 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                            }[quote.status] || 'bg-white/10 text-white/70 border-white/10'
+                                }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${{
+                                    'PENDENTE': 'bg-slate-400',
+                                    'ABERTO': 'bg-sky-400',
+                                    'APROVADO': 'bg-emerald-400',
+                                    'CONVERTIDO': 'bg-emerald-400',
+                                    'REJEITADO': 'bg-rose-400',
+                                    'VENCIDO': 'bg-amber-400'
+                                }[quote.status] || 'bg-white/50'
+                                    }`} />
+                                {quote.status}
+                            </div>
+                            <div className="px-3 py-1.5 bg-white/10 rounded-full text-[9px] font-black text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
+                                <Calendar size={11} /> Emissão: {new Date(quote.createdAt).toLocaleDateString()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── MAIN CONTENT ── */}
+                <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-6">
+
+                    {/* ── ROW 1: Cliente + Comercial ── */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
+                            <SectionHeader icon={<User size={15} />} title="Dados do Cliente" />
+                            <div className="space-y-3">
+                                <p className="text-lg font-black text-slate-900 uppercase leading-tight">{quote.customerName}</p>
+                                {quote.customerAddress ? (
+                                    <div className="flex items-start gap-2 pt-2 border-t border-slate-50">
+                                        <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
+                                        <p className="text-sm text-slate-500 leading-snug">{quote.customerAddress}</p>
+                                    </div>
+                                ) : (
+                                    <p className="text-[10px] text-slate-300 uppercase tracking-widest italic pt-2 border-t border-slate-50">Endereço não informado</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8 flex flex-col justify-center">
+                            <SectionHeader icon={<FileText size={15} />} title="Resumo Comercial" />
+                            <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                                <InfoPill
+                                    label="Validade da Proposta"
+                                    value={quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'Não informada'}
+                                />
+                                <InfoPill
+                                    label="Data de Elaboração"
+                                    value={new Date(quote.createdAt).toLocaleDateString()}
+                                />
+                                {quote.description && (
+                                    <div className="col-span-2 pt-3 border-t border-slate-50">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Objeto / Escopo Técnico</p>
+                                        <p className="text-xs text-slate-600 font-medium italic">{quote.description}</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* ── MAIN CONTENT ── */}
-                    <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-6">
-
-                        {/* ── ROW 1: Cliente + Comercial ── */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
-                                <SectionHeader icon={<User size={15} />} title="Dados do Cliente" />
-                                <div className="space-y-3">
-                                    <p className="text-lg font-black text-slate-900 uppercase leading-tight">{quote.customerName}</p>
-                                    {quote.customerAddress ? (
-                                        <div className="flex items-start gap-2 pt-2 border-t border-slate-50">
-                                            <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
-                                            <p className="text-sm text-slate-500 leading-snug">{quote.customerAddress}</p>
-                                        </div>
-                                    ) : (
-                                        <p className="text-[10px] text-slate-300 uppercase tracking-widest italic pt-2 border-t border-slate-50">Endereço não informado</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8 flex flex-col justify-center">
-                                <SectionHeader icon={<FileText size={15} />} title="Resumo Comercial" />
-                                <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                                    <InfoPill
-                                        label="Validade da Proposta"
-                                        value={quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'Não informada'}
-                                    />
-                                    <InfoPill
-                                        label="Data de Elaboração"
-                                        value={new Date(quote.createdAt).toLocaleDateString()}
-                                    />
-                                    {quote.description && (
-                                        <div className="col-span-2 pt-3 border-t border-slate-50">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Objeto / Escopo Técnico</p>
-                                            <p className="text-xs text-slate-600 font-medium italic">{quote.description}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                    {/* ── ROW 2: Tabela de Itens ── */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                        <div className="p-6 sm:p-8 pb-4">
+                            <SectionHeader icon={<DollarSign size={15} />} title="Composição de Preços e Serviços" color="text-emerald-600" />
                         </div>
 
-                        {/* ── ROW 2: Tabela de Itens ── */}
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                            <div className="p-6 sm:p-8 pb-4">
-                                <SectionHeader icon={<DollarSign size={15} />} title="Composição de Preços e Serviços" color="text-emerald-600" />
-                            </div>
-
-                            <div className="px-6 sm:px-8 pb-8 space-y-3">
-                                {quote.items.map((item: any, i: number) => (
-                                    <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/50 border border-slate-100 rounded-xl group hover:border-slate-300 transition-all gap-4 sm:gap-0">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400 italic font-mono shrink-0">
-                                                {String(i + 1).padStart(2, '0')}
-                                            </div>
-                                            <div>
-                                                <p className="text-[11px] font-black text-slate-800 uppercase leading-none">{item.description}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Qtde: {item.quantity} un • Valor Unit: R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                            </div>
+                        <div className="px-6 sm:px-8 pb-8 space-y-3">
+                            {quote.items.map((item: any, i: number) => (
+                                <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/50 border border-slate-100 rounded-xl group hover:border-slate-300 transition-all gap-4 sm:gap-0">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400 italic font-mono shrink-0">
+                                            {String(i + 1).padStart(2, '0')}
                                         </div>
-                                        <div className="text-right pl-12 sm:pl-0 border-t sm:border-0 border-slate-100 pt-3 sm:pt-0">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase sm:hidden mb-0.5">Subtotal</p>
-                                            <p className="text-sm font-black text-slate-900 tracking-tighter">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        <div>
+                                            <p className="text-[11px] font-black text-slate-800 uppercase leading-none">{item.description}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Qtde: {item.quantity} un • Valor Unit: R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-
-                            <div className="bg-emerald-50/50 p-6 sm:p-8 border-t border-emerald-100/50 flex flex-col sm:flex-row items-center justify-between gap-4">
-                                <div className="flex items-center gap-3 order-2 sm:order-1">
-                                    <ShieldCheck className="text-emerald-500" size={16} />
-                                    <p className="text-[8px] font-bold text-emerald-800/60 uppercase tracking-widest max-w-[200px] leading-tight flex-1">
-                                        Condições Comerciais Regidas pela Nexus Commercial Intelligence
-                                    </p>
+                                    <div className="text-right pl-12 sm:pl-0 border-t sm:border-0 border-slate-100 pt-3 sm:pt-0">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase sm:hidden mb-0.5">Subtotal</p>
+                                        <p className="text-sm font-black text-slate-900 tracking-tighter">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                    </div>
                                 </div>
-                                <div className="flex flex-col items-center sm:items-end order-1 sm:order-2">
-                                    <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest mb-1">Investimento Total</p>
-                                    <h4 className="text-2xl font-black text-emerald-700 tracking-tighter leading-none font-mono">
-                                        R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </h4>
-                                </div>
-                            </div>
+                            ))}
                         </div>
 
-                        {/* ── ACTIONS / STATUS VIEW ── */}
-
-                        {quote.status === 'REJEITADO' && (
-                            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-6 sm:p-8 shadow-sm flex flex-col items-center justify-center text-center">
-                                <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center mb-4"><XCircle size={20} /></div>
-                                <h3 className="text-sm font-black text-rose-800 uppercase tracking-widest mb-2">Proposta Formalmente Recusada</h3>
-                                <p className="text-xs font-bold text-rose-600/70 italic uppercase max-w-lg mb-4">
-                                    {quote.notes?.replace('MOTIVO DA RECUSA: ', '') || 'Nenhum motivo específico informado.'}
+                        <div className="bg-emerald-50/50 p-6 sm:p-8 border-t border-emerald-100/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 order-2 sm:order-1">
+                                <ShieldCheck className="text-emerald-500" size={16} />
+                                <p className="text-[8px] font-bold text-emerald-800/60 uppercase tracking-widest max-w-[200px] leading-tight flex-1">
+                                    Condições Comerciais Regidas pela Nexus Commercial Intelligence
                                 </p>
                             </div>
-                        )}
+                            <div className="flex flex-col items-center sm:items-end order-1 sm:order-2">
+                                <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest mb-1">Investimento Total</p>
+                                <h4 className="text-2xl font-black text-emerald-700 tracking-tighter leading-none font-mono">
+                                    R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </h4>
+                            </div>
+                        </div>
+                    </div>
 
-                        {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO') && (
-                            <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-6 sm:p-8 overflow-hidden relative">
-                                {/* Background hint */}
-                                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-                                    <CheckCircle size={120} className="text-emerald-600" />
+                    {/* ── ACTIONS / STATUS VIEW ── */}
+
+                    {quote.status === 'REJEITADO' && (
+                        <div className="bg-rose-50 border border-rose-100 rounded-2xl p-6 sm:p-8 shadow-sm flex flex-col items-center justify-center text-center">
+                            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center mb-4"><XCircle size={20} /></div>
+                            <h3 className="text-sm font-black text-rose-800 uppercase tracking-widest mb-2">Proposta Formalmente Recusada</h3>
+                            <p className="text-xs font-bold text-rose-600/70 italic uppercase max-w-lg mb-4">
+                                {quote.notes?.replace('MOTIVO DA RECUSA: ', '') || 'Nenhum motivo específico informado.'}
+                            </p>
+                        </div>
+                    )}
+
+                    {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO') && (
+                        <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-6 sm:p-8 overflow-hidden relative">
+                            {/* Background hint */}
+                            <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                                <CheckCircle size={120} className="text-emerald-600" />
+                            </div>
+
+                            <SectionHeader icon={<ShieldCheck size={15} />} title="Assinatura e Auditoria Digital" color="text-emerald-700" />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 relative z-10">
+                                <div className="space-y-5">
+                                    <InfoPill label="Assinado por" value={quote.approvedByName || 'Aprovador Online'} />
+                                    <InfoPill label="Documento Verificado" value={quote.approvalDocument || 'N/D'} mono />
+                                    <InfoPill label="Log de Data e Hora (Timestamp)" value={quote.approvedAt ? new Date(quote.approvedAt).toLocaleString() : 'N/D'} mono />
                                 </div>
-
-                                <SectionHeader icon={<ShieldCheck size={15} />} title="Assinatura e Auditoria Digital" color="text-emerald-700" />
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 relative z-10">
-                                    <div className="space-y-5">
-                                        <InfoPill label="Assinado por" value={quote.approvedByName || 'Aprovador Online'} />
-                                        <InfoPill label="Documento Verificado" value={quote.approvalDocument || 'N/D'} mono />
-                                        <InfoPill label="Log de Data e Hora (Timestamp)" value={quote.approvedAt ? new Date(quote.approvedAt).toLocaleString() : 'N/D'} mono />
-                                    </div>
-                                    <div className="border border-emerald-100 bg-emerald-50/30 rounded-xl p-4 flex flex-col items-center justify-center min-h-[140px]">
-                                        {quote.approvalSignature ? (
-                                            <>
-                                                <img
-                                                    src={quote.approvalSignature}
-                                                    alt="Assinatura"
-                                                    className="max-h-24 w-auto object-contain mix-blend-multiply cursor-zoom-in"
-                                                    onClick={() => setFullscreenImage(quote.approvalSignature)}
-                                                />
-                                                <p className="text-[7px] text-emerald-600/50 font-mono tracking-widest uppercase mt-2">Visto Eletrônico Válido</p>
-                                            </>
-                                        ) : (
-                                            <p className="text-[9px] font-black text-slate-400 uppercase italic">Assinatura não disponível</p>
-                                        )}
-                                    </div>
+                                <div className="border border-emerald-100 bg-emerald-50/30 rounded-xl p-4 flex flex-col items-center justify-center min-h-[140px]">
+                                    {quote.approvalSignature ? (
+                                        <>
+                                            <img
+                                                src={quote.approvalSignature}
+                                                alt="Assinatura"
+                                                className="max-h-24 w-auto object-contain mix-blend-multiply cursor-zoom-in"
+                                                onClick={() => setFullscreenImage(quote.approvalSignature)}
+                                            />
+                                            <p className="text-[7px] text-emerald-600/50 font-mono tracking-widest uppercase mt-2">Visto Eletrônico Válido</p>
+                                        </>
+                                    ) : (
+                                        <p className="text-[9px] font-black text-slate-400 uppercase italic">Assinatura não disponível</p>
+                                    )}
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        {/* AREA DE RECUSA TEMÁTICA - Form */}
-                        {isRejectMode && (
-                            <div className="bg-white border-2 border-rose-100 rounded-2xl shadow-xl shadow-rose-100/20 p-6 sm:p-8 animate-fade-in-up print:hidden">
-                                <SectionHeader icon={<XCircle size={15} />} title="Formalizar Recusa da Proposta" color="text-rose-600" />
+                    {/* AREA DE RECUSA TEMÁTICA - Form */}
+                    {isRejectMode && (
+                        <div className="bg-white border-2 border-rose-100 rounded-2xl shadow-xl shadow-rose-100/20 p-6 sm:p-8 animate-fade-in-up print:hidden">
+                            <SectionHeader icon={<XCircle size={15} />} title="Formalizar Recusa da Proposta" color="text-rose-600" />
 
-                                <div className="space-y-6">
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Motivo da Recusa (Obrigatório)</label>
+                                    <textarea
+                                        value={rejectionReason}
+                                        onChange={e => setRejectionReason(e.target.value)}
+                                        placeholder="Por que esta proposta está sendo recusada?"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all min-h-[80px]"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Motivo da Recusa (Obrigatório)</label>
-                                        <textarea
-                                            value={rejectionReason}
-                                            onChange={e => setRejectionReason(e.target.value)}
-                                            placeholder="Por que esta proposta está sendo recusada?"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all min-h-[80px]"
+                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Nome do Responsável</label>
+                                        <input
+                                            type="text"
+                                            value={approverName}
+                                            onChange={e => setApproverName(e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
                                         />
                                     </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Nome do Responsável</label>
-                                            <input
-                                                type="text"
-                                                value={approverName}
-                                                onChange={e => setApproverName(e.target.value)}
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">CPF / Documento</label>
-                                            <input
-                                                type="text"
-                                                value={document}
-                                                onChange={e => {
-                                                    const v = e.target.value.replace(/\D/g, "").substring(0, 11);
-                                                    let fmt = v;
-                                                    if (v.length > 9) fmt = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-                                                    else if (v.length > 6) fmt = v.replace(/(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3");
-                                                    else if (v.length > 3) fmt = v.replace(/(\d{3})(\d{0,3})/, "$1.$2");
-                                                    setDocument(fmt);
-                                                }}
-                                                placeholder="000.000.000-00"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Data Nasc.</label>
-                                            <input
-                                                type="date"
-                                                value={birthDate}
-                                                onChange={e => setBirthDate(e.target.value)}
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
-                                            />
-                                        </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">CPF / Documento</label>
+                                        <input
+                                            type="text"
+                                            value={document}
+                                            onChange={e => {
+                                                const v = e.target.value.replace(/\D/g, "").substring(0, 11);
+                                                let fmt = v;
+                                                if (v.length > 9) fmt = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+                                                else if (v.length > 6) fmt = v.replace(/(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3");
+                                                else if (v.length > 3) fmt = v.replace(/(\d{3})(\d{0,3})/, "$1.$2");
+                                                setDocument(fmt);
+                                            }}
+                                            placeholder="000.000.000-00"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
+                                        />
                                     </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest flex items-center gap-2"><SignatureIcon size={12} /> Assine para validar o declínio</label>
-                                        <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
-                                            {SignaturePad ? (
-                                                <SignaturePad
-                                                    ref={sigCanvas}
-                                                    penColor="#e11d48"
-                                                    minWidth={1.5}
-                                                    maxWidth={3.5}
-                                                    canvasProps={{ className: "w-full h-32 sm:h-40 cursor-crosshair", style: { touchAction: 'none' } }}
-                                                />
-                                            ) : (
-                                                <div className="h-32 flex flex-col items-center justify-center p-4">
-                                                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest text-center">Desculpe, a assinatura falhou. Recarregue a página.</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex justify-end">
-                                            <button onClick={() => sigCanvas.current?.clear()} className="text-[10px] font-black text-slate-400 uppercase hover:text-slate-600 transition-colors">Limpar Apontamento</button>
-                                        </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Data Nasc.</label>
+                                        <input
+                                            type="date"
+                                            value={birthDate}
+                                            onChange={e => setBirthDate(e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
+                                        />
                                     </div>
                                 </div>
 
-                                <div className="flex gap-4 pt-6 mt-6 border-t border-slate-100">
-                                    <button disabled={isSubmitting} onClick={() => setIsRejectMode(false)} className="flex-1 py-4 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
-                                    <button
-                                        disabled={isSubmitting}
-                                        onClick={handleConfirmReject}
-                                        className="flex-[2] py-4 bg-rose-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 hover:bg-rose-700 transition-all hover:-translate-y-0.5"
-                                    >
-                                        {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Enviar Recusa Oficial</>}
-                                    </button>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest flex items-center gap-2"><SignatureIcon size={12} /> Assine para validar o declínio</label>
+                                    <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
+                                        {SignaturePad ? (
+                                            <SignaturePad
+                                                ref={sigCanvas}
+                                                penColor="#e11d48"
+                                                minWidth={1.5}
+                                                maxWidth={3.5}
+                                                canvasProps={{ className: "w-full h-32 sm:h-40 cursor-crosshair", style: { touchAction: 'none' } }}
+                                            />
+                                        ) : (
+                                            <div className="h-32 flex flex-col items-center justify-center p-4">
+                                                <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest text-center">Desculpe, a assinatura falhou. Recarregue a página.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <button onClick={() => sigCanvas.current?.clear()} className="text-[10px] font-black text-slate-400 uppercase hover:text-slate-600 transition-colors">Limpar Apontamento</button>
+                                    </div>
                                 </div>
                             </div>
-                        )}
 
-                        {/* AREA DE APROVAÇÃO - Form */}
-                        {isApproveMode && (
-                            <div className="bg-white border-2 border-emerald-100 rounded-2xl shadow-xl shadow-emerald-100/20 p-6 sm:p-8 animate-fade-in-up print:hidden">
-                                <SectionHeader icon={<ShieldCheck size={15} />} title="Aprovação Segura de Proposta Comercial" color="text-emerald-600" />
-
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Nome do Responsável</label>
-                                            <input
-                                                type="text"
-                                                value={approverName}
-                                                onChange={e => setApproverName(e.target.value)}
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">CPF / Documento</label>
-                                            <input
-                                                type="text"
-                                                value={document}
-                                                onChange={e => {
-                                                    const v = e.target.value.replace(/\D/g, "").substring(0, 11);
-                                                    let fmt = v;
-                                                    if (v.length > 9) fmt = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-                                                    else if (v.length > 6) fmt = v.replace(/(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3");
-                                                    else if (v.length > 3) fmt = v.replace(/(\d{3})(\d{0,3})/, "$1.$2");
-                                                    setDocument(fmt);
-                                                }}
-                                                placeholder="000.000.000-00"
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Data Nasc.</label>
-                                            <input
-                                                type="date"
-                                                value={birthDate}
-                                                onChange={e => setBirthDate(e.target.value)}
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest flex items-center gap-2"><SignatureIcon size={12} /> Assine para validar aprovação</label>
-                                        <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
-                                            {SignaturePad ? (
-                                                <SignaturePad
-                                                    ref={sigCanvas}
-                                                    penColor="#0f172a"
-                                                    minWidth={1.5}
-                                                    maxWidth={3.5}
-                                                    canvasProps={{ className: "w-full h-32 sm:h-40 cursor-crosshair", style: { touchAction: 'none' } }}
-                                                />
-                                            ) : (
-                                                <div className="h-32 flex flex-col items-center justify-center p-4">
-                                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest text-center">Desculpe, a assinatura falhou. Recarregue a página.</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex justify-end">
-                                            <button onClick={() => sigCanvas.current?.clear()} className="text-[10px] font-black text-slate-400 uppercase hover:text-slate-600 transition-colors">Limpar Apontamento</button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-4 pt-6 mt-6 border-t border-slate-100">
-                                    <button disabled={isSubmitting} onClick={() => setIsApproveMode(false)} className="flex-1 py-4 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
-                                    <button
-                                        disabled={isSubmitting}
-                                        onClick={handleApprove}
-                                        className="flex-[2] py-4 bg-emerald-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all hover:-translate-y-0.5"
-                                    >
-                                        {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Assinar e Aprovar Online</>}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* BOTÕES INICIAIS DE AÇÃO */}
-                        {(quote.status === 'ABERTO' || quote.status === 'PENDENTE') && !isApproveMode && !isRejectMode && (
-                            <div className="flex flex-col sm:flex-row gap-4 print:hidden">
+                            <div className="flex gap-4 pt-6 mt-6 border-t border-slate-100">
+                                <button disabled={isSubmitting} onClick={() => setIsRejectMode(false)} className="flex-1 py-4 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
                                 <button
-                                    onClick={() => setIsApproveMode(true)}
-                                    className="flex-[2] py-5 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-3 order-1 sm:order-2"
+                                    disabled={isSubmitting}
+                                    onClick={handleConfirmReject}
+                                    className="flex-[2] py-4 bg-rose-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 hover:bg-rose-700 transition-all hover:-translate-y-0.5"
                                 >
-                                    Aprovar Proposta Comercial <ArrowRight size={16} />
+                                    {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Enviar Recusa Oficial</>}
                                 </button>
-                                <button
-                                    onClick={() => setIsRejectMode(true)}
-                                    className="flex-1 py-5 bg-white border border-slate-200 text-slate-500 rounded-2xl text-[10px] font-black uppercase hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all order-2 sm:order-1"
-                                >
-                                    Avaliar Recusa
-                                </button>
-                            </div>
-                        )}
-
-                    </main>
-
-                    {/* ── FOOTER NEXUS ── */}
-                    <footer className="mt-8 sm:mt-12 lg:mt-auto border-t border-slate-200 bg-white w-full print:hidden">
-                        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <NexusBranding size="lg" className="opacity-80 transform scale-[0.6] sm:scale-[0.85] origin-left -my-2 sm:-my-1" />
-                            </div>
-                            <div className="text-center sm:text-right space-y-0.5 sm:space-y-1 mt-[-10px] sm:mt-0">
-                                <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma Solução Nexus Line</p>
-                                <p className="text-[7px] sm:text-[8px] text-slate-300 uppercase tracking-widest">
-                                    Ambientes Seguros · Documento emitido eletronicamente
-                                </p>
                             </div>
                         </div>
-                    </footer>
+                    )}
 
-                    {/* ── LIGHTBOX (Opcional para Assinatura) ── */}
-                    {fullscreenImage && (
-                        <div
-                            className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
-                            onClick={() => setFullscreenImage(null)}
-                        >
-                            <img
-                                src={fullscreenImage}
-                                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
-                                alt="Visualização"
-                            />
+                    {/* AREA DE APROVAÇÃO - Form */}
+                    {isApproveMode && (
+                        <div className="bg-white border-2 border-emerald-100 rounded-2xl shadow-xl shadow-emerald-100/20 p-6 sm:p-8 animate-fade-in-up print:hidden">
+                            <SectionHeader icon={<ShieldCheck size={15} />} title="Aprovação Segura de Proposta Comercial" color="text-emerald-600" />
+
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Nome do Responsável</label>
+                                        <input
+                                            type="text"
+                                            value={approverName}
+                                            onChange={e => setApproverName(e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">CPF / Documento</label>
+                                        <input
+                                            type="text"
+                                            value={document}
+                                            onChange={e => {
+                                                const v = e.target.value.replace(/\D/g, "").substring(0, 11);
+                                                let fmt = v;
+                                                if (v.length > 9) fmt = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+                                                else if (v.length > 6) fmt = v.replace(/(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3");
+                                                else if (v.length > 3) fmt = v.replace(/(\d{3})(\d{0,3})/, "$1.$2");
+                                                setDocument(fmt);
+                                            }}
+                                            placeholder="000.000.000-00"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Data Nasc.</label>
+                                        <input
+                                            type="date"
+                                            value={birthDate}
+                                            onChange={e => setBirthDate(e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest flex items-center gap-2"><SignatureIcon size={12} /> Assine para validar aprovação</label>
+                                    <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-inner">
+                                        {SignaturePad ? (
+                                            <SignaturePad
+                                                ref={sigCanvas}
+                                                penColor="#0f172a"
+                                                minWidth={1.5}
+                                                maxWidth={3.5}
+                                                canvasProps={{ className: "w-full h-32 sm:h-40 cursor-crosshair", style: { touchAction: 'none' } }}
+                                            />
+                                        ) : (
+                                            <div className="h-32 flex flex-col items-center justify-center p-4">
+                                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest text-center">Desculpe, a assinatura falhou. Recarregue a página.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <button onClick={() => sigCanvas.current?.clear()} className="text-[10px] font-black text-slate-400 uppercase hover:text-slate-600 transition-colors">Limpar Apontamento</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4 pt-6 mt-6 border-t border-slate-100">
+                                <button disabled={isSubmitting} onClick={() => setIsApproveMode(false)} className="flex-1 py-4 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
+                                <button
+                                    disabled={isSubmitting}
+                                    onClick={handleApprove}
+                                    className="flex-[2] py-4 bg-emerald-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all hover:-translate-y-0.5"
+                                >
+                                    {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Assinar e Aprovar Online</>}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* BOTÕES INICIAIS DE AÇÃO */}
+                    {(quote.status === 'ABERTO' || quote.status === 'PENDENTE') && !isApproveMode && !isRejectMode && (
+                        <div className="flex flex-col sm:flex-row gap-4 print:hidden">
                             <button
-                                className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-                                onClick={() => setFullscreenImage(null)}
+                                onClick={() => setIsApproveMode(true)}
+                                className="flex-[2] py-5 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-3 order-1 sm:order-2"
                             >
-                                <X size={22} />
+                                Aprovar Proposta Comercial <ArrowRight size={16} />
+                            </button>
+                            <button
+                                onClick={() => setIsRejectMode(true)}
+                                className="flex-1 py-5 bg-white border border-slate-200 text-slate-500 rounded-2xl text-[10px] font-black uppercase hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all order-2 sm:order-1"
+                            >
+                                Avaliar Recusa
                             </button>
                         </div>
                     )}
-                </div>
+
+                </main>
+
+                {/* ── FOOTER NEXUS ── */}
+                <footer className="mt-8 sm:mt-12 lg:mt-auto border-t border-slate-200 bg-white w-full print:hidden">
+                    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <NexusBranding size="lg" className="opacity-80 transform scale-[0.6] sm:scale-[0.85] origin-left -my-2 sm:-my-1" />
+                        </div>
+                        <div className="text-center sm:text-right space-y-0.5 sm:space-y-1 mt-[-10px] sm:mt-0">
+                            <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma Solução Nexus Line</p>
+                            <p className="text-[7px] sm:text-[8px] text-slate-300 uppercase tracking-widest">
+                                Ambientes Seguros · Documento emitido eletronicamente
+                            </p>
+                        </div>
+                    </div>
+                </footer>
+
+                {/* ── LIGHTBOX (Opcional para Assinatura) ── */}
+                {fullscreenImage && (
+                    <div
+                        className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
+                        onClick={() => setFullscreenImage(null)}
+                    >
+                        <img
+                            src={fullscreenImage}
+                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                            alt="Visualização"
+                        />
+                        <button
+                            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+                            onClick={() => setFullscreenImage(null)}
+                        >
+                            <X size={22} />
+                        </button>
+                    </div>
+                )}
             </div>
         </>
     );
