@@ -301,7 +301,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
             <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 
             {/* ── STICKY HEADER ── */}
-            <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm print:hidden">
+            <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
                 <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-4">
                     {/* Company identity */}
                     <div className="flex items-center gap-4 min-w-0">
@@ -341,7 +341,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     {/* Print button */}
                     <button
                         onClick={() => window.print()}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0 print:hidden"
                     >
                         <Printer size={14} />
                         <span className="hidden sm:inline">Imprimir PDF</span>
@@ -350,7 +350,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
             </header>
 
             {/* ── QUOTE HERO BANNER ── */}
-            <div className={`${quote.status === 'APROVADO' || quote.status === 'CONVERTIDO' ? 'bg-emerald-700' : 'bg-[#1c2d4f]'} print:hidden transition-colors`}>
+            <div className={`${quote.status === 'APROVADO' || quote.status === 'CONVERTIDO' ? 'bg-emerald-700' : 'bg-[#1c2d4f]'} transition-colors`}>
                 <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
                     {/* Quote identity */}
                     <div className="flex items-center gap-5">
@@ -396,7 +396,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
             </div>
 
             {/* ── MAIN CONTENT ── */}
-            <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-6 print:hidden">
+            <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-6">
 
                 {/* ── ROW 1: Cliente + Comercial ── */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -524,7 +524,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
                 {/* AREA DE RECUSA TEMÁTICA - Form */}
                 {isRejectMode && (
-                    <div className="bg-white border-2 border-rose-100 rounded-2xl shadow-xl shadow-rose-100/20 p-6 sm:p-8 animate-fade-in-up">
+                    <div className="bg-white border-2 border-rose-100 rounded-2xl shadow-xl shadow-rose-100/20 p-6 sm:p-8 animate-fade-in-up print:hidden">
                         <SectionHeader icon={<XCircle size={15} />} title="Formalizar Recusa da Proposta" color="text-rose-600" />
 
                         <div className="space-y-6">
@@ -614,7 +614,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
                 {/* AREA DE APROVAÇÃO - Form */}
                 {isApproveMode && (
-                    <div className="bg-white border-2 border-emerald-100 rounded-2xl shadow-xl shadow-emerald-100/20 p-6 sm:p-8 animate-fade-in-up">
+                    <div className="bg-white border-2 border-emerald-100 rounded-2xl shadow-xl shadow-emerald-100/20 p-6 sm:p-8 animate-fade-in-up print:hidden">
                         <SectionHeader icon={<ShieldCheck size={15} />} title="Aprovação Segura de Proposta Comercial" color="text-emerald-600" />
 
                         <div className="space-y-6">
@@ -694,7 +694,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
                 {/* BOTÕES INICIAIS DE AÇÃO */}
                 {(quote.status === 'ABERTO' || quote.status === 'PENDENTE') && !isApproveMode && !isRejectMode && (
-                    <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4 print:hidden">
                         <button
                             onClick={() => setIsApproveMode(true)}
                             className="flex-[2] py-5 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-3 order-1 sm:order-2"
@@ -713,7 +713,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
             </main>
 
             {/* ── FOOTER NEXUS ── */}
-            <footer className="mt-8 sm:mt-12 lg:mt-auto border-t border-slate-200 bg-white print:hidden w-full">
+            <footer className="mt-8 sm:mt-12 lg:mt-auto border-t border-slate-200 bg-white w-full print:hidden">
                 <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
                     {/* Logo Nexus — idêntica à da OS */}
                     <div className="flex items-center gap-3">

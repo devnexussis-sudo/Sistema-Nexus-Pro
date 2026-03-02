@@ -23,7 +23,9 @@ body {
 }
 
 /* Typography Scale Fix */
-h1, .text-xl, .text-2xl {
+h1,
+.text-xl,
+.text-2xl {
     letter-spacing: -0.025em;
     font-weight: 700;
 }
@@ -52,6 +54,14 @@ h1, .text-xl, .text-2xl {
 
 /* Admin Print Styles */
 @media print {
+
+    html,
+    body {
+        height: auto !important;
+        min-height: auto !important;
+        overflow: visible !important;
+        background: white !important;
+    }
 
     body.is-printing>#root,
     body.is-printing aside,

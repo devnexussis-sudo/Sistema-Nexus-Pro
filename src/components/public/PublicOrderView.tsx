@@ -487,7 +487,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   // ── WEB LAYOUT ─────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="hidden print:block">
+      <div className="hidden print:!block">
         <PrintLayout />
       </div>
       <div className="min-h-screen bg-[#F0F2F5] font-sans selection:bg-[#1c2d4f]/10 print:hidden">
