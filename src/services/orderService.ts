@@ -870,7 +870,7 @@ export const OrderService = {
             return [];
         }
 
-        return (data || []).map((event: any) => ({
+        const timeline = (data || []).map((event: any) => ({
             eventId: event.event_id,
             eventType: event.event_type,
             eventDate: event.event_date,
@@ -878,5 +878,29 @@ export const OrderService = {
             userName: event.user_name,
             details: event.details
         }));
+
+        // NASA DEV WORKAROUND: O RPC atual liga o ORDER_CREATED ao 'assigned_to'.
+        // Vamos capturar o real 'created_by' (nome do usuário que criou a OS) proativamente.
+        const creationEvent = timeline.find((e: any) => e.eventType === 'ORDER_CREATED');
+        if (creationEvent) {
+            try {
+                const { data: orderData } = await supabase.from('orders').select('created_by').eq('id', orderId).single();
+                if (orderData && orderData.created_by) {
+                    // Try to fetch the user name (could be Admin, Tech, or Staff)
+                    const { data: userData } = await supabase.from('users').select('name').eq('id', orderData.created_by).single();
+                    if (userData && userData.name) {
+                        creationEvent.userName = userData.name;
+                    } else {
+                        creationEvent.userName = 'Equipe Base (Admin)';
+                    }
+                } else {
+                    creationEvent.userName = 'Sistema Automático';
+                }
+            } catch (err) {
+                console.warn('Fallback creator name failed', err);
+            }
+        }
+
+        return timeline;
     }
 };
