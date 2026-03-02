@@ -85,37 +85,37 @@ export const SettingsPage: React.FC = () => {
 
   const loadSettingsData = async () => {
     const tenantId = DataService.getCurrentTenantId();
-    console.log("SettingsPage Sync: Tenant ID identified as:", tenantId);
+    console.log("[Settings] Iniciando sincronização. Tenant ID:", tenantId);
 
     if (!tenantId) {
-      console.warn("SettingsPage Sync: No tenant ID found. Fields will remain default.");
+      console.warn("[Settings] Nenhum Tenant ID encontrado.");
       return;
     }
 
     try {
       setLoading(true);
       const data = await DataService.getTenantById(tenantId);
-      console.log("SettingsPage Sync: Database Response for Tenant:", data);
+      console.log("[Settings] Dados brutos do banco:", data);
 
       if (data) {
-        // Robust mapping: Try every possible field name variation used in Master or Database
+        // Mapeamento robusto Big Tech: Suporta snake_case (DB) e camelCase (Legacy/SuperAdmin)
         setCompany({
           name: data.company_name || data.name || '',
-          tradingName: data.trading_name || data.name || '',
+          tradingName: data.trading_name || data.tradingName || data.name || '',
           cnpj: data.cnpj || data.document || '',
-          stateRegistration: data.state_registration || data.ie || 'ISENTO',
-          email: data.admin_email || data.email || '',
+          stateRegistration: data.state_registration || data.ie || data.stateRegistration || 'ISENTO',
+          email: data.admin_email || data.email || data.adminEmail || '',
           phone: data.phone || '',
           website: data.website || '',
           address: data.address || data.street || '',
-          // Lógica de prioridade: Coluna Direta -> Metadata -> Fallback
-          number: data.number || data.metadata?.number || '',
-          complement: data.complement || data.metadata?.complement || '',
-          street: data.street || data.metadata?.street || '',
-          neighborhood: data.neighborhood || data.metadata?.neighborhood || '',
-          city: data.city || data.metadata?.city || '',
-          state: data.state || data.metadata?.state || '',
-          zip: data.cep || data.metadata?.cep || data.zip || '',
+          // Sincronização de campos individuais salvos no SuperAdmin ou via Coluna/Metadata
+          number: data.number || (data as any).metadata?.number || '',
+          complement: data.complement || (data as any).metadata?.complement || '',
+          street: data.street || (data as any).metadata?.street || '',
+          neighborhood: data.neighborhood || (data as any).metadata?.neighborhood || '',
+          city: data.city || (data as any).metadata?.city || '',
+          state: data.state || (data as any).metadata?.state || '',
+          zip: data.cep || (data as any).metadata?.cep || data.zip || '',
           logoUrl: data.logo_url || data.logoUrl || undefined
         });
 
@@ -129,11 +129,9 @@ export const SettingsPage: React.FC = () => {
         }));
 
         setDbInfo({ slug: data.slug || '', id: data.id });
-      } else {
-        console.error("SettingsPage Sync: Tenant found but returned no data object.");
       }
     } catch (e) {
-      console.error("SettingsPage Sync: Critical error communicating with database.", e);
+      console.error("[Settings] Erro crítico na comunicação com o banco:", e);
     } finally {
       setLoading(false);
     }
@@ -365,236 +363,222 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       <div className="bg-white border border-slate-100 rounded-2xl flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
-        <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar">
-          <form id="settings-form" onSubmit={handleSave} className="max-w-7xl mx-auto space-y-4">
+        <div className="flex-1 overflow-y-auto px-3 py-2 custom-scrollbar">
+          <form id="settings-form" onSubmit={handleSave} className="max-w-7xl mx-auto space-y-3">
 
             {activeTab === 'company' ? (
-              <div className="space-y-4 animate-fade-in">
-                {/* SEÇÃO PRINCIPAL - IGUAL AO SUPER ADMIN */}
-                <section className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xl shadow-gray-200/30 space-y-4">
-                  <div className="flex items-center gap-4 border-b border-gray-50 pb-4">
-                    <div className="p-3 bg-primary-600 text-white rounded-xl shadow-lg shadow-primary-600/10">
-                      <Building2 size={24} />
+              <div className="space-y-3 animate-fade-in">
+                {/* SEÇÃO PRINCIPAL - DENSIDADE BIG TECH */}
+                <section className="bg-white p-3 rounded-xl border border-gray-100 shadow-xl space-y-3">
+                  <div className="flex items-center gap-3 border-b border-gray-50 pb-2">
+                    <div className="p-2 bg-primary-600 text-white rounded-lg shadow-lg shadow-primary-600/10">
+                      <Building2 size={16} />
                     </div>
                     <div>
-                      <h2 className="text-xl font-black text-gray-900 uppercase italic tracking-tighter leading-none">Dados da Organização</h2>
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Configurações globais de identidade corporativa.</p>
+                      <h2 className="text-base font-black text-gray-900 uppercase italic tracking-tighter leading-none">Dados Corporativos</h2>
+                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Identidade e registros da organização.</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="md:col-span-2 lg:col-span-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="lg:col-span-3">
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Razão Social</label>
                       <Input
-                        label="Razão Social Completa"
                         value={company.name}
                         onChange={e => setCompany({ ...company, name: e.target.value })}
-                        className="rounded-2xl py-2 font-black text-lg border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-black text-sm border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
                       />
                     </div>
                     <div className="lg:col-span-1">
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">ID (Slug)</label>
                       <Input
-                        label="Identificador do Sistema (Slug)"
                         disabled
                         value={dbInfo?.slug || ''}
-                        icon={<Lock size={16} />}
-                        className="rounded-2xl py-2 font-bold border-gray-100 bg-gray-100 opacity-60 italic cursor-not-allowed"
+                        icon={<Lock size={12} />}
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 bg-gray-100 opacity-60 italic cursor-not-allowed"
                       />
                     </div>
 
                     <div className="lg:col-span-2">
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Nome Fantasia</label>
                       <Input
-                        label="Nome Fantasia"
                         value={company.tradingName}
                         onChange={e => setCompany({ ...company, tradingName: e.target.value })}
-                        className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50"
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50"
                       />
                     </div>
-                    <Input
-                      label="CNPJ"
-                      icon={<CreditCard size={16} />}
-                      value={company.cnpj}
-                      onChange={e => setCompany({ ...company, cnpj: formatCNPJ(e.target.value) })}
-                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50"
-                    />
-                    <Input
-                      label="Inscrição Estadual"
-                      icon={<Hash size={16} />}
-                      value={company.stateRegistration}
-                      onChange={e => setCompany({ ...company, stateRegistration: e.target.value })}
-                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50"
-                    />
-
-                    <Input
-                      label="E-mail de Contato"
-                      icon={<Mail size={16} />}
-                      value={company.email}
-                      onChange={e => setCompany({ ...company, email: e.target.value })}
-                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
-                    />
-                    <Input
-                      label="Telefone Comercial"
-                      icon={<Phone size={16} />}
-                      value={company.phone}
-                      onChange={e => setCompany({ ...company, phone: formatPhone(e.target.value) })}
-                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
-                    />
-                    <div className="lg:col-span-2">
+                    <div>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">CNPJ</label>
                       <Input
-                        label="Website"
-                        icon={<Globe size={16} />}
+                        icon={<CreditCard size={12} />}
+                        value={company.cnpj}
+                        onChange={e => setCompany({ ...company, cnpj: formatCNPJ(e.target.value) })}
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">I.E.</label>
+                      <Input
+                        icon={<Hash size={12} />}
+                        value={company.stateRegistration}
+                        onChange={e => setCompany({ ...company, stateRegistration: e.target.value })}
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">E-mail</label>
+                      <Input
+                        icon={<Mail size={12} />}
+                        value={company.email}
+                        onChange={e => setCompany({ ...company, email: e.target.value })}
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Telefone</label>
+                      <Input
+                        icon={<Phone size={12} />}
+                        value={company.phone}
+                        onChange={e => setCompany({ ...company, phone: formatPhone(e.target.value) })}
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                      />
+                    </div>
+                    <div className="lg:col-span-2">
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Site</label>
+                      <Input
+                        icon={<Globe size={12} />}
                         value={company.website}
                         onChange={e => setCompany({ ...company, website: e.target.value })}
-                        className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
                       />
                     </div>
 
-                    <div className="lg:col-span-1">
+                    <div>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">CEP</label>
                       <Input
-                        label="CEP"
                         value={company.zip || ''}
                         onChange={e => { const v = formatCEP(e.target.value); setCompany({ ...company, zip: v }); handleCepSearch(v); }}
-                        icon={<MapPin size={16} />}
-                        className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        icon={<MapPin size={12} />}
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
                       />
                     </div>
                     <div className="lg:col-span-2">
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Logradouro</label>
                       <Input
-                        label="Logradouro"
                         value={company.street || company.address || ''}
                         onChange={e => setCompany({ ...company, street: e.target.value, address: e.target.value })}
-                        className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
                       />
                     </div>
-                    <div className="lg:col-span-1">
+                    <div>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Número</label>
                       <Input
-                        label="Número"
                         value={company.number || ''}
                         onChange={e => setCompany({ ...company, number: e.target.value })}
-                        className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
                       />
                     </div>
 
-                    <Input
-                      label="Bairro"
-                      value={company.neighborhood || ''}
-                      onChange={e => setCompany({ ...company, neighborhood: e.target.value })}
-                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
-                    />
-                    <Input
-                      label="Cidade"
-                      value={company.city || ''}
-                      onChange={e => setCompany({ ...company, city: e.target.value })}
-                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
-                    />
-                    <Input
-                      label="Estado (UF)"
-                      value={company.state || ''}
-                      onChange={e => setCompany({ ...company, state: e.target.value })}
-                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
-                    />
-                    <Input
-                      label="Complemento"
-                      value={company.complement || ''}
-                      onChange={e => setCompany({ ...company, complement: e.target.value })}
-                      className="rounded-2xl py-2 font-bold border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
-                    />
+                    <div>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Bairro</label>
+                      <Input
+                        value={company.neighborhood || ''}
+                        onChange={e => setCompany({ ...company, neighborhood: e.target.value })}
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Cidade</label>
+                      <Input
+                        value={company.city || ''}
+                        onChange={e => setCompany({ ...company, city: e.target.value })}
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Estado</label>
+                      <Input
+                        value={company.state || ''}
+                        onChange={e => setCompany({ ...company, state: e.target.value })}
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Complemento</label>
+                      <Input
+                        value={company.complement || ''}
+                        onChange={e => setCompany({ ...company, complement: e.target.value })}
+                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                      />
+                    </div>
                   </div>
 
-                  <div className="pt-6 border-t border-gray-50 flex items-center gap-4">
-                    <div className="space-y-1">
+                  <div className="pt-2 border-t border-gray-50 flex items-center gap-4">
+                    <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-[10px] font-black text-gray-900 uppercase">Logo Oficial</h4>
+                        <h4 className="text-[9px] font-black text-gray-900 uppercase">Logo Oficial</h4>
                         <UploadCloud size={10} className="text-primary-500" />
                       </div>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase leading-tight w-40 italic">
-                        WebP/PNG transparente (máx 300kb)
-                      </p>
+                      <p className="text-[8px] font-bold text-gray-400 uppercase leading-tight italic">WebP/PNG (300kb)</p>
                     </div>
                     <div className="flex items-center gap-4">
                       <div
                         onClick={() => fileInputRef.current?.click()}
-                        className={`w-20 h-20 rounded-2xl border-2 border-dashed flex items-center justify-center transition-all relative overflow-hidden group shadow-inner cursor-pointer ${company.logoUrl
-                          ? 'border-primary-100 bg-primary-50/30'
-                          : 'border-gray-300 bg-gray-50 hover:border-primary-400 hover:bg-white'}`}
+                        className={`w-12 h-12 rounded-lg border-2 border-dashed flex items-center justify-center transition-all relative overflow-hidden group shadow-inner cursor-pointer ${company.logoUrl ? 'border-primary-100 bg-primary-50/30' : 'border-gray-200 bg-gray-50'}`}
                       >
                         {company.logoUrl ? (
                           <>
-                            <img src={company.logoUrl} alt="Company Logo" className="w-full h-full object-contain p-2" />
+                            <img src={company.logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
                             <div className="absolute inset-0 bg-primary-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Camera size={20} className="text-white" />
+                              <Camera size={14} className="text-white" />
                             </div>
                           </>
                         ) : (
-                          <div className="flex flex-col items-center gap-0.5 text-gray-400 group-hover:text-primary-500">
-                            <UploadCloud size={24} />
-                            <span className="text-[8px] font-black uppercase">Subir</span>
-                          </div>
+                          <UploadCloud size={16} className="text-gray-300 group-hover:text-primary-500" />
                         )}
                       </div>
                       {company.logoUrl && (
-                        <button
-                          type="button"
-                          onClick={removeLogo}
-                          className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
-                          title="Remover"
-                        >
-                          <X size={14} />
+                        <button type="button" onClick={removeLogo} className="p-1.5 bg-red-50 text-red-500 rounded-md hover:bg-red-100">
+                          <X size={12} />
                         </button>
                       )}
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleLogoUpload}
-                      />
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
                     </div>
                   </div>
                 </section>
 
-                {/* SEÇÃO DE OS - IGUAL AO SUPER ADMIN */}
-                <section className="bg-[#0f172a] p-4 rounded-xl border border-white/5 shadow-2xl space-y-4 text-white relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-primary-600/10 blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
-
-                  <div className="flex items-center gap-4 border-b border-white/5 pb-4 relative z-10">
-                    <div className="p-3 bg-primary-500 text-white rounded-xl shadow-xl shadow-primary-500/10">
-                      <ListOrdered size={24} />
+                {/* SEÇÃO DE OS */}
+                <section className="bg-[#0f172a] p-3 rounded-xl border border-white/5 shadow-2xl space-y-3 text-white relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-primary-600/10 blur-[60px] -translate-y-1/2 translate-x-1/2"></div>
+                  <div className="flex items-center gap-3 border-b border-white/5 pb-2 relative z-10">
+                    <div className="p-2 bg-primary-500 text-white rounded-lg shadow-xl shadow-primary-500/10">
+                      <ListOrdered size={16} />
                     </div>
                     <div>
-                      <h2 className="text-xl font-black uppercase italic tracking-tighter leading-none">Regras de Protocolos (O.S.)</h2>
-                      <p className="text-[9px] font-black text-primary-400 uppercase tracking-widest mt-1">Configuração de numeração e identificação.</p>
+                      <h2 className="text-base font-black uppercase italic tracking-tighter leading-none">Regras O.S.</h2>
+                      <p className="text-[8px] font-black text-primary-400 uppercase tracking-widest mt-0.5">Identificação e sequencial.</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">
-                        Prefixo Código <Lock size={8} />
-                      </label>
+                  <div className="grid grid-cols-2 gap-3 relative z-10">
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">Prefixo <Lock size={8} /></label>
                       <Input
                         value={params.osPrefix}
                         onChange={e => setParams({ ...params, osPrefix: e.target.value })}
-                        className="rounded-xl py-1.5 font-black border-gray-100 bg-gray-50/10 text-gray-300 text-lg shadow-inner"
+                        className="rounded-xl py-1 font-black border-gray-100 bg-gray-50/10 text-gray-300 text-sm shadow-inner"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">
-                        Próximo Número <Lock size={8} />
-                      </label>
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">Próximo N° <Lock size={8} /></label>
                       <Input
                         type="number"
                         value={params.osInitialNumber}
                         onChange={e => setParams({ ...params, osInitialNumber: Number(e.target.value) })}
-                        className="rounded-xl py-1.5 font-black border-gray-100 bg-gray-50/10 text-gray-300 text-lg shadow-inner"
+                        className="rounded-xl py-1 font-black border-gray-100 bg-gray-50/10 text-gray-300 text-sm shadow-inner"
                       />
                     </div>
-                  </div>
-
-                  <div className="p-4 bg-primary-600/5 rounded-xl border border-primary-500/10 flex gap-4 items-center relative z-10">
-                    <ShieldAlert className="text-primary-400 flex-shrink-0" size={24} />
-                    <p className="text-[10px] font-bold text-gray-400 leading-relaxed italic">
-                      Nota: Alterações impactam apenas futuras ordens de serviço.
-                    </p>
                   </div>
                 </section>
               </div>
@@ -644,61 +628,57 @@ export const SettingsPage: React.FC = () => {
                       <Smartphone size={20} />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Segurança</h2>
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Conformidade e sessões.</p>
+                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Segurança e Automação</h2>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Conformidade e notificações inteligentes.</p>
                     </div>
                   </div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Controles técnicos e de acesso.</p>
-              </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.useGps ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <Navigation size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">GPS em Tempo Real</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, useGps: !params.useGps })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.useGps ? 'bg-primary-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.useGps ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Geolocalização exata no check-in/out.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.notifyClient ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <BellRing size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Notificar Clientes</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, notifyClient: !params.notifyClient })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.notifyClient ? 'bg-primary-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.notifyClient ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          WhatsApp automático ao iniciar deslocamento.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-            <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.useGps ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-              <Navigation size={28} />
-            </div>
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">GPS em Tempo Real</h4>
-                <button
-                  type="button"
-                  onClick={() => setParams({ ...params, useGps: !params.useGps })}
-                  className={`w-14 h-7 rounded-full relative transition-colors ${params.useGps ? 'bg-primary-600' : 'bg-gray-300'}`}
-                >
-                  <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.useGps ? 'left-8' : 'left-1'}`}></div>
-                </button>
+                </section>
               </div>
-              <p className="text-[10px] text-gray-400 font-bold uppercase leading-relaxed">
-                Registrar geolocalização exata nos eventos de check-in/out.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-6 p-8 bg-gray-50/50 rounded-[2.5rem] border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-            <div className={`p-4 rounded-2xl shadow-inner transition-colors ${params.notifyClient ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-              <BellRing size={28} />
-            </div>
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">Notificar Clientes</h4>
-                <button
-                  type="button"
-                  onClick={() => setParams({ ...params, notifyClient: !params.notifyClient })}
-                  className={`w-14 h-7 rounded-full relative transition-colors ${params.notifyClient ? 'bg-primary-600' : 'bg-gray-300'}`}
-                >
-                  <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${params.notifyClient ? 'left-8' : 'left-1'}`}></div>
-                </button>
-              </div>
-              <p className="text-[10px] text-gray-400 font-bold uppercase leading-relaxed">
-                Enviar WhatsApp automático ao iniciar o deslocamento técnico.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-  )
-}
+            )}
           </form >
         </div >
       </div >

@@ -46,6 +46,11 @@ interface Tenant {
   city?: string;
   state?: string;
   cep?: string;
+  logo_url?: string;
+  logoUrl?: string;
+  website?: string;
+  state_registration?: string;
+  stateRegistration?: string;
   initialPassword?: string;
   enabled_modules?: Record<string, boolean>;
   enabledModules?: Record<string, boolean>;
@@ -199,6 +204,9 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         city: formData.city,
         state: formData.state,
         cep: formData.cep,
+        website: (formData as any).website || '',
+        state_registration: (formData as any).stateRegistration || 'ISENTO',
+        logo_url: formData.logoUrl,
         enabled_modules: formData.enabled_modules || (formData as any).enabledModules
       };
 
@@ -507,6 +515,9 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                           city: (tenant as any).city || (tenant as any).metadata?.city,
                           state: (tenant as any).state || (tenant as any).metadata?.state,
                           cep: (tenant as any).cep || (tenant as any).metadata?.cep,
+                          website: (tenant as any).website || '',
+                          stateRegistration: (tenant as any).state_registration || (tenant as any).stateRegistration || 'ISENTO',
+                          logoUrl: (tenant as any).logo_url || (tenant as any).logoUrl || null,
                           enabled_modules: tenant.enabled_modules || (tenant as any).enabledModules || {
                             dashboard: true,
                             orders: true,
@@ -639,6 +650,45 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                       icon={<Lock size={16} className="text-primary-400" />}
                     />
                   )}
+                  <div className="md:col-span-1 border-white/5 border-l pl-8">
+                    <label className="text-[10px] font-black text-primary-400 uppercase tracking-widest mb-4 block">Logo da Empresa</label>
+                    <div className="flex items-center gap-6">
+                      <div className="relative group cursor-pointer" onClick={() => (document.getElementById('super-logo-upload') as HTMLInputElement)?.click()}>
+                        <div className={`w-24 h-24 rounded-3xl border-2 border-dashed flex items-center justify-center transition-all overflow-hidden ${formData.logoUrl ? 'border-primary-500/50 bg-primary-500/10' : 'border-white/10 bg-white/5 hover:border-primary-500/30'}`}>
+                          {formData.logoUrl ? (
+                            <img src={formData.logoUrl} className="w-full h-full object-contain p-2" alt="Logo" />
+                          ) : (
+                            <div className="text-center">
+                              <UploadCloud size={32} className="text-gray-600 mx-auto mb-1" />
+                              <span className="text-[8px] font-black uppercase text-gray-500">Upload</span>
+                            </div>
+                          )}
+                        </div>
+                        <input
+                          id="super-logo-upload"
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (ev) => setFormData({ ...formData, logoUrl: ev.target?.result as string });
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </div>
+                      {formData.logoUrl && (
+                        <button
+                          onClick={() => setFormData({ ...formData, logoUrl: undefined })}
+                          className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                        >
+                          <X size={20} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <NexusInput
                     label="Telefone Comercial"
                     placeholder="(11) 9999-9999"
