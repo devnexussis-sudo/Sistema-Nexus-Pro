@@ -4,7 +4,8 @@ import {
     Hexagon, Calculator, CheckCircle, Clock, MapPin,
     User, FileText, AlertCircle, Share2, Printer,
     ArrowRight, Lock, Signature as SignatureIcon, Send,
-    Calendar, ShieldCheck, DollarSign, XCircle, Mail, Phone
+    Calendar, ShieldCheck, DollarSign, XCircle, Mail, Phone,
+    X, LoaderCircle as LoaderIcon
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -61,6 +62,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     const [birthDate, setBirthDate] = useState('');
     const [rejectionReason, setRejectionReason] = useState('');
     const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
+    const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
     const sigCanvas = useRef<any>(null);
 
     // 🛰️ Inicia captura de GPS assim que entra no modo de validação (Aprovação ou Recusa)
@@ -699,7 +701,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                             <img
                                                 src={quote.approvalSignature}
                                                 alt="Assinatura"
-                                                className="max-h-24 w-auto object-contain mix-blend-multiply"
+                                                className="max-h-24 w-auto object-contain mix-blend-multiply cursor-zoom-in"
+                                                onClick={() => setFullscreenImage(quote.approvalSignature)}
                                             />
                                             <p className="text-[7px] text-emerald-600/50 font-mono tracking-widest uppercase mt-2">Visto Eletrônico Válido</p>
                                         </>
@@ -904,7 +907,6 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 {/* ── FOOTER NEXUS ── */}
                 <footer className="mt-8 sm:mt-12 lg:mt-auto border-t border-slate-200 bg-white w-full print:hidden">
                     <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                        {/* Logo Nexus — idêntica à da OS */}
                         <div className="flex items-center gap-3">
                             <NexusBranding size="lg" className="opacity-80 transform scale-[0.6] sm:scale-[0.85] origin-left -my-2 sm:-my-1" />
                         </div>
@@ -916,6 +918,26 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                         </div>
                     </div>
                 </footer>
+
+                {/* ── LIGHTBOX (Opcional para Assinatura) ── */}
+                {fullscreenImage && (
+                    <div
+                        className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
+                        onClick={() => setFullscreenImage(null)}
+                    >
+                        <img
+                            src={fullscreenImage}
+                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                            alt="Visualização"
+                        />
+                        <button
+                            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+                            onClick={() => setFullscreenImage(null)}
+                        >
+                            <X size={22} />
+                        </button>
+                    </div>
+                )}
             </div>
         </>
     );
