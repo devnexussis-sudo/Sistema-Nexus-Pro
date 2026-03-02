@@ -5,7 +5,7 @@ import {
     User, FileText, AlertCircle, Share2, Printer,
     ArrowRight, Lock, Signature as SignatureIcon, Send,
     Calendar, ShieldCheck, DollarSign, XCircle, Mail, Phone,
-    X, LoaderCircle as LoaderIcon
+    X, Loader2
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -526,13 +526,22 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
                         {/* Print button */}
                         <button
-                            onClick={() => {
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                                 const originalTitle = document.title;
-                                document.title = `Proposta-${quote.displayId || quote.id.slice(0, 8).toUpperCase()}`;
-                                window.print();
-                                document.title = originalTitle;
+                                const quoteId = quote.displayId || quote.id.slice(0, 8).toUpperCase();
+                                document.title = `Proposta-${quoteId}`;
+
+                                // Breve delay para garantir o render/title antes do disparador do sistema
+                                setTimeout(() => {
+                                    window.print();
+                                    // Restaura o título após a abertura do diálogo do SO
+                                    setTimeout(() => { document.title = originalTitle; }, 1000);
+                                }, 100);
                             }}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0 print:hidden"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0 print:hidden relative z-[60]"
                         >
                             <Printer size={14} />
                             <span className="hidden sm:inline">Imprimir PDF</span>
@@ -798,7 +807,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     onClick={handleConfirmReject}
                                     className="flex-[2] py-4 bg-rose-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 hover:bg-rose-700 transition-all hover:-translate-y-0.5"
                                 >
-                                    {isSubmitting ? <span className="animate-spin"><LoaderCircle size={16} /></span> : <><Send size={16} /> Enviar Recusa Oficial</>}
+                                    {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Enviar Recusa Oficial</>}
                                 </button>
                             </div>
                         </div>
@@ -878,7 +887,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     onClick={handleApprove}
                                     className="flex-[2] py-4 bg-emerald-600 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all hover:-translate-y-0.5"
                                 >
-                                    {isSubmitting ? <span className="animate-spin"><LoaderCircle size={16} /></span> : <><Send size={16} /> Assinar e Aprovar Online</>}
+                                    {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Assinar e Aprovar Online</>}
                                 </button>
                             </div>
                         </div>
