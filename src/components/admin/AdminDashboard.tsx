@@ -182,7 +182,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const mapIdToLabel = (id: string) => {
     if (!selectedTemplate) return id;
-    const field = selectedTemplate.fields?.find((f: any) => f.id === id);
+    const field = selectedTemplate.fields?.find((f: any) => f.id === id || f.label === id);
     return field ? field.label : id;
   };
 
@@ -870,15 +870,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
                           <Camera size={16} className="text-slate-400" /> {key}
                         </h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {groupedPhotos[key].map((p, i) => (
-                            <div
-                              key={i}
-                              className="aspect-[4/3] bg-slate-50 rounded-md border border-slate-200 overflow-hidden cursor-zoom-in relative group transition-all hover:border-primary-400"
-                              onClick={() => setFullscreenImage(p)}
-                            >
-                              <img src={p} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                              <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors" />
+                            <div key={i} className="flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm group hover:border-[#1c2d4f] transition-all">
+                              <div
+                                className="aspect-[4/3] bg-slate-50 cursor-zoom-in relative"
+                                onClick={() => setFullscreenImage(p)}
+                              >
+                                <img src={p} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors" />
+                              </div>
+                              <div className="p-3 bg-slate-50/50 border-t border-slate-100 flex-1 flex flex-col justify-between">
+                                <p className="text-[10px] leading-snug font-bold text-slate-700 uppercase tracking-tight line-clamp-2" title={key}>{key}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2 bg-slate-100 self-start px-2 py-0.5 rounded">Foto #{i + 1}</p>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -963,13 +968,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <p className="text-xs text-slate-500 mt-2 mb-8 font-medium">Protocolo de recebimento e satisfação de serviço</p>
 
                     {(() => {
-                      const data = selectedOrder.formData || {};
-                      const signature = data.signature || data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string' && (v.startsWith('data:') || v.startsWith('http')))?.[1];
-                      const name = data.signatureName || data['Assinatura do Cliente - Nome'] || selectedOrder.customerName;
+                      // Consolidação de todos os forms (OS e Visitas)
+                      const allForms: any[] = [];
+                      if (selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) {
+                        allForms.push(selectedOrder.formData);
+                      }
+                      orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
 
-                      return signature ? (
+                      let signatureUrl: string | null = null;
+                      let signatureRefName: string | null = null;
+
+                      // Pega a última assinatura válida registrada
+                      [...allForms].reverse().forEach(data => {
+                        if (!signatureUrl) {
+                          signatureUrl = data.signature || data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string' && (v.startsWith('data:') || v.startsWith('http')))?.[1];
+                          if (signatureUrl) {
+                            signatureRefName = data.signatureName || data['Assinatura do Cliente - Nome'] || selectedOrder.customerName;
+                          }
+                        }
+                      });
+
+                      const name = signatureRefName || selectedOrder.customerName;
+
+                      return signatureUrl ? (
                         <div className="w-full">
-                          <img src={signature} className="h-28 mx-auto object-contain mix-blend-multiply mb-6" alt="Assinatura" />
+                          <img src={signatureUrl} className="h-28 mx-auto object-contain mix-blend-multiply mb-6" alt="Assinatura" />
                           <div className="pt-6 border-t border-slate-100">
                             <div className="text-base font-bold text-slate-900">{name}</div>
                             <div className="text-[10px] text-emerald-600 font-bold uppercase mt-1">✓ Assinado Digitalmente</div>
