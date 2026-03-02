@@ -526,22 +526,13 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
                         {/* Print button */}
                         <button
-                            type="button"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
+                            onClick={() => {
                                 const originalTitle = document.title;
-                                const quoteId = quote.displayId || quote.id.slice(0, 8).toUpperCase();
-                                document.title = `Proposta-${quoteId}`;
-
-                                // Breve delay para garantir o render/title antes do disparador do sistema
-                                setTimeout(() => {
-                                    window.print();
-                                    // Restaura o título após a abertura do diálogo do SO
-                                    setTimeout(() => { document.title = originalTitle; }, 1000);
-                                }, 100);
+                                document.title = `Proposta-${quote.displayId || quote.id.slice(0, 8).toUpperCase()}`;
+                                window.print();
+                                document.title = originalTitle;
                             }}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0 print:hidden relative z-[60]"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0 print:hidden"
                         >
                             <Printer size={14} />
                             <span className="hidden sm:inline">Imprimir PDF</span>
@@ -952,7 +943,4 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     );
 };
 
-// Componente auxiliar local para Loader que não existia no Lucide import base
-const LoaderCircle = ({ size }: { size: number }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-);
+export default PublicQuoteView;
