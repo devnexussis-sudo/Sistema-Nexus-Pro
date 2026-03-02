@@ -42,14 +42,7 @@ const AppRoutes: React.FC = () => {
     }
   }, [auth.isAuthenticated, auth.user, isSuperMode]);
 
-  if (isInitializing) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center">
-        <div className="w-14 h-14 rounded-full border-[3px] border-white/10 border-t-white animate-spin"></div>
-        <p className="mt-5 text-white/70 text-[10px] font-black uppercase tracking-[0.3em]">Carregando Nexus Pro...</p>
-      </div>
-    );
-  }
+  // Rendeiza logo a UI, confiando no splashscreen do index.html para cobrir o carregamento inicial
 
   return (
     <Routes>
