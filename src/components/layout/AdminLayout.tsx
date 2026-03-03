@@ -18,6 +18,7 @@ import { ResilienceIndicator } from '../ResilienceIndicator';
 interface AdminLayoutProps {
     children: React.ReactNode;
     user: User | null;
+    tenant: any | null;
     isImpersonating: boolean;
     onLogout: () => void;
     systemNotifications: any[];
@@ -26,7 +27,7 @@ interface AdminLayoutProps {
 }
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
-    children, user, isImpersonating, onLogout, systemNotifications, onToggleSidebar, isSidebarCollapsed
+    children, user, tenant, isImpersonating, onLogout, systemNotifications, onToggleSidebar, isSidebarCollapsed
 }) => {
     const location = useLocation();
     const [showInbox, setShowInbox] = useState(false);
@@ -76,7 +77,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm shrink-0 border-b border-slate-200">
                 <div className="flex items-center">
                     <div className={`${isSidebarCollapsed ? 'w-16 justify-center' : 'w-52 justify-center'} transition-all duration-300 ease-in-out flex items-center overflow-hidden`}>
-                        <NexusBranding variant="dark" size="lg" className="h-12" />
+                        <NexusBranding
+                            variant="dark"
+                            size="lg"
+                            className="h-12"
+                            logoUrl={tenant?.logo_url || tenant?.logoUrl}
+                            companyName={tenant?.company_name || tenant?.name}
+                        />
                     </div>
 
                     <div className="flex items-center gap-6 border-l border-slate-100 pl-6 h-8 ml-4">

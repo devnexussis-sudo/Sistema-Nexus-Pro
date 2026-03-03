@@ -5,13 +5,17 @@ interface NexusBrandingProps {
     size?: 'sm' | 'md' | 'lg';
     showText?: boolean;
     variant?: 'light' | 'dark'; // 'light' para fundos escuros (logo branca), 'dark' para fundos claros (logo azul)
+    logoUrl?: string;
+    companyName?: string;
 }
 
 export const NexusBranding: React.FC<NexusBrandingProps> = ({
     className = '',
     size = 'md',
     showText = true,
-    variant = 'dark'
+    variant = 'dark',
+    logoUrl,
+    companyName = 'Nexus Line'
 }) => {
     const [imageLoaded, setImageLoaded] = React.useState(false);
 
@@ -27,8 +31,8 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
         <div className={`flex items-center gap-2.5 ${className}`}>
             <div className="flex items-center justify-center shrink-0">
                 <img
-                    src="/nexus-logo.png"
-                    alt="Nexus Line"
+                    src={logoUrl || "/nexus-logo.png"}
+                    alt={companyName}
                     style={{ height: current.heightPx, width: 'auto', maxWidth: '160px' }}
                     className="object-contain"
                     onLoad={() => setImageLoaded(true)}

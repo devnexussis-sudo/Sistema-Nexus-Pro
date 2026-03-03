@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { DataService } from '../../services/dataService';
+import { NexusQueryClient } from '../../hooks/nexusHooks';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
@@ -271,6 +272,9 @@ export const SettingsPage: React.FC = () => {
       console.log("Save Success - DB Response:", result);
 
       if (result) {
+        // Invalida cache global para atualizar logo no AdminLayout
+        NexusQueryClient.invalidateTenant();
+
         // Atualiza o estado local com o que REALMENTE foi salvo no banco
         setCompany(prev => ({
           ...prev,
