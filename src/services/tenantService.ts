@@ -47,7 +47,7 @@ export const TenantService = {
         return [];
     },
 
-    getTenantById: async (id?: string | null): Promise<DbTenant | null> => {
+    getTenantById: async (id?: string | null, signal?: AbortSignal): Promise<DbTenant | null> => {
         if (isCloudEnabled) {
             const tid = id || getCurrentTenantId();
 
@@ -59,6 +59,7 @@ export const TenantService = {
                         .from('tenants')
                         .select('*')
                         .limit(1)
+                        .abortSignal(signal)
                         .maybeSingle();
 
                     if (error) {
@@ -78,6 +79,7 @@ export const TenantService = {
                     .from('tenants')
                     .select('*')
                     .eq('id', tid)
+                    .abortSignal(signal)
                     .single();
 
                 if (error) {

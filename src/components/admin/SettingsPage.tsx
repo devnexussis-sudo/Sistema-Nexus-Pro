@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { DataService } from '../../services/dataService';
-import { NexusQueryClient } from '../../hooks/nexusHooks';
+import { NexusQueryClient, useTenant } from '../../hooks/nexusHooks';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
@@ -9,7 +9,7 @@ import {
   ShieldCheck, Briefcase, Hash, CreditCard, Settings,
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
   ShieldAlert, Terminal, X, UploadCloud, Languages,
-  BellRing, Database, History, HardDrive, Loader2
+  BellRing, Database, History, HardDrive, Loader2, Loader
 } from 'lucide-react';
 
 interface CompanyData {
@@ -84,59 +84,45 @@ export const SettingsPage: React.FC = () => {
 
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
 
-  const loadSettingsData = async () => {
-    const tenantId = DataService.getCurrentTenantId();
-    console.log("[Settings] Iniciando sincronização. Tenant ID:", tenantId);
+  // 📡 Nexus Resilient Hook (Big Tech standard)
+  const { data: data, isLoading: tenantLoading } = useTenant();
 
-    if (!tenantId) {
-      console.warn("[Settings] Nenhum Tenant ID encontrado.");
-      return;
+  // Sincroniza estado local com dados do banco quando carregados
+  useEffect(() => {
+    if (data) {
+      console.log("[Settings] Sincronizando com dados do banco:", data);
+
+      setCompany({
+        name: data.company_name || data.name || '',
+        tradingName: data.trading_name || data.tradingName || data.name || '',
+        cnpj: data.cnpj || data.document || '',
+        stateRegistration: data.state_registration || data.ie || data.stateRegistration || 'ISENTO',
+        email: data.admin_email || data.email || data.adminEmail || '',
+        phone: data.phone || '',
+        website: data.website || '',
+        address: data.address || data.street || '',
+        number: data.number || (data as any).metadata?.number || '',
+        complement: data.complement || (data as any).metadata?.complement || '',
+        street: data.street || (data as any).metadata?.street || '',
+        neighborhood: data.neighborhood || (data as any).metadata?.neighborhood || '',
+        city: data.city || (data as any).metadata?.city || '',
+        state: data.state || (data as any).metadata?.state || '',
+        zip: data.cep || (data as any).metadata?.cep || data.zip || '',
+        logoUrl: data.logo_url || data.logoUrl || undefined
+      });
+
+      const osPref = data.os_prefix || data.osPrefix || 'OS-';
+      const osStart = Number(data.os_start_number || data.osStartNumber || 1000);
+
+      setParams(prev => ({
+        ...prev,
+        osPrefix: osPref,
+        osInitialNumber: osStart
+      }));
+
+      setDbInfo({ slug: data.slug || '', id: data.id });
     }
-
-    try {
-      setLoading(true);
-      const data = await DataService.getTenantById(tenantId);
-      console.log("[Settings] Dados brutos do banco:", data);
-
-      if (data) {
-        // Mapeamento robusto Big Tech: Suporta snake_case (DB) e camelCase (Legacy/SuperAdmin)
-        setCompany({
-          name: data.company_name || data.name || '',
-          tradingName: data.trading_name || data.tradingName || data.name || '',
-          cnpj: data.cnpj || data.document || '',
-          stateRegistration: data.state_registration || data.ie || data.stateRegistration || 'ISENTO',
-          email: data.admin_email || data.email || data.adminEmail || '',
-          phone: data.phone || '',
-          website: data.website || '',
-          address: data.address || data.street || '',
-          // Sincronização de campos individuais salvos no SuperAdmin ou via Coluna/Metadata
-          number: data.number || (data as any).metadata?.number || '',
-          complement: data.complement || (data as any).metadata?.complement || '',
-          street: data.street || (data as any).metadata?.street || '',
-          neighborhood: data.neighborhood || (data as any).metadata?.neighborhood || '',
-          city: data.city || (data as any).metadata?.city || '',
-          state: data.state || (data as any).metadata?.state || '',
-          zip: data.cep || (data as any).metadata?.cep || data.zip || '',
-          logoUrl: data.logo_url || data.logoUrl || undefined
-        });
-
-        const osPref = data.os_prefix || data.osPrefix || 'OS-';
-        const osStart = Number(data.os_start_number || data.osStartNumber || 1000);
-
-        setParams(prev => ({
-          ...prev,
-          osPrefix: osPref,
-          osInitialNumber: osStart
-        }));
-
-        setDbInfo({ slug: data.slug || '', id: data.id });
-      }
-    } catch (e) {
-      console.error("[Settings] Erro crítico na comunicação com o banco:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [data]);
 
   const [isSearchingCep, setIsSearchingCep] = useState(false);
 
@@ -159,9 +145,8 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    loadSettingsData();
-  }, []);
+  // O useEffect vazio para loadSettingsData foi removido 
+  // pois agora usamos o hook useTenant para carga automática e resiliente.
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -320,6 +305,17 @@ export const SettingsPage: React.FC = () => {
   const formatCEP = (value: string) => {
     return value.replace(/\D/g, '').replace(/^(\d{5})(\d)/, '$1-$2').slice(0, 9);
   };
+
+  if (tenantLoading) {
+    return (
+      <div className="flex h-full items-center justify-center bg-slate-50/20">
+        <div className="flex flex-col items-center gap-4 animate-pulse">
+          <Loader2 className="animate-spin text-primary-500" size={40} strokeWidth={1.5} />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">Sincronizando Nexus...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-2 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in">
