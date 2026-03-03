@@ -84,13 +84,33 @@ class TenantContextManager {
             // para rotas públicas (ex: /view-quote/?tid=xxx) onde é legítimo.
             const isPublicRoute = window.location.hash.startsWith('#/view/') ||
                 window.location.hash.startsWith('#/view-quote/');
-            if (isPublicRoute) {
-                const urlParams = new URLSearchParams(window.location.search);
-                const urlTid = urlParams.get('tid');
-                if (urlTid) {
-                    // NÃO cachear — é efêmero
-                    return urlTid;
+            // 2. URL Parameter (v7 logic) - Suporta Search e Hash (Importante para HashRouter)
+            const getParam = (name: string) => {
+                const searchParams = new URLSearchParams(window.location.search);
+                if (searchParams.has(name)) return searchParams.get(name);
+
+                // Fallback para HashRouter: extrai params do hash (ex: #/admin?tid=xxx)
+                const hash = window.location.hash;
+                const hashParts = hash.split('?');
+                if (hashParts.length > 1) {
+                    const hashSearchParams = new URLSearchParams(hashParts[1]);
+                    return hashSearchParams.get(name);
                 }
+                return null;
+            };
+
+            // 5. URL Parameter (v7 logic) - Suporta Search e Hash (Importante para HashRouter)
+            // Agora permitimos fallback para URL se chegarmos aqui sem ter encontrado tid na sessão,
+            // ou se for uma rota pública.
+            const tidFromUrl = getParam('tid') || getParam('tenantId') || getParam('tenant');
+            if (tidFromUrl && tidFromUrl !== 'undefined' && tidFromUrl !== 'null') {
+                console.log('[TenantContext] 🔗 TenantID extraído da URL (Fallback):', tidFromUrl);
+                // Se NÃO estamos em rota pública e encontramos tid na URL, podemos cachear
+                // para evitar re-análise constante do hash.
+                if (!isPublicRoute) {
+                    this.cachedTenantId = tidFromUrl;
+                }
+                return tidFromUrl;
             }
 
             return undefined;

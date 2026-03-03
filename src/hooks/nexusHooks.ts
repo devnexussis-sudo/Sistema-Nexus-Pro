@@ -237,11 +237,12 @@ export const useActivationRules = (enabled = true) => {
 
 export const useTenant = (enabled = true) => {
     const tid = DataService.getCurrentTenantId();
-    return useQuery(['current_tenant', tid], (signal) => {
-        if (!tid) return Promise.resolve(null);
+    // Se tid for nulo/indefinido, o useQuery usará "default" na chave e chamará o service.
+    // O TenantService.getTenantById(null) já tem lógica para buscar o primeiro disponível como fallback.
+    return useQuery(['current_tenant', tid || 'default'], (signal) => {
         return TenantService.getTenantById(tid, signal);
     }, {
-        enabled: enabled && !!tid,
+        enabled,
         staleTime: 1000 * 60 * 60 // 1 hour (rarely changes)
     });
 };

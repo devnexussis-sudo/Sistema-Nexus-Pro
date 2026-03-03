@@ -85,12 +85,12 @@ export const SettingsPage: React.FC = () => {
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
 
   // 📡 Nexus Resilient Hook (Big Tech standard)
-  const { data: data, isLoading: tenantLoading } = useTenant();
+  const { data: data, isLoading: tenantLoading, isError: tenantError, error: queryError, refetch: refetchTenant } = useTenant();
 
   // Sincroniza estado local com dados do banco quando carregados
   useEffect(() => {
     if (data) {
-      console.log("[Settings] Sincronizando com dados do banco:", data);
+      console.log("[Settings] 📡 Nexus Sync: Sucesso!", data);
 
       setCompany({
         name: data.company_name || data.name || '',
@@ -121,8 +121,10 @@ export const SettingsPage: React.FC = () => {
       }));
 
       setDbInfo({ slug: data.slug || '', id: data.id });
+    } else if (!tenantLoading && !data) {
+      console.warn("[Settings] ⚠️ Nexus Sync: Dados retornados nulos ou indefinidos.");
     }
-  }, [data]);
+  }, [data, tenantLoading]);
 
   const [isSearchingCep, setIsSearchingCep] = useState(false);
 
@@ -305,6 +307,43 @@ export const SettingsPage: React.FC = () => {
   const formatCEP = (value: string) => {
     return value.replace(/\D/g, '').replace(/^(\d{5})(\d)/, '$1-$2').slice(0, 9);
   };
+
+  if (tenantError || (!tenantLoading && !data)) {
+    return (
+      <div className="flex h-full items-center justify-center bg-slate-50/20 p-8">
+        <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-2xl border border-red-50 text-center space-y-6">
+          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto text-red-500">
+            <ShieldAlert size={40} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Erro de Sincronização</h2>
+            <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
+              Não conseguimos identificar os dados da sua organização. Isso pode ser uma falha momentânea de conexão ou permissão.
+            </p>
+            {queryError && (
+              <p className="text-red-400 text-[9px] font-mono bg-red-50/50 p-2 rounded-lg mt-2">
+                {queryError.message}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={() => refetchTenant()}
+              className="w-full bg-[#1c2d4f] text-white rounded-2xl py-4 font-black uppercase tracking-widest text-[10px]"
+            >
+              Tentar Novamente
+            </Button>
+            <button
+              onClick={() => { localStorage.clear(); window.location.reload(); }}
+              className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 underline"
+            >
+              Limpar Cache e Reiniciar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (tenantLoading) {
     return (
