@@ -5,7 +5,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Nexus Pro</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <!-- Favicon System v2 - Cache Busting via Unique Identifier -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2026.03.02.23" />
+  <link rel="alternate icon" type="image/png" href="/favicon.png?v=2026.03.02.23" />
+  <link rel="apple-touch-icon" href="/pwa-icon.png?v=2026.03.02.23" />
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <meta name="theme-color" content="#0f172a">
@@ -80,9 +83,9 @@
 
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for(let registration of registrations) {
-          registration.unregister().then(function(boolean) {
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        for (let registration of registrations) {
+          registration.unregister().then(function (boolean) {
             console.log('Service worker unregistered:', boolean);
           });
         }
