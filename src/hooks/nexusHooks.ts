@@ -236,12 +236,12 @@ export const useActivationRules = (enabled = true) => {
 };
 
 export const useTenant = (enabled = true) => {
-    return useQuery('current_tenant', async (signal) => {
-        const tid = DataService.getCurrentTenantId();
-        if (!tid) return null;
+    const tid = DataService.getCurrentTenantId();
+    return useQuery(['current_tenant', tid], (signal) => {
+        if (!tid) return Promise.resolve(null);
         return TenantService.getTenantById(tid, signal);
     }, {
-        enabled,
+        enabled: enabled && !!tid,
         staleTime: 1000 * 60 * 60 // 1 hour (rarely changes)
     });
 };
