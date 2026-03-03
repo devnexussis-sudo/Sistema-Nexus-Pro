@@ -124,7 +124,7 @@ export const ResetPassword: React.FC = () => {
             <div className="w-full max-w-sm space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
                 <div className="text-center space-y-4">
                     <div className="inline-flex p-4 bg-white rounded-3xl shadow-xl border border-white mb-2">
-                        <img src="/nexus-logo.png" alt="Nexus Logo" className="h-10 w-auto" />
+                        <img src="/nexus-logo.png" alt="Nexus Logo" className="h-10 w-auto max-w-[140px] object-contain" />
                     </div>
                     <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Nova Senha</h1>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Crie sua nova credencial de acesso</p>
