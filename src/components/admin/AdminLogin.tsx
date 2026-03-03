@@ -128,14 +128,14 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
             <div className="w-full md:w-[40%] flex flex-col items-center justify-center p-8 bg-white relative">
                 {/* Logo Flutuante no Topo (Mobile) */}
                 <div className="md:hidden mb-10">
-                    <img src="/nexus-logo.png" alt="Nexus Logo" className="h-12 w-auto" />
+                    <img src="/nexus-logo.png" alt="Nexus Logo" className="h-10 w-auto max-w-[140px] object-contain" />
                 </div>
 
                 <div className="w-full max-w-sm space-y-10">
                     {/* Logo Destacada (Desktop) */}
                     <div className="hidden md:flex flex-col items-center mb-4">
                         <div className="p-6 bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-50 mb-8 transition-transform hover:scale-105 duration-500">
-                            <img src="/nexus-logo.png" alt="Nexus Logo" className="h-20 w-auto" />
+                            <img src="/nexus-logo.png" alt="Nexus Logo" className="h-16 w-auto max-w-[180px] object-contain" />
                         </div>
                         <div className="text-center">
                             <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
