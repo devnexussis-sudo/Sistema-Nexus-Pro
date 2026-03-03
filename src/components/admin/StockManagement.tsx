@@ -466,9 +466,9 @@ export const StockManagement: React.FC = () => {
     };
 
     return (
-        <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+        <div className="p-4 pr-8 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
             {/* Toolbar Externa */}
-            <div className="mb-4 flex flex-wrap lg:flex-nowrap gap-4 items-center justify-between">
+            <div className="mb-4 flex flex-wrap lg:flex-nowrap gap-4 items-center justify-between pr-2">
                 {/* Tabs */}
                 <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm shrink-0 overflow-x-auto max-w-full">
                     <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
