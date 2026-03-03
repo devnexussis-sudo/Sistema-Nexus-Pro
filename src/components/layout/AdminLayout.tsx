@@ -76,13 +76,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             {/* Header Global */}
             <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm shrink-0 border-b border-slate-200">
                 <div className="flex items-center">
-                    <div className={`${isSidebarCollapsed ? 'w-16 justify-center' : 'w-52 justify-center'} transition-all duration-300 ease-in-out flex items-center overflow-hidden`}>
+                    <div className={`${isSidebarCollapsed ? 'w-16 justify-center' : 'w-52 justify-start pl-6'} transition-all duration-300 ease-in-out flex items-center overflow-hidden`}>
                         <NexusBranding
                             variant="dark"
                             size="lg"
                             className="h-12"
-                            logoUrl={tenant?.logo_url || tenant?.logoUrl}
-                            companyName={tenant?.company_name || tenant?.name}
                         />
                     </div>
 
