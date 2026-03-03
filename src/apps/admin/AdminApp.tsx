@@ -33,6 +33,7 @@ import {
     useForms,
     useServiceTypes,
     useActivationRules,
+    useTenant,
     NexusQueryClient
 } from '../../hooks/nexusHooks';
 import { useDashboardSummary } from '../../hooks/useDashboardSummary';
@@ -206,12 +207,16 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const { data: forms = [], isLoading: formsLoading, refetch: formsRefetch } = useForms(!!auth.isAuthenticated && needsForms);
     const { data: serviceTypes = [], isLoading: typesLoading, refetch: typesRefetch } = useServiceTypes(!!auth.isAuthenticated && needsForms);
     const { data: activationRules = [], isLoading: rulesLoading, refetch: rulesRefetch } = useActivationRules(!!auth.isAuthenticated && needsForms);
+    const { data: tenantData } = useTenant(!!auth.isAuthenticated);
 
     const isFetchingAny = summaryLoading || oLoading || cLoading || qLoading || tLoading || custLoading || eLoading || sLoading || statsLoading || usersLoading || groupsLoading || formsLoading || typesLoading || rulesLoading;
 
     // 🔄 Force Refresh
     const fetchGlobalData = async () => {
-        if (isDashboard) await NexusQueryClient.invalidateAll();
+        if (isDashboard) {
+            await NexusQueryClient.invalidateAll();
+            await NexusQueryClient.invalidateTenant();
+        }
         if (needsFullOrders) await oRefetch();
         if (needsContracts) await cRefetch();
         if (needsQuotes) await qRefetch();
@@ -238,6 +243,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     return (
         <AdminLayout
             user={auth.user}
+            tenant={tenantData}
             isImpersonating={isImpersonating}
             onLogout={onLogout}
             systemNotifications={systemNotifications}
