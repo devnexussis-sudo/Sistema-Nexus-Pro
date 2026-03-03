@@ -1,19 +1,21 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { OrderStatus, OrderPriority, type ServiceOrder, type User, type Customer } from '../../types';
+import { OrderStatus, OrderPriority, type ServiceOrder, type ServiceVisit, type User, type Customer, VisitStatusEnum } from '../../types';
 import { Button } from '../ui/Button';
 import { StatusBadge, PriorityBadge } from '../ui/StatusBadge';
 import {
   Plus, Printer, X, FileText, CheckCircle2, ShieldCheck,
-  Edit3, ExternalLink, Search, Filter, Calendar, Share2,
+  Edit3, Save, ExternalLink, Search, Filter, Calendar, Share2,
   Users, UserCheck, Clock, FileSpreadsheet, Download, Camera, ClipboardList, Ban, MapPin, Box,
   DollarSign, Eye, EyeOff, LayoutDashboard, User as UserIcon, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  Loader2
+  Loader2, CalendarPlus, History
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { CreateOrderModal } from './CreateOrderModal';
 import { PublicOrderView } from '../public/PublicOrderView';
 import { OrderTimeline } from '../shared/OrderTimeline';
+import { VisitHistoryTab } from './VisitHistoryTab';
+import { VisitService } from '../../services/visitService';
 import { createPortal } from 'react-dom';
 import { DataService } from '../../services/dataService';
 import { useOrderExport } from '../../hooks/useOrderExport';
@@ -44,9 +46,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit' | 'costs' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [orderVisits, setOrderVisits] = useState<any[]>([]);
+
+  // ── Edição Inline ──────────────────────────────────────────────
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState<Partial<ServiceOrder>>({});
+  const [editLoading, setEditLoading] = useState(false);
+
+  // ── Aba Visitas ────────────────────────────────────────────────
+  const [visits, setVisits] = useState<ServiceVisit[]>([]);
+  const [visitsLoading, setVisitsLoading] = useState(false);
+  const [showNewVisitForm, setShowNewVisitForm] = useState(false);
+  const [newVisitDraft, setNewVisitDraft] = useState({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' });
+  const [savingVisit, setSavingVisit] = useState(false);
   // Sort: campo e direção — passados para o servidor
   const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
@@ -157,9 +171,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   useEffect(() => {
     if (selectedOrder) {
+      // Reset estados de edição ao abrir nova OS
+      setIsEditing(false);
+      setEditDraft({});
+      setActiveTab('overview');
+      setShowNewVisitForm(false);
+
       import('../../services/orderService').then(mod => {
-        mod.OrderService.getOrderVisits(selectedOrder.id).then(visits => {
-          setOrderVisits(visits);
+        mod.OrderService.getOrderVisits(selectedOrder.id).then(v => {
+          setOrderVisits(v);
         });
       });
 
@@ -177,8 +197,87 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } else {
       setOrderVisits([]);
       setSelectedTemplate(null);
+      setIsEditing(false);
+      setEditDraft({});
     }
   }, [selectedOrder]);
+
+  // Refresh de visitas quando a aba é aberta
+  useEffect(() => {
+    if (activeTab === 'visits' && selectedOrder) {
+      setVisitsLoading(true);
+      VisitService.getVisitsByOrderId(selectedOrder.id)
+        .then(setVisits)
+        .finally(() => setVisitsLoading(false));
+    }
+  }, [activeTab, selectedOrder]);
+
+  const handleStartEdit = () => {
+    if (!selectedOrder) return;
+    setEditDraft({
+      title: selectedOrder.title,
+      description: selectedOrder.description,
+      customerName: selectedOrder.customerName,
+      customerAddress: selectedOrder.customerAddress,
+      scheduledDate: selectedOrder.scheduledDate,
+      scheduledTime: selectedOrder.scheduledTime,
+      notes: selectedOrder.notes,
+      priority: selectedOrder.priority,
+      operationType: selectedOrder.operationType,
+    });
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditDraft({});
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedOrder) return;
+    setEditLoading(true);
+    try {
+      const updated = { ...selectedOrder, ...editDraft } as ServiceOrder;
+      await onEditOrder(updated);
+      setSelectedOrder(updated);
+      setIsEditing(false);
+      setEditDraft({});
+      ordersRefetch();
+    } catch (e: any) {
+      alert(`Erro ao salvar: ${e.message}`);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleCreateVisit = async () => {
+    if (!selectedOrder || !newVisitDraft.technicianId || !newVisitDraft.scheduledDate) {
+      alert('Selecione o técnico e a data.');
+      return;
+    }
+    setSavingVisit(true);
+    try {
+      await VisitService.createNewVisit({
+        orderId: selectedOrder.id,
+        orderStatus: selectedOrder.status,
+        technicianId: newVisitDraft.technicianId,
+        scheduledDate: newVisitDraft.scheduledDate,
+        scheduledTime: newVisitDraft.scheduledTime,
+        notes: newVisitDraft.notes,
+      });
+      setShowNewVisitForm(false);
+      setNewVisitDraft({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' });
+      // Refresh lista
+      const updated = await VisitService.getVisitsByOrderId(selectedOrder.id);
+      setVisits(updated);
+      ordersRefetch();
+    } catch (e: any) {
+      const msg = (e.message || '').startsWith('INVALID_') ? e.message.split(': ')[1] : e.message;
+      alert(msg || 'Erro ao criar visita.');
+    } finally {
+      setSavingVisit(false);
+    }
+  };
 
   const mapIdToLabel = (id: string) => {
     if (!selectedTemplate) return id;
@@ -541,53 +640,100 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-white rounded-xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
 
-            {/* HEADER - SaaS Style */}
-            <div className="px-6 py-5 border-b border-slate-100 bg-white flex justify-between items-center shrink-0">
+            {/* HEADER */}
+            <div className={`px-6 py-5 border-b border-slate-100 flex justify-between items-center shrink-0 transition-colors ${isEditing ? 'bg-amber-50' : 'bg-white'}`}>
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 border border-slate-200">
-                  <FileText size={20} />
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-colors ${isEditing ? 'bg-amber-100 border-amber-200 text-amber-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                  {isEditing ? <Edit3 size={18} /> : <FileText size={20} />}
                 </div>
                 <div>
                   <div className="flex items-center gap-3">
                     <h2 className="text-base font-bold text-slate-900">Ordem de Serviço #{selectedOrder.displayId || selectedOrder.id}</h2>
                     <StatusBadge status={selectedOrder.status} />
+                    {isEditing && (
+                      <span className="text-[10px] font-black text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
+                        Modo Edição
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    {selectedOrder.customerName} • {selectedOrder.customerAddress}
+                    {isEditing ? (editDraft.customerName || selectedOrder.customerName) : selectedOrder.customerName} • {isEditing ? (editDraft.customerAddress || selectedOrder.customerAddress) : selectedOrder.customerAddress}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handlePrintOrder(selectedOrder.id)}
-                  className="h-9 px-4 gap-2"
-                >
-                  <Printer size={14} /> Imprimir PDF
-                </Button>
+                {/* Botões de edição — só aparecem se OS não estiver concluída/cancelada */}
+                {!isEditing && selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleStartEdit}
+                    className="h-9 px-4 gap-2"
+                  >
+                    <Edit3 size={14} /> Editar
+                  </Button>
+                )}
+
+                {isEditing && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelEdit}
+                      disabled={editLoading}
+                      className="h-9 px-4 gap-2 text-slate-500"
+                    >
+                      <X size={14} /> Cancelar
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleSaveEdit}
+                      disabled={editLoading}
+                      className="h-9 px-5 gap-2 bg-primary-600 hover:bg-primary-700 shadow-md shadow-primary-500/20"
+                    >
+                      {editLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      Salvar
+                    </Button>
+                  </>
+                )}
+
+                {!isEditing && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handlePrintOrder(selectedOrder.id)}
+                    className="h-9 px-4 gap-2"
+                  >
+                    <Printer size={14} /> Imprimir PDF
+                  </Button>
+                )}
                 <div className="h-6 w-px bg-slate-200 mx-2"></div>
-                <button onClick={() => setSelectedOrder(null)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                <button onClick={() => { setSelectedOrder(null); setIsEditing(false); }} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                   <X size={20} />
                 </button>
               </div>
             </div>
 
-            {/* TABS - Modern SaaS Style */}
+            {/* TABS */}
             <div className="px-6 border-b border-slate-100 bg-white flex gap-6 shrink-0 overflow-x-auto">
               {[
                 { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
                 { id: 'execution', label: 'Checklist', icon: ClipboardList },
                 { id: 'media', label: 'Galeria', icon: Camera },
                 { id: 'costs', label: 'Peças e Custos', icon: DollarSign },
-                { id: 'history', label: 'Histórico', icon: Clock },
+                { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
+                { id: 'history', label: 'Histórico', icon: History },
                 { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 py-4 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id ? 'border-primary-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                  onClick={() => !isEditing && setActiveTab(tab.id as any)}
+                  disabled={isEditing}
+                  className={`flex items-center gap-2 py-4 text-xs font-semibold border-b-2 transition-all whitespace-nowrap
+                    ${activeTab === tab.id ? 'border-primary-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}
+                    ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <tab.icon size={15} /> {tab.label}
                 </button>
@@ -603,49 +749,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Left Column: Details */}
                   <div className="col-span-12 lg:col-span-8 space-y-6">
                     {/* Info Card Grid */}
-                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                    <div className={`bg-white p-6 rounded-lg border shadow-sm transition-all ${isEditing ? 'border-amber-200 ring-2 ring-amber-100' : 'border-slate-200'}`}>
                       <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
                         <UserIcon size={18} className="text-slate-400" /> Informações do Cliente
+                        {isEditing && <span className="text-[9px] font-black text-amber-500 bg-amber-50 px-2 py-0.5 rounded uppercase tracking-widest ml-auto">Editável</span>}
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cliente / Razão Social</label>
-                          <div className="text-sm font-semibold text-slate-900">{selectedOrder.customerName}</div>
+                          {isEditing
+                            ? <input className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-amber-300 transition-all" value={editDraft.customerName ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerName: e.target.value }))} />
+                            : <div className="text-sm font-semibold text-slate-900">{selectedOrder.customerName}</div>
+                          }
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Endereço de Atendimento</label>
-                          <div className="text-sm text-slate-600 font-medium leading-relaxed">{selectedOrder.customerAddress || 'Não informado'}</div>
+                          {isEditing
+                            ? <input className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
+                            : <div className="text-sm text-slate-600 font-medium leading-relaxed">{selectedOrder.customerAddress || 'Não informado'}</div>
+                          }
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Contato Principal</label>
-                          <div className="text-sm text-slate-600 font-medium">Não informado</div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Data de Agendamento</label>
+                          {isEditing
+                            ? <input type="date" className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all" value={editDraft.scheduledDate ?? ''} onChange={e => setEditDraft(d => ({ ...d, scheduledDate: e.target.value }))} />
+                            : <div className="text-sm text-slate-600 font-medium">{formatDateDisplay(selectedOrder.scheduledDate)}</div>
+                          }
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Documento</label>
-                          <div className="text-sm text-slate-600 font-medium font-mono text-xs">Não informado</div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Horário Previsto</label>
+                          {isEditing
+                            ? <input type="time" className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all" value={editDraft.scheduledTime ?? ''} onChange={e => setEditDraft(d => ({ ...d, scheduledTime: e.target.value }))} />
+                            : <div className="text-sm text-slate-600 font-medium font-mono">{selectedOrder.scheduledTime || '--:--'}</div>
+                          }
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                    <div className={`bg-white p-6 rounded-lg border shadow-sm transition-all ${isEditing ? 'border-amber-200 ring-2 ring-amber-100' : 'border-slate-200'}`}>
                       <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
                         <FileText size={18} className="text-slate-400" /> Relatório de Atendimento
                       </h3>
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Descrição das Atividades</label>
-                          <div className="p-4 bg-slate-50/50 rounded-md border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[120px] font-medium">
-                            {selectedOrder.description || "Nenhuma observação técnica registrada."}
-                          </div>
+                          {isEditing
+                            ? <textarea rows={5} className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-amber-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
+                            : <div className="p-4 bg-slate-50/50 rounded-md border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[120px] font-medium">{selectedOrder.description || "Nenhuma observação técnica registrada."}</div>
+                          }
                         </div>
-                        {selectedOrder.notes && (
-                          <div className="p-4 bg-primary-50 border border-primary-100 rounded-md">
-                            <label className="text-[11px] font-bold text-[#1c2d4f] uppercase tracking-wider flex items-center gap-2 mb-2">
-                              <ShieldCheck size={14} /> Notas de Encerramento
-                            </label>
-                            <p className="text-sm font-medium text-slate-700 leading-relaxed">{selectedOrder.notes}</p>
-                          </div>
-                        )}
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Notas Internas</label>
+                          {isEditing
+                            ? <textarea rows={3} className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-amber-300 transition-all resize-none" placeholder="Notas opcionais..." value={editDraft.notes ?? ''} onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))} />
+                            : selectedOrder.notes && (
+                              <div className="p-4 bg-primary-50 border border-primary-100 rounded-md">
+                                <label className="text-[11px] font-bold text-[#1c2d4f] uppercase tracking-wider flex items-center gap-2 mb-2">
+                                  <ShieldCheck size={14} /> Notas de Encerramento
+                                </label>
+                                <p className="text-sm font-medium text-slate-700 leading-relaxed">{selectedOrder.notes}</p>
+                              </div>
+                            )
+                          }
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1008,10 +1174,189 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
 
-              {/* TAB: HISTÓRICO */}
+              {/* TAB: VISITAS — Gestão ativa */}
+              {activeTab === 'visits' && (
+                <div className="max-w-4xl mx-auto space-y-6">
+
+                  {/* Cabeçalho da aba */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">
+                        {visits.length > 0 ? `${visits.length} ${visits.length === 1 ? 'visita registrada' : 'visitas registradas'}` : 'Nenhuma visita registrada'}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">Agendamento e gestão de visitas técnicas desta OS</p>
+                    </div>
+
+                    {/* Botão Nova Visita — Design System Primário */}
+                    {selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => setShowNewVisitForm(v => !v)}
+                        disabled={!(
+                          visits.length === 0 ||
+                          visits[visits.length - 1]?.status === VisitStatusEnum.PAUSED ||
+                          visits[visits.length - 1]?.status === VisitStatusEnum.BLOCKED
+                        )}
+                        title={visits.length > 0 && visits[visits.length - 1]?.status !== VisitStatusEnum.PAUSED && visits[visits.length - 1]?.status !== VisitStatusEnum.BLOCKED
+                          ? 'A última visita deve estar pausada ou impedida para criar uma nova.'
+                          : 'Agendar nova visita'
+                        }
+                        className="h-9 px-5 gap-2 bg-primary-600 hover:bg-primary-700 shadow-md shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                      >
+                        <Plus size={15} /> Nova Visita
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Formulário de nova visita (inline) */}
+                  {showNewVisitForm && (
+                    <div className="bg-white border border-primary-200 rounded-xl shadow-sm p-6 space-y-4 animate-in fade-in slide-in-from-top-2">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-primary-700">Agendar Nova Visita</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase">Técnico Responsável *</label>
+                          <select
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all bg-white"
+                            value={newVisitDraft.technicianId}
+                            onChange={e => setNewVisitDraft(d => ({ ...d, technicianId: e.target.value }))}
+                          >
+                            <option value="">Selecionar técnico...</option>
+                            {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase">Data de Agendamento *</label>
+                          <input
+                            type="date"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                            value={newVisitDraft.scheduledDate}
+                            onChange={e => setNewVisitDraft(d => ({ ...d, scheduledDate: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase">Horário (opcional)</label>
+                          <input
+                            type="time"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                            value={newVisitDraft.scheduledTime}
+                            onChange={e => setNewVisitDraft(d => ({ ...d, scheduledTime: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase">Observações (opcional)</label>
+                          <input
+                            type="text"
+                            placeholder="Instruções para o técnico..."
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                            value={newVisitDraft.notes}
+                            onChange={e => setNewVisitDraft(d => ({ ...d, notes: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="ghost" size="sm" onClick={() => setShowNewVisitForm(false)} className="text-slate-500">
+                          Cancelar
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={handleCreateVisit}
+                          disabled={savingVisit}
+                          className="gap-2 bg-primary-600 hover:bg-primary-700 px-6"
+                        >
+                          {savingVisit ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                          Confirmar Agendamento
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lista de visitas */}
+                  {visitsLoading ? (
+                    <div className="flex items-center justify-center py-16 gap-3">
+                      <Loader2 size={22} className="animate-spin text-primary-400" />
+                      <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando visitas...</span>
+                    </div>
+                  ) : visits.length === 0 ? (
+                    <div className="bg-white border border-dashed border-slate-200 rounded-xl py-16 text-center">
+                      <CalendarPlus size={40} className="mx-auto text-slate-200 mb-4" />
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhuma visita agendada</p>
+                      <p className="text-[11px] text-slate-300 font-medium mt-1">Clique em "Nova Visita" para agendar a primeira.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {visits.map((visit, idx) => {
+                        const isLast = idx === visits.length - 1;
+                        const statusColors: Record<string, string> = {
+                          pending: 'bg-slate-100 text-slate-600 border-slate-200',
+                          ongoing: 'bg-blue-50 text-blue-700 border-blue-200',
+                          paused: 'bg-amber-50 text-amber-700 border-amber-200',
+                          blocked: 'bg-rose-50 text-rose-700 border-rose-200',
+                          completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                        };
+                        const statusLabel: Record<string, string> = {
+                          pending: 'Agendado', ongoing: 'Em andamento',
+                          paused: 'Pausado', blocked: 'Impedido', completed: 'Concluído',
+                        };
+                        const techName = techs.find(t => t.id === visit.technicianId)?.name || visit.technicianName || '—';
+                        return (
+                          <div
+                            key={visit.id}
+                            className={`bg-white border rounded-xl p-5 flex items-center gap-5 transition-all ${isLast ? 'border-primary-200 ring-2 ring-primary-50 shadow-sm' : 'border-slate-200'
+                              }`}
+                          >
+                            {/* Número */}
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0 border-2 ${isLast ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-slate-200 bg-white text-slate-500'
+                              }`}>
+                              {visit.visitNumber ?? idx + 1}
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${statusColors[visit.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                  {statusLabel[visit.status] || visit.status}
+                                </span>
+                                {isLast && <span className="text-[9px] font-black text-primary-500 bg-primary-50 px-2 py-0.5 rounded-full uppercase">Atual</span>}
+                              </div>
+                              <p className="text-sm font-bold text-slate-800 mt-1 truncate">{techName}</p>
+                              <p className="text-[11px] text-slate-400 font-medium">
+                                {visit.scheduledDate ? formatDateDisplay(visit.scheduledDate) : '—'}
+                                {visit.scheduledTime ? ` às ${visit.scheduledTime}` : ''}
+                              </p>
+                            </div>
+
+                            {/* Tempo in-progress */}
+                            {visit.arrivalTime && (
+                              <div className="text-right shrink-0">
+                                <p className="text-[10px] font-black text-slate-400 uppercase">Chegada</p>
+                                <p className="text-xs font-bold text-slate-700">
+                                  {new Date(visit.arrivalTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB: HISTÓRICO — Audit trail imutável */}
               {activeTab === 'history' && (
-                <div className="max-w-4xl mx-auto space-y-8 bg-white p-8 rounded-lg border border-slate-200">
-                  <OrderTimeline orderId={selectedOrder.id} />
+                <div className="max-w-4xl mx-auto space-y-8">
+                  <div className="bg-white p-8 rounded-lg border border-slate-200">
+                    <OrderTimeline orderId={selectedOrder.id} />
+                  </div>
+                  {/* Histórico detalhado de visitas */}
+                  <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Histórico de Visitas</h3>
+                    </div>
+                    <VisitHistoryTab orderId={selectedOrder.id} isActive={activeTab === 'history'} />
+                  </div>
                 </div>
               )}
 
