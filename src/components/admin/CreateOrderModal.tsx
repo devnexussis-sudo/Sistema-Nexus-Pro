@@ -10,6 +10,8 @@ import { OrderPriority, OrderStatus, ServiceOrder, User as UserType, OrderItem, 
 import { DataService } from '../../services/dataService';
 import { OrderService } from '../../services/orderService';
 import { OrderTimeline } from '../shared/OrderTimeline';
+import { VisitHistoryTab } from './VisitHistoryTab';
+import { VisitService } from '../../services/visitService';
 
 interface CreateOrderModalProps {
   onClose: () => void;
@@ -407,19 +409,25 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     }
     setSchedulingVisit(true);
     try {
-      await OrderService.scheduleNewVisit(
-        initialData.id,
-        newVisitData.assignedTo,
-        newVisitData.scheduledDate,
-        newVisitData.scheduledTime,
-        newVisitData.notes
-      );
+      // Usa VisitService com guardas enterprise de estado
+      await VisitService.createNewVisit({
+        orderId: initialData.id,
+        orderStatus: localStatus || initialData.status,
+        technicianId: newVisitData.assignedTo,
+        scheduledDate: newVisitData.scheduledDate,
+        scheduledTime: newVisitData.scheduledTime,
+        notes: newVisitData.notes,
+      });
       alert("Nova visita agendada com sucesso!");
       setShowNewVisitModal(false);
       setTimelineKey(prev => prev + 1);
       setLocalStatus(OrderStatus.ASSIGNED);
     } catch (e: any) {
-      alert(`Erro ao agendar visita: ${e.message}`);
+      // Mensagem clara para erros de regra de negócio
+      const msg = e.message?.startsWith('INVALID_')
+        ? e.message.split(': ')[1]
+        : `Erro ao agendar visita: ${e.message}`;
+      alert(msg);
     } finally {
       setSchedulingVisit(false);
     }
@@ -945,11 +953,12 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           )}
 
           {step === 5 && initialData && (
-            <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
+            <div className="animate-fade-in space-y-6 max-w-4xl mx-auto">
+              {/* Card de controle de nova visita */}
               <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">Gerenciamento de Visitas</h3>
-                  <p className="text-[10px] text-slate-500 font-medium">Você pode emitir um novo agendamento para esta mesma Ordem se ela estiver pausada ou precisar de retorno.</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Emita uma nova visita quando a OS estiver pausada ou impedida.</p>
                 </div>
                 {isReadOnly ? (
                   <div className="bg-slate-100 text-slate-500 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 border border-slate-200">
@@ -966,7 +975,27 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   </Button>
                 )}
               </div>
-              <OrderTimeline key={`timeline-${timelineKey}`} orderId={initialData.id} />
+
+              {/* Histórico completo de visitas (lazy-loaded, sempre ativo no step 5) */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Histórico de Visitas</span>
+                </div>
+                <VisitHistoryTab
+                  orderId={initialData.id}
+                  isActive={step === 5}
+                />
+              </div>
+
+              {/* Timeline de Eventos do Sistema (legado — mantido para compatibilidade) */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-100">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Linha do Tempo do Sistema</span>
+                </div>
+                <div className="p-4">
+                  <OrderTimeline key={`timeline-${timelineKey}`} orderId={initialData.id} />
+                </div>
+              </div>
             </div>
           )}
         </div>

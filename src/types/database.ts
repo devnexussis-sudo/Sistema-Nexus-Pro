@@ -30,7 +30,7 @@ export type DbOrderPriority = 'BAIXA' | 'MÉDIA' | 'ALTA' | 'CRÍTICA';
 export type DbBillingStatus = 'PENDING' | 'PAID';
 export type DbCashFlowType = 'INCOME' | 'EXPENSE';
 export type DbStockMovementType = 'TRANSFER' | 'CONSUMPTION' | 'RESTOCK' | 'ADJUSTMENT';
-export type DbVisitStatus = 'pending' | 'ongoing' | 'paused' | 'completed';
+export type DbVisitStatus = 'pending' | 'ongoing' | 'paused' | 'blocked' | 'completed';
 
 // ─── Tabela: tenants ──────────────────────────────────────────
 
@@ -196,7 +196,12 @@ export interface DbServiceVisit {
     order_id: string;
     technician_id?: string;
     status: DbVisitStatus;
+    visit_number: number;              // Nº sequencial (1, 2, 3...)
     pause_reason?: string;
+    impediment_reason?: string;        // Motivo do bloqueio
+    impediment_category?: string;      // Categoria do impedimento
+    form_id?: string;                  // Formulário específico da visita
+    is_locked?: boolean;               // Somente leitura após conclusão da OS
     scheduled_date?: string;
     scheduled_time?: string;
     arrival_time?: string;
@@ -209,6 +214,59 @@ export interface DbServiceVisit {
 }
 
 export type DbServiceVisitInsert = Omit<DbServiceVisit, 'id' | 'created_at' | 'updated_at'> & { id?: string };
+
+// ── Tabela: service_order_equipments ───────────────────────
+export interface DbServiceOrderEquipment {
+    id: string;
+    tenant_id: string;
+    order_id: string;
+    equipment_id?: string;
+    equipment_name: string;
+    equipment_model?: string;
+    equipment_serial?: string;
+    equipment_family?: string;
+    form_id?: string;
+    form_data?: Record<string, any>;
+    status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+    sort_order: number;
+    created_at: string;
+    updated_at?: string;
+    deleted_at?: string;               // Soft delete
+}
+
+export type DbServiceOrderEquipmentInsert =
+    Omit<DbServiceOrderEquipment, 'id' | 'created_at' | 'updated_at' | 'deleted_at'> & { id?: string };
+
+// ── Tabela: form_rules ───────────────────────────────────
+export interface DbFormRule {
+    id: string;
+    tenant_id: string;
+    form_template_id: string;
+    operation_type?: string;
+    equipment_family?: string;
+    priority: number;
+    is_active: boolean;
+    version: number;
+    created_at: string;
+    updated_at?: string;
+    created_by?: string;
+}
+
+export type DbFormRuleInsert = Omit<DbFormRule, 'id' | 'created_at' | 'updated_at'> & { id?: string };
+
+// ── Tabela: visit_status_history ──────────────────────────
+export interface DbVisitStatusHistory {
+    id: string;
+    tenant_id: string;
+    visit_id: string;
+    order_id: string;
+    from_status?: string;
+    to_status: string;
+    reason?: string;
+    metadata?: Record<string, unknown>;
+    changed_by?: string;
+    changed_at: string;
+}
 
 // ─── Tabela: customers ────────────────────────────────────────
 

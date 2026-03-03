@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ServiceOrder, OrderStatus, OrderPriority, FormTemplate } from '../../../../types';
+import { ServiceOrder, OrderStatus, OrderPriority, FormTemplate, VisitStatusEnum } from '../../../../types';
 import {
     X,
     Navigation,
@@ -14,14 +14,18 @@ import {
     ChevronDown,
     Camera,
     FileText,
-    ArrowLeft
+    ArrowLeft,
+    History,
+    Clock
 } from 'lucide-react';
 import { ChecklistRenderer } from '../components/ChecklistRenderer';
 import { SignatureCanvas } from '../components/ui/SignatureCanvas';
 import { DataService } from '../../../../services/dataService';
 import { OrderService } from '../../../../services/orderService';
+import { VisitService } from '../../../../services/visitService';
+import { VisitHistoryTab } from '../../../../components/admin/VisitHistoryTab';
 import { getStatusBadge, getStatusLabel } from '../../../../lib/statusColors';
-import { GeoService } from '../../../../lib/geo'; // 📍 Geolocalização
+import { GeoService } from '../../../../lib/geo';
 import { OrderTimeline } from '../../../../components/shared/OrderTimeline';
 
 interface OrderDetailsV2Props {
@@ -32,7 +36,9 @@ interface OrderDetailsV2Props {
 
 export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, onUpdateStatus }) => {
     const [isLoading, setIsLoading] = useState(false);
-    const [activeSection, setActiveSection] = useState<'info' | 'checklist' | 'finish'>('info');
+    const [activeSection, setActiveSection] = useState<'info' | 'checklist' | 'finish' | 'visits'>('info');
+    const [visitCount, setVisitCount] = useState<number>(0);
+    const [isOsLocked, setIsOsLocked] = useState(false);
 
     // Checklist State
     const [template, setTemplate] = useState<FormTemplate | null>(null);
@@ -226,6 +232,19 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
         }
     }, [order.status]);
 
+    // Carregar metadados das visitas (contagem + lock status)
+    useEffect(() => {
+        VisitService.getVisitsByOrderId(order.id).then(visits => {
+            setVisitCount(visits.length);
+            const lastVisit = visits[visits.length - 1];
+            if (lastVisit) {
+                setIsOsLocked(lastVisit.isLocked ?? false);
+            }
+        }).catch(() => {
+            // Silencioso — não impede o fluxo principal
+        });
+    }, [order.id]);
+
     // Pausa com Motivo
     const handlePauseOrder = async () => {
         if (!blockReason.trim()) return;
@@ -399,7 +418,15 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
 
                 <div className="flex flex-col items-center">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Ordem de Serviço</span>
-                    <h2 className="text-sm font-bold text-slate-900 leading-none">#{order.id.slice(0, 8)}</h2>
+                    <h2 className="text-sm font-bold text-slate-900 leading-none">
+                        {order.displayId || `#${order.id.slice(0, 8)}`}
+                    </h2>
+                    {/* Badge de visita */}
+                    {visitCount > 0 && (
+                        <span className="mt-0.5 text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">
+                            Visita {visitCount}
+                        </span>
+                    )}
                 </div>
 
                 <div className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border ${getStatusBadge(order.status)}`}>
@@ -410,26 +437,27 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto bg-slate-50 relative pb-40">
                 {/* Tabs Stick - Abaixo do Header */}
-                <div className="flex px-2 pt-2 pb-0 bg-slate-50 sticky top-0 z-10 gap-2 overflow-x-auto scrollbar-hide">
-                    <button
-                        onClick={() => setActiveSection('info')}
-                        className={`flex-1 py-2.5 rounded-t-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'info' ? 'bg-white text-primary-500 shadow-none border-t border-x border-slate-200 relative z-10 translate-y-px pb-3' : 'bg-slate-100 text-slate-400 border border-transparent'}`}
-                    >
-                        Detalhes
-                    </button>
-                    <button
-                        onClick={() => order.status !== OrderStatus.PENDING && setActiveSection('checklist')}
-                        disabled={order.status === OrderStatus.PENDING}
-                        className={`flex-1 py-2.5 rounded-t-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'checklist' ? 'bg-white text-primary-500 shadow-none border-t border-x border-slate-200 relative z-10 translate-y-px pb-3' : 'bg-slate-100 text-slate-400 border border-transparent'} ${order.status === OrderStatus.PENDING ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                        Checklist
-                    </button>
-                    <button
-                        onClick={() => setActiveSection('finish')}
-                        className={`flex-1 py-2.5 rounded-t-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeSection === 'finish' ? 'bg-white text-primary-500 shadow-none border-t border-x border-slate-200 relative z-10 translate-y-px pb-3' : 'bg-slate-100 text-slate-400 border border-transparent'}`}
-                    >
-                        Finalizar
-                    </button>
+                <div className="flex px-2 pt-2 pb-0 bg-slate-50 sticky top-0 z-10 gap-1 overflow-x-auto scrollbar-hide">
+                    {[
+                        { id: 'info', label: 'Detalhes' },
+                        { id: 'checklist', label: 'Checklist', disabled: order.status === OrderStatus.PENDING },
+                        { id: 'finish', label: 'Finalizar' },
+                        { id: 'visits', label: `Visitas${visitCount > 0 ? ` (${visitCount})` : ''}` },
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => !tab.disabled && setActiveSection(tab.id as any)}
+                            disabled={tab.disabled}
+                            className={`flex-1 py-2.5 rounded-t-lg text-[10px] font-black uppercase tracking-widest transition-all
+                                ${activeSection === tab.id
+                                    ? 'bg-white text-primary-500 shadow-none border-t border-x border-slate-200 relative z-10 translate-y-px pb-3'
+                                    : 'bg-slate-100 text-slate-400 border border-transparent'}
+                                ${tab.disabled ? 'opacity-50 cursor-not-allowed' : ''}
+                            `}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
 
                 {/* Content Wrapper com fundo branco para simular tab content unificado */}
@@ -518,27 +546,34 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                     {/* SECTION: CHECKLIST */}
                     {activeSection === 'checklist' && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
+                            {/* Aviso de OS bloqueada (somente leitura) */}
+                            {isOsLocked && (
+                                <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 flex items-start gap-3">
+                                    <Ban size={18} className="text-slate-400 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        Esta OS foi concluída. O formulário está em modo somente leitura.
+                                    </p>
+                                </div>
+                            )}
                             {template ? (
                                 <>
-                                    {order.status !== OrderStatus.COMPLETED && (
+                                    {order.status !== OrderStatus.COMPLETED && !isOsLocked && (
                                         <div className="bg-primary-50 rounded-lg p-4 border border-primary-100 flex items-start gap-3">
                                             <Info size={20} className="text-primary-600 mt-0.5 shrink-0" />
                                             <p className="text-xs text-primary-800 font-medium leading-relaxed">
-                                                Preencha todos os itens obrigatórios para finalizar o serviço. As alterações são salvas automaticamente no dispositivo.
+                                                Preencha todos os itens obrigatórios para finalizar o serviço.
                                             </p>
                                         </div>
                                     )}
-
                                     <div className="space-y-6">
                                         <ChecklistRenderer
                                             fields={template.fields}
                                             answers={answers}
                                             onAnswerChange={handleAnswerChange}
-                                            readOnly={order.status === OrderStatus.COMPLETED}
+                                            readOnly={order.status === OrderStatus.COMPLETED || isOsLocked}
                                         />
                                     </div>
-
-                                    <div className="h-12"></div> {/* Spacer */}
+                                    <div className="h-12"></div>
                                 </>
                             ) : (
                                 <div className="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -604,6 +639,15 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                     </div>
                                 </>
                             )}
+                        </div>
+                    )}
+                    {/* SECTION: VISITAS */}
+                    {activeSection === 'visits' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-4 -mx-5 -my-6">
+                            <VisitHistoryTab
+                                orderId={order.id}
+                                isActive={activeSection === 'visits'}
+                            />
                         </div>
                     )}
                 </div>
