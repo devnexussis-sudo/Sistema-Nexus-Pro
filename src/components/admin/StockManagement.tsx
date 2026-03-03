@@ -468,7 +468,7 @@ export const StockManagement: React.FC = () => {
     return (
         <div className="p-4 pr-8 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
             {/* Toolbar Externa */}
-            <div className="mb-4 flex flex-wrap lg:flex-nowrap gap-4 items-center justify-between pr-2">
+            <div className="mb-4 flex flex-wrap gap-4 items-center justify-between pr-2">
                 {/* Tabs */}
                 <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm shrink-0 overflow-x-auto max-w-full">
                     <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -489,11 +489,11 @@ export const StockManagement: React.FC = () => {
                 <div className="flex flex-1 items-center gap-3 w-full lg:w-auto">
                     {/* Search */}
                     {activeTab === 'items' ? (
-                        <div className="relative flex-1">
+                        <div className="relative flex-1 min-w-0">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
                                 type="text"
-                                placeholder="Pesquisar estoque..."
+                                placeholder="Pesquisar..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                                 className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
@@ -532,9 +532,9 @@ export const StockManagement: React.FC = () => {
 
                         <button
                             onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
-                            className={`flex items-center justify-center gap-2 px-6 h-[42px] rounded-xl text-[10px] font-bold uppercase shadow-md hover:-translate-y-0.5 transition-all text-white active:scale-95 whitespace-nowrap min-w-[140px] ${activeTab === 'items' ? 'bg-[#1c2d4f] hover:bg-[#253a66]' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                            className={`flex items-center justify-center gap-2 px-6 h-[42px] rounded-xl text-[10px] font-bold uppercase shadow-md hover:-translate-y-0.5 transition-all text-white active:scale-95 whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] hover:bg-[#253a66]' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                         >
-                            <Plus size={16} /> {activeTab === 'items' ? 'Novo Item' : 'Nova Categoria'}
+                            <Plus size={16} /> {activeTab === 'items' ? 'Item' : 'Categoria'}
                         </button>
                     </div>
                 </div>
