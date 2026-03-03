@@ -236,24 +236,108 @@ export interface ServiceOrder {
   pauseReason?: string; // Motivo da pausa (ex: aguardando peça)
 }
 
-export type VisitStatus = 'pending' | 'ongoing' | 'paused' | 'completed';
+// ── Máquina de Estados Formal de Visitas ─────────────────────
+export enum VisitStatusEnum {
+  PENDING = 'pending',
+  ONGOING = 'ongoing',
+  PAUSED = 'paused',
+  BLOCKED = 'blocked',
+  COMPLETED = 'completed'
+}
+
+// Alias para backward compatibility (não remover)
+export type VisitStatus = 'pending' | 'ongoing' | 'paused' | 'blocked' | 'completed';
+
+// Transições válidas — single source of truth
+export const VALID_VISIT_TRANSITIONS: Record<VisitStatusEnum, VisitStatusEnum[]> = {
+  [VisitStatusEnum.PENDING]: [VisitStatusEnum.ONGOING],
+  [VisitStatusEnum.ONGOING]: [VisitStatusEnum.PAUSED, VisitStatusEnum.BLOCKED, VisitStatusEnum.COMPLETED],
+  [VisitStatusEnum.PAUSED]: [VisitStatusEnum.ONGOING],
+  [VisitStatusEnum.BLOCKED]: [],
+  [VisitStatusEnum.COMPLETED]: [],
+};
+
+// Status de visita que permitem criação de nova visita na mesma OS
+export const CAN_CREATE_NEW_VISIT_FROM: VisitStatusEnum[] = [
+  VisitStatusEnum.PAUSED,
+  VisitStatusEnum.BLOCKED,
+];
+
+export type ImpedimentCategory =
+  | 'AWAITING_PART'
+  | 'ACCESS_DENIED'
+  | 'WEATHER'
+  | 'TECHNICAL'
+  | 'OTHER';
 
 export interface ServiceVisit {
   id: string;
   tenantId?: string;
   orderId: string;
+  visitNumber: number;            // Nº sequencial dentro da OS (1, 2, 3...)
   technicianId?: string;
-  status: VisitStatus;
+  technicianName?: string;        // Join opcional para UI
+  status: VisitStatusEnum;
   pauseReason?: string;
+  impedimentReason?: string;      // Motivo do bloqueio/impedimento
+  impedimentCategory?: ImpedimentCategory;
+  formId?: string;                // Formulário específico desta visita
   scheduledDate?: string;
   scheduledTime?: string;
   arrivalTime?: string;
   departureTime?: string;
   notes?: string;
   formData?: Record<string, any>;
+  isLocked?: boolean;             // true quando OS foi concluída (somente leitura)
   createdBy?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// ── Equipamento vinculado à OS ────────────────────────────────
+export interface ServiceOrderEquipment {
+  id: string;
+  tenantId: string;
+  orderId: string;
+  equipmentId?: string;
+  equipmentName: string;
+  equipmentModel?: string;
+  equipmentSerial?: string;
+  equipmentFamily?: string;       // Para FormRulesEngine
+  formId?: string;                // Determinado automaticamente pela engine
+  formData?: Record<string, any>;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+  sortOrder: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// ── Regras de Formulários ─────────────────────────────────────
+export interface FormRule {
+  id: string;
+  tenantId: string;
+  formTemplateId: string;
+  operationType?: string;         // null = qualquer tipo de atendimento
+  equipmentFamily?: string;       // null = qualquer família
+  priority: number;               // Maior = mais específico (vence empate)
+  isActive: boolean;
+  version: number;
+  createdAt: string;
+  createdBy?: string;
+}
+
+// ── Histórico de Transições de Status (Imutável) ──────────────
+export interface VisitStatusHistoryEvent {
+  id: string;
+  tenantId: string;
+  visitId: string;
+  orderId: string;
+  fromStatus?: VisitStatusEnum;
+  toStatus: VisitStatusEnum;
+  reason?: string;
+  metadata?: Record<string, unknown>;
+  changedBy?: string;             // UUID ou nome resolvido
+  changedAt: string;
 }
 
 export interface OrderTimelineEvent {
