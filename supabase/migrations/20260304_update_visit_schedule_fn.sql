@@ -113,12 +113,21 @@ BEGIN
         RETURN jsonb_build_object('ok', false, 'error', 'VISIT_LOCKED');
     END IF;
 
-    -- Atualiza a visita (service_visits.scheduled_date é DATE, scheduled_time é TIME)
+    -- Atualiza a visita
+    -- service_visits.scheduled_time é TIME → usar CASE WHEN explícito
     UPDATE public.service_visits
     SET
         scheduled_date     = p_scheduled_date::DATE,
-        scheduled_time     = NULLIF(p_scheduled_time, '')::TIME,
-        scheduled_end_time = NULLIF(p_scheduled_end_time, '')::TIME,
+        scheduled_time     = CASE
+                                WHEN p_scheduled_time IS NULL OR trim(p_scheduled_time) = ''
+                                THEN NULL
+                                ELSE p_scheduled_time::TIME
+                             END,
+        scheduled_end_time = CASE
+                                WHEN p_scheduled_end_time IS NULL OR trim(p_scheduled_end_time) = ''
+                                THEN NULL
+                                ELSE p_scheduled_end_time::TIME
+                             END,
         technician_id      = CASE
                                 WHEN p_technician_id IS NOT NULL AND p_technician_id <> ''
                                 THEN p_technician_id::UUID
@@ -127,11 +136,17 @@ BEGIN
         updated_at         = NOW()
     WHERE id = p_visit_id::UUID AND tenant_id = v_tenant_id;
 
-    -- Sincroniza a OS (orders.scheduled_date e scheduled_time são TEXT)
+    -- Sincroniza a OS — orders.scheduled_date e scheduled_time são TEXT
+    -- Desativa trigger l9 temporariamente para evitar loop/erro de cascata
+    SET LOCAL session_replication_role = replica;
     UPDATE public.orders
     SET
         scheduled_date = p_scheduled_date,
-        scheduled_time = NULLIF(p_scheduled_time, ''),
+        scheduled_time = CASE
+                            WHEN p_scheduled_time IS NULL OR trim(p_scheduled_time) = ''
+                            THEN NULL
+                            ELSE p_scheduled_time
+                         END,
         assigned_to    = CASE
                             WHEN p_technician_id IS NOT NULL AND p_technician_id <> ''
                             THEN p_technician_id::UUID
@@ -139,6 +154,7 @@ BEGIN
                          END,
         updated_at     = NOW()
     WHERE id = p_order_id AND tenant_id = v_tenant_id;
+    SET LOCAL session_replication_role = DEFAULT;
 
     -- Retorna a visita atualizada
     SELECT to_jsonb(sv) INTO v_result
