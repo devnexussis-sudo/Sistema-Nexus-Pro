@@ -368,6 +368,11 @@ export const VisitService = {
         const tenantId = getCurrentTenantId();
         if (!tenantId) throw new Error('TENANT_NOT_FOUND');
 
+        // Gera ID explícito — necessário para colunas TEXT PRIMARY KEY sem DEFAULT
+        const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).substring(2)}`;
+
         // Calcular próxima sort_order
         const existing = await VisitService.getOrderEquipments(params.orderId);
         const nextSort = existing.length;
@@ -375,6 +380,7 @@ export const VisitService = {
         const { data, error } = await supabase
             .from('service_order_equipments')
             .insert({
+                id: generatedId,
                 tenant_id: tenantId,
                 order_id: params.orderId,
                 equipment_id: params.equipmentId || null,
@@ -385,6 +391,7 @@ export const VisitService = {
                 form_id: params.formId || null,
                 status: 'PENDING',
                 sort_order: nextSort,
+                deleted_at: null,
             })
             .select()
             .single();
@@ -393,6 +400,7 @@ export const VisitService = {
 
         return _mapEquipmentFromDB(data);
     },
+
 
     /**
      * Remove (soft delete) um equipamento de uma OS.
