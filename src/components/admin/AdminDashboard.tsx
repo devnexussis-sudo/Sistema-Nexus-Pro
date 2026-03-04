@@ -8,7 +8,7 @@ import {
   Edit3, Save, ExternalLink, Search, Filter, Calendar, Share2,
   Users, UserCheck, Clock, FileSpreadsheet, Download, Camera, ClipboardList, Ban, MapPin, Box,
   DollarSign, Eye, EyeOff, LayoutDashboard, User as UserIcon, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  Loader2, CalendarPlus, History
+  Loader2, CalendarPlus, History, Trash2, PlusCircle
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { CreateOrderModal } from './CreateOrderModal';
@@ -204,6 +204,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         });
       });
 
+      // 🔄 Auto-Enable Edit Mode for Active Orders
+      const candEdit = selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED;
+      setIsEditing(candEdit);
+      if (candEdit) {
+        setEditDraft({
+          title: selectedOrder.title,
+          description: selectedOrder.description,
+          customerName: selectedOrder.customerName,
+          customerAddress: selectedOrder.customerAddress,
+          scheduledDate: selectedOrder.scheduledDate,
+          scheduledTime: selectedOrder.scheduledTime,
+          notes: selectedOrder.notes,
+          priority: selectedOrder.priority,
+          operationType: selectedOrder.operationType,
+          items: selectedOrder.items || [],
+        });
+      }
+
       // Busca o template para mapear IDs para Labels no checklist
       if (selectedOrder.formId) {
         import('../../services/formService').then(mod => {
@@ -301,6 +319,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }).finally(() => setFormsTabLoading(false));
     }
   }, [activeTab, selectedOrder]);
+
+  const handleUpdateItem = (id: string, field: string, value: any) => {
+    setEditDraft(prev => {
+      const items = [...(prev.items || selectedOrder?.items || [])];
+      const idx = items.findIndex(i => i.id === id);
+      if (idx !== -1) {
+        const updated = { ...items[idx], [field]: value };
+        if (field === 'quantity' || field === 'unitPrice') {
+          updated.total = Number(updated.quantity || 0) * Number(updated.unitPrice || 0);
+        }
+        items[idx] = updated;
+      }
+      return { ...prev, items };
+    });
+  };
+
+  const handleAddItem = () => {
+    setEditDraft(prev => ({
+      ...prev,
+      items: [...(prev.items || selectedOrder?.items || []), {
+        id: 'new-' + Math.random().toString(36).substr(2, 9),
+        description: '',
+        quantity: 1,
+        unitPrice: 0,
+        total: 0,
+        fromStock: false
+      }]
+    }));
+  };
+
+  const handleRemoveItem = (id: string) => {
+    setEditDraft(prev => ({
+      ...prev,
+      items: (prev.items || selectedOrder?.items || []).filter(i => i.id !== id)
+    }));
+  };
 
   // Refresh de visitas quando a aba é aberta
   useEffect(() => {
@@ -733,14 +787,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <Share2 size={16} />
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); setOrderToEdit(order); setIsCreateModalOpen(true); }}
-                          disabled={order.status === OrderStatus.CANCELED || order.status === OrderStatus.COMPLETED}
-                          className="p-2 text-slate-600 bg-white hover:bg-emerald-500 hover:text-white rounded-lg border border-slate-200 hover:border-emerald-500 transition-all shadow-sm disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-600"
-                          title={order.status === OrderStatus.COMPLETED ? "OS Conluída - Apenas Visualização" : "Editar"}
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
                           onClick={(e) => handleCancelOrder(order, e)}
                           disabled={order.status === OrderStatus.CANCELED || order.status === OrderStatus.COMPLETED}
                           className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all disabled:opacity-0"
@@ -818,17 +864,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Botões de edição — só aparecem se OS não estiver concluída/cancelada */}
-                {!isEditing && selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleStartEdit}
-                    className="h-9 px-4 gap-2"
-                  >
-                    <Edit3 size={14} /> Editar
-                  </Button>
-                )}
+                {/* Botões de salvamento — aparecem automaticamente se em modo de edição */}
 
                 {isEditing && (
                   <>
@@ -924,18 +960,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           }
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Data de Agendamento</label>
-                          {isEditing
-                            ? <input type="date" className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all" value={editDraft.scheduledDate ?? ''} onChange={e => setEditDraft(d => ({ ...d, scheduledDate: e.target.value }))} />
-                            : <div className="text-sm text-slate-600 font-medium">{formatDateDisplay(selectedOrder.scheduledDate)}</div>
-                          }
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Agendamento (Visita)</label>
+                          <div className="text-sm text-slate-400 font-medium italic flex items-center gap-2">
+                            <Clock size={14} /> Gerenciado na aba Visitas
+                          </div>
                         </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Horário Previsto</label>
-                          {isEditing
-                            ? <input type="time" className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all" value={editDraft.scheduledTime ?? ''} onChange={e => setEditDraft(d => ({ ...d, scheduledTime: e.target.value }))} />
-                            : <div className="text-sm text-slate-600 font-medium font-mono">{selectedOrder.scheduledTime || '--:--'}</div>
-                          }
+                        <div className="space-y-1.5 opacity-50">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cronograma Atual</label>
+                          <div className="text-sm text-slate-600 font-bold">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</div>
                         </div>
                       </div>
                     </div>
@@ -1524,28 +1556,79 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <table className="w-full text-left">
                       <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
                         <tr>
-                          <th className="px-6 py-1.5">Item / Serviço</th>
-                          <th className="px-4 py-1.5 text-center">Procedência</th>
-                          <th className="px-4 py-1.5 text-center">Quant.</th>
-                          <th className="px-4 py-1.5 text-right">Unitário</th>
-                          <th className="px-6 py-1.5 text-right">Subtotal</th>
+                          <th className="px-6 py-3">Item / Serviço</th>
+                          <th className="px-4 py-3 text-center">Quant.</th>
+                          <th className="px-4 py-3 text-right">Unitário</th>
+                          <th className="px-6 py-3 text-right">Subtotal</th>
+                          {isEditing && <th className="px-4 py-3 text-center w-10"></th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 text-sm">
-                        {selectedOrder.items?.map(item => (
+                        {(editDraft.items || selectedOrder.items || [])?.map((item, idx) => (
                           <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="px-6 py-1.5 font-semibold text-slate-800">{item.description}</td>
-                            <td className="px-4 py-1.5 text-center">
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border ${item.fromStock ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                {item.fromStock ? 'Estoque' : 'Avulso'}
-                              </span>
+                            <td className="px-6 py-2">
+                              {isEditing ? (
+                                <input
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-bold text-slate-800"
+                                  value={item.description}
+                                  onChange={e => handleUpdateItem(item.id, 'description', e.target.value)}
+                                  placeholder="Descrição do item..."
+                                />
+                              ) : <span className="font-semibold text-slate-800">{item.description}</span>}
                             </td>
-                            <td className="px-4 py-1.5 text-center text-slate-600 font-medium">{item.quantity}</td>
-                            <td className="px-4 py-1.5 text-right font-mono text-slate-500 text-xs">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                            <td className="px-6 py-1.5 text-right font-mono font-bold text-slate-900">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="px-4 py-2 text-center">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs font-bold text-center"
+                                  value={item.quantity}
+                                  onChange={e => handleUpdateItem(item.id, 'quantity', Number(e.target.value))}
+                                />
+                              ) : <span className="text-slate-600 font-medium">{item.quantity}</span>}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {isEditing ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className="text-[10px] text-slate-400 font-bold">R$</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-24 bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-bold text-right"
+                                    value={item.unitPrice}
+                                    onChange={e => handleUpdateItem(item.id, 'unitPrice', Number(e.target.value))}
+                                  />
+                                </div>
+                              ) : <span className="font-mono text-slate-500 text-xs">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                            </td>
+                            <td className="px-6 py-2 text-right font-mono font-bold text-slate-900">
+                              R$ {(item.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </td>
+                            {isEditing && (
+                              <td className="px-4 py-2 text-center">
+                                <button
+                                  onClick={() => handleRemoveItem(item.id)}
+                                  className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors"
+                                  title="Remover Item"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         ))}
-                        {(!selectedOrder.items || selectedOrder.items.length === 0) && (
+                        {isEditing && (
+                          <tr>
+                            <td colSpan={5} className="px-6 py-4">
+                              <button
+                                onClick={handleAddItem}
+                                className="flex items-center gap-2 text-[10px] font-black text-primary-600 hover:text-primary-700 uppercase tracking-widest transition-all"
+                              >
+                                <PlusCircle size={14} /> Adicionar Item / Peça
+                              </button>
+                            </td>
+                          </tr>
+                        )}
+                        {(!editDraft.items && (!selectedOrder.items || selectedOrder.items.length === 0)) && (
                           <tr><td colSpan={5} className="py-20 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">Nenhum custo registrado para esta O.S.</td></tr>
                         )}
                       </tbody>
