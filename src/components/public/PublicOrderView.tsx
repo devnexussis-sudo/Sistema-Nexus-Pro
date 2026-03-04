@@ -365,7 +365,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(order.createdAt)}</div></div>
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Tipo</label><div className="font-bold uppercase">{order.operationType || 'Manutenção'}</div></div>
-              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Início</label><div className="font-bold">{fmtDT(order.startDate)}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Agendado</label><div className="font-bold">{order.scheduledDate ? `${fmt(order.scheduledDate)}${order.scheduledTime ? ' ' + order.scheduledTime : ''}` : '—'}</div></div>
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Conclusão</label><div className="font-bold">{fmtDT(order.endDate)}</div></div>
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Status</label><div className="font-bold text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{order.status}</div></div>
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Técnico</label><div className="font-bold uppercase">{tech?.name || 'N/A'}</div></div>
@@ -373,7 +373,36 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         </div>
 
-        {(order.equipmentName || order.equipmentModel || order.equipmentSerial) && (
+        {/* Equipamentos Vinculados (print) */}
+        {linkedEquipments.length > 0 ? (
+          <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">
+              Equipamentos Vinculados ({linkedEquipments.length})
+            </div>
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50 text-[8px] font-black text-slate-500 uppercase border-b border-slate-200">
+                  <th className="px-3 py-1.5">#</th>
+                  <th className="px-3 py-1.5">Equipamento</th>
+                  <th className="px-3 py-1.5">Modelo</th>
+                  <th className="px-3 py-1.5">Nº Série</th>
+                  <th className="px-3 py-1.5">Família</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {linkedEquipments.map((eq: any, i: number) => (
+                  <tr key={eq.id || i}>
+                    <td className="px-3 py-1.5 text-[10px] font-bold text-slate-400">{i + 1}</td>
+                    <td className="px-3 py-1.5 text-[10px] font-bold text-slate-900 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
+                    <td className="px-3 py-1.5 text-[10px] text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
+                    <td className="px-3 py-1.5 text-[10px] text-slate-600 font-mono">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
+                    <td className="px-3 py-1.5 text-[10px] text-slate-600 uppercase">{eq.equipment_family || eq.equipmentFamily || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (order.equipmentName || order.equipmentModel || order.equipmentSerial) && (
           <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
             <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Equipamento</div>
             <div className="p-3 bg-white grid grid-cols-3 gap-4">
@@ -432,7 +461,72 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         )}
 
-        {formItemsPrint.length > 0 && (
+        {/* Formulários por equipamento (print) */}
+        {linkedEquipments.length > 0 ? (
+          linkedEquipments.map((eq: any, eqIdx: number) => {
+            const eqFd: Record<string, any> =
+              typeof eq.form_data === 'string'
+                ? (() => { try { return JSON.parse(eq.form_data); } catch { return {}; } })()
+                : (eq.form_data || {});
+            const mergedFd = eqIdx === 0
+              ? { ...(typeof order.formData === 'string' ? (() => { try { return JSON.parse(order.formData as string); } catch { return {}; } })() : (order.formData || {})), ...eqFd }
+              : eqFd;
+            const SYSTEM_KEYS_P = new Set([
+              'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+              'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+              'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+              'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+              'clientName', 'customerName', 'customerAddress', 'tenantId',
+              'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+            ]);
+            const isSigKey = (k: string) =>
+              k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
+              k.toLowerCase().includes('cpf') || k.toLowerCase().includes('nascimento');
+            const isImgV = (v: any) => typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'));
+            const items = Object.entries(mergedFd)
+              .filter(([k]) => !SYSTEM_KEYS_P.has(k) && !isSigKey(k))
+              .map(([key, val]) => {
+                let text: string | null = null;
+                let photos: string[] = [];
+                if (Array.isArray(val)) {
+                  const tp = val.filter((v: any) => typeof v === 'string' && !isImgV(v));
+                  photos = val.filter((v: any) => isImgV(v));
+                  if (tp.length > 0) text = tp.join(', ');
+                } else if (isImgV(val)) {
+                  photos = [val as string];
+                } else if (val !== null && val !== undefined && val !== '') {
+                  text = String(val);
+                }
+                return { key, text, photos };
+              })
+              .filter(({ text, photos }) => text !== null || photos.length > 0);
+            if (items.length === 0) return null;
+            return (
+              <div key={eq.id || eqIdx} className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">
+                  Checklist — {eq.equipment_name || eq.equipmentName}{(eq.equipment_family || eq.equipmentFamily) ? ` · ${eq.equipment_family || eq.equipmentFamily}` : ''}
+                </div>
+                <div className="divide-y divide-slate-100 bg-white">
+                  {items.map((item, idx) => (
+                    <div key={idx} className="p-3 break-inside-avoid">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key}</p>
+                      {item.text && <p className={`text-[11px] font-bold uppercase leading-snug ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.text}</p>}
+                      {item.photos.length > 0 && (
+                        <div className="grid grid-cols-4 gap-2 mt-2">
+                          {item.photos.map((p, pIdx) => (
+                            <div key={pIdx} className="border border-slate-200 rounded p-0.5 max-h-32 overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
+                              <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        ) : formItemsPrint.length > 0 ? (
           <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
             <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Formulário / Checklist Técnico de Execução</div>
             <div className="divide-y divide-slate-100 bg-white">
@@ -440,7 +534,6 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 <div key={idx} className="p-3 break-inside-avoid">
                   <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key}</p>
                   {item.text && <p className={`text-[11px] font-bold uppercase leading-snug ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.text}</p>}
-
                   {item.photos.length > 0 && (
                     <div className="grid grid-cols-4 gap-2 mt-2">
                       {item.photos.map((p, pIdx) => (
@@ -454,7 +547,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               ))}
             </div>
           </div>
-        )}
+        ) : null}
 
         <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-8">
           <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
@@ -661,36 +754,46 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
               <SectionHeader icon={<Box size={15} />} title={`Equipamento${linkedEquipments.length > 1 ? 's' : ''} Vinculado${linkedEquipments.length > 1 ? 's' : ''}`} />
               {linkedEquipments.length > 0 ? (
-                <div className="space-y-4">
-                  {linkedEquipments.map((eq: any, i: number) => (
-                    <div key={eq.id || i} className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
-                        <Box size={18} className="text-slate-300" />
-                      </div>
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-black text-slate-900 uppercase leading-snug">{eq.equipment_name || eq.equipmentName || '—'}</p>
-                        {(eq.equipment_model || eq.equipmentModel) && <p className="text-[10px] font-bold text-slate-500 uppercase">Modelo: {eq.equipment_model || eq.equipmentModel}</p>}
-                        {(eq.equipment_serial || eq.equipmentSerial) && <p className="text-[10px] font-bold text-slate-400 font-mono">Nº Série: {eq.equipment_serial || eq.equipmentSerial}</p>}
-                        {(eq.equipment_family || eq.equipmentFamily) && <p className="text-[10px] font-bold text-[#3e5b99] uppercase">{eq.equipment_family || eq.equipmentFamily}</p>}
-                      </div>
-                    </div>
-                  ))}
+                <div className="rounded-xl border border-slate-100 overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                        <th className="px-4 py-2.5">Equipamento</th>
+                        <th className="px-4 py-2.5">Modelo</th>
+                        <th className="px-4 py-2.5">Nº Série</th>
+                        <th className="px-4 py-2.5">Família</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {linkedEquipments.map((eq: any, i: number) => (
+                        <tr key={eq.id || i} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-4 py-2.5 text-[11px] font-black text-slate-900 uppercase">{eq.equipment_name || eq.equipmentName || '—'}</td>
+                          <td className="px-4 py-2.5 text-[11px] font-bold text-slate-600 uppercase">{eq.equipment_model || eq.equipmentModel || '—'}</td>
+                          <td className="px-4 py-2.5 text-[11px] font-bold text-slate-500 font-mono">{eq.equipment_serial || eq.equipmentSerial || '—'}</td>
+                          <td className="px-4 py-2.5">
+                            {(eq.equipment_family || eq.equipmentFamily) ? (
+                              <span className="text-[10px] font-bold text-[#3e5b99] uppercase bg-[#3e5b99]/10 px-2 py-0.5 rounded-full">{eq.equipment_family || eq.equipmentFamily}</span>
+                            ) : <span className="text-[11px] text-slate-300">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ) : (order.equipmentName || order.equipmentModel || order.equipmentSerial) ? (
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
-                    <Box size={20} className="text-slate-300" />
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
+                    <Box size={18} className="text-slate-300" />
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-base font-black text-slate-900 uppercase leading-snug">{order.equipmentName || '—'}</p>
-                    {order.equipmentModel && <p className="text-[10px] font-bold text-slate-500 uppercase">Modelo: {order.equipmentModel}</p>}
-                    {order.equipmentSerial && <p className="text-[10px] font-bold text-slate-400 font-mono">Nº Série: {order.equipmentSerial}</p>}
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-black text-slate-900 uppercase leading-snug">{order.equipmentName || '—'}</p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase">
+                      {[order.equipmentModel && `Modelo: ${order.equipmentModel}`, order.equipmentSerial && `Série: ${order.equipmentSerial}`].filter(Boolean).join(' · ')}
+                    </p>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Equipamento não especificado</p>
-                </div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Equipamento não especificado</p>
               )}
             </div>
           </div>
