@@ -331,25 +331,19 @@ export const VisitService = {
 
     /**
      * Retorna todos os equipamentos vinculados a uma OS (não deletados).
+     * Usa RPC SECURITY DEFINER para contornar RLS no SELECT.
      */
     getOrderEquipments: async (orderId: string): Promise<ServiceOrderEquipment[]> => {
-        const tenantId = getCurrentTenantId();
-        if (!tenantId) return [];
-
         const { data, error } = await supabase
-            .from('service_order_equipments')
-            .select('*')
-            .eq('tenant_id', tenantId)
-            .eq('order_id', orderId)
-            .is('deleted_at', null)
-            .order('sort_order', { ascending: true });
+            .rpc('nexus_get_order_equipments', { p_order_id: orderId });
 
         if (error) {
-            logger.error('[VisitService] getOrderEquipments falhou', { error, orderId });
+            logger.error('[VisitService] getOrderEquipments RPC falhou', { error, orderId });
             return [];
         }
 
-        return (data || []).map(_mapEquipmentFromDB);
+        const rows: any[] = Array.isArray(data) ? data : (data ? [data] : []);
+        return rows.map(_mapEquipmentFromDB);
     },
 
     /**
