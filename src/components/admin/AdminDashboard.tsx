@@ -1080,48 +1080,97 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 );
               })()}
 
-              {/* TAB: FORMULÁRIOS — segmentados por equipamento + regras de ativação */}
+              {/* TAB: FORMULÁRIOS — 1 bloco por equipamento */}
               {activeTab === 'forms' && (() => {
-                // Resolve formulários aplicáveis via activation_rules
-                const eq = osEquipments[0]; // Equipamento principal da OS
-                const eqFamily = eq?.equipmentFamily || '';
                 const opType = selectedOrder.operationType || '';
-
-                // Filtro de regras: serviceTypeId == opType E (equipmentFamily == eqFamily OU == 'Todos' OU vazio)
-                const matchingRules = activationRules.filter(r => {
-                  const typeMatch = !r.serviceTypeId || r.serviceTypeId === opType;
-                  const familyMatch = !r.equipmentFamily || r.equipmentFamily === 'Todos' || r.equipmentFamily === eqFamily;
-                  return typeMatch && familyMatch;
-                });
-
-                // Monta lista de formulários aplicáveis (sem duplicar)
-                const appliedFormIds = [...new Set(matchingRules.map(r => r.formId).filter(Boolean))];
-
-                // Inclui sempre o formId direto da OS se existir
-                if (selectedOrder.formId && !appliedFormIds.includes(selectedOrder.formId)) {
-                  appliedFormIds.unshift(selectedOrder.formId);
-                }
-
-                const appliedTemplates = formTemplatesAll.filter(t => appliedFormIds.includes(t.id));
-
-                // Respostas já preenchidas: pegar do formData da OS + das visitas
                 const allFormData: Record<string, any> = {
                   ...(selectedOrder.formData || {}),
                   ...orderVisits.reduce((acc: any, v: any) => ({ ...acc, ...(v.formData || {}) }), {}),
                 };
 
+                // Resolve o template correto para um dado equipamento
+                const resolveTemplate = (eqFamily: string) => {
+                  const rules = activationRules.filter(r => {
+                    const typeMatch = !r.serviceTypeId || r.serviceTypeId === opType;
+                    const famMatch = !r.equipmentFamily || r.equipmentFamily === 'Todos' || r.equipmentFamily === eqFamily;
+                    return typeMatch && famMatch;
+                  });
+                  const ids = [...new Set(rules.map((r: any) => r.formId).filter(Boolean))];
+                  return formTemplatesAll.filter((t: any) => ids.includes(t.id));
+                };
+
+                // Garante que formId direto da OS apareça quando não há regras
+                const osFallbackTemplate = selectedOrder.formId
+                  ? formTemplatesAll.filter((t: any) => t.id === selectedOrder.formId)
+                  : [];
+
+                const renderFields = (fields: any[]) =>
+                  fields.length === 0 ? (
+                    <div className="px-6 py-8 text-center">
+                      <p className="text-[11px] text-slate-400 font-medium">Formulário sem perguntas configuradas</p>
+                    </div>
+                  ) : fields.map((field: any) => {
+                    const answer = allFormData[field.id];
+                    const hasAnswer = answer !== undefined && answer !== null && answer !== '';
+                    const isImage = typeof answer === 'string' && (answer.startsWith('http') || answer.startsWith('data:image'));
+                    const isOk = String(answer).toLowerCase() === 'ok' || String(answer).toLowerCase() === 'sim';
+                    return (
+                      <div key={field.id} className={`px-6 py-3.5 flex justify-between gap-6 items-center transition-colors ${!hasAnswer ? 'bg-amber-50/30' : 'hover:bg-slate-50/50'}`}>
+                        <div className="flex-1">
+                          <p className="text-[13px] font-medium text-slate-700">{field.label || field.id}</p>
+                          {field.type && <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">{field.type}</p>}
+                        </div>
+                        {isImage ? (
+                          <img src={answer} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                        ) : hasAnswer ? (
+                          <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{String(answer)}</div>
+                        ) : (
+                          <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest px-2.5 py-1 border border-dashed border-amber-200 rounded-md min-w-[60px] text-center">Pendente</div>
+                        )}
+                      </div>
+                    );
+                  });
+
+                const renderTemplateBlock = (template: any, eq?: any) => {
+                  const fields: any[] = template.fields || [];
+                  const answered = fields.filter(f => allFormData[f.id] !== undefined && allFormData[f.id] !== '').length;
+                  const isComplete = answered === fields.length && fields.length > 0;
+                  const isPending = answered === 0;
+                  return (
+                    <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                      <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50">
+                        <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
+                          <ClipboardList size={14} className="text-slate-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{template.title}</p>
+                          {eq && (
+                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                              {eq.equipmentName}{eq.equipmentFamily ? ` · ${eq.equipmentFamily}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[9px] font-black text-slate-400 uppercase">{answered}/{fields.length} resp.</span>
+                          <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isComplete ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : isPending ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                            {isComplete ? '✓ Concluído' : isPending ? '○ Pendente' : '◑ Parcial'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-slate-50">{renderFields(fields)}</div>
+                    </div>
+                  );
+                };
+
                 return (
                   <div className="max-w-4xl mx-auto space-y-8">
+                    {/* Alerta de impedimento */}
                     {selectedOrder.status === 'IMPEDIDO' && (
                       <div className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
-                        <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0">
-                          <AlertTriangle size={20} />
-                        </div>
+                        <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
                         <div>
                           <h4 className="text-sm font-bold text-rose-900">Serviço Impedido</h4>
-                          <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">
-                            {selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.'}
-                          </p>
+                          <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.'}</p>
                         </div>
                       </div>
                     )}
@@ -1131,130 +1180,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <Loader2 size={22} className="animate-spin text-primary-400" />
                         <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando formulários...</span>
                       </div>
-                    ) : appliedTemplates.length > 0 ? (
-                      /* ── Formulários via Regras de Ativação ─────────────────────── */
-                      appliedTemplates.map((template: any) => {
-                        const fields: any[] = template.fields || [];
-                        const answeredCount = fields.filter(f => allFormData[f.id] !== undefined && allFormData[f.id] !== '').length;
-                        const isComplete = answeredCount === fields.length && fields.length > 0;
-                        const isPending = answeredCount === 0;
+                    ) : osEquipments.length > 0 ? (
+                      /* ── Modo multi-equipamento: 1 seção por equipamento ── */
+                      osEquipments.map((eq: any, eqIdx: number) => {
+                        const templates = resolveTemplate(eq.equipmentFamily || '');
+                        const effectiveTemplates = templates.length > 0 ? templates : osFallbackTemplate;
                         return (
-                          <div key={template.id} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                            {/* Cabeçalho do formulário */}
-                            <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50">
-                              <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
-                                <ClipboardList size={14} className="text-slate-400" />
+                          <div key={eq.id || eqIdx} className="space-y-4">
+                            {/* Cabeçalho do equipamento */}
+                            <div className="flex items-center gap-3">
+                              <div className="w-7 h-7 bg-primary-50 border border-primary-100 rounded-md flex items-center justify-center">
+                                <Box size={13} className="text-primary-400" />
                               </div>
-                              <div className="flex-1">
-                                <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{template.title}</p>
-                                {eq && (
-                                  <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                                    {eq.equipmentName}{eq.equipmentFamily ? ` · ${eq.equipmentFamily}` : ''}
-                                  </p>
-                                )}
+                              <div>
+                                <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{eq.equipmentName}</p>
+                                {eq.equipmentFamily && <p className="text-[10px] text-slate-400 font-medium">{eq.equipmentFamily}</p>}
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-black text-slate-400 uppercase">
-                                  {answeredCount}/{fields.length} respondidas
-                                </span>
-                                <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isComplete ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                  : isPending ? 'bg-amber-50 text-amber-600 border-amber-100'
-                                    : 'bg-blue-50 text-blue-600 border-blue-100'
-                                  }`}>
-                                  {isComplete ? '✓ Concluído' : isPending ? '○ Não iniciado' : '◑ Parcial'}
-                                </span>
-                              </div>
+                              <span className="ml-auto text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                {effectiveTemplates.length} formulário{effectiveTemplates.length !== 1 ? 's' : ''}
+                              </span>
                             </div>
 
-                            {/* Lista de perguntas — SEMPRE exibe todas, mesmo não preenchidas */}
-                            <div className="divide-y divide-slate-50">
-                              {fields.length === 0 ? (
-                                <div className="px-6 py-8 text-center">
-                                  <p className="text-[11px] text-slate-400 font-medium">Este formulário não possui perguntas configuradas</p>
+                            {effectiveTemplates.length > 0
+                              ? effectiveTemplates.map((t: any) => renderTemplateBlock(t, eq))
+                              : (
+                                <div className="bg-white border border-dashed border-slate-200 rounded-xl py-10 text-center">
+                                  <ClipboardList size={28} className="mx-auto text-slate-200 mb-3" />
+                                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Sem formulário vinculado</p>
+                                  <p className="text-[10px] text-slate-300 mt-1">Tipo: {opType || '—'} · Família: {eq.equipmentFamily || '—'}</p>
                                 </div>
-                              ) : fields.map((field: any) => {
-                                const answer = allFormData[field.id];
-                                const hasAnswer = answer !== undefined && answer !== null && answer !== '';
-                                const isImage = typeof answer === 'string' && (answer.startsWith('http') || answer.startsWith('data:image'));
-                                const isOk = String(answer).toLowerCase() === 'ok' || String(answer).toLowerCase() === 'sim';
-                                return (
-                                  <div key={field.id} className={`px-6 py-3.5 flex justify-between gap-6 items-center transition-colors ${!hasAnswer ? 'bg-amber-50/30' : 'hover:bg-slate-50/50'
-                                    }`}>
-                                    <div className="flex-1">
-                                      <p className="text-[13px] font-medium text-slate-700">{field.label || field.id}</p>
-                                      {field.type && (
-                                        <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">{field.type}</p>
-                                      )}
-                                    </div>
-                                    {isImage ? (
-                                      <img src={answer} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
-                                    ) : hasAnswer ? (
-                                      <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'
-                                        }`}>{String(answer)}</div>
-                                    ) : (
-                                      <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest px-2.5 py-1 border border-dashed border-amber-200 rounded-md min-w-[60px] text-center">
-                                        Pendente
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
+                              )
+                            }
                           </div>
                         );
                       })
                     ) : (
-                      /* ── Fallback: sem regras configuradas, exibir form direto da OS ─── */
-                      (() => {
-                        const validVisits = orderVisits
-                          .filter((v: any) => v.formData && Object.keys(v.formData).length > 0)
-                          .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                        const osFormData = selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0 ? selectedOrder.formData : null;
-
-                        if (validVisits.length === 0 && !osFormData) {
-                          return (
-                            <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm">
-                              <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento</p>
-                              <p className="text-[11px] text-slate-300 mt-1 font-medium">Nenhuma regra de formulário configurada para &quot;{opType}&quot;</p>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div className="space-y-6">
-                            {validVisits.map((visit: any, index: number) => (
-                              <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-                                <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-                                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                                    Visita {visit.visitNumber ?? index + 1} — {new Date(visit.updatedAt || visit.createdAt).toLocaleString('pt-BR')}
-                                  </h3>
-                                  <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
-                                    {Object.keys(visit.formData).length} itens
-                                  </span>
-                                </div>
-                                <div className="divide-y divide-slate-50">
-                                  {Object.entries(visit.formData).filter(([k, v]) => {
-                                    if (Array.isArray(v)) return false;
-                                    if (typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'))) return false;
-                                    if (k.includes('Assinatura') || k.includes('impediment')) return false;
-                                    if (['signature', 'signatureName', 'signatureDoc', 'finishedAt'].includes(k)) return false;
-                                    return true;
-                                  }).map(([key, val]) => (
-                                    <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
-                                      <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
-                                      <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim'
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                        : 'bg-slate-50 text-slate-600 border-slate-200'
-                                        }`}>{String(val)}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
+                      /* ── Fallback: sem equipamentos carregados ── */
+                      osFallbackTemplate.length > 0
+                        ? osFallbackTemplate.map((t: any) => renderTemplateBlock(t))
+                        : (
+                          <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm">
+                            <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento</p>
+                            <p className="text-[11px] text-slate-300 mt-1 font-medium">Nenhuma regra configurada para &quot;{opType}&quot;</p>
                           </div>
-                        );
-                      })()
+                        )
                     )}
                   </div>
                 );
