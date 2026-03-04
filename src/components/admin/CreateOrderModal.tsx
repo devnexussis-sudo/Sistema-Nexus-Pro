@@ -301,15 +301,24 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       const orderResult: any = await onSubmit(finalData);
       const orderId: string | undefined = orderResult?.id;
 
-      // ── Persistir TODOS os equipamentos — SEQUENCIAL para evitar race condition ──
-      // Promise.allSettled paralelo causava sort_order=0 em todos (DB constraint falha).
-      // for...of garante que cada insert completa antes do próximo começar.
+      // DIAGNÓSTICO TEMPORÁRIO — remover após identificar o problema
+      console.log('[DIAG] orderResult:', orderResult);
+      console.log('[DIAG] orderId:', orderId);
+      console.log('[DIAG] selectedEquipIds:', selectedEquipIds);
+
+      if (!orderId) {
+        alert(`[DIAGNÓSTICO] orderId é undefined! orderResult: ${JSON.stringify(orderResult)}`);
+      }
+
+      // ── Persistir TODOS os equipamentos — SEQUENCIAL ──
       if (orderId && selectedEquipIds.length > 0) {
+        const errors: string[] = [];
         for (let idx = 0; idx < selectedEquipIds.length; idx++) {
           const eqId = selectedEquipIds[idx];
           const eq = equipments.find(e => e.id === eqId);
-          if (!eq) continue;
+          if (!eq) { console.warn(`[DIAG] equip idx=${idx} não encontrado, id=${eqId}`); continue; }
           try {
+            console.log(`[DIAG] Salvando equip idx=${idx}:`, eq.model, eq.serialNumber);
             await VisitService.addEquipmentToOrder({
               orderId,
               equipmentId: eq.id,
@@ -318,11 +327,18 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               equipmentSerial: eq.serialNumber,
               equipmentFamily: (eq as any).familyName || '',
             });
-          } catch (e) {
-            console.warn(`[CreateOrderModal] addEquipmentToOrder idx=${idx}:`, e);
+            console.log(`[DIAG] Equip idx=${idx} salvo com sucesso`);
+          } catch (e: any) {
+            const msg = e?.message || String(e);
+            console.error(`[DIAG] ERRO idx=${idx}:`, msg, e);
+            errors.push(`Equip ${idx + 1} (${eq.model}): ${msg}`);
           }
         }
+        if (errors.length > 0) {
+          alert(`[DIAGNÓSTICO] Erros ao salvar equipamentos:\n${errors.join('\n')}`);
+        }
       }
+
 
 
       // Se a OS foi FINALIZADA ou é um novo protocolo com itens do estoque
