@@ -301,28 +301,29 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       const orderResult: any = await onSubmit(finalData);
       const orderId: string | undefined = orderResult?.id;
 
-      // ── Persistir TODOS os equipamentos em service_order_equipments ───
-      // Agora com o orderId real retornado pelo onSubmit.
+      // ── Persistir TODOS os equipamentos — SEQUENCIAL para evitar race condition ──
+      // Promise.allSettled paralelo causava sort_order=0 em todos (DB constraint falha).
+      // for...of garante que cada insert completa antes do próximo começar.
       if (orderId && selectedEquipIds.length > 0) {
-        await Promise.allSettled(
-          selectedEquipIds.map(async (eqId, idx) => {
-            const eq = equipments.find(e => e.id === eqId);
-            if (!eq) return;
-            try {
-              await VisitService.addEquipmentToOrder({
-                orderId,
-                equipmentId: eq.id,
-                equipmentName: eq.model,
-                equipmentModel: eq.model,
-                equipmentSerial: eq.serialNumber,
-                equipmentFamily: (eq as any).familyName || '',
-              });
-            } catch (e) {
-              console.warn(`[CreateOrderModal] addEquipmentToOrder idx=${idx}:`, e);
-            }
-          })
-        );
+        for (let idx = 0; idx < selectedEquipIds.length; idx++) {
+          const eqId = selectedEquipIds[idx];
+          const eq = equipments.find(e => e.id === eqId);
+          if (!eq) continue;
+          try {
+            await VisitService.addEquipmentToOrder({
+              orderId,
+              equipmentId: eq.id,
+              equipmentName: eq.model,
+              equipmentModel: eq.model,
+              equipmentSerial: eq.serialNumber,
+              equipmentFamily: (eq as any).familyName || '',
+            });
+          } catch (e) {
+            console.warn(`[CreateOrderModal] addEquipmentToOrder idx=${idx}:`, e);
+          }
+        }
       }
+
 
       // Se a OS foi FINALIZADA ou é um novo protocolo com itens do estoque
       // Dar baixa no estoque do técnico
