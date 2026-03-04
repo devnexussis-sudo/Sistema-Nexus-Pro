@@ -90,7 +90,6 @@ BEGIN
     WHERE id = p_visit_id::UUID AND tenant_id = v_tenant_id;
 
     -- Sincroniza a tabela ORDERS atomicamente
-    SET LOCAL session_replication_role = replica;
     UPDATE public.orders
     SET
         scheduled_date = p_scheduled_date,
@@ -106,7 +105,6 @@ BEGIN
                          END,
         updated_at = NOW()
     WHERE id = p_order_id AND tenant_id = v_tenant_id;
-    SET LOCAL session_replication_role = DEFAULT;
 
     -- Retorna a visita atualizada nova
     SELECT to_jsonb(sv) INTO v_result
