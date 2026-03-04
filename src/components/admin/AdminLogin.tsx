@@ -108,7 +108,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                     <div className="max-w-xl -mt-20">
                         <h2 className="text-6xl font-black text-white italic uppercase tracking-tighter leading-none mb-6 drop-shadow-2xl">
                             Bem vindo ao <br />
-                            <span className="text-primary-400">Nexus Line</span>
+                            <span className="text-primary-400">DUNO</span>
                         </h2>
                         <p className="text-white/80 text-xl font-medium leading-relaxed drop-shadow-lg">
                             Uma plataforma com tecnologia de ponta para gerenciar suas equipes de campo,
@@ -128,14 +128,14 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
             <div className="w-full md:w-[40%] flex flex-col items-center justify-center p-8 bg-white relative">
                 {/* Logo Flutuante no Topo (Mobile) */}
                 <div className="md:hidden mb-10">
-                    <img src="/nexus-logo.png" alt="Nexus Logo" className="h-10 w-auto max-w-[140px] object-contain" />
+                    <img src="/nexus-logo.png" alt="DUNO Logo" className="h-10 w-auto max-w-[140px] object-contain" />
                 </div>
 
                 <div className="w-full max-w-sm space-y-10">
                     {/* Logo Destacada (Desktop) */}
                     <div className="hidden md:flex flex-col items-center mb-4">
                         <div className="p-6 bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-50 mb-8 transition-transform hover:scale-105 duration-500">
-                            <img src="/nexus-logo.png" alt="Nexus Logo" className="h-16 w-auto max-w-[180px] object-contain" />
+                            <img src="/nexus-logo.png" alt="DUNO Logo" className="h-16 w-auto max-w-[180px] object-contain" />
                         </div>
                         <div className="text-center">
                             <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
@@ -150,7 +150,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                         <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">
                             {showForgotPassword ? 'Recuperação' : 'Login'}
                         </h1>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Painel Admin Nexus</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Painel Admin DUNO</p>
                     </div>
 
                     {/* Card de Login */}
@@ -284,7 +284,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                                 Multi-Tenant Master Login
                             </button>
                             <div className="flex items-center gap-6 text-slate-300 text-[9px] font-bold uppercase tracking-widest italic">
-                                <span>Nexus v2.0</span>
+                                <span>DUNO v2.0</span>
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-100"></span>
                                 <span>© 2026</span>
                             </div>

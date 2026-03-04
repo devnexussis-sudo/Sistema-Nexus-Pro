@@ -417,7 +417,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 </div>
                                 <div>
                                     <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight leading-none">{selectedQuote ? 'Ajustar Proposta' : 'Nova Proposta Comercial'}</h2>
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Engenharia de Vendas Nexus Pro</p>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Engenharia de Vendas DUNO</p>
                                 </div>
                             </div>
                             <button
@@ -674,7 +674,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             <div className="flex items-center gap-6">
                                 <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-md"><FileText size={24} className="text-white" /></div>
                                 <div>
-                                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest leading-none mb-2">Inspeção Sênior Nexus</p>
+                                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest leading-none mb-2">Inspeção Sênior DUNO</p>
                                     <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter leading-none">Orçamento Ref: {viewQuote.id}</h2>
                                 </div>
                             </div>

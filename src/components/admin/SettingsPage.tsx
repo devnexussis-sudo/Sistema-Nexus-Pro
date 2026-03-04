@@ -350,7 +350,7 @@ export const SettingsPage: React.FC = () => {
       <div className="flex h-full items-center justify-center bg-slate-50/20">
         <div className="flex flex-col items-center gap-4 animate-pulse">
           <Loader2 className="animate-spin text-primary-500" size={40} strokeWidth={1.5} />
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">Sincronizando Nexus...</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">Sincronizando DUNO...</span>
         </div>
       </div>
     );

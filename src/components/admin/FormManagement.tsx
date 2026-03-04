@@ -312,7 +312,7 @@ export const FormManagement: React.FC = () => {
           {loading && serviceTypes.length === 0 && forms.length === 0 ? (
             <div className="py-20 flex flex-col items-center justify-center gap-4 text-primary-600">
               <Loader2 size={48} className="animate-spin" />
-              <p className="text-xs font-black uppercase tracking-widest italic">Sincronizando com a Cloud Nexus...</p>
+              <p className="text-xs font-black uppercase tracking-widest italic">Sincronizando com a Cloud DUNO...</p>
             </div>
           ) : (
             <>
