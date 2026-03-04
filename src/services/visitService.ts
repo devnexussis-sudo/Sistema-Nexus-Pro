@@ -420,21 +420,7 @@ export const VisitService = {
     }): Promise<ServiceVisit> => {
         const tenantId = getCurrentTenantId();
         if (!tenantId) throw new Error('TENANT_NOT_FOUND');
-
-        // Buscar visita atual (snapshot para audit)
-        const { data: current, error: fetchErr } = await supabase
-            .from('service_visits')
-            .select('*')
-            .eq('id', params.visitId)
-            .eq('tenant_id', tenantId)
-            .single();
-
-        if (fetchErr || !current) throw new Error('VISIT_NOT_FOUND');
-
-        // Bloquear edição de visita concluída / travada
-        if (current.is_locked || current.status === VisitStatusEnum.COMPLETED) {
-            throw new Error('VISIT_LOCKED: Visita concluída não pode ser reagendada.');
-        }
+        if (!params.scheduledDate) throw new Error('INVALID_TIME: Data de agendamento obrigatória.');
 
         // Validação de horário
         if (params.scheduledTime && params.scheduledEndTime &&
@@ -442,57 +428,37 @@ export const VisitService = {
             throw new Error('INVALID_TIME: Horário de término deve ser maior que o horário de início.');
         }
 
-        const updatePayload: Record<string, any> = {
-            updated_at: new Date().toISOString(),
-        };
-        if (params.scheduledDate !== undefined) updatePayload.scheduled_date = params.scheduledDate;
-        if (params.scheduledTime !== undefined) updatePayload.scheduled_time = params.scheduledTime;
-        if (params.scheduledEndTime !== undefined) updatePayload.scheduled_end_time = params.scheduledEndTime;
-        if (params.technicianId !== undefined) updatePayload.technician_id = params.technicianId;
-        if (params.notes !== undefined) updatePayload.notes = params.notes;
+        // ── USA RPC SECURITY DEFINER ──────────────────────────────────
+        // Resolve tenant_id a partir da OS (não depende de JWT claim no RLS),
+        // atualiza service_visits e sincroniza orders em uma transação única.
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('duno_update_visit_schedule', {
+            p_visit_id: params.visitId,
+            p_order_id: params.orderId,
+            p_scheduled_date: params.scheduledDate,
+            p_scheduled_time: params.scheduledTime ?? null,
+            p_scheduled_end_time: params.scheduledEndTime ?? null,
+            p_technician_id: params.technicianId ?? null,
+        });
 
-        const { data, error } = await supabase
-            .from('service_visits')
-            .update(updatePayload)
-            .eq('id', params.visitId)
-            .eq('tenant_id', tenantId)
-            .select()
-            .single();
-
-        if (error) throw new Error(`DB_ERROR: ${error.message}`);
-
-        // ── Sincroniza data/hora de agendamento de volta para a OS ──
-        // Garante que link público, impressão e aba de dados gerais
-        // sempre reflitam o agendamento corrente da visita.
-        const orderUpdate: Record<string, any> = { updated_at: new Date().toISOString() };
-        if (params.scheduledDate !== undefined) orderUpdate.scheduled_date = params.scheduledDate;
-        if (params.scheduledTime !== undefined) orderUpdate.scheduled_time = params.scheduledTime;
-        if (params.technicianId !== undefined) orderUpdate.assigned_to = params.technicianId;
-
-        if (Object.keys(orderUpdate).length > 1) { // > 1 porque updated_at sempre está
-            await supabase
-                .from('orders')
-                .update(orderUpdate)
-                .eq('id', params.orderId)
-                .eq('tenant_id', tenantId);
+        if (rpcErr) throw new Error(`DB_ERROR: ${rpcErr.message}`);
+        if (!rpcData?.ok) {
+            const code = rpcData?.error || 'UNKNOWN';
+            if (code === 'VISIT_LOCKED') throw new Error('VISIT_LOCKED: Visita concluída não pode ser reagendada.');
+            if (code === 'VISIT_NOT_FOUND') throw new Error('VISIT_NOT_FOUND: Visita não encontrada.');
+            throw new Error(`RPC_ERROR: ${code}`);
         }
 
-        // Audit trail — registra o reagendamento
+        // Audit trail (fire-and-forget — não bloqueia o retorno)
         const { data: { session } } = await supabase.auth.getSession();
         supabase.from('visit_status_history').insert({
             tenant_id: tenantId,
             visit_id: params.visitId,
             order_id: params.orderId,
-            from_status: current.status,
-            to_status: current.status, // status não muda
-            reason: `Reagendamento: ${current.scheduled_date} → ${params.scheduledDate ?? current.scheduled_date}`,
+            from_status: rpcData.visit?.status ?? 'pending',
+            to_status: rpcData.visit?.status ?? 'pending',
+            reason: `Reagendamento: → ${params.scheduledDate}`,
             metadata: {
                 action: 'RESCHEDULE',
-                previous: {
-                    scheduledDate: current.scheduled_date,
-                    scheduledTime: current.scheduled_time,
-                    technicianId: current.technician_id,
-                },
                 next: {
                     scheduledDate: params.scheduledDate,
                     scheduledTime: params.scheduledTime,
@@ -505,13 +471,13 @@ export const VisitService = {
             if (auditErr) logger.error('[VisitService] updateVisitSchedule audit falhou', { auditErr });
         });
 
-        logger.info('[VisitService] Visita reagendada + OS sincronizada', {
+        logger.info('[VisitService] Visita reagendada via RPC', {
             visitId: params.visitId,
             orderId: params.orderId,
             scheduledDate: params.scheduledDate,
         });
 
-        return _mapVisitFromDB(data);
+        return _mapVisitFromDB(rpcData.visit);
     },
 
     // ═══════════════════════════════════════════════════════════════
