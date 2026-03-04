@@ -15,7 +15,7 @@ import { VisitService } from '../../services/visitService';
 
 interface CreateOrderModalProps {
   onClose: () => void;
-  onSubmit: (order: Partial<ServiceOrder>) => Promise<void>;
+  onSubmit: (order: Partial<ServiceOrder>) => Promise<any>;
   initialData?: ServiceOrder;
 }
 
@@ -299,11 +299,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       };
 
       const orderResult: any = await onSubmit(finalData);
-      const orderId = orderResult?.id || initialData?.id;
+      const orderId: string | undefined = orderResult?.id;
 
-      // ── Persistir TODOS equipamentos em service_order_equipments ───────────
-      // O campo equipment_name/serial da OS já salva o primeiro (índice 0).
-      // Aqui persistimos todos para suportar múltiplos equipamentos na OS.
+      // ── Persistir TODOS os equipamentos em service_order_equipments ───
+      // Agora com o orderId real retornado pelo onSubmit.
       if (orderId && selectedEquipIds.length > 0) {
         await Promise.allSettled(
           selectedEquipIds.map(async (eqId, idx) => {
@@ -316,11 +315,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 equipmentName: eq.model,
                 equipmentModel: eq.model,
                 equipmentSerial: eq.serialNumber,
-                equipmentFamily: eq.familyName || '',
+                equipmentFamily: (eq as any).familyName || '',
               });
             } catch (e) {
-              // Não bloqueia — equip. principal já salvo nos campos da OS
-              console.warn(`[CreateOrderModal] addEquipmentToOrder idx=${idx} err:`, e);
+              console.warn(`[CreateOrderModal] addEquipmentToOrder idx=${idx}:`, e);
             }
           })
         );
