@@ -20,9 +20,9 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
     const [imageLoaded, setImageLoaded] = React.useState(false);
 
     const sizes = {
-        sm: { heightPx: '14px' },
-        md: { heightPx: '20px' },
-        lg: { heightPx: '36px' }
+        sm: { heightPx: '12px' },
+        md: { heightPx: '17px' },
+        lg: { heightPx: '30px' }
     };
 
     const current = sizes[size];

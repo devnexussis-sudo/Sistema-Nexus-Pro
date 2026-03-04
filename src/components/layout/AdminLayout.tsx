@@ -139,10 +139,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                             })}
                         </nav>
 
-                        {/* 🛡️ Monitor de Resiliência Nexus (Big Tech Standard) */}
-                        <div className="mt-auto pt-4 border-t border-white/5 mx-2 pb-4">
-                            <ResilienceIndicator />
-                        </div>
 
                         <div className="pt-4 border-t border-white/5 mx-2">
                             <a

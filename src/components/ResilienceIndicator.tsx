@@ -43,7 +43,7 @@ export const ResilienceIndicator: React.FC = () => {
         if (!isOnline) return 'Internet: Offline';
         if (supabaseStatus === 'offline') return 'Cloud: Instável';
         if (supabaseStatus === 'connecting') return 'Conectando...';
-        return 'Nexus Cloud: Ativa';
+        return 'DUNO Cloud: Ativa';
     };
 
     return (
