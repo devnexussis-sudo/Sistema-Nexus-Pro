@@ -1841,7 +1841,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <button
                                     onClick={() => handleSaveVisitSchedule(visit)}
                                     disabled={savingSchedule}
-                                    className="flex items-center gap-1.5 px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-black rounded-lg transition-all disabled:opacity-50"
+                                    className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-black rounded-lg transition-all shadow-md disabled:opacity-50"
                                   >
                                     {savingSchedule ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
                                     Salvar
