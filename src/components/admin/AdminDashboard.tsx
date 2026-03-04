@@ -805,12 +805,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="px-6 py-2 text-xs text-slate-500 font-medium uppercase tracking-wide whitespace-nowrap">
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-6 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                      {order.operationType || '---'}
-                    </td>
-                    <td className="px-6 py-2 text-sm font-bold text-slate-700 whitespace-nowrap">
-                      {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
-                    </td>
                     <td className="px-6 py-2 font-bold text-sm text-slate-800 tracking-tight truncate max-w-[200px]">
                       {order.customerName}
                     </td>
@@ -825,6 +819,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         ) : <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">-</span>}
                       </div>
                     </td>
+
+                    <td className="px-6 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                      {order.operationType || '---'}
+                    </td>
+                    <td className="px-6 py-2 text-sm font-bold text-slate-700 whitespace-nowrap">
+                      {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
+                    </td>
+
                     <td className="px-6 py-2 whitespace-nowrap"><StatusBadge status={order.status} /></td>
                     <td className="px-6 py-2 text-right pr-6">
                       <div className="flex items-center justify-end gap-2 transition-opacity opacity-90 group-hover:opacity-100">
@@ -849,7 +851,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 );
               }) : (
                 <tr>
-                  <td colSpan={8} className="py-32 text-center bg-slate-50/30">
+                  <td colSpan={10} className="py-32 text-center bg-slate-50/30">
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
                       <Search size={24} className="text-slate-300" />
                     </div>
