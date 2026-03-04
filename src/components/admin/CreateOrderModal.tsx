@@ -301,24 +301,13 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       const orderResult: any = await onSubmit(finalData);
       const orderId: string | undefined = orderResult?.id;
 
-      // DIAGNÓSTICO TEMPORÁRIO — remover após identificar o problema
-      console.log('[DIAG] orderResult:', orderResult);
-      console.log('[DIAG] orderId:', orderId);
-      console.log('[DIAG] selectedEquipIds:', selectedEquipIds);
-
-      if (!orderId) {
-        alert(`[DIAGNÓSTICO] orderId é undefined! orderResult: ${JSON.stringify(orderResult)}`);
-      }
-
-      // ── Persistir TODOS os equipamentos — SEQUENCIAL ──
+      // ── Persistir todos os equipamentos sequencialmente (sem race condition) ──
       if (orderId && selectedEquipIds.length > 0) {
-        const errors: string[] = [];
         for (let idx = 0; idx < selectedEquipIds.length; idx++) {
           const eqId = selectedEquipIds[idx];
           const eq = equipments.find(e => e.id === eqId);
-          if (!eq) { console.warn(`[DIAG] equip idx=${idx} não encontrado, id=${eqId}`); continue; }
+          if (!eq) continue;
           try {
-            console.log(`[DIAG] Salvando equip idx=${idx}:`, eq.model, eq.serialNumber);
             await VisitService.addEquipmentToOrder({
               orderId,
               equipmentId: eq.id,
@@ -327,18 +316,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               equipmentSerial: eq.serialNumber,
               equipmentFamily: (eq as any).familyName || '',
             });
-            console.log(`[DIAG] Equip idx=${idx} salvo com sucesso`);
           } catch (e: any) {
-            const msg = e?.message || String(e);
-            console.error(`[DIAG] ERRO idx=${idx}:`, msg, e);
-            errors.push(`Equip ${idx + 1} (${eq.model}): ${msg}`);
+            console.error(`[OS] Falha ao vincular equip idx=${idx}:`, e?.message);
           }
         }
-        if (errors.length > 0) {
-          alert(`[DIAGNÓSTICO] Erros ao salvar equipamentos:\n${errors.join('\n')}`);
-        }
       }
-
 
 
       // Se a OS foi FINALIZADA ou é um novo protocolo com itens do estoque
