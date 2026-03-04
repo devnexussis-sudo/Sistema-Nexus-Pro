@@ -370,6 +370,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       // Refresh lista
       const updated = await VisitService.getVisitsByOrderId(selectedOrder.id);
       setVisits(updated);
+      // Sincroniza agendamento na OS local para refletir na aba dados gerais
+      setSelectedOrder({
+        ...selectedOrder,
+        scheduledDate: newVisitDraft.scheduledDate,
+        scheduledTime: newVisitDraft.scheduledTime || selectedOrder.scheduledTime,
+        assignedTo: newVisitDraft.technicianId || selectedOrder.assignedTo,
+      });
       ordersRefetch();
     } catch (e: any) {
       const msg = (e.message || '').startsWith('INVALID_') ? e.message.split(': ')[1] : e.message;
@@ -391,7 +398,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         technicianId: visitScheduleDraft.technicianId || undefined,
       });
       setVisits(prev => prev.map(v => v.id === updated.id ? updated : v));
+      // Sincroniza o selectedOrder local para refletir imediatamente na aba de dados gerais
+      if (selectedOrder) {
+        setSelectedOrder({
+          ...selectedOrder,
+          ...(visitScheduleDraft.scheduledDate ? { scheduledDate: visitScheduleDraft.scheduledDate } : {}),
+          ...(visitScheduleDraft.scheduledTime ? { scheduledTime: visitScheduleDraft.scheduledTime } : {}),
+          ...(visitScheduleDraft.technicianId ? { assignedTo: visitScheduleDraft.technicianId } : {}),
+        });
+      }
       setEditingVisitId(null);
+      ordersRefetch(); // Refetch da lista principal também
     } catch (e: any) {
       const msg = e.message?.replace(/^[A-Z_]+: /, '');
       alert(msg || 'Erro ao salvar reagendamento.');
@@ -1223,8 +1240,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-[9px] font-black text-slate-400 uppercase">{answered}/{fields.length} resp.</span>
                           <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isComplete ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                              : isPending ? 'bg-amber-50 text-amber-600 border-amber-100'
-                                : 'bg-blue-50 text-blue-600 border-blue-100'
+                            : isPending ? 'bg-amber-50 text-amber-600 border-amber-100'
+                              : 'bg-blue-50 text-blue-600 border-blue-100'
                             }`}>
                             {isComplete ? '✓ Concluído' : isPending ? '○ Pendente' : '◑ Parcial'}
                           </span>

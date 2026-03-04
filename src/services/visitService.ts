@@ -186,10 +186,12 @@ export const VisitService = {
             changedBy: createdBy,
         });
 
-        // ── Repor OS para ATRIBUÍDO ───────────────────────────────────
+        // ── Repor OS para ATRIBUÍDO + sincronizar agendamento ─────────
         await supabase.from('orders').update({
             status: 'ATRIBUÍDO',
             assigned_to: params.technicianId,
+            scheduled_date: params.scheduledDate,
+            scheduled_time: params.scheduledTime || null,
             updated_at: new Date().toISOString(),
         }).eq('id', params.orderId).eq('tenant_id', tenantId);
 
@@ -459,6 +461,22 @@ export const VisitService = {
 
         if (error) throw new Error(`DB_ERROR: ${error.message}`);
 
+        // ── Sincroniza data/hora de agendamento de volta para a OS ──
+        // Garante que link público, impressão e aba de dados gerais
+        // sempre reflitam o agendamento corrente da visita.
+        const orderUpdate: Record<string, any> = { updated_at: new Date().toISOString() };
+        if (params.scheduledDate !== undefined) orderUpdate.scheduled_date = params.scheduledDate;
+        if (params.scheduledTime !== undefined) orderUpdate.scheduled_time = params.scheduledTime;
+        if (params.technicianId !== undefined) orderUpdate.assigned_to = params.technicianId;
+
+        if (Object.keys(orderUpdate).length > 1) { // > 1 porque updated_at sempre está
+            await supabase
+                .from('orders')
+                .update(orderUpdate)
+                .eq('id', params.orderId)
+                .eq('tenant_id', tenantId);
+        }
+
         // Audit trail — registra o reagendamento
         const { data: { session } } = await supabase.auth.getSession();
         supabase.from('visit_status_history').insert({
@@ -487,8 +505,9 @@ export const VisitService = {
             if (auditErr) logger.error('[VisitService] updateVisitSchedule audit falhou', { auditErr });
         });
 
-        logger.info('[VisitService] Visita reagendada', {
+        logger.info('[VisitService] Visita reagendada + OS sincronizada', {
             visitId: params.visitId,
+            orderId: params.orderId,
             scheduledDate: params.scheduledDate,
         });
 
