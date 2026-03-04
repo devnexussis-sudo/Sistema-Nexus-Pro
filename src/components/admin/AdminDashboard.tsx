@@ -77,8 +77,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // ── Edição de Agendamento de Visita ────────────────────────────
   const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
   const [visitScheduleDraft, setVisitScheduleDraft] = useState<{
-    scheduledDate: string; scheduledTime: string; scheduledEndTime: string; technicianId: string;
-  }>({ scheduledDate: '', scheduledTime: '', scheduledEndTime: '', technicianId: '' });
+    scheduledDate: string; scheduledTime: string; technicianId: string;
+  }>({ scheduledDate: '', scheduledTime: '', technicianId: '' });
   const [savingSchedule, setSavingSchedule] = useState(false);
   // Sort: campo e direção — passados para o servidor
   const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' });
@@ -402,7 +402,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         orderId: visit.orderId,
         scheduledDate: visitScheduleDraft.scheduledDate,
         scheduledTime: visitScheduleDraft.scheduledTime || undefined,
-        scheduledEndTime: visitScheduleDraft.scheduledEndTime || undefined,
         technicianId: visitScheduleDraft.technicianId || undefined,
       });
       setVisits(prev => prev.map(v => v.id === updatedVisit.id ? updatedVisit : v));
@@ -1785,7 +1784,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     setVisitScheduleDraft({
                                       scheduledDate: visit.scheduledDate || '',
                                       scheduledTime: visit.scheduledTime || '',
-                                      scheduledEndTime: '',
                                       technicianId: visit.technicianId || '',
                                     });
                                   }}
@@ -1824,10 +1822,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledTime: e.target.value }))} />
                                   </div>
                                   <div className="space-y-1">
-                                    <label className="text-[10px] font-semibold text-slate-500 uppercase">Término</label>
-                                    <input type="time" className="w-full border border-amber-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all"
-                                      value={visitScheduleDraft.scheduledEndTime}
-                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledEndTime: e.target.value }))} />
+
                                   </div>
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-semibold text-slate-500 uppercase">Técnico</label>
