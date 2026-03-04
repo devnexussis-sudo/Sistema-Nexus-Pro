@@ -36,6 +36,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public._resolve_user_tenant_id() TO authenticated, anon;
 
 -- ─── LEITURA ──────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "visits_select_v2" ON public.service_visits;
 CREATE POLICY "visits_select_v2" ON public.service_visits
     FOR SELECT USING (
         tenant_id = public._resolve_user_tenant_id()
@@ -51,6 +52,7 @@ CREATE POLICY "visits_select_v2" ON public.service_visits
     );
 
 -- ─── ESCRITA (INSERT / UPDATE / DELETE) ───────────────────────────
+DROP POLICY IF EXISTS "visits_write_v2" ON public.service_visits;
 CREATE POLICY "visits_write_v2" ON public.service_visits
     FOR ALL USING (
         -- Admin/Manager: tenant_id resolvido via helper multi-fallback
