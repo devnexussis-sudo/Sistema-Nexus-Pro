@@ -189,6 +189,11 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
             <div className="flex items-center justify-between mb-4">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                     {visits.length} {visits.length === 1 ? 'visita registrada' : 'visitas registradas'}
+                    {visits.length > 0 && (
+                        <span className="text-primary-500 ml-1">
+                            (Agendado: {formatDate(visits[visits.length - 1].scheduledDate)})
+                        </span>
+                    )}
                 </span>
                 <span className="text-[10px] font-bold text-slate-300">
                     Ordem cronológica
@@ -286,8 +291,8 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                         {/* Motivo de impedimento */}
                                         {(visit.impedimentReason || visit.pauseReason) && (
                                             <div className={`p-3 rounded-xl border ${visit.status === VisitStatusEnum.BLOCKED
-                                                    ? 'bg-rose-50 border-rose-100'
-                                                    : 'bg-amber-50 border-amber-100'
+                                                ? 'bg-rose-50 border-rose-100'
+                                                : 'bg-amber-50 border-amber-100'
                                                 }`}>
                                                 <p className={`text-[9px] font-black uppercase mb-1 ${visit.status === VisitStatusEnum.BLOCKED ? 'text-rose-500' : 'text-amber-500'
                                                     }`}>
@@ -295,8 +300,8 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                                 </p>
                                                 {visit.impedimentCategory && (
                                                     <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-md mb-1.5 ${visit.status === VisitStatusEnum.BLOCKED
-                                                            ? 'bg-rose-100 text-rose-600'
-                                                            : 'bg-amber-100 text-amber-600'
+                                                        ? 'bg-rose-100 text-rose-600'
+                                                        : 'bg-amber-100 text-amber-600'
                                                         }`}>
                                                         {IMPEDIMENT_LABELS[visit.impedimentCategory] ?? visit.impedimentCategory}
                                                     </span>
