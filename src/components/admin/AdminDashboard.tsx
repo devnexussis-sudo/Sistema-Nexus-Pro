@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { OrderStatus, OrderPriority, type ServiceOrder, type ServiceVisit, type User, type Customer, VisitStatusEnum } from '../../types';
+import { OrderStatus, OrderPriority, type ServiceOrder, type ServiceVisit, type ServiceOrderEquipment, type User, type Customer, VisitStatusEnum } from '../../types';
 import { Button } from '../ui/Button';
 import { StatusBadge, PriorityBadge } from '../ui/StatusBadge';
 import {
@@ -46,7 +46,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [orderVisits, setOrderVisits] = useState<any[]>([]);
 
@@ -61,6 +61,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [showNewVisitForm, setShowNewVisitForm] = useState(false);
   const [newVisitDraft, setNewVisitDraft] = useState({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' });
   const [savingVisit, setSavingVisit] = useState(false);
+
+  // ── Aba Equipamentos ───────────────────────────────────────────
+  const [equipments, setEquipments] = useState<ServiceOrderEquipment[]>([]);
+  const [equipmentsLoading, setEquipmentsLoading] = useState(false);
+
+  // ── Edição de Agendamento de Visita ────────────────────────────
+  const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
+  const [visitScheduleDraft, setVisitScheduleDraft] = useState<{
+    scheduledDate: string; scheduledTime: string; scheduledEndTime: string; technicianId: string;
+  }>({ scheduledDate: '', scheduledTime: '', scheduledEndTime: '', technicianId: '' });
+  const [savingSchedule, setSavingSchedule] = useState(false);
   // Sort: campo e direção — passados para o servidor
   const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
@@ -176,6 +187,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setEditDraft({});
       setActiveTab('overview');
       setShowNewVisitForm(false);
+      setEditingVisitId(null);
+      setEquipments([]);
 
       import('../../services/orderService').then(mod => {
         mod.OrderService.getOrderVisits(selectedOrder.id).then(v => {
@@ -199,8 +212,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setSelectedTemplate(null);
       setIsEditing(false);
       setEditDraft({});
+      setEditingVisitId(null);
+      setEquipments([]);
     }
   }, [selectedOrder]);
+
+  // Lazy load: equipamentos quando aba é aberta
+  useEffect(() => {
+    if ((activeTab === 'equipments' || activeTab === 'forms') && selectedOrder) {
+      setEquipmentsLoading(true);
+      VisitService.getOrderEquipments(selectedOrder.id)
+        .then(setEquipments)
+        .finally(() => setEquipmentsLoading(false));
+    }
+  }, [activeTab, selectedOrder]);
 
   // Refresh de visitas quando a aba é aberta
   useEffect(() => {
@@ -279,7 +304,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const mapIdToLabel = (id: string) => {
+  const handleSaveVisitSchedule = async (visit: ServiceVisit) => {
+    setSavingSchedule(true);
+    try {
+      const updated = await VisitService.updateVisitSchedule({
+        visitId: visit.id,
+        orderId: visit.orderId,
+        scheduledDate: visitScheduleDraft.scheduledDate || undefined,
+        scheduledTime: visitScheduleDraft.scheduledTime || undefined,
+        scheduledEndTime: visitScheduleDraft.scheduledEndTime || undefined,
+        technicianId: visitScheduleDraft.technicianId || undefined,
+      });
+      setVisits(prev => prev.map(v => v.id === updated.id ? updated : v));
+      setEditingVisitId(null);
+    } catch (e: any) {
+      const msg = e.message?.replace(/^[A-Z_]+: /, '');
+      alert(msg || 'Erro ao salvar reagendamento.');
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+
+  const mapIdToLabel = (id: string): string => {
     if (!selectedTemplate) return id;
     const field = selectedTemplate.fields?.find((f: any) => f.id === id || f.label === id);
     return field ? field.label : id;
@@ -719,12 +766,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {/* TABS */}
             <div className="px-6 border-b border-slate-100 bg-white flex gap-6 shrink-0 overflow-x-auto">
               {[
-                { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
-                { id: 'execution', label: 'Checklist', icon: ClipboardList },
+                { id: 'overview', label: 'Dados Gerais', icon: LayoutDashboard },
+                { id: 'equipments', label: `Equipamentos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
+                { id: 'forms', label: 'Formulários', icon: ClipboardList },
+                { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
+                { id: 'history', label: 'Histórico de Visitas', icon: History },
                 { id: 'media', label: 'Galeria', icon: Camera },
                 { id: 'costs', label: 'Peças e Custos', icon: DollarSign },
-                { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
-                { id: 'history', label: 'Histórico', icon: History },
                 { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
               ].map(tab => (
                 <button
@@ -886,7 +934,251 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
 
-              {/* TAB: EXECUÇÃO (CHECKLIST) */}
+              {/* TAB: EQUIPAMENTOS VINCULADOS */}
+              {activeTab === 'equipments' && (
+                <div className="max-w-4xl mx-auto space-y-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">
+                        {equipmentsLoading ? 'Carregando...' : `${equipments.length} equipamento${equipments.length !== 1 ? 's' : ''} vinculado${equipments.length !== 1 ? 's' : ''}`}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">Patrimônios e ativos associados a esta OS</p>
+                    </div>
+                  </div>
+
+                  {equipmentsLoading ? (
+                    <div className="flex items-center justify-center py-16 gap-3">
+                      <Loader2 size={22} className="animate-spin text-primary-400" />
+                      <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando equipamentos...</span>
+                    </div>
+                  ) : equipments.length === 0 ? (
+                    <div className="bg-white border border-dashed border-slate-200 rounded-xl py-16 text-center">
+                      <Box size={40} className="mx-auto text-slate-200 mb-4" />
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum equipamento vinculado</p>
+                      <p className="text-[11px] text-slate-300 font-medium mt-1">Equipamentos são associados via tabela service_order_equipments</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {equipments.map((eq, idx) => {
+                        const hasForm = !!(eq.formData && Object.keys(eq.formData).length > 0);
+                        const statusColors: Record<string, string> = {
+                          PENDING: 'bg-slate-100 text-slate-600 border-slate-200',
+                          IN_PROGRESS: 'bg-blue-50 text-blue-700 border-blue-200',
+                          COMPLETED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                        };
+                        return (
+                          <div key={eq.id || idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center shrink-0">
+                                <Box size={18} className="text-slate-400" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-slate-900 truncate">{eq.equipmentName}</p>
+                                {eq.equipmentModel && <p className="text-[11px] text-slate-500 font-medium">{eq.equipmentModel}</p>}
+                              </div>
+                              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${statusColors[eq.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                  {eq.status === 'PENDING' ? 'Pendente' : eq.status === 'IN_PROGRESS' ? 'Em andamento' : 'Concluído'}
+                                </span>
+                                <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${hasForm ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                                  }`}>
+                                  {hasForm ? '✓ Formulário' : '○ Sem resp.'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-4 grid grid-cols-2 gap-3">
+                              {eq.equipmentSerial && (
+                                <div>
+                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Série</p>
+                                  <p className="text-xs font-bold text-slate-700 font-mono mt-0.5">{eq.equipmentSerial}</p>
+                                </div>
+                              )}
+                              {eq.equipmentFamily && (
+                                <div>
+                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Família</p>
+                                  <p className="text-xs font-bold text-slate-700 mt-0.5">{eq.equipmentFamily}</p>
+                                </div>
+                              )}
+                              {eq.formId && (
+                                <div>
+                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Formulário</p>
+                                  <p className="text-xs font-bold text-slate-700 font-mono mt-0.5">{eq.formId.slice(0, 8)}…</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB: FORMULÁRIOS — segmentados por equipamento */}
+              {activeTab === 'forms' && (
+                <div className="max-w-4xl mx-auto space-y-8">
+                  {selectedOrder.status === 'IMPEDIDO' && (
+                    <div className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
+                      <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0">
+                        <AlertTriangle size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-rose-900">Serviço Impedido</h4>
+                        <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado pelo técnico.'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Seção por equipamento vinculado */}
+                  {equipments.length > 0 && equipments.map((eq, eqIdx) => {
+                    // Agrupar visitas que têm form_data preenchido
+                    const eqVisitForms = orderVisits
+                      .filter(v => v.formData && Object.keys(v.formData).length > 0)
+                      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+                    const hasData = eqVisitForms.length > 0 || (eq.formData && Object.keys(eq.formData).length > 0);
+
+                    return (
+                      <div key={eq.id || eqIdx} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                        {/* Cabeçalho do equipamento */}
+                        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50">
+                          <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
+                            <Box size={14} className="text-slate-400" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{eq.equipmentName}</p>
+                            {eq.equipmentFamily && <p className="text-[10px] text-slate-400 font-medium">{eq.equipmentFamily}</p>}
+                          </div>
+                          <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${hasData ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                            }`}>
+                            {hasData ? '✓ Com respostas' : '○ Não iniciado'}
+                          </span>
+                        </div>
+
+                        {/* Formulário do equipamento (form_data do equipamento) */}
+                        {eq.formData && Object.keys(eq.formData).length > 0 && (
+                          <div className="divide-y divide-slate-50">
+                            {Object.entries(eq.formData).filter(([k]) => !['signature', 'signatureName', 'finishedAt'].includes(k) && !k.includes('Assinatura')).map(([key, val]) => (
+                              <div key={key} className="px-6 py-3 flex justify-between gap-6 hover:bg-slate-50/50 items-center">
+                                <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
+                                <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                  : 'bg-slate-50 text-slate-600 border-slate-200'
+                                  }`}>{String(val)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Formulários das visitas agrupados */}
+                        {eqVisitForms.map((visit: any, vIdx: number) => (
+                          <div key={visit.id || vIdx}>
+                            <div className="px-6 py-2 bg-slate-50/50 border-y border-slate-100 flex items-center gap-2">
+                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Visita {visit.visitNumber ?? vIdx + 1}</span>
+                              <span className="text-[9px] font-bold text-slate-400">{new Date(visit.updatedAt || visit.createdAt).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                            <div className="divide-y divide-slate-50">
+                              {Object.entries((visit.formData || {})).filter(([k, v]) => {
+                                if (Array.isArray(v)) return false;
+                                if (typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'))) return false;
+                                if (k.includes('Assinatura') || k.includes('impediment')) return false;
+                                if (['signature', 'signatureName', 'signatureDoc', 'finishedAt'].includes(k)) return false;
+                                return true;
+                              }).map(([key, val]) => (
+                                <div key={key} className="px-6 py-3 flex justify-between gap-6 hover:bg-slate-50/50 items-center">
+                                  <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
+                                  <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                                    }`}>{String(val)}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Se sem dados — mostrar estado vazio */}
+                        {!hasData && eqVisitForms.length === 0 && (
+                          <div className="px-6 py-10 text-center">
+                            <ClipboardList size={28} className="mx-auto text-slate-200 mb-3" />
+                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Formulário não preenchido</p>
+                            <p className="text-[10px] text-slate-300 font-medium mt-1">O técnico ainda não iniciou o atendimento para este equipamento</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Fallback: sem equipamentos, mostrar form da OS */}
+                  {equipments.length === 0 && (() => {
+                    const validVisits = orderVisits
+                      .filter((v: any) => ['completed', 'paused'].includes(v.status) && v.formData && Object.keys(v.formData).length > 0)
+                      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    const osFormData = selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0 ? selectedOrder.formData : null;
+
+                    if (validVisits.length === 0 && !osFormData) {
+                      return (
+                        <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm">
+                          <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento do formulário</p>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="space-y-6">
+                        {validVisits.map((visit: any, index: number) => (
+                          <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                              <div>
+                                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Visita {visit.visitNumber ?? index + 1} — {new Date(visit.updatedAt || visit.createdAt).toLocaleString('pt-BR')}</h3>
+                                <p className="text-[10px] text-slate-500 font-medium">Status: {visit.status}</p>
+                              </div>
+                              <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">{Object.keys(visit.formData).length} itens</span>
+                            </div>
+                            <div className="divide-y divide-slate-50">
+                              {Object.entries(visit.formData).filter(([k, v]) => {
+                                if (Array.isArray(v)) return false;
+                                if (typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'))) return false;
+                                if (k.includes('Assinatura') || k.includes('impediment')) return false;
+                                if (['signature', 'signatureName', 'signatureDoc', 'finishedAt'].includes(k)) return false;
+                                return true;
+                              }).map(([key, val]) => (
+                                <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
+                                  <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
+                                  <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{String(val)}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                        {osFormData && (
+                          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
+                              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Dados Globais do Formulário (OS)</h3>
+                            </div>
+                            <div className="divide-y divide-slate-50">
+                              {Object.entries(osFormData).filter(([k, v]) => {
+                                if (Array.isArray(v)) return false;
+                                if (typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'))) return false;
+                                if (k.includes('Assinatura') || k.includes('impediment')) return false;
+                                if (['signature', 'signatureName', 'signatureDoc', 'finishedAt', 'technical_report', 'parts_used'].includes(k)) return false;
+                                return true;
+                              }).map(([key, val]) => (
+                                <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
+                                  <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
+                                  <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{String(val)}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* TAB: EXECUÇÃO (CHECKLIST) — mantido para backward compat */}
               {activeTab === 'execution' && (
                 <div className="max-w-4xl mx-auto space-y-6">
                   {selectedOrder.status === 'IMPEDIDO' && (
@@ -1288,6 +1580,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="space-y-3">
                       {visits.map((visit, idx) => {
                         const isLast = idx === visits.length - 1;
+                        const canEdit = isEditing && visit.status !== VisitStatusEnum.COMPLETED && !visit.isLocked;
+                        const isEditingThis = editingVisitId === visit.id;
                         const statusColors: Record<string, string> = {
                           pending: 'bg-slate-100 text-slate-600 border-slate-200',
                           ongoing: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -1303,37 +1597,106 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         return (
                           <div
                             key={visit.id}
-                            className={`bg-white border rounded-xl p-5 flex items-center gap-5 transition-all ${isLast ? 'border-primary-200 ring-2 ring-primary-50 shadow-sm' : 'border-slate-200'
+                            className={`bg-white border rounded-xl transition-all ${isEditingThis ? 'border-amber-300 ring-2 ring-amber-100 shadow-md' :
+                              isLast ? 'border-primary-200 ring-2 ring-primary-50 shadow-sm' : 'border-slate-200'
                               }`}
                           >
-                            {/* Número */}
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0 border-2 ${isLast ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-slate-200 bg-white text-slate-500'
-                              }`}>
-                              {visit.visitNumber ?? idx + 1}
-                            </div>
-
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${statusColors[visit.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                  {statusLabel[visit.status] || visit.status}
-                                </span>
-                                {isLast && <span className="text-[9px] font-black text-primary-500 bg-primary-50 px-2 py-0.5 rounded-full uppercase">Atual</span>}
+                            {/* Card header */}
+                            <div className="p-5 flex items-center gap-5">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0 border-2 ${isLast ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-slate-200 bg-white text-slate-500'
+                                }`}>
+                                {visit.visitNumber ?? idx + 1}
                               </div>
-                              <p className="text-sm font-bold text-slate-800 mt-1 truncate">{techName}</p>
-                              <p className="text-[11px] text-slate-400 font-medium">
-                                {visit.scheduledDate ? formatDateDisplay(visit.scheduledDate) : '—'}
-                                {visit.scheduledTime ? ` às ${visit.scheduledTime}` : ''}
-                              </p>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${statusColors[visit.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                    {statusLabel[visit.status] || visit.status}
+                                  </span>
+                                  {isLast && <span className="text-[9px] font-black text-primary-500 bg-primary-50 px-2 py-0.5 rounded-full uppercase">Atual</span>}
+                                  {visit.isLocked && <span className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase">🔒 Concluída</span>}
+                                </div>
+                                <p className="text-sm font-bold text-slate-800 mt-1 truncate">{techName}</p>
+                                <p className="text-[11px] text-slate-400 font-medium">
+                                  {visit.scheduledDate ? formatDateDisplay(visit.scheduledDate) : '—'}
+                                  {visit.scheduledTime ? ` às ${visit.scheduledTime}` : ''}
+                                </p>
+                              </div>
+
+                              {canEdit && !isEditingThis && (
+                                <button
+                                  onClick={() => {
+                                    setEditingVisitId(visit.id);
+                                    setVisitScheduleDraft({
+                                      scheduledDate: visit.scheduledDate || '',
+                                      scheduledTime: visit.scheduledTime || '',
+                                      scheduledEndTime: '',
+                                      technicianId: visit.technicianId || '',
+                                    });
+                                  }}
+                                  className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg border border-amber-200 transition-all shrink-0"
+                                  title="Editar agendamento"
+                                >
+                                  <Edit3 size={14} />
+                                </button>
+                              )}
+
+                              {visit.arrivalTime && !isEditingThis && (
+                                <div className="text-right shrink-0">
+                                  <p className="text-[10px] font-black text-slate-400 uppercase">Chegada</p>
+                                  <p className="text-xs font-bold text-slate-700">
+                                    {new Date(visit.arrivalTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                              )}
                             </div>
 
-                            {/* Tempo in-progress */}
-                            {visit.arrivalTime && (
-                              <div className="text-right shrink-0">
-                                <p className="text-[10px] font-black text-slate-400 uppercase">Chegada</p>
-                                <p className="text-xs font-bold text-slate-700">
-                                  {new Date(visit.arrivalTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                </p>
+                            {/* Formulário de edição de agendamento — expandido inline */}
+                            {isEditingThis && (
+                              <div className="border-t border-amber-100 bg-amber-50/40 px-5 py-4 space-y-3">
+                                <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Editar Agendamento</p>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase">Data</label>
+                                    <input type="date" className="w-full border border-amber-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all"
+                                      value={visitScheduleDraft.scheduledDate}
+                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledDate: e.target.value }))} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase">Início</label>
+                                    <input type="time" className="w-full border border-amber-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all"
+                                      value={visitScheduleDraft.scheduledTime}
+                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledTime: e.target.value }))} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase">Término</label>
+                                    <input type="time" className="w-full border border-amber-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all"
+                                      value={visitScheduleDraft.scheduledEndTime}
+                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledEndTime: e.target.value }))} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase">Técnico</label>
+                                    <select className="w-full border border-amber-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all"
+                                      value={visitScheduleDraft.technicianId}
+                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, technicianId: e.target.value }))}>
+                                      <option value="">Manter atual</option>
+                                      {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <button onClick={() => setEditingVisitId(null)} className="px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:text-slate-700 transition-colors">
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    onClick={() => handleSaveVisitSchedule(visit)}
+                                    disabled={savingSchedule}
+                                    className="flex items-center gap-1.5 px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-[11px] font-black rounded-lg transition-all disabled:opacity-50"
+                                  >
+                                    {savingSchedule ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+                                    Salvar
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
