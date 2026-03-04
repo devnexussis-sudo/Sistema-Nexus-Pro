@@ -8,7 +8,7 @@ import {
   Edit3, Save, ExternalLink, Search, Filter, Calendar, Share2,
   Users, UserCheck, Clock, FileSpreadsheet, Download, Camera, ClipboardList, Ban, MapPin, Box,
   DollarSign, Eye, EyeOff, LayoutDashboard, User as UserIcon, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  Loader2, CalendarPlus, History, Trash2, PlusCircle
+  Loader2, CalendarPlus, History, Trash2, PlusCircle, PackageSearch
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { CreateOrderModal } from './CreateOrderModal';
@@ -84,6 +84,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
+
+  // ── Estoque para Peças ─
+  const [allStockItems, setAllStockItems] = useState<any[]>([]);
+  const [isStockPickerOpen, setIsStockPickerOpen] = useState(false);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockSearch, setStockSearch] = useState('');
 
   // ── Server-Side Pagination ─────────────────────────────────────────
   const { session, isAuthLoading } = useAuth();
@@ -339,6 +345,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }));
   };
 
+  const fetchStockForPicker = async () => {
+    setStockLoading(true);
+    try {
+      const items = await DataService.getStockItems();
+      setAllStockItems(items);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setStockLoading(false);
+    }
+  };
+
+  const handleAddStockItem = (item: any) => {
+    const newItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      description: item.description,
+      quantity: 1,
+      unitPrice: item.sellPrice || 0,
+      total: item.sellPrice || 0,
+      fromStock: true,
+      stockItemId: item.id
+    };
+
+    setEditDraft(prev => ({
+      ...prev,
+      items: [...(prev.items || selectedOrder?.items || []), newItem]
+    }));
+    setIsStockPickerOpen(false);
+  };
+
+  const handleManualAdd = () => {
+    setEditDraft(prev => ({
+      ...prev,
+      items: [...(prev.items || selectedOrder?.items || []), {
+        id: Math.random().toString(36).substr(2, 9),
+        description: '',
+        quantity: 1,
+        unitPrice: 0,
+        total: 0,
+        fromStock: false
+      }]
+    }));
+    setIsStockPickerOpen(false);
+  };
+
   // Refresh de visitas quando a aba é aberta
   useEffect(() => {
     if (activeTab === 'visits' && selectedOrder) {
@@ -351,6 +402,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleStartEdit = () => {
     if (!selectedOrder) return;
+    // Pre-fetch stock if needed
+    if (allStockItems.length === 0) fetchStockForPicker();
     setEditDraft({
       title: selectedOrder.title,
       description: selectedOrder.description,
@@ -1615,10 +1668,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <tr>
                             <td colSpan={5} className="px-6 py-4">
                               <button
-                                onClick={handleAddItem}
+                                onClick={() => setIsStockPickerOpen(true)}
                                 className="flex items-center gap-2 text-[10px] font-black text-primary-600 hover:text-primary-700 uppercase tracking-widest transition-all"
                               >
-                                <PlusCircle size={14} /> Adicionar Item / Peça
+                                <PlusCircle size={14} /> Adicionar Item / Peça (Estoque)
                               </button>
                             </td>
                           </tr>
@@ -1992,6 +2045,97 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
         )
+      }
+
+      {/* 📦 Stock Picker Modal */}
+      {isStockPickerOpen && (
+        <div className="fixed inset-0 z-[1000] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center text-primary-600">
+                  <PackageSearch size={18} />
+                </div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Selecionar Item do Estoque</h3>
+              </div>
+              <button onClick={() => setIsStockPickerOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 flex-1 flex flex-col min-h-0">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Pesquisar por descrição ou código..."
+                  className="w-full bg-slate-100 border-none rounded-xl pl-12 pr-4 py-3 text-sm font-bold text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                  value={stockSearch}
+                  onChange={e => setStockSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
+                {stockLoading ? (
+                  <div className="py-20 text-center flex flex-col items-center gap-3">
+                    <Loader2 size={32} className="animate-spin text-primary-400" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carregando estoque...</p>
+                  </div>
+                ) : allStockItems.filter(i =>
+                  i.description.toLowerCase().includes(stockSearch.toLowerCase()) ||
+                  i.code.toLowerCase().includes(stockSearch.toLowerCase())
+                ).length > 0 ? (
+                  allStockItems
+                    .filter(i =>
+                      i.description.toLowerCase().includes(stockSearch.toLowerCase()) ||
+                      i.code.toLowerCase().includes(stockSearch.toLowerCase())
+                    )
+                    .map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => handleAddStockItem(item)}
+                        className="w-full p-4 rounded-xl border border-slate-100 bg-white hover:bg-slate-50 hover:border-primary-200 hover:shadow-sm transition-all text-left flex items-center justify-between group"
+                      >
+                        <div>
+                          <p className="font-bold text-slate-800 text-sm group-hover:text-primary-700 transition-colors uppercase">{item.description}</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <p className="text-[10px] font-black text-slate-400 uppercase">Cód: {item.code}</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase">Salvo em: {item.location || 'Geral'}</p>
+                            <p className={`text-[10px] font-black uppercase ${item.quantity > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              Estoque: {item.quantity} {item.unit}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-black text-slate-900 font-mono">R$ {Number(item.sellPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Unitário</p>
+                        </div>
+                      </button>
+                    ))
+                ) : (
+                  <div className="py-20 text-center flex flex-col items-center gap-3">
+                    <PackageSearch size={32} className="text-slate-200" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nenhum item encontrado</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
+              <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2">
+                <Box size={12} /> {allStockItems.length} Itens no catálogo
+              </p>
+              <button
+                onClick={handleManualAdd}
+                className="flex items-center gap-2 px-4 py-2 text-[10px] font-black text-slate-500 hover:text-slate-900 uppercase tracking-widest transition-all"
+              >
+                <Plus size={14} /> Item fora do catálogo (Manual)
+              </button>
+            </div>
+          </div>
+        </div>
+      )
       }
     </div >
   );
