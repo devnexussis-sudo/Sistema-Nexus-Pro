@@ -353,8 +353,8 @@ export const VisitService = {
     },
 
     /**
-     * Adiciona um equipamento a uma OS.
-     * Calculates sort_order automaticamente.
+     * Adiciona um equipamento a uma OS via RPC (SECURITY DEFINER).
+     * Resolve tenant_id internamente — sem depender de JWT claims no RLS.
      */
     addEquipmentToOrder: async (params: {
         orderId: string;
@@ -365,40 +365,27 @@ export const VisitService = {
         equipmentFamily?: string;
         formId?: string;
     }): Promise<ServiceOrderEquipment> => {
-        const tenantId = getCurrentTenantId();
-        if (!tenantId) throw new Error('TENANT_NOT_FOUND');
-
-        // Gera ID explícito — necessário para colunas TEXT PRIMARY KEY sem DEFAULT
-        const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).substring(2)}`;
-
-        // Calcular próxima sort_order
+        // Calcula sort_order: quantos já existem para esta OS
         const existing = await VisitService.getOrderEquipments(params.orderId);
         const nextSort = existing.length;
 
-        const { data, error } = await supabase
-            .from('service_order_equipments')
-            .insert({
-                id: generatedId,
-                tenant_id: tenantId,
-                order_id: params.orderId,
-                equipment_id: params.equipmentId || null,
-                equipment_name: params.equipmentName,
-                equipment_model: params.equipmentModel || null,
-                equipment_serial: params.equipmentSerial || null,
-                equipment_family: params.equipmentFamily || null,
-                form_id: params.formId || null,
-                status: 'PENDING',
-                sort_order: nextSort,
-                deleted_at: null,
-            })
-            .select()
-            .single();
+        const { data, error } = await supabase.rpc('nexus_add_equipment_to_order', {
+            p_order_id: params.orderId,
+            p_equipment_id: params.equipmentId || '',
+            p_equipment_name: params.equipmentName,
+            p_equipment_model: params.equipmentModel || '',
+            p_equipment_serial: params.equipmentSerial || '',
+            p_equipment_family: params.equipmentFamily || '',
+            p_form_id: params.formId || '',
+            p_sort_order: nextSort,
+        });
 
-        if (error) throw new Error(`DB_ERROR: ${error.message}`);
+        if (error) throw new Error(`RPC_ERROR: ${error.message}`);
+        if (!data) throw new Error('RPC_ERROR: função retornou null');
 
-        return _mapEquipmentFromDB(data);
+        // A RPC retorna JSONB com snake_case — mapeia para o tipo do frontend
+        const row = typeof data === 'string' ? JSON.parse(data) : data;
+        return _mapEquipmentFromDB(row);
     },
 
 
