@@ -78,7 +78,7 @@ BEGIN
         scheduled_time = CASE
                             WHEN p_scheduled_time IS NULL OR trim(p_scheduled_time) = ''
                             THEN NULL
-                            ELSE p_scheduled_time
+                            ELSE p_scheduled_time::TIME
                          END,
         assigned_to = CASE
                             WHEN p_technician_id IS NOT NULL AND p_technician_id <> ''
