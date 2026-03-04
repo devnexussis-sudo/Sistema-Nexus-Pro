@@ -921,11 +921,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => !isEditing && setActiveTab(tab.id as any)}
-                  disabled={isEditing}
+                  onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center gap-2 py-4 text-xs font-semibold border-b-2 transition-all whitespace-nowrap
-                    ${activeTab === tab.id ? 'border-primary-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}
-                    ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    ${activeTab === tab.id ? 'border-primary-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                 >
                   <tab.icon size={15} /> {tab.label}
                 </button>
