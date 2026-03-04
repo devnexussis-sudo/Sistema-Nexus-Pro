@@ -367,16 +367,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       });
       setShowNewVisitForm(false);
       setNewVisitDraft({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' });
-      // Refresh lista
-      const updated = await VisitService.getVisitsByOrderId(selectedOrder.id);
-      setVisits(updated);
-      // Sincroniza agendamento na OS local para refletir na aba dados gerais
-      setSelectedOrder({
+      // Refresh visitas
+      const updatedVisits = await VisitService.getVisitsByOrderId(selectedOrder.id);
+      setVisits(updatedVisits);
+      // Sincroniza a OS via onEditOrder (caminho comprovado)
+      const updatedOrder: ServiceOrder = {
         ...selectedOrder,
         scheduledDate: newVisitDraft.scheduledDate,
         scheduledTime: newVisitDraft.scheduledTime || selectedOrder.scheduledTime,
         assignedTo: newVisitDraft.technicianId || selectedOrder.assignedTo,
-      });
+      };
+      await onEditOrder(updatedOrder);
+      setSelectedOrder(updatedOrder);
       ordersRefetch();
     } catch (e: any) {
       const msg = (e.message || '').startsWith('INVALID_') ? e.message.split(': ')[1] : e.message;
@@ -391,9 +393,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       alert('Informe a data do agendamento.');
       return;
     }
+    if (!selectedOrder) return;
     setSavingSchedule(true);
     try {
-      const updated = await VisitService.updateVisitSchedule({
+      // ─── 1. Atualiza a visita via RPC ──────────────────────────────
+      const updatedVisit = await VisitService.updateVisitSchedule({
         visitId: visit.id,
         orderId: visit.orderId,
         scheduledDate: visitScheduleDraft.scheduledDate,
@@ -401,17 +405,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         scheduledEndTime: visitScheduleDraft.scheduledEndTime || undefined,
         technicianId: visitScheduleDraft.technicianId || undefined,
       });
-      // Atualiza a visita na lista local
-      setVisits(prev => prev.map(v => v.id === updated.id ? updated : v));
-      // Propaga para a OS exibida — reflete imediatamente em todos os outros campos
-      if (selectedOrder) {
-        setSelectedOrder(prev => prev ? {
-          ...prev,
-          scheduledDate: visitScheduleDraft.scheduledDate,
-          scheduledTime: visitScheduleDraft.scheduledTime || prev.scheduledTime,
-          assignedTo: visitScheduleDraft.technicianId || prev.assignedTo,
-        } : prev);
-      }
+      setVisits(prev => prev.map(v => v.id === updatedVisit.id ? updatedVisit : v));
+
+      // ─── 2. Atualiza a OS via onEditOrder (CAMINHO COMPROVADO) ─────
+      // Mesmo fluxo que handleSaveEdit usa para salvar datas na aba Dados Gerais
+      const updatedOrder: ServiceOrder = {
+        ...selectedOrder,
+        scheduledDate: visitScheduleDraft.scheduledDate,
+        scheduledTime: visitScheduleDraft.scheduledTime || selectedOrder.scheduledTime,
+        assignedTo: visitScheduleDraft.technicianId || selectedOrder.assignedTo,
+      };
+      await onEditOrder(updatedOrder);
+
+      // ─── 3. Atualiza UI local imediatamente ───────────────────────
+      setSelectedOrder(updatedOrder);
       setEditingVisitId(null);
       ordersRefetch();
     } catch (e: any) {
