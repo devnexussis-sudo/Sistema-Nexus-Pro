@@ -731,7 +731,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 shadow-sm">
               <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-left">
-                <th className="px-6 py-1.5 w-12 text-center text-slate-400">
+                <th className="px-3 py-2 w-12 text-center text-slate-400">
                   <input
                     type="checkbox"
                     className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
@@ -740,31 +740,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     title="Selecionar página atual"
                   />
                 </th>
-                <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
                   <div className="flex items-center gap-1">Protocolo {getSortIcon('displayId')}</div>
                 </th>
-                <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
                   <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
                 </th>
-                <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
                   <div className="flex items-center gap-1">Abertura {getSortIcon('createdAt')}</div>
                 </th>
-                <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
                   <div className="flex items-center gap-1">Cliente {getSortIcon('customerName')}</div>
                 </th>
-                <th className="px-6 py-1.5 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('assignedTo')}>
+                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('assignedTo')}>
                   <div className="flex items-center justify-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
                 </th>
-                <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
                   <div className="flex items-center gap-1">Modalidade {getSortIcon('operationType')}</div>
                 </th>
-                <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('endDate')}>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('endDate')}>
                   <div className="flex items-center gap-1">Conclusão {getSortIcon('endDate')}</div>
                 </th>
-                <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
                   <div className="flex items-center gap-1">Status {getSortIcon('status')}</div>
                 </th>
-                <th className="px-6 py-1.5 text-right pr-8">Ações</th>
+                <th className="px-3 py-2 text-right pr-4">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -786,7 +786,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className={`transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer ${isSelected ? 'bg-indigo-50/40' : 'bg-white hover:bg-slate-50'}`}
                     onClick={() => setSelectedOrder(order)}
                   >
-                    <td className="px-6 py-2 text-center shrink-0 w-12" onClick={(e) => { e.stopPropagation(); setSelectedOrderIds(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]); }}>
+                    <td className="px-3 py-2 text-center shrink-0 w-12" onClick={(e) => { e.stopPropagation(); setSelectedOrderIds(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]); }}>
                       <input
                         type="checkbox"
                         className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
@@ -794,42 +794,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         readOnly
                       />
                     </td>
-                    <td className="px-6 py-2">
-                      <span className="font-bold text-slate-700 text-xs bg-slate-100 px-2 py-1 rounded-md border border-slate-200 group-hover:bg-white group-hover:border-slate-300 transition-colors">
+                    <td className="px-3 py-2">
+                      <span className="font-bold text-slate-700 text-[11px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 group-hover:bg-white group-hover:border-slate-300 transition-colors">
                         {order.displayId || order.id}
                       </span>
                     </td>
-                    <td className="px-6 py-2 text-sm font-semibold text-slate-700 whitespace-nowrap">
+                    <td className="px-3 py-2 text-[11px] font-semibold text-slate-700 whitespace-nowrap">
                       {formatDateDisplay(order.scheduledDate)}
                     </td>
-                    <td className="px-6 py-2 text-xs text-slate-500 font-medium uppercase tracking-wide whitespace-nowrap">
+                    <td className="px-3 py-2 text-[11px] text-slate-500 font-medium uppercase tracking-wide whitespace-nowrap">
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-6 py-2 font-bold text-sm text-slate-800 tracking-tight truncate max-w-[200px]">
+                    <td className="px-3 py-2 font-bold text-xs text-slate-800 tracking-tight truncate max-w-[160px]">
                       {order.customerName}
                     </td>
 
-                    <td className="px-6 py-2">
+                    <td className="px-3 py-2">
                       <div className="flex justify-center">
                         {assignedTech ? (
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-sm transition-all shrink-0">
-                            <img src={assignedTech.avatar} className="w-5 h-5 rounded-full object-cover shadow-sm" />
-                            <span className="text-[10px] font-bold text-slate-600 uppercase truncate max-w-[80px]">{assignedTech?.name?.split(' ')[0]}</span>
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-sm transition-all shrink-0">
+                            <img src={assignedTech.avatar} className="w-4 h-4 rounded-full object-cover shadow-sm" />
+                            <span className="text-[9px] font-black text-slate-600 uppercase truncate max-w-[60px]">{assignedTech?.name?.split(' ')[0]}</span>
                           </div>
-                        ) : <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">-</span>}
+                        ) : <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">-</span>}
                       </div>
                     </td>
 
-                    <td className="px-6 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    <td className="px-3 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
                       {order.operationType || '---'}
                     </td>
-                    <td className="px-6 py-2 text-sm font-bold text-slate-700 whitespace-nowrap">
+                    <td className="px-3 py-2 text-[11px] font-bold text-slate-700 whitespace-nowrap">
                       {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
                     </td>
 
-                    <td className="px-6 py-2 whitespace-nowrap"><StatusBadge status={order.status} /></td>
-                    <td className="px-6 py-2 text-right pr-6">
-                      <div className="flex items-center justify-end gap-2 transition-opacity opacity-90 group-hover:opacity-100">
+                    <td className="px-3 py-2 whitespace-nowrap"><StatusBadge status={order.status} /></td>
+                    <td className="px-3 py-2 text-right pr-4">
+                      <div className="flex items-center justify-end gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
                         <button
                           onClick={(e) => handleOpenPublicView(order, e)}
                           className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 hover:border-primary-600 transition-all shadow-sm"
