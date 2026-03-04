@@ -198,29 +198,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setEditingVisitId(null);
       setEquipments([]);
 
+      // Busca o técnicos da OS via RPC secundário (não bloqueante)
       import('../../services/orderService').then(mod => {
         mod.OrderService.getOrderVisits(selectedOrder.id).then(v => {
           setOrderVisits(v);
         });
       });
-
-      // 🔄 Auto-Enable Edit Mode for Active Orders
-      const candEdit = selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED;
-      setIsEditing(candEdit);
-      if (candEdit) {
-        setEditDraft({
-          title: selectedOrder.title,
-          description: selectedOrder.description,
-          customerName: selectedOrder.customerName,
-          customerAddress: selectedOrder.customerAddress,
-          scheduledDate: selectedOrder.scheduledDate,
-          scheduledTime: selectedOrder.scheduledTime,
-          notes: selectedOrder.notes,
-          priority: selectedOrder.priority,
-          operationType: selectedOrder.operationType,
-          items: selectedOrder.items || [],
-        });
-      }
 
       // Busca o template para mapear IDs para Labels no checklist
       if (selectedOrder.formId) {
@@ -378,6 +361,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       notes: selectedOrder.notes,
       priority: selectedOrder.priority,
       operationType: selectedOrder.operationType,
+      items: selectedOrder.items || [],
     });
     setIsEditing(true);
   };
@@ -891,14 +875,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
 
                 {!isEditing && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handlePrintOrder(selectedOrder.id)}
-                    className="h-9 px-4 gap-2"
-                  >
-                    <Printer size={14} /> Imprimir PDF
-                  </Button>
+                  <>
+                    {/* Botão de Edição Explícito */}
+                    {selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleStartEdit}
+                        className="h-9 px-4 gap-2 border-amber-200 text-amber-700 hover:bg-amber-50"
+                      >
+                        <Edit3 size={14} /> Editar OS
+                      </Button>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handlePrintOrder(selectedOrder.id)}
+                      className="h-9 px-4 gap-2"
+                    >
+                      <Printer size={14} /> Imprimir PDF
+                    </Button>
+                  </>
                 )}
                 <div className="h-6 w-px bg-slate-200 mx-2"></div>
                 <button onClick={() => { setSelectedOrder(null); setIsEditing(false); }} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
