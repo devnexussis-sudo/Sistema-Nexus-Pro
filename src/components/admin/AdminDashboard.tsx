@@ -36,7 +36,7 @@ interface AdminDashboardProps {
   onDateChange: (start: string, end: string) => void;
   onUpdateOrders: () => Promise<void>;
   onEditOrder: (order: ServiceOrder) => Promise<void>;
-  onCreateOrder: (order: Partial<ServiceOrder>) => Promise<void>;
+  onCreateOrder: (order: Partial<ServiceOrder>) => Promise<any>;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -754,12 +754,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           onSubmit={async (data) => {
             if (orderToEdit) {
               await onEditOrder({ ...orderToEdit, ...data } as ServiceOrder);
-              return orderToEdit; // retorna para o modal saber o ID
+              return orderToEdit;
             } else {
-              // onCreateOrder não retorna — buscamos a OS recém-criada via DataService
-              const { OrderService } = await import('../../services/orderService');
-              const created = await OrderService.createOrder(data as any);
-              await onCreateOrder(created); // notifica pai para refetch
+              const created = await onCreateOrder(data);
               return created;
             }
           }}
