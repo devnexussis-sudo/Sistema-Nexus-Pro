@@ -111,7 +111,7 @@ BEGIN
         RETURN jsonb_build_object('ok', false, 'error', 'VISIT_LOCKED');
     END IF;
 
-    -- Atualiza a visita
+    -- Atualiza a visita (service_visits.scheduled_date é DATE, scheduled_time é TIME)
     UPDATE public.service_visits
     SET
         scheduled_date     = p_scheduled_date::DATE,
@@ -125,11 +125,11 @@ BEGIN
         updated_at         = NOW()
     WHERE id = p_visit_id::UUID AND tenant_id = v_tenant_id;
 
-    -- Sincroniza a OS (link público + dados gerais)
+    -- Sincroniza a OS (orders.scheduled_date e scheduled_time são TEXT)
     UPDATE public.orders
     SET
-        scheduled_date = p_scheduled_date::DATE,
-        scheduled_time = NULLIF(p_scheduled_time, '')::TIME,
+        scheduled_date = p_scheduled_date,
+        scheduled_time = NULLIF(p_scheduled_time, ''),
         assigned_to    = CASE
                             WHEN p_technician_id IS NOT NULL AND p_technician_id <> ''
                             THEN p_technician_id::UUID
