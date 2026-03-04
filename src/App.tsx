@@ -47,7 +47,7 @@ const AppRoutes: React.FC = () => {
   return (
     <Routes>
       {/* PUBLIC ROUTES */}
-      <Route path="/view/:id" element={<PublicAppWrapper type="order" />} />
+      <Route path="/order/view/:id" element={<PublicAppWrapper type="order" />} />
       <Route path="/view-quote/:id" element={<PublicAppWrapper type="quote" />} />
 
       {/* MASTER ADMIN */}

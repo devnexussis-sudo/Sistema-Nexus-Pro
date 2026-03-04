@@ -82,7 +82,7 @@ class TenantContextManager {
             // ⛔ 5. URL params — BLOQUEADO para usuários autenticados.
             // Se chegamos aqui, não há sessão alguma. Verificamos URL apenas
             // para rotas públicas (ex: /view-quote/?tid=xxx) onde é legítimo.
-            const isPublicRoute = window.location.hash.startsWith('#/view/') ||
+            const isPublicRoute = window.location.hash.startsWith('#/order/view/') ||
                 window.location.hash.startsWith('#/view-quote/');
             // 2. URL Parameter (v7 logic) - Suporta Search e Hash (Importante para HashRouter)
             const getParam = (name: string) => {

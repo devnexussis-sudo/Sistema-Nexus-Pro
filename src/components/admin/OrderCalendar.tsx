@@ -345,7 +345,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
               <button
                 onClick={() => {
-                  const publicUrl = `${window.location.origin}/#/view/${selectedOrder.publicToken || selectedOrder.id}`;
+                  const publicUrl = `${window.location.origin}/#/order/view/${selectedOrder.publicToken || selectedOrder.id}`;
                   window.open(publicUrl, '_blank');
                 }}
                 className="w-full flex items-center justify-center gap-3 py-3.5 bg-primary-600 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-primary-700 transition-all shadow-xl shadow-primary-100 active:scale-95 shrink-0"

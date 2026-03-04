@@ -438,7 +438,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleOpenPublicView = (order: ServiceOrder, e: React.MouseEvent) => {
     e.stopPropagation();
-    const publicUrl = `${window.location.origin}/#/view/${order.publicToken || order.id}`;
+    const publicUrl = `${window.location.origin}/#/order/view/${order.publicToken || order.id}`;
     console.log('[AdminDashboard] Abrindo viewer público:', publicUrl);
     window.open(publicUrl, '_blank');
   };

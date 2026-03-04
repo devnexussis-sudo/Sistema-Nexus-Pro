@@ -386,7 +386,7 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const publicUrl = `${window.location.origin}/#/view/${order.publicToken || order.id}`;
+                        const publicUrl = `${window.location.origin}/#/order/view/${order.publicToken || order.id}`;
                         const message = `Seu atendimento foi finalizado, segue sua OS: ${publicUrl}`;
 
                         if (navigator.share) {
@@ -408,7 +408,7 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const publicUrl = `${window.location.origin}/#/view/${order.publicToken || order.id}`;
+                        const publicUrl = `${window.location.origin}/#/order/view/${order.publicToken || order.id}`;
                         navigator.clipboard.writeText(publicUrl);
                         alert('Link da OS copiado para a área de transferência!');
                       }}
