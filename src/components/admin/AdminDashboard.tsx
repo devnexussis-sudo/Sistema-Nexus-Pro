@@ -387,30 +387,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleSaveVisitSchedule = async (visit: ServiceVisit) => {
+    if (!visitScheduleDraft.scheduledDate) {
+      alert('Informe a data do agendamento.');
+      return;
+    }
     setSavingSchedule(true);
     try {
       const updated = await VisitService.updateVisitSchedule({
         visitId: visit.id,
         orderId: visit.orderId,
-        scheduledDate: visitScheduleDraft.scheduledDate || undefined,
+        scheduledDate: visitScheduleDraft.scheduledDate,
         scheduledTime: visitScheduleDraft.scheduledTime || undefined,
         scheduledEndTime: visitScheduleDraft.scheduledEndTime || undefined,
         technicianId: visitScheduleDraft.technicianId || undefined,
       });
+      // Atualiza a visita na lista local
       setVisits(prev => prev.map(v => v.id === updated.id ? updated : v));
-      // Sincroniza o selectedOrder local para refletir imediatamente na aba de dados gerais
+      // Propaga para a OS exibida — reflete imediatamente em todos os outros campos
       if (selectedOrder) {
-        setSelectedOrder({
-          ...selectedOrder,
-          ...(visitScheduleDraft.scheduledDate ? { scheduledDate: visitScheduleDraft.scheduledDate } : {}),
-          ...(visitScheduleDraft.scheduledTime ? { scheduledTime: visitScheduleDraft.scheduledTime } : {}),
-          ...(visitScheduleDraft.technicianId ? { assignedTo: visitScheduleDraft.technicianId } : {}),
-        });
+        setSelectedOrder(prev => prev ? {
+          ...prev,
+          scheduledDate: visitScheduleDraft.scheduledDate,
+          scheduledTime: visitScheduleDraft.scheduledTime || prev.scheduledTime,
+          assignedTo: visitScheduleDraft.technicianId || prev.assignedTo,
+        } : prev);
       }
       setEditingVisitId(null);
-      ordersRefetch(); // Refetch da lista principal também
+      ordersRefetch();
     } catch (e: any) {
-      const msg = e.message?.replace(/^[A-Z_]+: /, '');
+      const msg = (e.message || '').replace(/^[A-Z_]+: /, '');
       alert(msg || 'Erro ao salvar reagendamento.');
     } finally {
       setSavingSchedule(false);
@@ -1722,7 +1727,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="space-y-3">
                       {visits.map((visit, idx) => {
                         const isLast = idx === visits.length - 1;
-                        const canEdit = isEditing && visit.status !== VisitStatusEnum.COMPLETED && !visit.isLocked;
+                        // canEdit independe do modo de edição da OS
+                        const canEdit = visit.status !== VisitStatusEnum.COMPLETED && !visit.isLocked;
                         const isEditingThis = editingVisitId === visit.id;
                         const statusColors: Record<string, string> = {
                           pending: 'bg-slate-100 text-slate-600 border-slate-200',
