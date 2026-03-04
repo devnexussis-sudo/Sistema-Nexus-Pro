@@ -286,7 +286,6 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     setLoading(true);
     try {
       const selectedEquip = equipments.find(e => e.id === selectedEquipIds[0]);
-      console.log('Equipamento selecionado:', selectedEquip);
 
       const finalData = {
         ...formData,
@@ -299,9 +298,33 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         showValueToClient: formData.showValueToClient
       };
 
-      console.log('Dados finais a serem enviados:', finalData);
-
       const orderResult: any = await onSubmit(finalData);
+      const orderId = orderResult?.id || initialData?.id;
+
+      // ── Persistir TODOS equipamentos em service_order_equipments ───────────
+      // O campo equipment_name/serial da OS já salva o primeiro (índice 0).
+      // Aqui persistimos todos para suportar múltiplos equipamentos na OS.
+      if (orderId && selectedEquipIds.length > 0) {
+        await Promise.allSettled(
+          selectedEquipIds.map(async (eqId, idx) => {
+            const eq = equipments.find(e => e.id === eqId);
+            if (!eq) return;
+            try {
+              await VisitService.addEquipmentToOrder({
+                orderId,
+                equipmentId: eq.id,
+                equipmentName: eq.model,
+                equipmentModel: eq.model,
+                equipmentSerial: eq.serialNumber,
+                equipmentFamily: eq.familyName || '',
+              });
+            } catch (e) {
+              // Não bloqueia — equip. principal já salvo nos campos da OS
+              console.warn(`[CreateOrderModal] addEquipmentToOrder idx=${idx} err:`, e);
+            }
+          })
+        );
+      }
 
       // Se a OS foi FINALIZADA ou é um novo protocolo com itens do estoque
       // Dar baixa no estoque do técnico
