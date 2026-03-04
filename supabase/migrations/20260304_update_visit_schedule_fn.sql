@@ -128,14 +128,18 @@ BEGIN
         updated_at = NOW()
     WHERE id = p_visit_id::UUID AND tenant_id = v_tenant_id;
 
-    -- Sincroniza a OS — orders.scheduled_date e scheduled_time são TEXT
+    -- Sincroniza a OS — orders.scheduled_date e scheduled_time
     UPDATE public.orders
     SET
-        scheduled_date = p_scheduled_date,
+        scheduled_date = CASE 
+                            WHEN p_scheduled_date IS NULL OR trim(p_scheduled_date) = '' 
+                            THEN NULL 
+                            ELSE p_scheduled_date::DATE 
+                         END,
         scheduled_time = CASE
                             WHEN p_scheduled_time IS NULL OR trim(p_scheduled_time) = ''
                             THEN NULL
-                            ELSE p_scheduled_time
+                            ELSE p_scheduled_time::TIME
                          END,
         assigned_to = CASE
                             WHEN p_technician_id IS NOT NULL AND p_technician_id <> ''
