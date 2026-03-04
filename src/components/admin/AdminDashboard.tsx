@@ -752,8 +752,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           onClose={() => setIsCreateModalOpen(false)}
           initialData={orderToEdit || undefined}
           onSubmit={async (data) => {
-            if (orderToEdit) await onEditOrder({ ...orderToEdit, ...data } as ServiceOrder);
-            else await onCreateOrder(data);
+            if (orderToEdit) {
+              await onEditOrder({ ...orderToEdit, ...data } as ServiceOrder);
+              return orderToEdit; // retorna para o modal saber o ID
+            } else {
+              // onCreateOrder não retorna — buscamos a OS recém-criada via DataService
+              const { OrderService } = await import('../../services/orderService');
+              const created = await OrderService.createOrder(data as any);
+              await onCreateOrder(created); // notifica pai para refetch
+              return created;
+            }
           }}
         />
       )}
