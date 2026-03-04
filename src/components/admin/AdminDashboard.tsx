@@ -755,6 +755,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <th className="px-6 py-1.5 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('assignedTo')}>
                   <div className="flex items-center justify-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
                 </th>
+                <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
+                  <div className="flex items-center gap-1">Modalidade {getSortIcon('operationType')}</div>
+                </th>
+                <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('endDate')}>
+                  <div className="flex items-center gap-1">Conclusão {getSortIcon('endDate')}</div>
+                </th>
                 <th className="px-6 py-1.5 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
                   <div className="flex items-center gap-1">Status {getSortIcon('status')}</div>
                 </th>
@@ -764,7 +770,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <tbody className="divide-y divide-slate-100 bg-white">
               {ordersLoading ? (
                 <tr>
-                  <td colSpan={8} className="py-24 text-center">
+                  <td colSpan={10} className="py-24 text-center">
                     <div className="flex flex-col items-center gap-3 text-slate-400">
                       <Loader2 size={28} className="animate-spin text-primary-400" />
                       <p className="text-xs font-bold uppercase tracking-widest">Carregando ordens...</p>
@@ -798,6 +804,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </td>
                     <td className="px-6 py-2 text-xs text-slate-500 font-medium uppercase tracking-wide whitespace-nowrap">
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
+                    </td>
+                    <td className="px-6 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                      {order.operationType || '---'}
+                    </td>
+                    <td className="px-6 py-2 text-sm font-bold text-slate-700 whitespace-nowrap">
+                      {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
                     </td>
                     <td className="px-6 py-2 font-bold text-sm text-slate-800 tracking-tight truncate max-w-[200px]">
                       {order.customerName}
@@ -964,7 +976,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 { id: 'equipments', label: `Equipamentos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
                 { id: 'forms', label: 'Formulários', icon: ClipboardList },
                 { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
-                { id: 'history', label: 'Histórico de Visitas', icon: History },
+                { id: 'history', label: `Histórico${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: History },
                 { id: 'media', label: 'Galeria', icon: Camera },
                 { id: 'costs', label: 'Peças e Custos', icon: DollarSign },
                 { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
@@ -1757,9 +1769,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Cabeçalho da aba */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900">
-                        {visits.length > 0 ? `${visits.length} ${visits.length === 1 ? 'visita registrada' : 'visitas registradas'}` : 'Nenhuma visita registrada'}
-                      </h3>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        {visits.length} {visits.length === 1 ? 'visita registrada' : 'visitas registradas'}
+                        {visits.length > 0 && visits[0].scheduledDate && (
+                          <span className="text-primary-500 ml-1">
+                            (Último agendamento: {new Date(visits[visits.length - 1].scheduledDate).toLocaleDateString()})
+                          </span>
+                        )}
+                      </span>
                       <p className="text-[11px] text-slate-400 font-medium mt-0.5">Agendamento e gestão de visitas técnicas desta OS</p>
                     </div>
 
