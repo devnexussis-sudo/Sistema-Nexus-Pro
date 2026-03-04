@@ -1,37 +1,9 @@
 -- =====================================================================================
--- NEXUS PRO - FIX DEFINITIVO (BIG TECH TIER)
--- Limpeza profunda de funções sobrecarregadas (overloaded functions) associadas 
--- à atualização do agendamento de visitas, evitando resolução ambígua pelo PostgREST 
--- e erros em colunas inexistentes criadas em experimentações anteriores.
+-- NEXUS PRO - FIX DEFINITIVO (BIG TECH TIER) - RESOLUÇÃO DE TIPO TEXT PARA DATE
 -- =====================================================================================
 
 BEGIN;
 
--- 1. DROP ROBUSTO: Remove TODAS as versões da função 'duno_update_visit_schedule'
--- Isso garante que nenhuma assinatura legada com 6 parâmetros (ou outras) permaneça no banco,
--- impedindo o PostgREST de rotear para a função velha que faz referência a 'scheduled_end_time'.
-DO $$
-DECLARE
-    rec RECORD;
-BEGIN
-    FOR rec IN
-        SELECT oid::regprocedure AS obj_name
-        FROM pg_proc
-        WHERE proname = 'duno_update_visit_schedule' AND pronamespace = 'public'::regnamespace
-    LOOP
-        EXECUTE 'DROP FUNCTION ' || rec.obj_name || ' CASCADE';
-        RAISE NOTICE 'Dropped function: %', rec.obj_name;
-    END LOOP;
-END
-$$;
-
--- 2. DROP DE TRIGGERS RESIDUAIS (se criados anteriormente e não mais usados)
--- O trigger tentava sincronizar para orders e pode estar causando conflitos
-DROP TRIGGER IF EXISTS trg_sync_order_from_visit ON public.service_visits;
-DROP FUNCTION IF EXISTS public.sync_order_from_visit() CASCADE;
-
--- 3. RECRIAÇÃO ENXUTA (5 PARÂMETROS - A ÚNICA FONTE DA VERDADE)
--- Função otimizada sem referências a colunas inexistentes ou lixo.
 CREATE OR REPLACE FUNCTION public.duno_update_visit_schedule(
     p_visit_id       TEXT,
     p_order_id       TEXT,
@@ -48,7 +20,7 @@ DECLARE
     v_current   RECORD;
     v_result    JSONB;
 BEGIN
-    -- Resolve tenant_id via orders (não depende de JWT, robusto para RLS)
+    -- Resolve tenant_id via orders
     SELECT tenant_id INTO v_tenant_id
     FROM public.orders
     WHERE id = p_order_id
@@ -72,10 +44,15 @@ BEGIN
         RETURN jsonb_build_object('ok', false, 'error', 'VISIT_LOCKED');
     END IF;
 
-    -- Atualiza a visita (SEM scheduled_end_time)
+    -- Atualiza a visita 
     UPDATE public.service_visits
     SET
-        scheduled_date = p_scheduled_date::DATE,
+        -- CAST EXPLICITO PARA DATE
+        scheduled_date = CASE 
+                            WHEN p_scheduled_date IS NULL OR trim(p_scheduled_date) = '' 
+                            THEN NULL 
+                            ELSE p_scheduled_date::DATE 
+                         END,
         scheduled_time = CASE
                             WHEN p_scheduled_time IS NULL OR trim(p_scheduled_time) = ''
                             THEN NULL
@@ -92,7 +69,12 @@ BEGIN
     -- Sincroniza a tabela ORDERS atomicamente
     UPDATE public.orders
     SET
-        scheduled_date = p_scheduled_date,
+        -- CAST EXPLICITO PARA DATE (Este cast que faltava corrigiu o erro "expression is of type text")
+        scheduled_date = CASE 
+                            WHEN p_scheduled_date IS NULL OR trim(p_scheduled_date) = '' 
+                            THEN NULL 
+                            ELSE p_scheduled_date::DATE 
+                         END,
         scheduled_time = CASE
                             WHEN p_scheduled_time IS NULL OR trim(p_scheduled_time) = ''
                             THEN NULL
@@ -117,7 +99,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.duno_update_visit_schedule(TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
 
--- Força o PostgREST a limpar o cache de schema para enxergar apenas a função nova
+-- MATA CACHE DA API PARA FORÇAR REDESCOBERTA
 NOTIFY pgrst, 'reload schema';
 
 COMMIT;
