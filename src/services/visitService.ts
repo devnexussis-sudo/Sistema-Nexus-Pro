@@ -414,7 +414,7 @@ export const VisitService = {
         orderId: string;
         scheduledDate?: string;
         scheduledTime?: string;
-        scheduledEndTime?: string;
+        // scheduledEndTime removed – column does not exist
         technicianId?: string;
         notes?: string;
     }): Promise<ServiceVisit> => {
@@ -422,11 +422,10 @@ export const VisitService = {
         if (!tenantId) throw new Error('TENANT_NOT_FOUND');
         if (!params.scheduledDate) throw new Error('INVALID_TIME: Data de agendamento obrigatória.');
 
-        // Validação de horário
-        if (params.scheduledTime && params.scheduledEndTime &&
-            params.scheduledEndTime <= params.scheduledTime) {
-            throw new Error('INVALID_TIME: Horário de término deve ser maior que o horário de início.');
-        }
+        // Validação de horário – remove end time check
+        // if (params.scheduledTime && params.scheduledEndTime && params.scheduledEndTime <= params.scheduledTime) {
+        //     throw new Error('INVALID_TIME: Horário de término deve ser maior que o horário de início.');
+        // }
 
         // ── USA RPC SECURITY DEFINER ──────────────────────────────────
         // Resolve tenant_id a partir da OS (não depende de JWT claim no RLS),
@@ -436,7 +435,7 @@ export const VisitService = {
             p_order_id: params.orderId,
             p_scheduled_date: params.scheduledDate,
             p_scheduled_time: params.scheduledTime ?? null,
-            p_scheduled_end_time: params.scheduledEndTime ?? null,
+            // p_scheduled_end_time removed
             p_technician_id: params.technicianId ?? null,
         });
 
@@ -462,6 +461,7 @@ export const VisitService = {
                 next: {
                     scheduledDate: params.scheduledDate,
                     scheduledTime: params.scheduledTime,
+                    // scheduledEndTime omitted
                     technicianId: params.technicianId,
                 },
             },
