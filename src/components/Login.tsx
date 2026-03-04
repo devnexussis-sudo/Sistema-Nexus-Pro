@@ -89,12 +89,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onToggleMaster }) => {
             >
               <Hexagon size={40} className="text-white" fill="currentColor" fillOpacity={0.2} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white font-black text-xs">N</span>
+                <span className="text-white font-black text-xs">D</span>
               </div>
             </div>
           </div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tighter italic flex justify-center items-center gap-1 select-none">
-            NEXUS<span className={roleMode === 'admin' ? 'text-primary-500' : 'text-emerald-500'}>.PRO</span>
+            DUNO<span className={roleMode === 'admin' ? 'text-primary-500' : 'text-emerald-500'}>.UP</span>
           </h1>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] mt-2">Plataforma de Gestão Técnica</p>
         </div>

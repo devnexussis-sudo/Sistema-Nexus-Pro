@@ -73,8 +73,8 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         setTenants([
           {
             id: 'default',
-            companyName: 'Nexus Pro Principal',
-            tradingName: 'Nexus Principal',
+            companyName: 'DUNO Pro Principal',
+            tradingName: 'DUNO Principal',
             cnpj: '00.000.000/0001-00',
             adminEmail: 'admin@serviceflow.com',
             phone: '(11) 9999-9999',
@@ -393,7 +393,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
               </div>
               <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary-400">Master Control</span>
             </div>
-            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Nexus <span className="text-primary-500">Global</span></h1>
+            <h1 className="text-4xl font-black italic tracking-tighter uppercase">DUNO <span className="text-primary-500">Global</span></h1>
             <p className="text-gray-500 text-sm mt-2 font-medium">Provisionamento inteligente e auditoria de ecossistemas técnicos.</p>
           </div>
           <div className="flex gap-4">
@@ -579,7 +579,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                   </div>
                   <div>
                     <h2 className="text-3xl font-black italic uppercase tracking-tighter">
-                      {editingTenant ? 'Configurar Instância' : 'Nova Instância Nexus'}
+                      {editingTenant ? 'Configurar Instância' : 'Nova Instância DUNO'}
                     </h2>
                     <p className="text-xs text-primary-400/60 font-black uppercase tracking-widest mt-1">Provisionamento de camada de dados isolada</p>
                   </div>
@@ -600,7 +600,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                   </div>
                   <NexusInput
                     label="Nome Fantasia"
-                    placeholder="Ex: Nexus Pro Systems"
+                    placeholder="Ex: DUNO Pro Systems"
                     value={formData.tradingName || ''}
                     onChange={e => setFormData({ ...formData, tradingName: e.target.value })}
                     className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
