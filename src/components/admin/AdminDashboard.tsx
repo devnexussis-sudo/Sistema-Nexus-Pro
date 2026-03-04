@@ -1138,6 +1138,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 const renderTemplateBlock = (template: any, eq?: any) => {
                   const fields: any[] = template.fields || [];
+                  const isFinalized = ['CONCLUÍDO', 'CANCELADO'].includes(selectedOrder.status);
+
+                  // ── OS FINALIZADA: exibe respostas gravadas sem depender do template atual ──
+                  // Garante imutabilidade: qualquer alteração no template NÃO afeta OSs concluídas.
+                  if (isFinalized) {
+                    const SYSTEM_KEYS = new Set([
+                      'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+                      'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+                      'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+                      'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+                      'clientName', 'customerName', 'customerAddress', 'tenantId',
+                      'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+                    ]);
+                    const isSignatureKey = (k: string) =>
+                      k.toLowerCase().includes('assinatura') ||
+                      k.toLowerCase().includes('signature') ||
+                      k.toLowerCase().includes('cpf') ||
+                      k.toLowerCase().includes('nascimento');
+                    const savedEntries = Object.entries(allFormData)
+                      .filter(([k]) => !SYSTEM_KEYS.has(k) && !isSignatureKey(k))
+                      .filter(([, v]) => v !== null && v !== undefined && v !== '');
+                    const isOk = (v: any) => String(v).toLowerCase() === 'ok' || String(v).toLowerCase() === 'sim';
+                    const isImg = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'));
+                    return (
+                      <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-emerald-50">
+                          <div className="w-8 h-8 bg-white border border-emerald-200 rounded-lg flex items-center justify-center">
+                            <ClipboardList size={14} className="text-emerald-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{template.title}</p>
+                            {eq && (
+                              <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                {eq.equipmentName}{eq.equipmentFamily ? ` · ${eq.equipmentFamily}` : ''}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border bg-emerald-50 text-emerald-600 border-emerald-100">
+                            🔒 Concluído — dados preservados
+                          </span>
+                        </div>
+                        <div className="divide-y divide-slate-50">
+                          {savedEntries.length === 0 ? (
+                            <div className="px-6 py-8 text-center">
+                              <p className="text-[11px] text-slate-400 font-medium">Nenhuma resposta registrada</p>
+                            </div>
+                          ) : savedEntries.map(([key, val]) => (
+                            <div key={key} className="px-6 py-3.5 flex justify-between gap-6 items-center hover:bg-slate-50/50">
+                              <p className="text-[13px] font-medium text-slate-700 flex-1">
+                                {!isNaN(Number(key)) ? `Pergunta ${key}` : key}
+                              </p>
+                              {isImg(val) ? (
+                                <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                              ) : (
+                                <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk(val) ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'
+                                  }`}>{String(val)}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // ── OS em andamento: usa template atual normalmente ──
                   const answered = fields.filter(f => allFormData[f.id] !== undefined && allFormData[f.id] !== '').length;
                   const isComplete = answered === fields.length && fields.length > 0;
                   const isPending = answered === 0;
@@ -1157,7 +1222,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-[9px] font-black text-slate-400 uppercase">{answered}/{fields.length} resp.</span>
-                          <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isComplete ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : isPending ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                          <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isComplete ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              : isPending ? 'bg-amber-50 text-amber-600 border-amber-100'
+                                : 'bg-blue-50 text-blue-600 border-blue-100'
+                            }`}>
                             {isComplete ? '✓ Concluído' : isPending ? '○ Pendente' : '◑ Parcial'}
                           </span>
                         </div>

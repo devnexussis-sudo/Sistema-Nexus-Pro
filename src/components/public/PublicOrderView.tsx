@@ -8,6 +8,7 @@ import {
 import { StatusBadge } from '../ui/StatusBadge';
 import { DataService } from '../../services/dataService';
 import { NexusBranding } from '../ui/NexusBranding';
+import { supabase } from '../../lib/supabase';
 
 interface PublicOrderViewProps {
   order: ServiceOrder | null;
@@ -172,6 +173,7 @@ const CollapsibleFormSection: React.FC<{
 export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, isPrint = false }) => {
   const [tenant, setTenant] = React.useState<any>(null);
   const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
+  const [linkedEquipments, setLinkedEquipments] = React.useState<any[]>([]);
   // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)
   const [freshCustomerAddress, setFreshCustomerAddress] = React.useState<string | null>(null);
 
@@ -188,6 +190,18 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       }
     };
     fetchTenantData();
+  }, [order?.id]);
+
+  // Carrega todos os equipamentos vinculados via RPC (bypassa RLS)
+  React.useEffect(() => {
+    if (!order?.id) return;
+    supabase
+      .rpc('nexus_get_order_equipments', { p_order_id: order.id })
+      .then(({ data }) => {
+        const rows: any[] = Array.isArray(data) ? data : (data ? [data] : []);
+        setLinkedEquipments(rows);
+      })
+      .catch(() => setLinkedEquipments([]));
   }, [order?.id]);
 
   // Busca endereço atualizado do cliente na tabela customers
@@ -645,25 +659,37 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
-              <SectionHeader icon={<Box size={15} />} title="Dados do Equipamento" />
-              {(order.equipmentName || order.equipmentModel || order.equipmentSerial) ? (
+              <SectionHeader icon={<Box size={15} />} title={`Equipamento${linkedEquipments.length > 1 ? 's' : ''} Vinculado${linkedEquipments.length > 1 ? 's' : ''}`} />
+              {linkedEquipments.length > 0 ? (
                 <div className="space-y-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
-                      <Box size={20} className="text-slate-300" />
+                  {linkedEquipments.map((eq: any, i: number) => (
+                    <div key={eq.id || i} className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
+                        <Box size={18} className="text-slate-300" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-black text-slate-900 uppercase leading-snug">{eq.equipment_name || eq.equipmentName || '—'}</p>
+                        {(eq.equipment_model || eq.equipmentModel) && <p className="text-[10px] font-bold text-slate-500 uppercase">Modelo: {eq.equipment_model || eq.equipmentModel}</p>}
+                        {(eq.equipment_serial || eq.equipmentSerial) && <p className="text-[10px] font-bold text-slate-400 font-mono">Nº Série: {eq.equipment_serial || eq.equipmentSerial}</p>}
+                        {(eq.equipment_family || eq.equipmentFamily) && <p className="text-[10px] font-bold text-[#3e5b99] uppercase">{eq.equipment_family || eq.equipmentFamily}</p>}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-base font-black text-slate-900 uppercase leading-snug">{order.equipmentName || '—'}</p>
-                      {order.equipmentModel && <p className="text-[10px] font-bold text-slate-500 uppercase">Modelo: {order.equipmentModel}</p>}
-                      {order.equipmentSerial && <p className="text-[10px] font-bold text-slate-400 font-mono">N° Série: {order.equipmentSerial}</p>}
-                    </div>
+                  ))}
+                </div>
+              ) : (order.equipmentName || order.equipmentModel || order.equipmentSerial) ? (
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
+                    <Box size={20} className="text-slate-300" />
                   </div>
-
+                  <div className="space-y-1">
+                    <p className="text-base font-black text-slate-900 uppercase leading-snug">{order.equipmentName || '—'}</p>
+                    {order.equipmentModel && <p className="text-[10px] font-bold text-slate-500 uppercase">Modelo: {order.equipmentModel}</p>}
+                    {order.equipmentSerial && <p className="text-[10px] font-bold text-slate-400 font-mono">Nº Série: {order.equipmentSerial}</p>}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Equipamento não especificado</p>
-
                 </div>
               )}
             </div>
@@ -768,14 +794,42 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             </div>
           )}
 
-          {/* ── FORMULÁRIO COLAPSÁVEL ── */}
-          {hasForm && (
+          {/* ── FORMULÁRIOS POR EQUIPAMENTO ── */}
+          {linkedEquipments.length > 0 ? (
+            linkedEquipments.map((eq: any, i: number) => {
+              const eqFormData: Record<string, any> =
+                typeof eq.form_data === 'string'
+                  ? (() => { try { return JSON.parse(eq.form_data); } catch { return {}; } })()
+                  : (eq.form_data || {});
+              // Merge com o form_data da OS para o 1º equipamento (legado)
+              const mergedFormData = i === 0
+                ? { ...(order.formData as Record<string, any> || {}), ...eqFormData }
+                : eqFormData;
+              const hasData = Object.keys(mergedFormData).length > 0;
+              return hasData ? (
+                <div key={eq.id || i} className="space-y-2">
+                  <div className="flex items-center gap-2 px-1">
+                    <Box size={12} className="text-[#3e5b99] shrink-0" />
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                      {eq.equipment_name || eq.equipmentName}
+                      {(eq.equipment_family || eq.equipmentFamily) ? ` · ${eq.equipment_family || eq.equipmentFamily}` : ''}
+                    </p>
+                  </div>
+                  <CollapsibleFormSection
+                    formData={mergedFormData}
+                    order={order}
+                    onImageClick={setFullscreenImage}
+                  />
+                </div>
+              ) : null;
+            })
+          ) : hasForm ? (
             <CollapsibleFormSection
               formData={order.formData as Record<string, any>}
               order={order}
               onImageClick={setFullscreenImage}
             />
-          )}
+          ) : null}
 
           {/* ── ASSINATURAS (sempre visível no final) ── */}
           {(() => {
