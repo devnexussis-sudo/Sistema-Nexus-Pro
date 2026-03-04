@@ -69,17 +69,15 @@ CREATE POLICY "visits_write_v2" ON public.service_visits
     );
 
 -- ─── Atualiza função de update de visita (RPC simplificada) ───────
-DROP FUNCTION IF EXISTS public.duno_update_visit_schedule(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.duno_update_visit_schedule(TEXT, TEXT, TEXT, TEXT, TEXT);
 
 CREATE OR REPLACE FUNCTION public.duno_update_visit_schedule(
     p_visit_id       TEXT,
     p_order_id       TEXT,
     p_scheduled_date TEXT,
     p_scheduled_time TEXT DEFAULT NULL,
-    p_scheduled_end_time TEXT DEFAULT NULL,
     p_technician_id  TEXT DEFAULT NULL
-)
-RETURNS JSONB
+) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -114,30 +112,23 @@ BEGIN
     END IF;
 
     -- Atualiza a visita
-    -- service_visits.scheduled_time é TIME → usar CASE WHEN explícito
     UPDATE public.service_visits
     SET
-        scheduled_date     = p_scheduled_date::DATE,
-        scheduled_time     = CASE
-                                WHEN p_scheduled_time IS NULL OR trim(p_scheduled_time) = ''
-                                THEN NULL
-                                ELSE p_scheduled_time::TIME
-                             END,
-        scheduled_end_time = CASE
-                                WHEN p_scheduled_end_time IS NULL OR trim(p_scheduled_end_time) = ''
-                                THEN NULL
-                                ELSE p_scheduled_end_time::TIME
-                             END,
-        technician_id      = CASE
-                                WHEN p_technician_id IS NOT NULL AND p_technician_id <> ''
-                                THEN p_technician_id::UUID
-                                ELSE technician_id
-                             END,
-        updated_at         = NOW()
+        scheduled_date = p_scheduled_date::DATE,
+        scheduled_time = CASE
+                            WHEN p_scheduled_time IS NULL OR trim(p_scheduled_time) = ''
+                            THEN NULL
+                            ELSE p_scheduled_time::TIME
+                         END,
+        technician_id = CASE
+                            WHEN p_technician_id IS NOT NULL AND p_technician_id <> ''
+                            THEN p_technician_id::UUID
+                            ELSE technician_id
+                         END,
+        updated_at = NOW()
     WHERE id = p_visit_id::UUID AND tenant_id = v_tenant_id;
 
     -- Sincroniza a OS — orders.scheduled_date e scheduled_time são TEXT
-    -- Desativa trigger l9 temporariamente para evitar loop/erro de cascata
     SET LOCAL session_replication_role = replica;
     UPDATE public.orders
     SET
@@ -147,12 +138,12 @@ BEGIN
                             THEN NULL
                             ELSE p_scheduled_time
                          END,
-        assigned_to    = CASE
+        assigned_to = CASE
                             WHEN p_technician_id IS NOT NULL AND p_technician_id <> ''
                             THEN p_technician_id::UUID
                             ELSE assigned_to
                          END,
-        updated_at     = NOW()
+        updated_at = NOW()
     WHERE id = p_order_id AND tenant_id = v_tenant_id;
     SET LOCAL session_replication_role = DEFAULT;
 
@@ -165,7 +156,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.duno_update_visit_schedule(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.duno_update_visit_schedule(TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
 
