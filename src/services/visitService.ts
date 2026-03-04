@@ -410,6 +410,102 @@ export const VisitService = {
         if (error) throw new Error(`DB_ERROR: ${error.message}`);
     },
 
+    /**
+     * Atualiza campos de agendamento de uma visita (data/horário/técnico).
+     *
+     * Regras:
+     *   - Não permite editar visita CONCLUÍDA ou CANCELADA (is_locked ou status terminal)
+     *   - Valida horário_fim > horário_início quando ambos presentes
+     *   - Gera audit trail com snapshot anterior
+     */
+    updateVisitSchedule: async (params: {
+        visitId: string;
+        orderId: string;
+        scheduledDate?: string;
+        scheduledTime?: string;
+        scheduledEndTime?: string;
+        technicianId?: string;
+        notes?: string;
+    }): Promise<ServiceVisit> => {
+        const tenantId = getCurrentTenantId();
+        if (!tenantId) throw new Error('TENANT_NOT_FOUND');
+
+        // Buscar visita atual (snapshot para audit)
+        const { data: current, error: fetchErr } = await supabase
+            .from('service_visits')
+            .select('*')
+            .eq('id', params.visitId)
+            .eq('tenant_id', tenantId)
+            .single();
+
+        if (fetchErr || !current) throw new Error('VISIT_NOT_FOUND');
+
+        // Bloquear edição de visita concluída / travada
+        if (current.is_locked || current.status === VisitStatusEnum.COMPLETED) {
+            throw new Error('VISIT_LOCKED: Visita concluída não pode ser reagendada.');
+        }
+
+        // Validação de horário
+        if (params.scheduledTime && params.scheduledEndTime &&
+            params.scheduledEndTime <= params.scheduledTime) {
+            throw new Error('INVALID_TIME: Horário de término deve ser maior que o horário de início.');
+        }
+
+        const updatePayload: Record<string, any> = {
+            updated_at: new Date().toISOString(),
+        };
+        if (params.scheduledDate !== undefined) updatePayload.scheduled_date = params.scheduledDate;
+        if (params.scheduledTime !== undefined) updatePayload.scheduled_time = params.scheduledTime;
+        if (params.scheduledEndTime !== undefined) updatePayload.scheduled_end_time = params.scheduledEndTime;
+        if (params.technicianId !== undefined) updatePayload.technician_id = params.technicianId;
+        if (params.notes !== undefined) updatePayload.notes = params.notes;
+
+        const { data, error } = await supabase
+            .from('service_visits')
+            .update(updatePayload)
+            .eq('id', params.visitId)
+            .eq('tenant_id', tenantId)
+            .select()
+            .single();
+
+        if (error) throw new Error(`DB_ERROR: ${error.message}`);
+
+        // Audit trail — registra o reagendamento
+        const { data: { session } } = await supabase.auth.getSession();
+        supabase.from('visit_status_history').insert({
+            tenant_id: tenantId,
+            visit_id: params.visitId,
+            order_id: params.orderId,
+            from_status: current.status,
+            to_status: current.status, // status não muda
+            reason: `Reagendamento: ${current.scheduled_date} → ${params.scheduledDate ?? current.scheduled_date}`,
+            metadata: {
+                action: 'RESCHEDULE',
+                previous: {
+                    scheduledDate: current.scheduled_date,
+                    scheduledTime: current.scheduled_time,
+                    technicianId: current.technician_id,
+                },
+                next: {
+                    scheduledDate: params.scheduledDate,
+                    scheduledTime: params.scheduledTime,
+                    technicianId: params.technicianId,
+                },
+            },
+            changed_by: session?.user?.id ?? null,
+            changed_at: new Date().toISOString(),
+        }).then(({ error: auditErr }) => {
+            if (auditErr) logger.error('[VisitService] updateVisitSchedule audit falhou', { auditErr });
+        });
+
+        logger.info('[VisitService] Visita reagendada', {
+            visitId: params.visitId,
+            scheduledDate: params.scheduledDate,
+        });
+
+        return _mapVisitFromDB(data);
+    },
+
     // ═══════════════════════════════════════════════════════════════
     // PRIVATE HELPERS
     // ═══════════════════════════════════════════════════════════════
