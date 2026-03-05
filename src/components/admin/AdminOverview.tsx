@@ -312,7 +312,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           <div className="flex justify-between items-start relative z-10 w-full mb-4">
             <div>
               <p className="text-[11px] font-black uppercase tracking-widest text-indigo-200">Eficiência SLA (24h)</p>
-              <h2 className="text-4xl font-black mt-2 tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency24}%</h2>
+              <div className="flex items-baseline gap-2 mt-1.5">
+                <h2 className="text-4xl font-black tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency24}%</h2>
+                <span className="text-lg font-bold text-indigo-300/80 tracking-tight">({closureKPIs.within24})</span>
+              </div>
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="p-2.5 bg-white/10 rounded-xl text-indigo-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Gauge size={22} /></div>
@@ -351,7 +354,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           <div className="flex justify-between items-start relative z-10 w-full mb-4">
             <div>
               <p className="text-[11px] font-black uppercase tracking-widest text-emerald-100">Eficiência SLA (48h)</p>
-              <h2 className="text-4xl font-black mt-2 tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency48}%</h2>
+              <div className="flex items-baseline gap-2 mt-1.5">
+                <h2 className="text-4xl font-black tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency48}%</h2>
+                <span className="text-lg font-bold text-emerald-300/80 tracking-tight">({closureKPIs.within48})</span>
+              </div>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl text-emerald-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Target size={22} /></div>
           </div>
@@ -411,9 +417,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Em Andamento</span>
               <p className="text-lg font-black text-blue-600">{filteredOrders.filter(o => o.status === OrderStatus.IN_PROGRESS).length}</p>
             </div>
-            <div className="bg-gradient-to-b from-slate-50 to-white rounded-xl p-3 border border-slate-100 shadow-sm">
-              <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Aguardando</span>
-              <p className="text-lg font-black text-slate-700">{filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED].includes(o.status)).length}</p>
+            <div className="bg-gradient-to-b from-amber-50 to-white rounded-xl p-3 border border-amber-200 shadow-sm relative overflow-hidden group/alert">
+              <div className="absolute top-0 right-0 w-8 h-8 bg-amber-500/10 rounded-full -mr-4 -mt-4 transition-all duration-500 group-hover/alert:scale-[2]" />
+              <span className="block text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1 relative z-10">Não Iniciadas</span>
+              <p className="text-lg font-black text-amber-700 relative z-10">{filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED].includes(o.status)).length}</p>
             </div>
           </div>
         </div>
