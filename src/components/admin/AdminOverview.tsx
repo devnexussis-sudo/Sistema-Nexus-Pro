@@ -3,7 +3,7 @@ import { ServiceOrder, OrderStatus, User, Customer, OrderPriority } from '../../
 import {
   ClipboardList, CheckCircle, Clock, AlertCircle, TrendingUp, BarChart3,
   Briefcase, Activity, ShieldAlert, Timer, ArrowRight, Calendar, Zap, Layers, Target, Boxes, PieChart, BarChart,
-  Search, Filter, UserCheck, Users, ChevronRight, Gauge, ZapOff
+  Search, Filter, UserCheck, Users, ChevronRight, Gauge, ZapOff, Settings
 } from 'lucide-react';
 
 interface AdminOverviewProps {
@@ -26,6 +26,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const [techFilter, setTechFilter] = useState<string>('ALL');
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
   const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created'>('scheduled');
+  const [slaTarget, setSlaTarget] = useState<number>(85);
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
@@ -69,7 +70,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const activeContracts = useMemo(() => contracts.filter(c => c.status !== 'CANCELADO'), [contracts]);
   const total = filteredOrders.length;
 
-  // Cálculos de KPI de Fechamento (Exclusivos: 24h, 36h, 48h)
+  // Cálculos de KPI de Fechamento (Cumulativos: 24h, 36h, 48h)
   const closureKPIs = useMemo(() => {
     const completed = filteredOrders.filter(o => o.status === OrderStatus.COMPLETED && o.createdAt && o.endDate);
 
@@ -84,17 +85,18 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         const closed = new Date(o.endDate).getTime();
         const diffHours = (closed - created) / (1000 * 60 * 60);
 
-        if (diffHours <= 24) within24++;
-        else if (diffHours <= 36) within36++;
-        else if (diffHours <= 48) within48++;
+        if (diffHours <= 24) { within24++; within36++; within48++; }
+        else if (diffHours <= 36) { within36++; within48++; }
+        else if (diffHours <= 48) { within48++; }
       } catch (e) {
         console.warn("Nexus Analytics: Erro ao calcular diffHours", e);
       }
     });
 
-    const slaEfficiency = completed.length > 0 ? Math.round((within24 / completed.length) * 100) : 0;
+    const slaEfficiency24 = completed.length > 0 ? Math.round((within24 / completed.length) * 100) : 0;
+    const slaEfficiency48 = completed.length > 0 ? Math.round((within48 / completed.length) * 100) : 0;
 
-    return { within24, within36, within48, slaEfficiency, totalCompleted: completed.length };
+    return { within24, within36, within48, slaEfficiency24, slaEfficiency48, totalCompleted: completed.length };
   }, [filteredOrders]);
 
   // Status breakdown with percentages
@@ -258,93 +260,116 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       </div>
 
       {/* KPI GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* KPI: SLA */}
-        <div className="bg-[#1c2d4f] rounded-xl p-6 shadow-xl shadow-[#1c2d4f15] flex flex-col justify-between text-white border border-[#1c2d4f] relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 transition-all duration-700 group-hover:scale-110" />
-          <div className="flex justify-between items-start relative z-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+
+        {/* KPI: SLA 24H (Vibrant Gradient) */}
+        <div className="bg-gradient-to-br from-indigo-600 to-[#1c2d4f] rounded-2xl p-6 shadow-xl shadow-indigo-900/20 flex flex-col justify-between text-white relative overflow-hidden group">
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl transition-all duration-700 group-hover:bg-white/20" />
+          <div className="flex justify-between items-start relative z-10 w-full mb-4">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Eficiência SLA (24h)</p>
-              <h2 className="text-4xl font-bold mt-2 tracking-tighter">{closureKPIs.slaEfficiency}%</h2>
+              <p className="text-[11px] font-black uppercase tracking-widest text-indigo-200">Eficiência SLA (24h)</p>
+              <h2 className="text-4xl font-black mt-2 tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency24}%</h2>
             </div>
-            <div className="p-2.5 bg-white/10 rounded-lg text-white/80 border border-white/10"><Gauge size={20} /></div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="p-2.5 bg-white/10 rounded-xl text-indigo-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Gauge size={22} /></div>
+              <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/20 mt-1 cursor-pointer hover:bg-white/20 transition-all">
+                <Settings size={10} className="text-indigo-200" />
+                <input
+                  type="number"
+                  value={slaTarget}
+                  onChange={(e) => setSlaTarget(Number(e.target.value))}
+                  className="bg-transparent w-7 text-center text-[10px] font-bold text-white outline-none appearance-none m-0 p-0"
+                  title="Ajustar Meta % SLA"
+                />
+                <span className="text-[10px] font-bold text-indigo-200">%</span>
+              </div>
+            </div>
           </div>
-          <div className="mt-6 relative z-10">
+          <div className="mt-4 relative z-10">
             <div className="flex justify-between items-baseline mb-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Meta: 85%</span>
-              <span className={`text-[10px] font-bold uppercase ${closureKPIs.slaEfficiency >= 85 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {closureKPIs.slaEfficiency >= 85 ? 'Excelente' : 'Atenção'}
+              <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Meta: {slaTarget}%</span>
+              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${closureKPIs.slaEfficiency24 >= slaTarget ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                {closureKPIs.slaEfficiency24 >= slaTarget ? 'Atingida' : 'Abaixo'}
               </span>
             </div>
-            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(closureKPIs.slaEfficiency, 100)}%` }}></div>
+            <div className="w-full h-2 bg-indigo-900/50 rounded-full overflow-hidden border border-indigo-400/20">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.4)] ${closureKPIs.slaEfficiency24 >= slaTarget ? 'bg-gradient-to-r from-emerald-400 to-emerald-300' : 'bg-gradient-to-r from-rose-400 to-rose-300'}`}
+                style={{ width: `${Math.min(closureKPIs.slaEfficiency24, 100)}%` }}>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* KPI: RESOLVIDOS */}
-        <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-[#1c2d4f] transition-all hover:shadow-md">
-          <div className="flex justify-between items-start">
+        {/* KPI: SLA 48H (Emerald Gradient) */}
+        <div className="bg-gradient-to-br from-emerald-500 to-teal-700 rounded-2xl p-6 shadow-xl shadow-emerald-900/20 flex flex-col justify-between text-white relative overflow-hidden group">
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl transition-all duration-700 group-hover:bg-white/20" />
+          <div className="flex justify-between items-start relative z-10 w-full mb-4">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resolvidos 24h</p>
-              <h3 className="text-3xl font-bold text-slate-900 mt-2 tracking-tighter">{closureKPIs.within24}</h3>
+              <p className="text-[11px] font-black uppercase tracking-widest text-emerald-100">Eficiência SLA (48h)</p>
+              <h2 className="text-4xl font-black mt-2 tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency48}%</h2>
             </div>
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100"><Zap size={20} /></div>
+            <div className="p-2.5 bg-white/10 rounded-xl text-emerald-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Target size={22} /></div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mt-6">
-            <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100 group-hover:bg-white transition-colors">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total 36h</span>
-              <p className="text-sm font-bold text-slate-700">{closureKPIs.within36}</p>
+          <div className="mt-4 relative z-10">
+            <div className="flex justify-between items-baseline mb-2">
+              <span className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest">Meta: {Math.min(slaTarget + 5, 100)}%</span>
+              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${closureKPIs.slaEfficiency48 >= (slaTarget + 5) ? 'bg-white/20 text-white' : 'bg-rose-500/40 text-rose-100'}`}>
+                {closureKPIs.slaEfficiency48 >= (slaTarget + 5) ? 'Excelente' : 'Atenção'}
+              </span>
             </div>
-            <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100 group-hover:bg-white transition-colors">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total 48h</span>
-              <p className="text-sm font-bold text-slate-700">{closureKPIs.within48}</p>
+            <div className="w-full h-2 bg-emerald-900/50 rounded-full overflow-hidden border border-emerald-400/20">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.4)] ${closureKPIs.slaEfficiency48 >= (slaTarget + 5) ? 'bg-white' : 'bg-rose-300'}`}
+                style={{ width: `${Math.min(closureKPIs.slaEfficiency48, 100)}%` }}>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* KPI: EM ANDAMENTO */}
-        <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-[#1c2d4f] transition-all hover:shadow-md">
+        {/* KPI: FILA OPERACIONAL */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-[#1c2d4f] transition-all hover:shadow-xl hover:-translate-y-1 duration-300">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Fila Operacional</p>
-              <h3 className="text-3xl font-bold text-slate-900 mt-2 tracking-tighter">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fila Operacional</p>
+              <h3 className="text-4xl font-black text-slate-800 mt-2 tracking-tighter">
                 {filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.IN_PROGRESS].includes(o.status)).length}
               </h3>
             </div>
-            <div className="p-2.5 bg-[#1c2d4f05] text-[#1c2d4f] rounded-lg border border-[#1c2d4f10]"><Activity size={20} /></div>
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 shadow-inner group-hover:scale-110 transition-transform"><Activity size={22} /></div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mt-6">
-            <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100 group-hover:bg-white transition-colors">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Check-in</span>
-              <p className="text-sm font-bold text-[#1c2d4f]">{filteredOrders.filter(o => o.status === OrderStatus.IN_PROGRESS).length}</p>
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="bg-gradient-to-b from-slate-50 to-white rounded-xl p-3 border border-slate-100 shadow-sm">
+              <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Em Andamento</span>
+              <p className="text-lg font-black text-blue-600">{filteredOrders.filter(o => o.status === OrderStatus.IN_PROGRESS).length}</p>
             </div>
-            <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100 group-hover:bg-white transition-colors">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Aguardando</span>
-              <p className="text-sm font-bold text-slate-700">{filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED].includes(o.status)).length}</p>
+            <div className="bg-gradient-to-b from-slate-50 to-white rounded-xl p-3 border border-slate-100 shadow-sm">
+              <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Aguardando</span>
+              <p className="text-lg font-black text-slate-700">{filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED].includes(o.status)).length}</p>
             </div>
           </div>
         </div>
 
-        {/* KPI: ANOMALIAS */}
-        <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-rose-300 transition-all hover:shadow-md">
-          <div className="flex justify-between items-start">
+        {/* KPI: IMPEDIMENTOS */}
+        <div className="bg-gradient-to-br from-rose-50 to-white rounded-2xl p-6 border border-rose-100 shadow-sm flex flex-col justify-between group hover:border-rose-300 transition-all hover:shadow-xl hover:-translate-y-1 duration-300 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full -mr-16 -mt-16 transition-all duration-700 group-hover:scale-150" />
+          <div className="flex justify-between items-start relative z-10">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Impedimentos</p>
-              <h3 className="text-3xl font-bold text-rose-600 mt-2 tracking-tighter">
+              <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Impedimentos</p>
+              <h3 className="text-4xl font-black text-rose-600 mt-2 tracking-tighter">
                 {filteredOrders.filter(o => o.status === OrderStatus.BLOCKED).length}
               </h3>
             </div>
-            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-lg border border-rose-100"><ZapOff size={20} /></div>
+            <div className="p-3 bg-rose-100/50 text-rose-600 rounded-xl border border-rose-200 shadow-inner group-hover:scale-110 transition-transform"><ZapOff size={22} /></div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mt-6">
-            <div className="bg-rose-50/50 rounded-lg p-3 border border-rose-100/50 group-hover:bg-white transition-colors">
-              <span className="block text-[10px] font-bold text-rose-400 uppercase mb-1">Canceladas</span>
-              <p className="text-sm font-bold text-rose-700">{filteredOrders.filter(o => o.status === OrderStatus.CANCELED).length}</p>
+          <div className="grid grid-cols-2 gap-3 mt-4 relative z-10">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 border border-rose-100 shadow-sm">
+              <span className="block text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1">Canceladas</span>
+              <p className="text-lg font-black text-rose-700">{filteredOrders.filter(o => o.status === OrderStatus.CANCELED).length}</p>
             </div>
-            <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100 group-hover:bg-white transition-colors">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Bloqueios</span>
-              <p className="text-sm font-bold text-slate-700">{filteredOrders.filter(o => o.status === OrderStatus.BLOCKED).length}</p>
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 border border-slate-100 shadow-sm">
+              <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Bloqueios</span>
+              <p className="text-lg font-black text-slate-700">{filteredOrders.filter(o => o.status === OrderStatus.BLOCKED).length}</p>
             </div>
           </div>
         </div>
