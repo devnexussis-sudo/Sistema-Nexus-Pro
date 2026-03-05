@@ -368,6 +368,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                 <h2 className="text-4xl font-black tracking-tighter drop-shadow-md">{closureKPIs.between24and48Pct}%</h2>
                 <span className="text-lg font-bold text-emerald-300/80 tracking-tight">({closureKPIs.between24and48})</span>
               </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200 mt-2 border-t border-emerald-400/20 pt-1.5">Total &lt; 48h: {closureKPIs.within48}</p>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl text-emerald-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Target size={22} /></div>
           </div>
@@ -430,8 +431,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <div className="bg-gradient-to-b from-amber-50 to-white rounded-xl p-3 border border-amber-200 shadow-sm relative overflow-hidden group/alert">
               <div className="absolute top-0 right-0 w-8 h-8 bg-amber-500/10 rounded-full -mr-4 -mt-4 transition-all duration-500 group-hover/alert:scale-[2]" />
               <div className="flex justify-between items-end relative z-10 w-full h-full">
-                <div>
-                  <span className="block text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1">Não Iniciadas</span>
+                <div className="flex-1 min-w-0 pr-2">
+                  <span className="block text-[8.5px] font-black text-amber-600 uppercase tracking-wider mb-1 truncate" title="Não Iniciadas">Não Iniciadas</span>
                   <p className="text-lg font-black text-amber-700 leading-none mt-1">{filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED].includes(o.status)).length}</p>
                 </div>
                 {overdueUnstartedCount > 0 && (
