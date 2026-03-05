@@ -168,7 +168,7 @@ export const OrderService = {
             try {
                 let query = supabase
                     .from('orders')
-                    .select('id, display_id, created_at, scheduled_date, status, assigned_to, end_date, customer_name, title')
+                    .select('id, display_id, created_at, scheduled_date, status, assigned_to, end_date, customer_name, title, operation_type')
                     .eq('tenant_id', tenantId)
                     .order('created_at', { ascending: false })
                     .limit(5000);
@@ -188,7 +188,7 @@ export const OrderService = {
                 }
 
                 // Mapeamento manual otimizado
-                return (data || []).map((d: Pick<DbOrder, 'id' | 'display_id' | 'status' | 'created_at' | 'scheduled_date' | 'end_date' | 'assigned_to' | 'customer_name' | 'title'>) => ({
+                return (data || []).map((d: Pick<DbOrder, 'id' | 'display_id' | 'status' | 'created_at' | 'scheduled_date' | 'end_date' | 'assigned_to' | 'customer_name' | 'title' | 'operation_type'>) => ({
                     id: d.id,
                     displayId: d.display_id,
                     status: d.status as ServiceOrder['status'],
@@ -203,7 +203,7 @@ export const OrderService = {
                     description: '',
                     customerAddress: '',
                     priority: 'MÉDIA' as ServiceOrder['priority'],
-                    operationType: '',
+                    operationType: d.operation_type || '',
                     items: [],
                     showValueToClient: false,
                     billingStatus: 'PENDING' as const
