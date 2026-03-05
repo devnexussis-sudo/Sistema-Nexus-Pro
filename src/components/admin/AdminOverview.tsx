@@ -83,6 +83,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     let within24 = 0;
     let within36 = 0;
     let within48 = 0;
+    let between24and48 = 0;
     let over24 = 0;
     let over48 = 0;
 
@@ -94,8 +95,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         const diffHours = (closed - created) / (1000 * 60 * 60);
 
         if (diffHours <= 24) { within24++; within36++; within48++; }
-        else if (diffHours <= 36) { within36++; within48++; over24++; }
-        else if (diffHours <= 48) { within48++; over24++; }
+        else if (diffHours <= 36) { within36++; within48++; over24++; between24and48++; }
+        else if (diffHours <= 48) { within48++; over24++; between24and48++; }
         else { over24++; over48++; }
       } catch (e) {
         console.warn("Nexus Analytics: Erro ao calcular diffHours", e);
@@ -104,10 +105,11 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
     const slaEfficiency24 = totalScheduledContext > 0 ? Math.round((within24 / totalScheduledContext) * 100) : 0;
     const slaEfficiency48 = totalScheduledContext > 0 ? Math.round((within48 / totalScheduledContext) * 100) : 0;
+    const between24and48Pct = totalScheduledContext > 0 ? Math.round((between24and48 / totalScheduledContext) * 100) : 0;
     const over24Percentage = completed.length > 0 ? Math.round((over24 / completed.length) * 100) : 0;
     const over48Percentage = completed.length > 0 ? Math.round((over48 / completed.length) * 100) : 0;
 
-    return { within24, within36, within48, over24, over48, over24Percentage, over48Percentage, slaEfficiency24, slaEfficiency48, totalCompleted: completed.length };
+    return { within24, within36, within48, between24and48, between24and48Pct, over24, over48, over24Percentage, over48Percentage, slaEfficiency24, slaEfficiency48, totalCompleted: completed.length };
   }, [filteredOrders]);
 
   // Status breakdown with percentages
@@ -127,6 +129,14 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       percentage: total > 0 ? Math.round((count / total) * 100) : 0,
     }));
   }, [filteredOrders, total]);
+
+  const overdueUnstartedCount = useMemo(() => {
+    const nowFilter = new Date().toISOString().split('T')[0];
+    return filteredOrders.filter(o =>
+      [OrderStatus.PENDING, OrderStatus.ASSIGNED].includes(o.status) &&
+      o.scheduledDate && o.scheduledDate.substring(0, 10) < nowFilter
+    ).length;
+  }, [filteredOrders]);
 
   const operationData = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -353,10 +363,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl transition-all duration-700 group-hover:bg-white/20" />
           <div className="flex justify-between items-start relative z-10 w-full mb-4">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-widest text-emerald-100">Eficiência SLA (48h)</p>
+              <p className="text-[11px] font-black uppercase tracking-widest text-emerald-100">Eficiência SLA (24h a 48h)</p>
               <div className="flex items-baseline gap-2 mt-1.5">
-                <h2 className="text-4xl font-black tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency48}%</h2>
-                <span className="text-lg font-bold text-emerald-300/80 tracking-tight">({closureKPIs.within48})</span>
+                <h2 className="text-4xl font-black tracking-tighter drop-shadow-md">{closureKPIs.between24and48Pct}%</h2>
+                <span className="text-lg font-bold text-emerald-300/80 tracking-tight">({closureKPIs.between24and48})</span>
               </div>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl text-emerald-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Target size={22} /></div>
@@ -364,14 +374,14 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           <div className="mt-4 relative z-10">
             <div className="flex justify-between items-baseline mb-2">
               <span className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest">Meta: {Math.min(slaTarget + 5, 100)}%</span>
-              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${closureKPIs.slaEfficiency48 >= (slaTarget + 5) ? 'bg-white/20 text-white' : 'bg-rose-500/40 text-rose-100'}`}>
-                {closureKPIs.within48} OS ({closureKPIs.slaEfficiency48 >= (slaTarget + 5) ? 'Excel.' : 'Atenção'})
+              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${closureKPIs.between24and48Pct >= (slaTarget + 5) ? 'bg-white/20 text-white' : 'bg-rose-500/40 text-rose-100'}`}>
+                {closureKPIs.between24and48Pct >= (slaTarget + 5) ? 'Excelente' : 'Atenção'}
               </span>
             </div>
             <div className="w-full h-2 bg-emerald-900/50 rounded-full overflow-hidden border border-emerald-400/20">
               <div
-                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.4)] ${closureKPIs.slaEfficiency48 >= (slaTarget + 5) ? 'bg-white' : 'bg-rose-300'}`}
-                style={{ width: `${Math.min(closureKPIs.slaEfficiency48, 100)}%` }}>
+                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.4)] ${closureKPIs.between24and48Pct >= (slaTarget + 5) ? 'bg-white' : 'bg-rose-300'}`}
+                style={{ width: `${Math.min(closureKPIs.between24and48Pct, 100)}%` }}>
               </div>
             </div>
           </div>
@@ -419,8 +429,18 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             </div>
             <div className="bg-gradient-to-b from-amber-50 to-white rounded-xl p-3 border border-amber-200 shadow-sm relative overflow-hidden group/alert">
               <div className="absolute top-0 right-0 w-8 h-8 bg-amber-500/10 rounded-full -mr-4 -mt-4 transition-all duration-500 group-hover/alert:scale-[2]" />
-              <span className="block text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1 relative z-10">Não Iniciadas</span>
-              <p className="text-lg font-black text-amber-700 relative z-10">{filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED].includes(o.status)).length}</p>
+              <div className="flex justify-between items-end relative z-10 w-full h-full">
+                <div>
+                  <span className="block text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1">Não Iniciadas</span>
+                  <p className="text-lg font-black text-amber-700 leading-none mt-1">{filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED].includes(o.status)).length}</p>
+                </div>
+                {overdueUnstartedCount > 0 && (
+                  <div className="text-right">
+                    <span className="block text-[8px] font-bold text-rose-500 uppercase tracking-tight mb-0.5 bg-rose-50 px-1 py-0.5 rounded border border-rose-100">Atrasadas</span>
+                    <p className="text-base font-black text-rose-600 leading-none">{overdueUnstartedCount}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -450,31 +470,36 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 gap-6 mb-6">
         {/* VOLUME CHART */}
-        <div className="lg:col-span-2 bg-gradient-to-b from-white to-slate-50/50 rounded-2xl border border-slate-200 p-8 flex flex-col shadow-sm relative overflow-hidden">
+        <div className="bg-gradient-to-b from-white to-slate-50/50 rounded-2xl border border-slate-200 p-6 flex flex-col shadow-sm relative overflow-hidden h-fit">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(226,232,240,0.4)_1px,transparent_1px),linear-gradient(90deg,rgba(226,232,240,0.4)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:linear-gradient(to_bottom,white,transparent)] pointer-events-none" />
 
-          <div className="flex items-center justify-between relative z-10 mb-8">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between relative z-10 mb-2 gap-4">
             <div>
               <h3 className="text-base font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
                 <BarChart3 className="text-primary-500" size={18} /> Fluxo Volumétrico
               </h3>
               <p className="text-[11px] text-slate-500 font-bold mt-1 uppercase tracking-widest">Distribuição por Status de Operação</p>
             </div>
-            <div className="text-right bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Período</p>
-              <p className="text-3xl font-black text-[#1c2d4f] leading-none mt-1">{total}</p>
+            <div className="text-right bg-white p-2.5 px-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="text-left border-r border-slate-100 pr-4">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Concluídas</p>
+                <p className="text-lg font-black text-emerald-600 leading-none mt-1">{statusData.find(s => s.status === OrderStatus.COMPLETED)?.count || 0}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Período</p>
+                <p className="text-2xl font-black text-[#1c2d4f] leading-none mt-1">{total}</p>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-end justify-between gap-2 sm:gap-4 md:gap-6 h-[260px] px-2 pt-10 border-b-2 border-slate-200 relative z-10 mt-auto">
+          <div className="flex items-end justify-between gap-2 sm:gap-4 md:gap-6 h-[155px] px-2 pt-6 border-b-2 border-slate-200 relative z-10 mt-auto">
             {statusData.map(s => {
               const heightPercentage = total > 0 ? (s.count / total) * 100 : 0;
               const hasData = s.count > 0;
               return (
                 <div key={s.status} className="flex-1 flex flex-col items-center justify-end h-full group relative">
-
                   {/* Custom Tooltip */}
                   <div className="absolute -top-14 px-3 py-2 bg-slate-900/95 backdrop-blur-sm text-white text-[11px] font-bold rounded-xl opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transition-all shadow-xl z-20 pointer-events-none origin-bottom border border-slate-700 whitespace-nowrap">
                     <span className="text-slate-400 mr-2">{s.status}:</span> {s.count} OS <span className="ml-1 text-primary-400">({s.percentage}%)</span>
@@ -487,7 +512,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                       <span className="text-[10px] font-black text-slate-600 mb-2 opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 transition-all">{s.count}</span>
                     )}
                     <div
-                      className="w-full max-w-[48px] rounded-t-xl shadow-sm transition-all duration-[800ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:brightness-110 group-hover:shadow-lg relative overflow-hidden"
+                      className="w-full max-w-[64px] rounded-t-xl shadow-sm transition-all duration-[800ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:brightness-110 group-hover:shadow-lg relative overflow-hidden"
                       style={{
                         height: hasData ? `${Math.max(heightPercentage, 4)}%` : '4px',
                         background: `linear-gradient(180deg, ${pieColors[s.status]} 0%, ${pieColors[s.status]}dd 100%)`,
@@ -506,109 +531,111 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           </div>
 
           {/* Legenda */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mt-8 relative z-10">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mt-4 relative z-10 w-full max-w-4xl mx-auto">
             {statusData.map(s => (
-              <div key={s.status} className="flex flex-col p-3 rounded-xl bg-white border border-slate-100 hover:border-slate-300 transition-all shadow-sm hover:shadow-md group cursor-default">
-                <div className="flex items-center gap-2 mb-2">
+              <div key={s.status} className="flex justify-between items-center p-2.5 rounded-xl bg-white border border-slate-100 hover:border-slate-300 transition-all shadow-sm hover:shadow-md group cursor-default">
+                <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: pieColors[s.status], boxShadow: `0 0 8px ${pieColors[s.status]}80` }} />
-                  <span className="text-[9px] font-black text-slate-400 uppercase truncate">{s.status}</span>
+                  <span className="text-[9px] font-black text-slate-400 uppercase truncate max-w-[60px]">{s.status}</span>
                 </div>
-                <p className="text-xl font-black text-slate-800 leading-none">{s.count}</p>
+                <p className="text-sm font-black text-slate-800 leading-none">{s.count}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* PIE CHART */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between items-center shadow-sm h-full">
+          <div className="w-full text-center">
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-6">Resumo de Qualidade</h4>
+          </div>
+          <div className="w-40 h-40 rounded-full relative border-[8px] border-slate-50 shadow-inner group transition-transform duration-500 hover:scale-105" style={{ background: getPieGradient() }}>
+            <div className="absolute inset-3.5 bg-white rounded-full flex flex-col items-center justify-center shadow-md border border-slate-50">
+              <p className="text-2xl font-bold text-slate-900 leading-none">{(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%</p>
+              <p className="text-[9px] font-bold text-emerald-600 uppercase mt-1.5 tracking-widest">Resolvido</p>
+            </div>
+          </div>
+          <div className="mt-8 space-y-3 w-full">
+            <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
+              <span>Finalizadas com Sucesso</span>
+              <span className="text-slate-900">{statusData.find(s => s.status === OrderStatus.COMPLETED)?.count}</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%` }} />
+            </div>
+          </div>
+        </div>
+
+        {/* OPERATION DISTRIBUTION PIE CHART */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col items-center shadow-sm relative overflow-hidden h-full">
+          <div className="w-full text-center">
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-6">Tipos de Modalidade</h4>
+          </div>
+          <div className="w-36 h-36 rounded-full relative border-[8px] border-slate-50 shadow-sm group transition-transform duration-500 hover:scale-105 shrink-0" style={{ background: getOperationGradient() }}>
+            <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center shadow-sm border border-slate-50 z-10 transition-transform group-hover:scale-110">
+              <PieChart size={18} className="text-slate-300 mb-1" />
+            </div>
+          </div>
+          <div className="mt-6 space-y-2 w-full max-h-[140px] overflow-y-auto custom-scrollbar pr-1 flex-1">
+            {operationData.map(o => (
+              <div key={o.type} className="flex justify-between items-center text-[10px] font-bold uppercase p-2 border border-slate-100 rounded-lg hover:bg-slate-50 transition-colors cursor-default group/op">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: o.color }} />
+                  <span className="text-slate-500 group-hover/op:text-slate-800 truncate max-w-[120px]" title={o.type}>{o.type}</span>
+                </div>
+                <div className="text-right flex items-center gap-2">
+                  <span className="text-slate-900">{o.count}</span>
+                  <span className="text-[8px] font-black text-slate-400 bg-slate-100 px-1 py-0.5 rounded leading-none w-8 text-center">{o.percentage}%</span>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* SIDEBAR */}
-        <div className="space-y-8">
-          {/* PIE CHART */}
-          <div className="bg-white rounded-xl border border-slate-200 p-8 flex flex-col items-center shadow-sm">
-            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-10 text-center">Resumo de Qualidade</h4>
-            <div className="w-48 h-48 rounded-full relative border-[10px] border-slate-50 shadow-inner group transition-transform duration-500 hover:scale-105" style={{ background: getPieGradient() }}>
-              <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center shadow-lg border border-slate-50">
-                <p className="text-3xl font-bold text-slate-900 leading-none">{(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%</p>
-                <p className="text-[9px] font-bold text-emerald-600 uppercase mt-2 tracking-widest">Resolvido</p>
-              </div>
-            </div>
-            <div className="mt-10 space-y-3 w-full">
-              <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
-                <span>Finalizadas com Sucesso</span>
-                <span className="text-slate-900">{statusData.find(s => s.status === OrderStatus.COMPLETED)?.count}</span>
-              </div>
-              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%` }} />
-              </div>
-            </div>
-          </div>
+        {/* PMOC MODULE */}
+        <div className="bg-[#1c2d4f] rounded-xl shadow-lg shadow-[#1c2d4f20] p-6 flex flex-col justify-between text-white relative overflow-hidden group h-full">
+          <div className="absolute -right-8 -bottom-8 opacity-10 group-hover:scale-110 group-hover:-rotate-3 transition-all duration-1000"><Briefcase size={160} /></div>
 
-          {/* OPERATION DISTRIBUTION PIE CHART */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col items-center shadow-sm relative overflow-hidden">
-            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-8 text-center">Tipos de Modalidade</h4>
-            <div className="w-40 h-40 rounded-full relative border-[8px] border-slate-50 shadow-sm group transition-transform duration-500 hover:scale-105" style={{ background: getOperationGradient() }}>
-              <div className="absolute inset-5 bg-white rounded-full flex flex-col items-center justify-center shadow-md border border-slate-50 z-10 transition-transform group-hover:scale-110">
-                <PieChart size={20} className="text-slate-300 mb-1" />
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center leading-none mt-1">Volume<br />Ativo</p>
+          <div className="relative z-10">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-white/10 text-white rounded-lg border border-white/5"><Activity size={14} /></div>
+                <div>
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#60a5fa] leading-tight">Módulo PMOC</h3>
+                  <p className="text-[9px] text-white/40 font-bold uppercase">Gestão de Ativos</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 bg-white/10 rounded-full text-[9px] font-bold border border-white/10">{activeContracts.length} Contrat.</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="p-3 bg-white/5 rounded-lg border border-white/5 group-hover:bg-white/[0.08] transition-colors">
+                <p className="text-[8px] font-bold text-rose-400 uppercase mb-1">Urgência (3d)</p>
+                <p className="text-xl font-bold">{pmocAnalysis.counts.urgent}</p>
+              </div>
+              <div className="p-3 bg-white/5 rounded-lg border border-white/5 group-hover:bg-white/[0.08] transition-colors">
+                <p className="text-[8px] font-bold text-amber-400 uppercase mb-1">Atenção (7d)</p>
+                <p className="text-xl font-bold">{pmocAnalysis.counts.critical}</p>
               </div>
             </div>
-            <div className="mt-8 space-y-2.5 w-full max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-              {operationData.map(o => (
-                <div key={o.type} className="flex justify-between items-center text-[10px] font-bold uppercase p-2 border border-slate-100 rounded-lg hover:bg-slate-50 transition-colors cursor-default group/op">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: o.color }} />
-                    <span className="text-slate-500 group-hover/op:text-slate-800 truncate max-w-[120px]" title={o.type}>{o.type}</span>
-                  </div>
-                  <div className="text-right flex flex-col items-end">
-                    <span className="text-slate-900">{o.count} OS</span>
-                    <span className="text-[8px] font-black text-slate-400 bg-slate-100 px-1 py-0.5 rounded mt-0.5 leading-none">{o.percentage}%</span>
-                  </div>
+
+            <div className="space-y-2 mb-6">
+              {pmocAnalysis.visits.slice(0, 3).map((v, i) => (
+                <div key={i} className="flex justify-between items-center p-2.5 bg-white/5 rounded-lg border border-white/5 text-[10px] hover:bg-white/10 transition-colors cursor-default group/item">
+                  <span className="font-bold uppercase truncate max-w-[140px] text-white/80 group-hover/item:text-white">{v.customerName}</span>
+                  <span className={`font-bold px-1.5 py-0.5 rounded text-[8px] ${v.daysUntil <= 3 ? 'bg-rose-500/20 text-rose-300' : 'bg-primary-500/20 text-primary-300'}`}>D-{v.daysUntil}</span>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* PMOC MODULE */}
-          <div className="bg-[#1c2d4f] rounded-xl shadow-lg shadow-[#1c2d4f20] p-6 text-white relative overflow-hidden group">
-            <div className="absolute -right-8 -bottom-8 opacity-10 group-hover:scale-110 group-hover:-rotate-3 transition-all duration-1000"><Briefcase size={160} /></div>
-
-            <div className="relative z-10">
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-white/10 text-white rounded-lg border border-white/5"><Activity size={16} /></div>
-                  <div>
-                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#60a5fa]">Módulo PMOC</h3>
-                    <p className="text-[9px] text-white/40 font-bold uppercase mt-0.5">Gestão de Ativos</p>
-                  </div>
-                </div>
-                <span className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold border border-white/10">{activeContracts.length} Contratos</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="p-3 bg-white/5 rounded-lg border border-white/5 group-hover:bg-white/[0.08] transition-colors">
-                  <p className="text-[8px] font-bold text-rose-400 uppercase mb-1">Urgência (3d)</p>
-                  <p className="text-xl font-bold">{pmocAnalysis.counts.urgent}</p>
-                </div>
-                <div className="p-3 bg-white/5 rounded-lg border border-white/5 group-hover:bg-white/[0.08] transition-colors">
-                  <p className="text-[8px] font-bold text-amber-400 uppercase mb-1">Atenção (7d)</p>
-                  <p className="text-xl font-bold">{pmocAnalysis.counts.critical}</p>
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-6">
-                {pmocAnalysis.visits.slice(0, 3).map((v, i) => (
-                  <div key={i} className="flex justify-between items-center p-3 bg-white/5 rounded-lg border border-white/5 text-[10px] hover:bg-white/10 transition-colors cursor-default group/item">
-                    <span className="font-bold uppercase truncate max-w-[150px] text-white/80 group-hover/item:text-white">{v.customerName}</span>
-                    <span className={`font-bold px-2 py-0.5 rounded-md text-[9px] ${v.daysUntil <= 3 ? 'bg-rose-500/20 text-rose-300' : 'bg-primary-500/20 text-primary-300'}`}>D-{v.daysUntil}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={() => onSwitchView('contracts')}
-                className="w-full py-3 text-[10px] font-bold uppercase text-white/90 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-all flex items-center justify-center gap-2 group/btn"
-              >
-                Gerenciar Cronograma <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-              </button>
-            </div>
+            <button
+              onClick={() => onSwitchView('contracts')}
+              className="w-full py-2.5 text-[10px] font-bold uppercase text-white/90 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-all flex items-center justify-center gap-2 group/btn"
+            >
+              Cronograma <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+            </button>
           </div>
         </div>
       </div>
