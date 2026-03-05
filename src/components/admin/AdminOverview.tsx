@@ -77,6 +77,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     let within24 = 0;
     let within36 = 0;
     let within48 = 0;
+    let over24 = 0;
+    let over48 = 0;
 
     completed.forEach(o => {
       if (!o.createdAt || !o.endDate) return;
@@ -86,8 +88,9 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         const diffHours = (closed - created) / (1000 * 60 * 60);
 
         if (diffHours <= 24) { within24++; within36++; within48++; }
-        else if (diffHours <= 36) { within36++; within48++; }
-        else if (diffHours <= 48) { within48++; }
+        else if (diffHours <= 36) { within36++; within48++; over24++; }
+        else if (diffHours <= 48) { within48++; over24++; }
+        else { over24++; over48++; }
       } catch (e) {
         console.warn("Nexus Analytics: Erro ao calcular diffHours", e);
       }
@@ -95,8 +98,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
     const slaEfficiency24 = completed.length > 0 ? Math.round((within24 / completed.length) * 100) : 0;
     const slaEfficiency48 = completed.length > 0 ? Math.round((within48 / completed.length) * 100) : 0;
+    const over24Percentage = completed.length > 0 ? Math.round((over24 / completed.length) * 100) : 0;
+    const over48Percentage = completed.length > 0 ? Math.round((over48 / completed.length) * 100) : 0;
 
-    return { within24, within36, within48, slaEfficiency24, slaEfficiency48, totalCompleted: completed.length };
+    return { within24, within36, within48, over24, over48, over24Percentage, over48Percentage, slaEfficiency24, slaEfficiency48, totalCompleted: completed.length };
   }, [filteredOrders]);
 
   // Status breakdown with percentages
@@ -260,7 +265,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       </div>
 
       {/* KPI GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 lg:gap-6">
 
         {/* KPI: SLA 24H (Vibrant Gradient) */}
         <div className="bg-gradient-to-br from-indigo-600 to-[#1c2d4f] rounded-2xl p-6 shadow-xl shadow-indigo-900/20 flex flex-col justify-between text-white relative overflow-hidden group">
@@ -327,6 +332,30 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           </div>
         </div>
 
+        {/* KPI: FORA DO PRAZO (Atrasos) */}
+        <div className="bg-gradient-to-br from-red-600 to-rose-900 rounded-2xl p-6 shadow-xl shadow-red-900/20 flex flex-col justify-between text-white relative overflow-hidden group">
+          <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-2xl transition-all duration-700 group-hover:bg-white/20" />
+          <div className="flex justify-between items-start relative z-10 w-full mb-4">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-widest text-red-200">Atrasos SLA</p>
+              <h2 className="text-4xl font-black mt-2 tracking-tighter drop-shadow-md">{closureKPIs.over24}</h2>
+            </div>
+            <div className="p-2.5 bg-white/10 rounded-xl text-red-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><AlertCircle size={22} /></div>
+          </div>
+          <div className="mt-4 relative z-10">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-black/20 backdrop-blur-sm rounded-xl p-3 border border-red-400/20 shadow-sm">
+                <span className="block text-[9px] font-black text-red-200 uppercase tracking-widest mb-1">&gt; 24h</span>
+                <p className="text-sm font-black text-white">{closureKPIs.over24} <span className="text-[10px] text-red-200 font-normal">({closureKPIs.over24Percentage}%)</span></p>
+              </div>
+              <div className="bg-black/20 backdrop-blur-sm rounded-xl p-3 border border-red-400/20 shadow-sm">
+                <span className="block text-[9px] font-black text-red-200 uppercase tracking-widest mb-1">&gt; 48h</span>
+                <p className="text-sm font-black text-white">{closureKPIs.over48} <span className="text-[10px] text-red-200 font-normal">({closureKPIs.over48Percentage}%)</span></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* KPI: FILA OPERACIONAL */}
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-[#1c2d4f] transition-all hover:shadow-xl hover:-translate-y-1 duration-300">
           <div className="flex justify-between items-start">
@@ -377,52 +406,68 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* VOLUME CHART */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-8 space-y-8 shadow-sm">
-          <div className="flex items-center justify-between">
+        <div className="lg:col-span-2 bg-gradient-to-b from-white to-slate-50/50 rounded-2xl border border-slate-200 p-8 flex flex-col shadow-sm relative overflow-hidden">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(226,232,240,0.4)_1px,transparent_1px),linear-gradient(90deg,rgba(226,232,240,0.4)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:linear-gradient(to_bottom,white,transparent)] pointer-events-none" />
+
+          <div className="flex items-center justify-between relative z-10 mb-8">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Fluxo por Status</h3>
-              <p className="text-[10px] text-slate-500 font-medium mt-1">Distribuição volumétrica das Ordens de Serviço</p>
+              <h3 className="text-base font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                <BarChart3 className="text-primary-500" size={18} /> Fluxo Volumétrico
+              </h3>
+              <p className="text-[11px] text-slate-500 font-bold mt-1 uppercase tracking-widest">Distribuição por Status de Operação</p>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Período</p>
-              <p className="text-2xl font-bold text-[#1c2d4f]">{total}</p>
+            <div className="text-right bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Período</p>
+              <p className="text-3xl font-black text-[#1c2d4f] leading-none mt-1">{total}</p>
             </div>
           </div>
 
-          <div className="flex items-end justify-between gap-6 h-[220px] px-2 pt-6 border-b border-slate-100">
-            {statusData.map(s => (
-              <div key={s.status} className="flex-1 flex flex-col items-center gap-4 group">
-                <div className="w-full relative flex flex-col items-center">
-                  {/* Tooltip */}
-                  <div className="absolute -top-12 px-3 py-1.5 bg-slate-900 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-xl z-20 pointer-events-none translate-y-2 group-hover:translate-y-0">
-                    {s.count} Ordens ({s.percentage}%)
+          <div className="flex items-end justify-between gap-2 sm:gap-4 md:gap-6 h-[260px] px-2 pt-10 border-b-2 border-slate-200 relative z-10 mt-auto">
+            {statusData.map(s => {
+              const heightPercentage = total > 0 ? (s.count / total) * 100 : 0;
+              const hasData = s.count > 0;
+              return (
+                <div key={s.status} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+
+                  {/* Custom Tooltip */}
+                  <div className="absolute -top-14 px-3 py-2 bg-slate-900/95 backdrop-blur-sm text-white text-[11px] font-bold rounded-xl opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transition-all shadow-xl z-20 pointer-events-none origin-bottom border border-slate-700 whitespace-nowrap">
+                    <span className="text-slate-400 mr-2">{s.status}:</span> {s.count} OS <span className="ml-1 text-primary-400">({s.percentage}%)</span>
+                    <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900/95 rotate-45 border-r border-b border-slate-700"></div>
                   </div>
-                  {/* Bar */}
-                  <div
-                    className="w-full max-w-[36px] rounded-t-lg shadow-sm transition-all duration-700 ease-out cursor-pointer hover:brightness-95"
-                    style={{
-                      height: `${total > 0 ? (s.count / total) * 200 : 4}px`,
-                      backgroundColor: pieColors[s.status],
-                      minHeight: '8px'
-                    }}
-                  />
+
+                  {/* The Bar */}
+                  <div className="w-full relative flex flex-col items-center justify-end h-full">
+                    {hasData && (
+                      <span className="text-[10px] font-black text-slate-600 mb-2 opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 transition-all">{s.count}</span>
+                    )}
+                    <div
+                      className="w-full max-w-[48px] rounded-t-xl shadow-sm transition-all duration-[800ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:brightness-110 group-hover:shadow-lg relative overflow-hidden"
+                      style={{
+                        height: hasData ? `${Math.max(heightPercentage, 4)}%` : '4px',
+                        background: `linear-gradient(180deg, ${pieColors[s.status]} 0%, ${pieColors[s.status]}dd 100%)`,
+                        boxShadow: hasData ? `0 0 20px ${pieColors[s.status]}40` : 'none',
+                      }}
+                    >
+                      <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-1 text-center min-h-[44px] mt-3">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter leading-tight w-20 line-clamp-2 group-hover:text-slate-900 transition-colors">{s.status}</span>
+                  </div>
                 </div>
-                <div className="flex flex-col items-center gap-1 text-center min-h-[40px]">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter leading-tight w-16 line-clamp-2">{s.status}</span>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Legenda */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mt-8 relative z-10">
             {statusData.map(s => (
-              <div key={s.status} className="flex flex-col p-3 rounded-lg bg-slate-50/50 border border-slate-100 transition-all hover:bg-white hover:shadow-md hover:border-[#1c2d4f20] group cursor-default">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: pieColors[s.status] }} />
-                  <span className="text-[8px] font-bold text-slate-400 uppercase truncate">{s.status}</span>
+              <div key={s.status} className="flex flex-col p-3 rounded-xl bg-white border border-slate-100 hover:border-slate-300 transition-all shadow-sm hover:shadow-md group cursor-default">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: pieColors[s.status], boxShadow: `0 0 8px ${pieColors[s.status]}80` }} />
+                  <span className="text-[9px] font-black text-slate-400 uppercase truncate">{s.status}</span>
                 </div>
-                <p className="text-base font-bold text-slate-900 group-hover:text-[#1c2d4f] transition-colors">{s.count}</p>
+                <p className="text-xl font-black text-slate-800 leading-none">{s.count}</p>
               </div>
             ))}
           </div>
