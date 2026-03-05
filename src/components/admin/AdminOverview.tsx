@@ -25,7 +25,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [techFilter, setTechFilter] = useState<string>('ALL');
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
-  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created'>('scheduled');
+  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('scheduled');
   const [slaTarget, setSlaTarget] = useState<number>(85);
 
   const filteredOrders = useMemo(() => {
@@ -51,7 +51,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       // 5. Filtro de Data
       const sDate = order.scheduledDate ? order.scheduledDate.substring(0, 10) : null;
       const cDate = order.createdAt ? order.createdAt.substring(0, 10) : null;
-      const targetDate = dateTypeFilter === 'scheduled' ? sDate : cDate;
+      const eDate = order.endDate ? order.endDate.substring(0, 10) : null;
+      let targetDate = sDate;
+      if (dateTypeFilter === 'created') targetDate = cDate;
+      if (dateTypeFilter === 'completed') targetDate = eDate;
 
       let matchesTime = true;
       if (startDate || endDate) {
@@ -72,7 +75,10 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
   // Cálculos de KPI de Fechamento (Cumulativos: 24h, 36h, 48h)
   const closureKPIs = useMemo(() => {
-    const completed = filteredOrders.filter(o => o.status === OrderStatus.COMPLETED && o.createdAt && o.endDate);
+    const validScheduledOrders = filteredOrders.filter(o => o.status !== OrderStatus.CANCELED);
+    const totalScheduledContext = validScheduledOrders.length;
+
+    const completed = validScheduledOrders.filter(o => o.status === OrderStatus.COMPLETED && o.createdAt && o.endDate);
 
     let within24 = 0;
     let within36 = 0;
@@ -96,8 +102,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       }
     });
 
-    const slaEfficiency24 = completed.length > 0 ? Math.round((within24 / completed.length) * 100) : 0;
-    const slaEfficiency48 = completed.length > 0 ? Math.round((within48 / completed.length) * 100) : 0;
+    const slaEfficiency24 = totalScheduledContext > 0 ? Math.round((within24 / totalScheduledContext) * 100) : 0;
+    const slaEfficiency48 = totalScheduledContext > 0 ? Math.round((within48 / totalScheduledContext) * 100) : 0;
     const over24Percentage = completed.length > 0 ? Math.round((over24 / completed.length) * 100) : 0;
     const over48Percentage = completed.length > 0 ? Math.round((over48 / completed.length) * 100) : 0;
 
@@ -121,6 +127,27 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       percentage: total > 0 ? Math.round((count / total) * 100) : 0,
     }));
   }, [filteredOrders, total]);
+
+  const operationData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const validOrders = filteredOrders.filter(o => o.status !== OrderStatus.CANCELED);
+    validOrders.forEach(o => {
+      const type = o.operationType || 'Outro';
+      counts[type] = (counts[type] || 0) + 1;
+    });
+
+    const totalOps = validOrders.length;
+    const colors = ['#3b82f6', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899'];
+
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, count], i) => ({
+        type,
+        count,
+        percentage: totalOps > 0 ? Math.round((count / totalOps) * 100) : 0,
+        color: colors[i % colors.length]
+      }));
+  }, [filteredOrders]);
 
   const pmocAnalysis = useMemo(() => {
     const todayNum = new Date().getDate();
@@ -160,6 +187,17 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     return `conic-gradient(${parts.join(', ')})`;
   };
 
+  const getOperationGradient = () => {
+    if (operationData.length === 0) return 'linear-gradient(#f1f5f9, #f1f5f9)';
+    let accumulated = 0;
+    const parts = operationData.map(o => {
+      const start = accumulated;
+      accumulated += o.percentage;
+      return `${o.color} ${start}% ${accumulated}%`;
+    });
+    return `conic-gradient(${parts.join(', ')})`;
+  };
+
   const handleFastFilter = (type: 'today' | 'week' | 'month') => {
     const now = new Date();
     const getLocalISO = (date: Date) => {
@@ -192,11 +230,12 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <div className="flex items-center bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm">
               <select
                 value={dateTypeFilter}
-                onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created')}
+                onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
                 className="bg-slate-50 text-[10px] font-bold uppercase text-slate-600 px-3 py-1.5 rounded-md border border-slate-100 outline-none cursor-pointer"
               >
                 <option value="scheduled">Agenda</option>
                 <option value="created">Abertura</option>
+                <option value="completed">Conclusão</option>
               </select>
               <div className="h-6 w-px bg-slate-200 mx-3"></div>
               <div className="flex gap-1 mr-3">
@@ -294,7 +333,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <div className="flex justify-between items-baseline mb-2">
               <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Meta: {slaTarget}%</span>
               <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${closureKPIs.slaEfficiency24 >= slaTarget ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
-                {closureKPIs.slaEfficiency24 >= slaTarget ? 'Atingida' : 'Abaixo'}
+                {closureKPIs.within24} OS ({closureKPIs.slaEfficiency24 >= slaTarget ? 'Ating.' : 'Abaixo'})
               </span>
             </div>
             <div className="w-full h-2 bg-indigo-900/50 rounded-full overflow-hidden border border-indigo-400/20">
@@ -320,7 +359,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <div className="flex justify-between items-baseline mb-2">
               <span className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest">Meta: {Math.min(slaTarget + 5, 100)}%</span>
               <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${closureKPIs.slaEfficiency48 >= (slaTarget + 5) ? 'bg-white/20 text-white' : 'bg-rose-500/40 text-rose-100'}`}>
-                {closureKPIs.slaEfficiency48 >= (slaTarget + 5) ? 'Excelente' : 'Atenção'}
+                {closureKPIs.within48} OS ({closureKPIs.slaEfficiency48 >= (slaTarget + 5) ? 'Excel.' : 'Atenção'})
               </span>
             </div>
             <div className="w-full h-2 bg-emerald-900/50 rounded-full overflow-hidden border border-emerald-400/20">
@@ -492,6 +531,31 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%` }} />
               </div>
+            </div>
+          </div>
+
+          {/* OPERATION DISTRIBUTION PIE CHART */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col items-center shadow-sm relative overflow-hidden">
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-8 text-center">Tipos de Modalidade</h4>
+            <div className="w-40 h-40 rounded-full relative border-[8px] border-slate-50 shadow-sm group transition-transform duration-500 hover:scale-105" style={{ background: getOperationGradient() }}>
+              <div className="absolute inset-5 bg-white rounded-full flex flex-col items-center justify-center shadow-md border border-slate-50 z-10 transition-transform group-hover:scale-110">
+                <PieChart size={20} className="text-slate-300 mb-1" />
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center leading-none mt-1">Volume<br />Ativo</p>
+              </div>
+            </div>
+            <div className="mt-8 space-y-2.5 w-full max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
+              {operationData.map(o => (
+                <div key={o.type} className="flex justify-between items-center text-[10px] font-bold uppercase p-2 border border-slate-100 rounded-lg hover:bg-slate-50 transition-colors cursor-default group/op">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: o.color }} />
+                    <span className="text-slate-500 group-hover/op:text-slate-800 truncate max-w-[120px]" title={o.type}>{o.type}</span>
+                  </div>
+                  <div className="text-right flex flex-col items-end">
+                    <span className="text-slate-900">{o.count} OS</span>
+                    <span className="text-[8px] font-black text-slate-400 bg-slate-100 px-1 py-0.5 rounded mt-0.5 leading-none">{o.percentage}%</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
