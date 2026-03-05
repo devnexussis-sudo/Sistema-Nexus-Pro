@@ -231,9 +231,10 @@ export const QuoteService = {
 
             let finalSignature = approvalData.signature;
             if (finalSignature && finalSignature.startsWith('data:image')) {
-                console.log(`[📝 Nexus Approve] Fazendo upload da assinatura...`);
-                finalSignature = await StorageService.uploadFile(finalSignature, `quotes/${id}/signatures`);
-                console.log(`[📝 Nexus Approve] Assinatura enviada com sucesso!`);
+                console.log(`[📝 Nexus Approve] Comprimindo assinatura para Base64 leve...`);
+                // Reduz e salva como Base64 (ignora o storage devido a falta de tenantId público)
+                finalSignature = await StorageService.compressImage(finalSignature);
+                console.log(`[📝 Nexus Approve] Assinatura otimizada com sucesso!`);
             }
 
             console.log(`[📝 Nexus Approve] Chamando função RPC approve_quote_public (SECURITY DEFINER)...`);
@@ -273,8 +274,8 @@ export const QuoteService = {
 
             let finalSignature = rejectionData.signature;
             if (finalSignature && finalSignature.startsWith('data:image')) {
-                console.log(`[🚫 Nexus Reject] Fazendo upload da assinatura de recusa...`);
-                finalSignature = await StorageService.uploadFile(finalSignature, `quotes/${id}/rejections`);
+                console.log(`[🚫 Nexus Reject] Comprimindo assinatura de recusa...`);
+                finalSignature = await StorageService.compressImage(finalSignature);
             }
 
             console.log(`[🚫 Nexus Reject] Chamando RPC reject_quote_public (SECURITY DEFINER)...`);
