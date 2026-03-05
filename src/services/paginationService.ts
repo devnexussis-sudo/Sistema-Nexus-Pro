@@ -33,6 +33,7 @@ export interface OrderFilters {
     technicianId?: string;
     startDate?: string;
     endDate?: string;
+    dateType?: 'scheduled' | 'created' | 'completed';
     search?: string;
 }
 
@@ -61,11 +62,16 @@ export const getOrdersPage = async (
     if (filters.technicianId) {
         query = query.eq('assigned_to', filters.technicianId);
     }
+
+    let targetColumn = 'scheduled_date';
+    if (filters.dateType === 'created') targetColumn = 'created_at';
+    if (filters.dateType === 'completed') targetColumn = 'end_date';
+
     if (filters.startDate) {
-        query = query.gte('scheduled_date', filters.startDate);
+        query = query.gte(targetColumn, filters.startDate);
     }
     if (filters.endDate) {
-        query = query.lte('scheduled_date', filters.endDate);
+        query = query.lte(targetColumn, filters.endDate);
     }
     if (filters.search) {
         // ilike em display_id ou customer_name

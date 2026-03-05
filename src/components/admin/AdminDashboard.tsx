@@ -95,7 +95,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const { session, isAuthLoading } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created'>('scheduled');
+  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('scheduled');
   // techFilter armazena o techId (UUID), não o nome — enviado direto para o servidor
   const [techFilter, setTechFilter] = useState<string>('ALL');
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
@@ -110,7 +110,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ].filter(Boolean).join(' ') || undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
-  }), [statusFilter, techFilter, searchTerm, customerFilter, startDate, endDate]);
+    dateType: dateTypeFilter,
+  }), [statusFilter, techFilter, searchTerm, customerFilter, startDate, endDate, dateTypeFilter]);
 
   const {
     data: pageResult,
@@ -615,11 +616,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex items-center px-3 py-1.5 border-r border-slate-100">
               <select
                 value={dateTypeFilter}
-                onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created')}
+                onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
                 className="bg-transparent text-xs font-semibold text-slate-600 outline-none cursor-pointer"
               >
                 <option value="scheduled">Agendamento</option>
                 <option value="created">Abertura</option>
+                <option value="completed">Conclusão</option>
               </select>
             </div>
             <div className="flex items-center gap-2 px-2">
