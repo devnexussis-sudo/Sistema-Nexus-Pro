@@ -142,7 +142,19 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     const counts: Record<string, number> = {};
     const validOrders = filteredOrders.filter(o => o.status !== OrderStatus.CANCELED);
     validOrders.forEach(o => {
-      const type = o.operationType || 'Outro';
+      let type = o.operationType;
+
+      // Fallback analítico para OS antigas que não possuem operationType salvo no banco
+      if (!type || type === 'Outro' || type.trim() === '') {
+        const titleLower = (o.title || '').toLowerCase();
+        if (titleLower.includes('fora de garantia')) type = 'Fora de Garantia';
+        else if (titleLower.includes('estendida')) type = 'Garantia Estendida';
+        else if (titleLower.includes('garantia')) type = 'Garantia';
+        else if (titleLower.includes('orçamento') || titleLower.includes('orcamento')) type = 'Orçamento';
+        else if (titleLower.includes('preventiva') || titleLower.includes('pmoc')) type = 'Preventiva';
+        else type = 'Outro';
+      }
+
       counts[type] = (counts[type] || 0) + 1;
     });
 
@@ -177,7 +189,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const pieColors: Record<string, string> = {
     [OrderStatus.COMPLETED]: '#10b981', // emerald-500
     [OrderStatus.IN_PROGRESS]: '#f59e0b', // amber-500
-    [OrderStatus.ASSIGNED]: 'var(--color-primary-500, #3b82f6)', // primary-500
+    [OrderStatus.ASSIGNED]: '#3b82f6', // primary-500
     [OrderStatus.PENDING]: '#94a3b8', // slate-400
     [OrderStatus.BLOCKED]: '#f43f5e', // rose-500
     [OrderStatus.CANCELED]: '#4b5563', // gray-600
@@ -428,20 +440,17 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Em Andamento</span>
               <p className="text-lg font-black text-blue-600">{filteredOrders.filter(o => o.status === OrderStatus.IN_PROGRESS).length}</p>
             </div>
-            <div className="bg-gradient-to-b from-amber-50 to-white rounded-xl p-3 border border-amber-200 shadow-sm relative overflow-hidden group/alert">
+            <div className="bg-gradient-to-b from-amber-50 to-white rounded-xl p-3 border border-amber-200 shadow-sm relative overflow-hidden flex flex-col justify-between group/alert">
               <div className="absolute top-0 right-0 w-8 h-8 bg-amber-500/10 rounded-full -mr-4 -mt-4 transition-all duration-500 group-hover/alert:scale-[2]" />
-              <div className="flex justify-between items-end relative z-10 w-full h-full">
-                <div className="flex-1 min-w-0 pr-2">
-                  <span className="block text-[8.5px] font-black text-amber-600 uppercase tracking-wider mb-1 truncate" title="Não Iniciadas">Não Iniciadas</span>
-                  <p className="text-lg font-black text-amber-700 leading-none mt-1">{filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED].includes(o.status)).length}</p>
-                </div>
-                {overdueUnstartedCount > 0 && (
-                  <div className="text-right">
-                    <span className="block text-[8px] font-bold text-rose-500 uppercase tracking-tight mb-0.5 bg-rose-50 px-1 py-0.5 rounded border border-rose-100">Atrasadas</span>
-                    <p className="text-base font-black text-rose-600 leading-none">{overdueUnstartedCount}</p>
-                  </div>
-                )}
+              <div className="relative z-10 w-full">
+                <span className="block text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1">Não Iniciadas</span>
+                <p className="text-lg font-black text-amber-700 leading-none">{filteredOrders.filter(o => [OrderStatus.PENDING, OrderStatus.ASSIGNED].includes(o.status)).length}</p>
               </div>
+              {overdueUnstartedCount > 0 && (
+                <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[9px] font-black text-rose-600 bg-rose-50 border border-rose-200/60 px-2 py-1 rounded w-full shadow-sm">
+                  <AlertCircle size={10} /> {overdueUnstartedCount} Atrasada{overdueUnstartedCount !== 1 && 's'}
+                </div>
+              )}
             </div>
           </div>
         </div>
