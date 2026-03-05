@@ -1,5 +1,5 @@
 
-import { supabase } from '../lib/supabase';
+import { supabase, publicSupabase } from '../lib/supabase';
 import { DataService } from './dataService'; // Temporarily needed for tenant ID access helper if not moved yet, but ideally we move logic here.
 import { getCurrentTenantId } from '../lib/tenantContext';
 import { logger } from '../lib/logger';
@@ -122,6 +122,53 @@ export const StorageService = {
     },
 
     /**
+     * 🛡️ BigTech Public Dropzone Engine (Anonymous Isolated Uploads)
+     */
+    _uploadDropzoneCore: async (blobOrFile: Blob | File, path: string, retryCount = 2, signal?: AbortSignal): Promise<string> => {
+        const cleanPath = path.toString().replace(/^\/+/, '').replace(/\/+$/, '');
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
+        // Não usa tenantId, salva diretamente na subpasta do dropzone
+        const fullPath = `${cleanPath}/${fileName}`.replace(/\/+/g, '/');
+
+        console.log(`[Storage/Dropzone] 📤 Uploading ${fullPath} (${(blobOrFile.size / 1024).toFixed(0)}KB)...`);
+
+        for (let i = 0; i <= retryCount; i++) {
+            if (signal?.aborted) throw new Error('AbortError');
+
+            try {
+                // USA publicSupabase para chamadas sem RLS associada a sessão auth (upload anônimo cego)
+                const uploadPromise = publicSupabase.storage
+                    .from('nexus-public-dropzone')
+                    .upload(fullPath, blobOrFile, {
+                        contentType: 'image/webp',
+                        upsert: true,
+                        cacheControl: '3600'
+                    });
+
+                const networkTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('NETWORK_TIMEOUT_45S')), 45000));
+                const { data, error } = await Promise.race([uploadPromise, networkTimeout]) as any;
+
+                if (error) throw error;
+                if (!data) throw new Error("EMPTY_STORAGE_RESPONSE");
+
+                const { data: urlData } = publicSupabase.storage
+                    .from('nexus-public-dropzone')
+                    .getPublicUrl(fullPath);
+
+                return urlData.publicUrl;
+            } catch (err: any) {
+                if (err.name === 'AbortError' || signal?.aborted) throw err;
+                console.warn(`[Storage/Dropzone] ⚠️ Tentativa ${i + 1} falhou:`, err.message);
+
+                if (i === retryCount) throw err;
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+        }
+
+        throw new Error("STORAGE_DROPZONE_UNREACHABLE");
+    },
+
+    /**
      * 🎯 AGGRESSIVE INTELLIGENT COMPRESSOR (V5 - MEMORY SAFE)
      */
     processAndCompress: async (file: File, signal?: AbortSignal): Promise<Blob> => {
@@ -235,6 +282,27 @@ export const StorageService = {
             return StorageService._uploadCore(blob, path);
         } catch (err) {
             console.error("UploadFile Error:", err);
+            throw err;
+        }
+    },
+
+    /**
+     * 🛡️ BigTech Public Dropzone Interface (Base64 wrapper para anônimos)
+     */
+    uploadDropzoneFile: async (base64: string, path: string): Promise<string> => {
+        if (!isCloudEnabled || !base64.startsWith('data:image')) return base64;
+        try {
+            const compressedBase64 = await StorageService.compressImage(base64);
+            const base64Data = compressedBase64.split(',')[1];
+            const binaryData = atob(base64Data);
+            const uint8Array = new Uint8Array(binaryData.length);
+            for (let i = 0; i < binaryData.length; i++) {
+                uint8Array[i] = binaryData.charCodeAt(i);
+            }
+            const blob = new Blob([uint8Array], { type: 'image/webp' });
+            return await StorageService._uploadDropzoneCore(blob, path);
+        } catch (err) {
+            console.error("DropzoneUploadFile Error:", err);
             throw err;
         }
     },
