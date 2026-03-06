@@ -28,6 +28,9 @@ export const CustomerService = {
             address: data.address,
             number: data.number,
             complement: data.complement,
+            neighborhood: data.neighborhood,
+            latitude: data.latitude,
+            longitude: data.longitude,
             active: data.active
         };
     },
