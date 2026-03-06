@@ -124,7 +124,7 @@ const CollapsibleFormSection: React.FC<{
               {/* Pergunta + Resposta */}
               <div className="px-4 pt-4 pb-3">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  {!isNaN(Number(key)) ? `Pergunta nº ${key}` : key}
+                  {!isNaN(Number(key)) ? `Pergunta nº ${key}` : key.replace(/^\[.*?\]\s*-\s*/, '')}
                 </p>
                 {text !== null && (
                   <p className={`text-sm font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
@@ -511,7 +511,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 <div className="divide-y divide-slate-100 bg-white">
                   {items.map((item, idx) => (
                     <div key={idx} className="p-3 break-inside-avoid">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key}</p>
+                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key.replace(/^\[.*?\]\s*-\s*/, '')}</p>
                       {item.text && <p className={`text-[11px] font-bold uppercase leading-snug ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.text}</p>}
                       {item.photos.length > 0 && (
                         <div className="grid grid-cols-4 gap-2 mt-2">
@@ -534,7 +534,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="divide-y divide-slate-100 bg-white">
               {formItemsPrint.map((item, idx) => (
                 <div key={idx} className="p-3 break-inside-avoid">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key}</p>
+                  <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key.replace(/^\[.*?\]\s*-\s*/, '')}</p>
                   {item.text && <p className={`text-[11px] font-bold uppercase leading-snug ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.text}</p>}
                   {item.photos.length > 0 && (
                     <div className="grid grid-cols-4 gap-2 mt-2">
