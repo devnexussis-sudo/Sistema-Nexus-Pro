@@ -437,7 +437,75 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setEditLoading(true);
     try {
       const updated = { ...selectedOrder, ...editDraft } as ServiceOrder;
+
+      // Se a modalidade (operationType) foi alterada, recalcular os templates dos equipamentos
+      if (editDraft.operationType && editDraft.operationType !== selectedOrder.operationType) {
+        try {
+          const rules = activationRules.length > 0 ? activationRules : await FormService.getActivationRules();
+          const templates = formTemplatesAll.length > 0 ? formTemplatesAll : await FormService.getFormTemplates();
+          const types = serviceTypes.length > 0 ? serviceTypes : await DataService.getServiceTypes();
+
+          const matchedService = types.find(s => s.name === updated.operationType);
+          const serviceTypeId = matchedService?.id || updated.operationType;
+
+          if (osEquipments.length > 0) {
+            for (const eq of osEquipments) {
+              const rule = rules.find(r =>
+                (r.serviceTypeId === serviceTypeId || r.service_type_id === serviceTypeId) &&
+                (!r.equipmentFamily || r.equipmentFamily === 'Todos' || r.equipmentFamily === eq.equipmentFamily)
+              );
+
+              let newFormId = rule?.formId || rule?.form_id || null;
+
+              if (!newFormId) {
+                const fallbackForm = templates.find(f =>
+                  (f.title || '').toLowerCase().includes((updated.operationType || '').toLowerCase()) ||
+                  (f.serviceTypes || []).includes(updated.operationType || '')
+                );
+                newFormId = fallbackForm?.id || null;
+              }
+
+              // Atualiza o formId da ordem (espelho do eq primário)
+              if (osEquipments.indexOf(eq) === 0) {
+                updated.formId = newFormId || undefined;
+              }
+
+              if (newFormId !== eq.formId) {
+                // Atualiza o ID do form no equipamento no bando de dados (se for eq real)
+                if (eq.id && typeof eq.id === 'string' && !eq.id.includes('_eq')) {
+                  await VisitService.updateEquipmentFormId(eq.id, newFormId);
+                }
+              }
+            }
+          } else {
+            // Caso não tenha equipment configurado na aba (OS muito antigas ou erro)
+            const fallbackForm = templates.find(f =>
+              (f.title || '').toLowerCase().includes((updated.operationType || '').toLowerCase()) ||
+              (f.serviceTypes || []).includes(updated.operationType || '')
+            );
+            updated.formId = fallbackForm?.id || undefined;
+          }
+        } catch (error) {
+          console.error('Erro ao re-vincular formulários na edição:', error);
+        }
+      }
+
       await onEditOrder(updated);
+
+      // Re-fetch os equipamentos localmente para a UI atualizar as abas
+      if (editDraft.operationType && editDraft.operationType !== selectedOrder.operationType) {
+        const [soeList, catalog] = await Promise.all([
+          VisitService.getOrderEquipments(updated.id),
+          EquipmentService.getEquipments(),
+        ]);
+        const list = soeList.map((s: any) => {
+          const found = catalog.find(c => c.serialNumber === s.equipmentSerial || c.model === s.equipmentModel);
+          return { ...s, equipmentFamily: s.equipmentFamily || found?.familyName || '', formId: s.formId };
+        });
+        setOsEquipments(list);
+        setEquipments(list);
+      }
+
       setSelectedOrder(updated);
       setIsEditing(false);
       setEditDraft({});
