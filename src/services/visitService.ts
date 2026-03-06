@@ -402,6 +402,22 @@ export const VisitService = {
     },
 
     /**
+     * Atualiza o formulário vinculado a um equipamento na OS.
+     */
+    updateEquipmentFormId: async (equipmentEntryId: string, formId: string | null): Promise<void> => {
+        const tenantId = getCurrentTenantId();
+        if (!tenantId) throw new Error('TENANT_NOT_FOUND');
+
+        const { error } = await supabase
+            .from('service_order_equipments')
+            .update({ form_id: formId, updated_at: new Date().toISOString() })
+            .eq('id', equipmentEntryId)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw new Error(`DB_ERROR: ${error.message}`);
+    },
+
+    /**
      * Atualiza campos de agendamento de uma visita (data/horário/técnico).
      *
      * Regras:
