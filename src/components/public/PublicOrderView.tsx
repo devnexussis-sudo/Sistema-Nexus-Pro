@@ -45,14 +45,14 @@ const CollapsibleFormSection: React.FC<{
 }> = ({ formData, order, onImageClick }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Chaves internas do sistema — NUNCA são perguntas do formulário
   const SYSTEM_KEYS = new Set([
     'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
     'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
     'impediment_reason', 'impediment_photos', 'totalValue', 'price',
     'finishedAt', 'completedAt', 'technical_report', 'parts_used',
     'clientName', 'customerName', 'customerAddress', 'tenantId',
-    'assignedTo', 'formId', 'billingStatus', 'paymentMethod'
+    'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+    'extra_photos', 'photos', 'equipment_ids'
   ]);
 
   const isSignatureKey = (k: string) =>
@@ -280,7 +280,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       'impediment_reason', 'impediment_photos', 'totalValue', 'price',
       'finishedAt', 'completedAt', 'technical_report', 'parts_used',
       'clientName', 'customerName', 'customerAddress', 'tenantId',
-      'assignedTo', 'formId', 'billingStatus', 'paymentMethod'
+      'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+      'extra_photos', 'photos', 'equipment_ids'
     ]);
 
     const isSignatureKey = (k: string) =>
@@ -478,6 +479,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               'finishedAt', 'completedAt', 'technical_report', 'parts_used',
               'clientName', 'customerName', 'customerAddress', 'tenantId',
               'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+              'extra_photos', 'photos', 'equipment_ids'
             ]);
             const isSigKey = (k: string) =>
               k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
