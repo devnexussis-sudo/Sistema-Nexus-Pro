@@ -243,6 +243,7 @@ export default function OrderDetailsScreen() {
                                             'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
                                             'impediment_reason', 'impediment_photos', 'totalValue', 'price',
                                             'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+                                            'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
                                             'clientName', 'customerName', 'customerAddress', 'tenantId',
                                             'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
                                             'extra_photos', 'photos', 'equipment_ids'

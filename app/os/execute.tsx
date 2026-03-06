@@ -29,6 +29,7 @@ export default function ExecuteOSScreen() {
 
     const [signature, setSignature] = useState<string | null>(null);
     const [clientName, setClientName] = useState('');
+    const [clientDoc, setClientDoc] = useState(''); // CPF/Document
 
     const [isSignatureModalVisible, setSignatureModalVisible] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -299,16 +300,18 @@ export default function ExecuteOSScreen() {
             finalFormData['extra_photos'] = extraPhotos;
 
             await OrderService.completeOrder(id as string, {
-                technicalReport: technicalReport,
-                partsUsed: partsUsed,
+                technicalReport,
+                partsUsed,
                 photos: extraPhotos,
-                signature: signature,
-                clientName: clientName,
+                signature,
                 formData: finalFormData,
+                clientName,
+                clientDoc,
                 tenantId: order?.tenantId
             });
 
-            Alert.alert('Sucesso', 'OS finalizada com sucesso!', [
+            Alert.alert(
+                'Sucesso', 'OS finalizada com sucesso!', [
                 { text: 'OK', onPress: () => router.replace('/(tabs)') }
             ]);
         } catch (error) {
@@ -491,6 +494,9 @@ export default function ExecuteOSScreen() {
                     <ThemedText type="subtitle">Validação do Cliente</ThemedText>
                     <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4, fontWeight: '600', color: '#666' }]}>Nome do Responsável / Cliente</Text>
                     <TextInput style={styles.input} placeholder="Nome de quem acompanhou o serviço" value={clientName} onChangeText={setClientName} />
+
+                    <Text style={[styles.fieldLabel, { marginTop: 16, marginBottom: 4, fontWeight: '600', color: '#666' }]}>CPF / Documento (Opcional)</Text>
+                    <TextInput style={styles.input} placeholder="Ex: 000.000.000-00" value={clientDoc} onChangeText={setClientDoc} keyboardType="numeric" />
 
                     <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 8, fontWeight: '600', color: '#666' }]}>Assinatura Digital</Text>
                     {signature ? (

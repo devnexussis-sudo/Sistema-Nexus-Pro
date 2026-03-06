@@ -327,6 +327,7 @@ export class OrderService {
         signature: string | null;
         formData?: any;
         clientName?: string;
+        clientDoc?: string;
         tenantId?: string;
     }): Promise<void> {
         try {
@@ -362,9 +363,11 @@ export class OrderService {
                     photos: uploadedPhotos,
                     completedAt: new Date().toISOString(),
                     clientName: details.clientName, // Save Client Name
+                    clientDoc: details.clientDoc,   // Save Client Doc (CPF)
                     ...(details.formData || {}) // Include dynamic form data
                 },
-                signature_url: signatureUrl
+                signature_url: signatureUrl,
+                signature_doc: details.clientDoc
             };
 
             // If the schema supports client_signature_name, we can save it directly too
