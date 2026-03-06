@@ -1048,9 +1048,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="bg-white rounded-xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
 
             {/* HEADER */}
-            <div className={`px-6 py-5 border-b border-slate-100 flex justify-between items-center shrink-0 transition-colors ${isEditing ? 'bg-amber-50' : 'bg-white'}`}>
+            <div className={`px-6 py-5 border-b border-slate-100 flex justify-between items-center shrink-0 transition-colors ${isEditing ? 'bg-blue-50' : 'bg-white'}`}>
               <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-colors ${isEditing ? 'bg-amber-100 border-amber-200 text-amber-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-colors ${isEditing ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
                   {isEditing ? <Edit3 size={18} /> : <FileText size={20} />}
                 </div>
                 <div>
@@ -1058,7 +1058,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <h2 className="text-base font-bold text-slate-900">Ordem de Serviço #{selectedOrder.displayId || selectedOrder.id}</h2>
                     <StatusBadge status={selectedOrder.status} />
                     {isEditing && (
-                      <span className="text-[10px] font-black text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
+                      <span className="text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
                         Modo Edição
                       </span>
                     )}
@@ -1104,7 +1104,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         variant="secondary"
                         size="sm"
                         onClick={handleStartEdit}
-                        className="h-9 px-4 gap-2 border-amber-200 text-amber-700 hover:bg-amber-50"
+                        className="h-9 px-4 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
                       >
                         <Edit3 size={14} /> Editar OS
                       </Button>
@@ -1158,7 +1158,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Left Column: Details */}
                   <div className="col-span-12 lg:col-span-8 space-y-6">
                     {/* Info Card Grid */}
-                    <div className={`bg-white p-6 rounded-lg border shadow-sm transition-all ${isEditing ? 'border-amber-200 ring-2 ring-amber-100' : 'border-slate-200'}`}>
+                    <div className={`bg-white p-6 rounded-lg border shadow-sm transition-all ${isEditing ? 'border-blue-200 ring-2 ring-blue-100' : 'border-slate-200'}`}>
                       <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
                         <UserIcon size={18} className="text-slate-400" /> Informações do Cliente
                         {isEditing && <span className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-widest ml-auto">🔒 Não editável</span>}
@@ -1172,7 +1172,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="space-y-1.5">
                           <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Endereço de Atendimento</label>
                           {isEditing
-                            ? <input className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
+                            ? <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
                             : <div className="text-sm text-slate-600 font-medium leading-relaxed">{selectedOrder.customerAddress || 'Não informado'}</div>
                           }
                         </div>
@@ -1191,7 +1191,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           {isEditing
                             ? (
                               <select
-                                className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all cursor-pointer"
+                                className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all cursor-pointer"
                                 value={editDraft.operationType || ''}
                                 onChange={e => setEditDraft(d => ({ ...d, operationType: e.target.value }))}
                               >
@@ -1210,7 +1210,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className={`bg-white p-6 rounded-lg border shadow-sm transition-all ${isEditing ? 'border-amber-200 ring-2 ring-amber-100' : 'border-slate-200'}`}>
+                    <div className={`bg-white p-6 rounded-lg border shadow-sm transition-all ${isEditing ? 'border-blue-200 ring-2 ring-blue-100' : 'border-slate-200'}`}>
                       <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
                         <FileText size={18} className="text-slate-400" /> Relatório de Atendimento
                       </h3>
@@ -1218,14 +1218,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="space-y-2">
                           <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Descrição das Atividades</label>
                           {isEditing
-                            ? <textarea rows={5} className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-amber-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
+                            ? <textarea rows={5} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
                             : <div className="p-4 bg-slate-50/50 rounded-md border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[120px] font-medium">{selectedOrder.description || "Nenhuma observação técnica registrada."}</div>
                           }
                         </div>
                         <div className="space-y-2">
                           <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Notas Internas</label>
                           {isEditing
-                            ? <textarea rows={3} className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-amber-300 transition-all resize-none" placeholder="Notas opcionais..." value={editDraft.notes ?? ''} onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))} />
+                            ? <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" placeholder="Notas opcionais..." value={editDraft.notes ?? ''} onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))} />
                             : selectedOrder.notes && (
                               <div className="p-4 bg-primary-50 border border-primary-100 rounded-md">
                                 <label className="text-[11px] font-bold text-[#1c2d4f] uppercase tracking-wider flex items-center gap-2 mb-2">
@@ -1450,7 +1450,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     const isImage = typeof answer === 'string' && (answer.startsWith('http') || answer.startsWith('data:image'));
                     const isOk = String(answer).toLowerCase() === 'ok' || String(answer).toLowerCase() === 'sim';
                     return (
-                      <div key={field.id} className={`px-6 py-3.5 flex justify-between gap-6 items-center transition-colors ${!hasAnswer ? 'bg-amber-50/30' : 'hover:bg-slate-50/50'}`}>
+                      <div key={field.id} className={`px-6 py-3.5 flex justify-between gap-6 items-center transition-colors ${!hasAnswer ? 'bg-blue-50/30' : 'hover:bg-slate-50/50'}`}>
                         <div className="flex-1">
                           <p className="text-[13px] font-medium text-slate-700">{field.label || field.id}</p>
                           {field.type && <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">{field.type}</p>}
@@ -1460,7 +1460,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         ) : hasAnswer ? (
                           <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{String(answer)}</div>
                         ) : (
-                          <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest px-2.5 py-1 border border-dashed border-amber-200 rounded-md min-w-[60px] text-center">Pendente</div>
+                          <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest px-2.5 py-1 border border-dashed border-blue-200 rounded-md min-w-[60px] text-center">Pendente</div>
                         )}
                       </div>
                     );
@@ -1553,7 +1553,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-[9px] font-black text-slate-400 uppercase">{answered}/{fields.length} resp.</span>
                           <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isComplete ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                            : isPending ? 'bg-amber-50 text-amber-600 border-amber-100'
+                            : isPending ? 'bg-blue-50 text-blue-600 border-amber-100'
                               : 'bg-blue-50 text-blue-600 border-blue-100'
                             }`}>
                             {isComplete ? '✓ Concluído' : isPending ? '○ Pendente' : '◑ Parcial'}
@@ -2097,7 +2097,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         const statusColors: Record<string, string> = {
                           pending: 'bg-slate-100 text-slate-600 border-slate-200',
                           ongoing: 'bg-blue-50 text-blue-700 border-blue-200',
-                          paused: 'bg-amber-50 text-amber-700 border-amber-200',
+                          paused: 'bg-blue-50 text-blue-700 border-blue-200',
                           blocked: 'bg-rose-50 text-rose-700 border-rose-200',
                           completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
                         };
@@ -2109,7 +2109,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         return (
                           <div
                             key={visit.id}
-                            className={`bg-white border rounded-xl transition-all ${isEditingThis ? 'border-amber-300 ring-2 ring-amber-100 shadow-md' :
+                            className={`bg-white border rounded-xl transition-all ${isEditingThis ? 'border-amber-300 ring-2 ring-blue-100 shadow-md' :
                               isLast ? 'border-primary-200 ring-2 ring-primary-50 shadow-sm' : 'border-slate-200'
                               }`}
                           >
@@ -2145,7 +2145,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       technicianId: visit.technicianId || '',
                                     });
                                   }}
-                                  className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg border border-amber-200 transition-all shrink-0"
+                                  className="p-2 text-amber-500 hover:bg-blue-50 rounded-lg border border-blue-200 transition-all shrink-0"
                                   title="Editar agendamento"
                                 >
                                   <Edit3 size={14} />
@@ -2164,18 +2164,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                             {/* Formulário de edição de agendamento — expandido inline */}
                             {isEditingThis && (
-                              <div className="border-t border-amber-100 bg-amber-50/40 px-5 py-4 space-y-3">
-                                <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Editar Agendamento</p>
+                              <div className="border-t border-amber-100 bg-blue-50/40 px-5 py-4 space-y-3">
+                                <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Editar Agendamento</p>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-semibold text-slate-500 uppercase">Data</label>
-                                    <input type="date" className="w-full border border-amber-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all"
+                                    <input type="date" className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
                                       value={visitScheduleDraft.scheduledDate}
                                       onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledDate: e.target.value }))} />
                                   </div>
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-semibold text-slate-500 uppercase">Início</label>
-                                    <input type="time" className="w-full border border-amber-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all"
+                                    <input type="time" className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
                                       value={visitScheduleDraft.scheduledTime}
                                       onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledTime: e.target.value }))} />
                                   </div>
@@ -2184,7 +2184,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   </div>
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-semibold text-slate-500 uppercase">Técnico</label>
-                                    <select className="w-full border border-amber-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all"
+                                    <select className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
                                       value={visitScheduleDraft.technicianId}
                                       onChange={e => setVisitScheduleDraft(d => ({ ...d, technicianId: e.target.value }))}>
                                       <option value="">Manter atual</option>

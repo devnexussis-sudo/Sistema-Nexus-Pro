@@ -74,6 +74,13 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
         return type;
     };
 
+    const formatEventDate = (dateStr: string) => {
+        if (!dateStr || dateStr.trim() === '' || dateStr === 'null') return '--/--/----';
+        const parts = dateStr.split('-');
+        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        return dateStr;
+    };
+
     return (
         <div className="space-y-6">
             <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">Linha do Tempo (Big Tech Audit)</h3>
@@ -124,17 +131,32 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
                             )}
 
                             {event.eventType === 'SCHEDULE_CHANGED' && (
-                                <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-2">
-                                    De: <span className="font-bold text-slate-400 line-through">{(event.details.old_date || '') + ' ' + (event.details.old_time || '')}</span>
-                                    Para: <span className="font-bold text-[#1c2d4f]">{(event.details.new_date || '') + ' ' + (event.details.new_time || '')}</span>
+                                <div className="mt-2 text-[11px] text-slate-500 flex flex-col gap-1.5 p-3 bg-slate-50 border border-slate-100 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-slate-400 w-8">De:</span>
+                                        <span className="font-bold text-slate-400 line-through">
+                                            {formatEventDate(event.details.old_date)} {event.details.old_time ? `às ${event.details.old_time}` : ''}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-indigo-400 w-8">Para:</span>
+                                        <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                            {formatEventDate(event.details.new_date)} {event.details.new_time ? `às ${event.details.new_time}` : ''}
+                                        </span>
+                                    </div>
                                 </div>
                             )}
 
                             {event.eventType === 'VISIT_PENDING' && (
-                                <div className="mt-2 text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg font-medium flex gap-2 flex-col">
+                                <div className="mt-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-100 p-3 rounded-lg font-medium flex gap-2 flex-col">
                                     <div className="flex items-center gap-2">
                                         <CalendarDays size={14} className="text-indigo-400 shrink-0" />
-                                        <span>Agendada para: <strong className="text-indigo-600">{event.details.scheduled_date} {event.details.scheduled_time || ''}</strong></span>
+                                        <span>
+                                            Agendada para:{' '}
+                                            <strong className="text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                                {formatEventDate(event.details.scheduled_date)} {event.details.scheduled_time ? `às ${event.details.scheduled_time}` : ''}
+                                            </strong>
+                                        </span>
                                     </div>
                                     {event.details.assigned_tech && (
                                         <div className="flex items-center gap-2">
