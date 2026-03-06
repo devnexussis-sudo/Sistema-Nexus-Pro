@@ -79,7 +79,10 @@ export default function OrderDetailsScreen() {
                 { text: 'Não', style: 'cancel' },
                 {
                     text: 'Sim',
-                    onPress: () => {
+                    onPress: async () => {
+                        if (order.status !== 'in_progress' && order.status !== 'EM ANDAMENTO') {
+                            await OrderService.startExecution(id as string);
+                        }
                         router.push({
                             pathname: '/os/execute',
                             params: { id: id as string }
@@ -152,17 +155,36 @@ export default function OrderDetailsScreen() {
 
                 {/* Equipment Info */}
                 <View style={styles.card}>
-                    <ThemedText type="subtitle">Equipamento</ThemedText>
-                    <View style={styles.detailRow}>
-                        <Ionicons name="hardware-chip-outline" size={18} color="#666" />
-                        <Text style={styles.infoTextLabel}>Modelo:</Text>
-                        <Text style={styles.infoTextValue}>{order.equipment || 'N/A'}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                        <Ionicons name="barcode-outline" size={18} color="#666" />
-                        <Text style={styles.infoTextLabel}>S/N:</Text>
-                        <Text style={styles.infoTextValue}>{order.serialNumber || 'N/A'}</Text>
-                    </View>
+                    <ThemedText type="subtitle">Equipamentos</ThemedText>
+                    {order.equipments && order.equipments.length > 0 ? (
+                        order.equipments.map((eq: any, index: number) => (
+                            <View key={eq.id || index} style={{ marginTop: index > 0 ? 12 : 8, paddingTop: index > 0 ? 12 : 0, borderTopWidth: index > 0 ? 1 : 0, borderTopColor: '#f0f0f0' }}>
+                                <View style={styles.detailRow}>
+                                    <Ionicons name="hardware-chip-outline" size={18} color="#666" />
+                                    <Text style={styles.infoTextLabel}>Modelo:</Text>
+                                    <Text style={styles.infoTextValue}>{eq.equipment_model || eq.equipment_name || 'N/A'}</Text>
+                                </View>
+                                <View style={styles.detailRow}>
+                                    <Ionicons name="barcode-outline" size={18} color="#666" />
+                                    <Text style={styles.infoTextLabel}>S/N:</Text>
+                                    <Text style={styles.infoTextValue}>{eq.equipment_serial || 'N/A'}</Text>
+                                </View>
+                            </View>
+                        ))
+                    ) : (
+                        <View style={{ marginTop: 8 }}>
+                            <View style={styles.detailRow}>
+                                <Ionicons name="hardware-chip-outline" size={18} color="#666" />
+                                <Text style={styles.infoTextLabel}>Modelo:</Text>
+                                <Text style={styles.infoTextValue}>{order.equipment || 'N/A'}</Text>
+                            </View>
+                            <View style={styles.detailRow}>
+                                <Ionicons name="barcode-outline" size={18} color="#666" />
+                                <Text style={styles.infoTextLabel}>S/N:</Text>
+                                <Text style={styles.infoTextValue}>{order.serialNumber || 'N/A'}</Text>
+                            </View>
+                        </View>
+                    )}
                 </View>
 
                 {/* Address & GPS */}

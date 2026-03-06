@@ -7,6 +7,8 @@ import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { OrderStatus, STATUS_CONFIG } from '@/constants/mock-data';
 import { OrderService } from '@/services/order-service';
+import { authService } from '@/services/auth-service';
+import { supabase } from '@/services/supabase';
 import { NotificationService } from '@/services/notification-service';
 // import * as Notifications from 'expo-notifications';
 
@@ -62,24 +64,17 @@ export default function HomeScreen() {
   // ✅ Auto-refresh on Notification & Initial Mount
   useEffect(() => {
     console.log('[Index] Component Mounted - Fetching Orders');
-    fetchOrders();
-
-    // WARNING: Notifications disabled temporarily for Expo Go SDK 53 compatibility
-    /*
-    let subscription: Notifications.Subscription | undefined;
-    try {
-      subscription = Notifications.addNotificationReceivedListener(() => {
-        console.log('[Index] 🔔 New Notification! Refreshing data...');
-        fetchOrders();
-      });
-    } catch (err) {
-      console.warn('[Index] Notifications not available:', err);
-    }
-
-    return () => {
-      if (subscription) subscription.remove();
+    const initializeLoad = async () => {
+      setIsLoading(true);
+      // Ensure auth is loaded first
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        await fetchOrders();
+      } else {
+        setIsLoading(false);
+      }
     };
-    */
+    initializeLoad();
   }, []);
 
   // ✅ Refresh when returning to screen

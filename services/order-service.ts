@@ -71,6 +71,7 @@ export interface ExtendedServiceOrder extends ServiceOrder {
     equipmentFamily?: string;
     scheduledDate?: string;
     scheduledTime?: string;
+    equipments?: any[];
 }
 
 export class OrderService {
@@ -239,7 +240,13 @@ export class OrderService {
                 return undefined;
             }
 
-            return this.mapDbOrderToApp(data);
+            const { data: equipmentsData } = await supabase.rpc('nexus_get_order_equipments', { p_order_id: id });
+            const equipmentsList = Array.isArray(equipmentsData) ? equipmentsData : (equipmentsData ? [equipmentsData] : []);
+
+            const mapped = this.mapDbOrderToApp(data);
+            mapped.equipments = equipmentsList;
+
+            return mapped;
         } catch (error) {
             logger.log(`Exception fetching order: ${error}`, 'error');
             return undefined;
@@ -247,7 +254,8 @@ export class OrderService {
     }
 
     static async getAllOrders(): Promise<ExtendedServiceOrder[]> {
-        const userId = authService.getCurrentUserId();
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || authService.getCurrentUserId();
         if (!userId) {
             logger.log('Cannot fetch orders: No user logged in', 'warn');
             return [];
@@ -369,6 +377,24 @@ export class OrderService {
 
             if (error) throw error;
 
+            // Update service_visits
+            try {
+                const { data: userData } = await supabase.auth.getUser();
+                if (userData?.user?.id) {
+                    await supabase.from('service_visits')
+                        .update({
+                            status: 'completed',
+                            departure_time: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('order_id', id)
+                        .eq('technician_id', userData.user.id)
+                        .in('status', ['pending', 'ongoing', 'paused']);
+                }
+            } catch (vErr) {
+                logger.log(`Warning: Failed to update service_visits: ${vErr}`, 'warn');
+            }
+
             logger.log(`Order ${id} completed successfully`, 'info');
 
         } catch (error) {
@@ -379,22 +405,6 @@ export class OrderService {
 
     static async blockOrder(id: string, reason: string): Promise<void> {
         try {
-            const updateData = {
-                status: 'IMPEDIDO', // Using IMPEDIDO to match DB enum
-                form_data: {
-                    blockReason: reason,
-                    blockedAt: new Date().toISOString()
-                }
-            };
-
-            // Note: If we want to preserve previous form data, we should fetch-merge or use jsonb_set logic.
-            // But simple update merges top-level keys in some libs but Supabase .update() replaces the column value if it's not careful.
-            // Wait, for JSONB, standard UPDATE replaces the whole JSON.
-            // We should use a helper to merge or fetch first.
-            // For simplicity/MVP, we replace form_data but we might lose previous data if any.
-            // Since blocking usually happens before execution, it's safer.
-            // Ideally: fetch, merge, update.
-
             // Let's fetch first to be safe
             const { data: current } = await supabase.from('orders').select('form_data').eq('id', id).single();
             const currentForm = current?.form_data || {};
@@ -418,6 +428,42 @@ export class OrderService {
 
         } catch (error) {
             logger.log(`Error blocking order: ${error}`, 'error');
+            throw error;
+        }
+    }
+
+    static async startExecution(id: string): Promise<void> {
+        try {
+            const { error } = await supabase
+                .from('orders')
+                .update({
+                    status: 'EM ANDAMENTO',
+                    start_date: new Date().toISOString()
+                })
+                .eq('id', id);
+
+            if (error) throw error;
+
+            try {
+                const { data: userData } = await supabase.auth.getUser();
+                if (userData?.user?.id) {
+                    await supabase.from('service_visits')
+                        .update({
+                            status: 'ongoing',
+                            arrival_time: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('order_id', id)
+                        .eq('technician_id', userData.user.id)
+                        .in('status', ['pending', 'paused']);
+                }
+            } catch (vErr) {
+                logger.log(`Warning: Failed to update service_visits: ${vErr}`, 'warn');
+            }
+
+            logger.log(`Order ${id} execution started`, 'info');
+        } catch (error) {
+            logger.log(`Error starting execution: ${error}`, 'error');
             throw error;
         }
     }

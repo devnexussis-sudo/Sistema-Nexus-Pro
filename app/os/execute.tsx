@@ -1,4 +1,3 @@
-
 import React, { useRef, useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, Alert, Image, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
@@ -11,28 +10,71 @@ import { ImageService } from '@/services/image-service';
 import { OrderService } from '@/services/order-service';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
 
-
 export default function ExecuteOSScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
 
-    // Order & Template State
     const [order, setOrder] = useState<any>(null);
-    const [formTemplate, setFormTemplate] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Form State (Dynamic & Legacy)
-    const [dynamicData, setDynamicData] = useState<Record<string, any>>({});
-    const [signature, setSignature] = useState<string | null>(null); // Centralized signature
-    const [clientName, setClientName] = useState(''); // Client Name for validation
+    // Multi-equipment forms state
+    // { equipmentIndex_or_id: { equipamento: any, template: any, data: any } }
+    const [formsConfig, setFormsConfig] = useState<Record<string, { equipamento: any, template: any, data: any }>>({});
 
-    // UI State
+    // Global fields
+    const [technicalReport, setTechnicalReport] = useState('');
+    const [partsUsed, setPartsUsed] = useState('');
+    const [extraPhotos, setExtraPhotos] = useState<string[]>([]);
+    const [isUploadingExtra, setIsUploadingExtra] = useState(false);
+
+    const [signature, setSignature] = useState<string | null>(null);
+    const [clientName, setClientName] = useState('');
+
     const [isSignatureModalVisible, setSignatureModalVisible] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [viewerVisible, setViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isUploadingPhoto, setIsUploadingPhoto] = useState<string | null>(null);
     const signatureRef = useRef<any>(null);
+
+    const fetchTemplateForEquipment = async (orderData: any, eq: any, rules: any[], serviceTypes: any[], allTemplates: any[]) => {
+        let template: any = null;
+        if (eq?.form_id && eq.form_id !== 'f-padrao') {
+            template = await OrderService.getFormTemplate(eq.form_id);
+            if (template) return template;
+        }
+        if (orderData.formId && orderData.formId !== 'f-padrao') {
+            template = await OrderService.getFormTemplate(orderData.formId);
+            if (template) return template;
+        }
+
+        const typeValue = orderData.operationType || orderData.type;
+        const matchedServiceType = serviceTypes.find(st =>
+            st.id === typeValue ||
+            st.name?.trim() === typeValue?.trim() ||
+            st.name?.toLowerCase().trim() === String(typeValue).toLowerCase().trim() ||
+            st.name?.toLowerCase().includes(String(typeValue).toLowerCase())
+        );
+
+        const family = eq?.family_name || eq?.equipmentFamily || 'Todos';
+        const typeId = matchedServiceType?.id || typeValue;
+
+        const bestRule = rules.find(r => r.serviceTypeId === typeId && r.equipmentFamily === family)
+            || rules.find(r => r.serviceTypeId === typeId && (r.equipmentFamily === 'Todos' || !r.equipmentFamily));
+
+        if (bestRule) {
+            template = await OrderService.getFormTemplate(bestRule.formId);
+            if (template) return template;
+        }
+
+        if (orderData.type) {
+            template = allTemplates.find(t =>
+                t.title.toLowerCase().includes(orderData.type!.toLowerCase()) ||
+                (t.serviceTypes && t.serviceTypes.includes(orderData.type!))
+            );
+        }
+        return template;
+    };
 
     useFocusEffect(
         React.useCallback(() => {
@@ -42,104 +84,60 @@ export default function ExecuteOSScreen() {
             const loadData = async () => {
                 try {
                     const orderData = await OrderService.getOrderById(id as string);
-                    console.log(`[ExecuteOS] Loading Order ${id}. formId in DB: ${orderData?.formId}`);
-
                     if (isActive && orderData) {
                         setOrder(orderData);
 
-                        let template: any = null;
+                        setTechnicalReport(orderData.formData?.technical_report || orderData.executionDetails?.technicalReport || '');
+                        setPartsUsed(orderData.formData?.parts_used || orderData.executionDetails?.partsUsed || '');
 
-                        // 1. Try by Form ID
-                        if (orderData.formId && orderData.formId !== 'f-padrao') {
-                            template = await OrderService.getFormTemplate(orderData.formId);
-                            console.log(`[ExecuteOS] Template by ID ${orderData.formId}:`, template ? 'FOUND' : 'NOT FOUND');
+                        let loadedExtraPhotos = orderData.formData?.extra_photos || orderData.executionDetails?.photos || [];
+                        if (!Array.isArray(loadedExtraPhotos)) {
+                            loadedExtraPhotos = [loadedExtraPhotos];
                         }
+                        setExtraPhotos(loadedExtraPhotos.filter((p: any) => typeof p === 'string'));
 
-                        // 2. Advanced Resolution: Search by Activation Rules (Type + Family)
-                        if (!template) {
-                            let availableTypeNames = '';
-                            try {
-                                console.log(`[ExecuteOS] Resolving form via Activation Rules...`);
-                                const [rules, serviceTypes, equipment] = await Promise.all([
-                                    OrderService.getActivationRules(),
-                                    OrderService.getServiceTypes(),
-                                    orderData.equipmentSerial ? OrderService.getEquipmentBySerial(orderData.equipmentSerial) : Promise.resolve(null)
-                                ]);
+                        const [rules, serviceTypes, allTemplates] = await Promise.all([
+                            OrderService.getActivationRules(),
+                            OrderService.getServiceTypes(),
+                            OrderService.getFormTemplates()
+                        ]);
 
-                                availableTypeNames = serviceTypes.map(s => s.name).join(', ');
+                        const equipmentsList = (orderData.equipments && orderData.equipments.length > 0)
+                            ? orderData.equipments
+                            : [{ id: 'single', equipment_model: orderData.equipment, equipment_serial: orderData.serialNumber, form_id: orderData.formId }];
 
-                                // Update Order Data with resolved family for debug/UI
-                                if (equipment?.familyName) {
-                                    orderData.equipmentFamily = equipment.familyName;
-                                    setOrder({ ...orderData }); // trigger re-render
-                                }
+                        const newFormsConfig: Record<string, any> = {};
 
-                                const typeValue = orderData.operationType || orderData.type;
-                                console.log(`[ExecuteOS] Order Type Value: "${typeValue}"`);
+                        for (let i = 0; i < equipmentsList.length; i++) {
+                            const eq = equipmentsList[i];
+                            const eqKey = eq.id || `eq_${i}`;
+                            const eqName = eq.equipment_model || eq.equipment_name || 'Equipamento';
 
-                                const matchedServiceType = serviceTypes.find(st =>
-                                    st.id === typeValue ||
-                                    st.name?.trim() === typeValue?.trim() ||
-                                    st.name?.toLowerCase().trim() === String(typeValue).toLowerCase().trim() ||
-                                    st.name?.toLowerCase().includes(String(typeValue).toLowerCase())
-                                );
+                            let template = await fetchTemplateForEquipment(orderData, eq, rules, serviceTypes, allTemplates);
 
-                                const family = equipment?.familyName || 'Todos';
-                                const typeId = matchedServiceType?.id || typeValue; // Use resolved ID or fallback to value if it looks like an ID
-
-                                console.log(`[ExecuteOS] Resolution Context:`);
-                                console.log(` - Type Value: ${typeValue}`);
-                                console.log(` - Resolved ServiceType: ${matchedServiceType?.name} (ID: ${matchedServiceType?.id})`);
-                                console.log(` - Equipment Family: ${family}`);
-
-                                // Rule search: 
-                                // 1. Match specific Type ID + Specific Family
-                                // 2. Match specific Type ID + "Todos" Family
-                                const bestRule = rules.find(r => r.serviceTypeId === typeId && r.equipmentFamily === family)
-                                    || rules.find(r => r.serviceTypeId === typeId && (r.equipmentFamily === 'Todos' || !r.equipmentFamily));
-
-                                if (bestRule) {
-                                    console.log(`[ExecuteOS] Activation Rule matched! Loading Form: ${bestRule.formId}`);
-                                    template = await OrderService.getFormTemplate(bestRule.formId);
-                                }
-                            } catch (err) {
-                                console.warn("[ExecuteOS] Failed to resolve form via rules:", err);
+                            let initialData: any = {};
+                            if (template) {
+                                template.fields.forEach((field: any) => {
+                                    const eqPrefix = `[${eqName}] - `;
+                                    if (orderData.formData && orderData.formData[`${eqPrefix}${field.label}`] !== undefined) {
+                                        initialData[field.id] = orderData.formData[`${eqPrefix}${field.label}`];
+                                    } else if (orderData.formData && orderData.formData[field.id] !== undefined) {
+                                        initialData[field.id] = orderData.formData[field.id];
+                                    } else {
+                                        initialData[field.id] = '';
+                                    }
+                                });
                             }
+
+                            newFormsConfig[eqKey] = {
+                                equipamento: eq,
+                                template: template,
+                                data: initialData
+                            };
                         }
 
-                        // 3. Last Resort: Search by Title/Tag (Soft Match)
-                        if (!template && orderData.type) {
-                            console.log(`[ExecuteOS] Last Resort: Soft search for type ${orderData.type}`);
-                            const allTemplates = await OrderService.getFormTemplates();
-                            template = allTemplates.find(t =>
-                                t.title.toLowerCase().includes(orderData.type!.toLowerCase()) ||
-                                (t.serviceTypes && t.serviceTypes.includes(orderData.type!))
-                            );
-                        }
-
-                        if (isActive && template) {
-                            console.log(`[ExecuteOS] ✅ Form Template Applied: ${template.title}`);
-                            setFormTemplate(template);
-
-                            // Merge existing form data from OS with template defaults
-                            const initialData: any = {};
-                            template.fields.forEach((field: any) => {
-                                // Mapeamento resiliente: tenta ID, depois tenta Label (caso já tenha sido salvo no formato legível)
-                                if (orderData.formData && orderData.formData[field.id] !== undefined) {
-                                    initialData[field.id] = orderData.formData[field.id];
-                                } else if (orderData.formData && orderData.formData[field.label] !== undefined) {
-                                    initialData[field.id] = orderData.formData[field.label];
-                                } else {
-                                    initialData[field.id] = '';
-                                }
-                            });
-                            setDynamicData(initialData);
-                        } else {
-                            console.log(`[ExecuteOS] ⚠️ No dynamic form found. Using legacy format.`);
-                            setDynamicData({
-                                ...(orderData.formData || {}),
-                                debugTypes: availableTypeNames // Pass debug info to UI
-                            });
+                        if (isActive) {
+                            setFormsConfig(newFormsConfig);
                         }
                     }
                 } catch (error) {
@@ -154,30 +152,106 @@ export default function ExecuteOSScreen() {
         }, [id])
     );
 
-
     const handleSignature = (signatureData: string) => {
         setSignature(signatureData);
         setSignatureModalVisible(false);
     };
 
+    const handleTakeExtraPhoto = async () => {
+        try {
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['images'],
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets.length > 0) {
+                setIsUploadingExtra(true);
+                try {
+                    const compressedUri = await ImageService.compressImage(result.assets[0].uri);
+                    const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/extra_photos`, order?.tenantId);
+
+                    if (publicUrl) {
+                        setExtraPhotos(prev => [...prev, publicUrl]);
+                    } else {
+                        Alert.alert('Erro', 'Não foi possível fazer o upload da foto extra.');
+                    }
+                } finally {
+                    setIsUploadingExtra(false);
+                }
+            }
+        } catch (e) {
+            Alert.alert('Erro', 'Não foi possível tirar a foto.');
+        }
+    };
+
+    const handleTakeFieldPhoto = async (eqKey: string, fieldId: string) => {
+        try {
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['images'],
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                setIsUploadingPhoto(`${eqKey}_${fieldId}`);
+                try {
+                    const compressedUri = await ImageService.compressImage(result.assets[0].uri);
+                    const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/form_photos`, order?.tenantId);
+
+                    if (publicUrl) {
+                        setFormsConfig(prev => {
+                            const newConfig = { ...prev };
+                            const currentPhotos = Array.isArray(newConfig[eqKey].data[fieldId]) ? newConfig[eqKey].data[fieldId] : [];
+                            if (currentPhotos.length >= 3) {
+                                Alert.alert('Limite', 'Máximo 3 fotos.');
+                                return prev;
+                            }
+                            newConfig[eqKey].data = { ...newConfig[eqKey].data, [fieldId]: [...currentPhotos, publicUrl] };
+                            return newConfig;
+                        });
+                    } else {
+                        Alert.alert('Erro', 'Erro ao enviar imagem.');
+                    }
+                } finally {
+                    setIsUploadingPhoto(null);
+                }
+            }
+        } catch (error) {
+            Alert.alert('Erro', 'Erro ao abrir câmera.');
+        }
+    };
+
+    const updateFieldData = (eqKey: string, fieldId: string, value: any) => {
+        setFormsConfig(prev => {
+            const newConfig = { ...prev };
+            newConfig[eqKey].data = { ...newConfig[eqKey].data, [fieldId]: value };
+            return newConfig;
+        });
+    };
+
     const handleSubmit = async () => {
-        if (!signature && !formTemplate) {
-            // Legacy check
-            Alert.alert('Atenção', 'A assinatura é obrigatória.');
+        if (!signature) {
+            Alert.alert('Atenção', 'A assinatura do cliente é obrigatória.');
             return;
         }
-
         if (!clientName.trim()) {
             Alert.alert('Atenção', 'O nome do cliente/responsável é obrigatório.');
             return;
         }
+        if (!technicalReport.trim()) {
+            Alert.alert('Atenção', 'O relatório técnico de conclusão é obrigatório.');
+            return;
+        }
 
-        // Validate Dynamic Fields
-        if (formTemplate) {
-            for (const field of formTemplate.fields) {
-                if (field.required && !dynamicData[field.id] && field.type !== 'PHOTO' && field.type !== 'SIGNATURE') {
-                    Alert.alert('Campo Obrigatório', `Por favor, preencha o campo "${field.label}".`);
-                    return;
+        // Validate all forms
+        for (const key in formsConfig) {
+            const config = formsConfig[key];
+            if (config.template) {
+                for (const field of config.template.fields) {
+                    if (field.required && !config.data[field.id] && field.type !== 'PHOTO' && field.type !== 'SIGNATURE') {
+                        const eqDesc = config.equipamento?.equipment_model || config.equipamento?.equipment_name || 'selecionado';
+                        Alert.alert('Campo Obrigatório', `Por favor, preencha o campo "${field.label}" no equipamento ${eqDesc}.`);
+                        return;
+                    }
                 }
             }
         }
@@ -185,49 +259,49 @@ export default function ExecuteOSScreen() {
         try {
             setIsSubmitting(true);
 
-            // 1. Upload de fotos pendentes (Fallback de segurança)
-            const updatedDynamicData = { ...dynamicData };
-            for (const key in updatedDynamicData) {
-                const val = updatedDynamicData[key];
-                if (Array.isArray(val)) {
-                    const uploadedUrls = [];
-                    for (const item of val) {
-                        if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('content://') || item.startsWith('/'))) {
-                            const url = await OrderService.uploadFile(item, `orders/${id}/form_photos`, order?.tenantId);
-                            if (url) uploadedUrls.push(url);
-                        } else {
-                            uploadedUrls.push(item);
+            const finalFormData: Record<string, any> = {};
+
+            for (const key in formsConfig) {
+                const config = formsConfig[key];
+                const eqName = config.equipamento?.equipment_model || config.equipamento?.equipment_name || 'Equipamento';
+                const prefix = `[${eqName}${config.equipamento?.equipment_serial ? ` S/N: ${config.equipamento.equipment_serial}` : ''}] - `;
+
+                if (config.template) {
+                    for (const field of config.template.fields) {
+                        let value = config.data[field.id];
+
+                        // Safety measure for un-uploaded local URIs
+                        if (Array.isArray(value)) {
+                            const uploadedUrls = [];
+                            for (const item of value) {
+                                if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('content://') || item.startsWith('/'))) {
+                                    const url = await OrderService.uploadFile(item, `orders/${id}/form_photos`, order?.tenantId);
+                                    if (url) uploadedUrls.push(url);
+                                } else {
+                                    uploadedUrls.push(item);
+                                }
+                            }
+                            value = uploadedUrls;
+                        } else if (typeof value === 'string' && (value.startsWith('file://') || value.startsWith('content://') || value.startsWith('/'))) {
+                            const url = await OrderService.uploadFile(value, `orders/${id}/form_photos`, order?.tenantId);
+                            if (url) value = url;
+                        }
+
+                        if (value !== undefined && value !== '') {
+                            finalFormData[`${prefix}${field.label}`] = value;
                         }
                     }
-                    updatedDynamicData[key] = uploadedUrls;
-                } else if (typeof val === 'string' && (val.startsWith('file://') || val.startsWith('content://') || val.startsWith('/'))) {
-                    const uploadedUrl = await OrderService.uploadFile(val, `orders/${id}/form_photos`, order?.tenantId);
-                    if (uploadedUrl) updatedDynamicData[key] = uploadedUrl;
                 }
             }
 
-            // 2. Transformar chaves (IDs -> Labels) para que o Admin veja as perguntas
-            const finalFormData: Record<string, any> = {};
-            if (formTemplate) {
-                formTemplate.fields.forEach(field => {
-                    const value = updatedDynamicData[field.id];
-                    if (value !== undefined) {
-                        finalFormData[field.label] = value;
-                    }
-                });
-            } else {
-                Object.assign(finalFormData, updatedDynamicData);
-            }
-
-            // Manter campos especiais de relatório e peças
-            if (dynamicData['technical_report']) finalFormData['technical_report'] = dynamicData['technical_report'];
-            if (dynamicData['parts_used']) finalFormData['parts_used'] = dynamicData['parts_used'];
-            if (dynamicData['impediment_reason']) finalFormData['impediment_reason'] = dynamicData['impediment_reason'];
+            finalFormData['technical_report'] = technicalReport;
+            finalFormData['parts_used'] = partsUsed;
+            finalFormData['extra_photos'] = extraPhotos;
 
             await OrderService.completeOrder(id as string, {
-                technicalReport: dynamicData['technical_report'] || '',
-                partsUsed: dynamicData['parts_used'] || '',
-                photos: [],
+                technicalReport: technicalReport,
+                partsUsed: partsUsed,
+                photos: extraPhotos,
                 signature: signature,
                 clientName: clientName,
                 formData: finalFormData,
@@ -245,49 +319,8 @@ export default function ExecuteOSScreen() {
         }
     };
 
-    const handleTakeFieldPhoto = async (fieldId: string) => {
-        try {
-            const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ['images'],
-                quality: 0.8,
-            });
 
-            if (!result.canceled && result.assets && result.assets.length > 0) {
-                setIsUploadingPhoto(fieldId);
-                try {
-                    // 1. Comprimir e Converter para WebP Localmente
-                    const compressedUri = await ImageService.compressImage(result.assets[0].uri);
-
-                    // 2. Upload Imediato para o Supabase (garante persistência)
-                    console.log(`[ExecuteOS] Uploading compressed WebP for field ${fieldId}...`);
-                    const publicUrl = await OrderService.uploadFile(
-                        compressedUri,
-                        `orders/${id}/form_photos`,
-                        order?.tenantId
-                    );
-
-                    if (publicUrl) {
-                        setDynamicData(prev => {
-                            const current = Array.isArray(prev[fieldId]) ? prev[fieldId] : (prev[fieldId] ? [prev[fieldId]] : []);
-                            if (current.length >= 3) {
-                                Alert.alert('Limite atingido', 'Máximo de 3 fotos por campo.');
-                                return prev;
-                            }
-                            return { ...prev, [fieldId]: [...current, publicUrl] };
-                        });
-                    } else {
-                        Alert.alert('Erro de Upload', 'Não foi possível salvar a imagem no servidor. Tente novamente.');
-                    }
-                } finally {
-                    setIsUploadingPhoto(null);
-                }
-            }
-        } catch (error) {
-            Alert.alert('Erro', 'Não foi possível capturar a foto.');
-        }
-    };
-
-    const renderDynamicField = (field: any) => {
+    const renderDynamicField = (eqKey: string, field: any, data: any) => {
         switch (field.type) {
             case 'TEXT':
             case 'LONG_TEXT':
@@ -299,8 +332,8 @@ export default function ExecuteOSScreen() {
                             placeholder={field.label}
                             multiline={field.type === 'LONG_TEXT'}
                             numberOfLines={field.type === 'LONG_TEXT' ? 4 : 1}
-                            value={dynamicData[field.id]}
-                            onChangeText={(text) => setDynamicData({ ...dynamicData, [field.id]: text })}
+                            value={data[field.id]}
+                            onChangeText={(text) => updateFieldData(eqKey, field.id, text)}
                         />
                     </View>
                 );
@@ -312,77 +345,41 @@ export default function ExecuteOSScreen() {
                             {(field.options || []).map((opt: string) => (
                                 <Pressable
                                     key={opt}
-                                    style={[styles.optionBtn, dynamicData[field.id] === opt && styles.optionBtnSelected]}
-                                    onPress={() => setDynamicData({ ...dynamicData, [field.id]: opt })}
+                                    style={[styles.optionBtn, data[field.id] === opt && styles.optionBtnSelected]}
+                                    onPress={() => updateFieldData(eqKey, field.id, opt)}
                                 >
-                                    <Text style={[styles.optionText, dynamicData[field.id] === opt && styles.optionTextSelected]}>{opt}</Text>
+                                    <Text style={[styles.optionText, data[field.id] === opt && styles.optionTextSelected]}>{opt}</Text>
                                 </Pressable>
                             ))}
                         </View>
                     </View>
                 );
             case 'PHOTO':
-                const photos = Array.isArray(dynamicData[field.id]) ? dynamicData[field.id] : (dynamicData[field.id] ? [dynamicData[field.id]] : []);
+                const photos = Array.isArray(data[field.id]) ? data[field.id] : (data[field.id] ? [data[field.id]] : []);
                 return (
                     <View key={field.id} style={styles.section}>
                         <ThemedText type="subtitle">{field.label} ({photos.length}/3)</ThemedText>
-
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
                             {photos.map((photoUri: string, index: number) => (
-                                <Pressable
-                                    key={index}
-                                    style={{ position: 'relative', width: 100, height: 100, borderRadius: 8, overflow: 'hidden' }}
-                                    onPress={() => {
-                                        setSelectedImage(photoUri);
-                                        setViewerVisible(true);
-                                    }}
-                                >
+                                <Pressable key={index} style={{ position: 'relative', width: 100, height: 100, borderRadius: 8, overflow: 'hidden' }}
+                                    onPress={() => { setSelectedImage(photoUri); setViewerVisible(true); }}>
                                     <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} />
-                                    <Pressable
-                                        style={{ position: 'absolute', bottom: 0, width: '100%', backgroundColor: 'rgba(255,0,0,0.7)', alignItems: 'center', padding: 4 }}
+                                    <Pressable style={{ position: 'absolute', bottom: 0, width: '100%', backgroundColor: 'rgba(255,0,0,0.7)', alignItems: 'center', padding: 4 }}
                                         onPress={() => {
-                                            const newPhotos = [...photos];
-                                            newPhotos.splice(index, 1);
-                                            setDynamicData(prev => ({ ...prev, [field.id]: newPhotos }));
-                                        }}
-                                    >
+                                            const newPhotos = [...photos]; newPhotos.splice(index, 1);
+                                            updateFieldData(eqKey, field.id, newPhotos);
+                                        }}>
                                         <Ionicons name="trash" size={16} color="#fff" />
                                     </Pressable>
                                 </Pressable>
                             ))}
-
                             {photos.length < 3 && (
-                                <Pressable
-                                    style={[styles.photoFieldPlaceholder, { width: 100, height: 100, margin: 0 }]}
-                                    onPress={() => handleTakeFieldPhoto(field.id)}
-                                    disabled={isUploadingPhoto === field.id}
-                                >
-                                    {isUploadingPhoto === field.id ? (
-                                        <Text style={{ fontSize: 10, color: '#666' }}>Enviando...</Text>
-                                    ) : (
-                                        <>
-                                            <Ionicons name="camera" size={24} color="#666" />
-                                            <Text style={[styles.photoFieldPlaceholderText, { fontSize: 10 }]}>Adicionar</Text>
-                                        </>
-                                    )}
+                                <Pressable style={[styles.photoFieldPlaceholder, { width: 100, height: 100, margin: 0 }]}
+                                    onPress={() => handleTakeFieldPhoto(eqKey, field.id)} disabled={isUploadingPhoto === `${eqKey}_${field.id}`}>
+                                    {isUploadingPhoto === `${eqKey}_${field.id}` ? <Text style={{ fontSize: 10, color: '#666' }}>Enviando...</Text> : <><Ionicons name="camera" size={24} color="#666" /><Text style={{ fontSize: 10, color: '#666', fontWeight: 'bold' }}>Adicionar</Text></>}
                                 </Pressable>
                             )}
                         </View>
-                    </View>
-                );
-            case 'SIGNATURE':
-                return (
-                    <View key={field.id} style={styles.section}>
-                        <ThemedText type="subtitle">{field.label}</ThemedText>
-                        <Pressable
-                            style={styles.signaturePlaceholderSmall}
-                            onPress={() => {
-                                setSignatureModalVisible(true);
-                            }}
-                        >
-                            <Ionicons name="pencil" size={24} color="#666" />
-                            <Text style={styles.signaturePlaceholderText}>Assinar aqui</Text>
-                        </Pressable>
                     </View>
                 );
             default:
@@ -392,99 +389,108 @@ export default function ExecuteOSScreen() {
 
     return (
         <ThemedView style={styles.container}>
-            <Stack.Screen options={{ title: `Executando ${order?.displayId || id?.toString().slice(0, 8)}...` }} />
+            <Stack.Screen options={{ title: `Executando OS` }} />
 
             <ScrollView contentContainerStyle={styles.content}>
 
-                {/* OS INFORMATION HEADER - Premium Look */}
+                {/* OS INFORMATION HEADER */}
                 {order && (
                     <View style={styles.infoCard}>
                         <View style={styles.infoCardHeader}>
                             <Ionicons name="information-circle" size={20} color="#1c2d4f" />
                             <Text style={styles.infoCardTitle}>Detalhes da Solicitação</Text>
                         </View>
-
                         <View style={styles.infoRow}>
                             <Text style={styles.infoLabel}>CLIENTE</Text>
                             <Text style={styles.infoValue}>{order.customer}</Text>
                         </View>
-
-                        {order.address && (
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>ENDEREÇO</Text>
-                                <Text style={styles.infoValue}>{order.address}</Text>
-                            </View>
-                        )}
-
                         <View style={styles.infoDivider} />
-
                         <View style={styles.infoRow}>
                             <Text style={styles.infoLabel}>TÍTULO DO SERVIÇO</Text>
                             <Text style={styles.infoValueBold}>{order.displayId}: {order.description?.split('\n')[0]}</Text>
                         </View>
-
-                        {order.description && (
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>DESCRIÇÃO / PROBLEMA</Text>
-                                <Text style={styles.infoValueDesc}>{order.description.includes('\n') ? order.description.split('\n').slice(1).join('\n') : order.description}</Text>
-                            </View>
-                        )}
-
-                        {order.equipment && (
-                            <View style={styles.infoRow}>
-                                <Text style={styles.infoLabel}>EQUIPAMENTO</Text>
-                                <Text style={styles.infoValue}>{order.equipment} {order.serialNumber ? `(S/N: ${order.serialNumber})` : ''}</Text>
-                            </View>
-                        )}
                     </View>
                 )}
 
-                {/* DYNAMIC FORM RENDERING */}
-                {formTemplate ? (
-                    formTemplate.fields.map((field: any) => renderDynamicField(field))
-                ) : (
-                    // NO FORM FOUND STATE
-                    <View style={styles.errorContainer}>
-                        <Ionicons name="document-text-outline" size={48} color="#94a3b8" />
-                        <Text style={styles.errorTitle}>
-                            {order?.formId && order?.formId !== 'f-padrao' ? 'Erro ao Carregar Formulário' : 'Nenhum Formulário Vinculado'}
-                        </Text>
-                        <Text style={styles.errorMessage}>
-                            {order?.formId && order?.formId !== 'f-padrao'
-                                ? `O formulário vinculado (ID: ${order.formId}) não foi encontrado ou foi excluído.`
-                                : 'Não foi encontrado um modelo de checklist para esta combinação de serviço e equipamento.'}
-                        </Text>
-                        <Text style={styles.errorDetail}>
-                            DEBUG INFO:{'\n'}
-                            OS ID: {order?.displayId || id}{'\n'}
-                            Form ID (DB): {order?.formId || 'null'}{'\n'}
-                            Tipo (DB): {order?.operationType || order?.type || 'null'}{'\n'}
-                            Família (Calc): {order?.equipmentFamily || 'N/D'}{'\n'}
-                            Available Types: {dynamicData?.debugTypes || 'Loading...'}
-                        </Text>
-                        <Pressable
-                            style={styles.retryButton}
-                            onPress={() => {
-                                setIsLoading(true);
-                                setTimeout(() => setIsLoading(false), 1000); // Simple refresh simulation or call loadData if moved out
-                            }}
-                        >
-                            <Text style={styles.retryButtonText}>Tentar Novamente</Text>
-                        </Pressable>
-                    </View>
-                )}
+                {/* EQUIPMENT FORMS */}
+                {Object.entries(formsConfig).map(([eqKey, config]) => (
+                    <View key={eqKey} style={styles.equipmentGroup}>
+                        <View style={styles.equipmentHeader}>
+                            <Ionicons name="hardware-chip-outline" size={20} color="#fff" />
+                            <Text style={styles.equipmentTitle}>
+                                {config.equipamento?.equipment_model || config.equipamento?.equipment_name || 'Equipamento'}
+                                {config.equipamento?.equipment_serial ? ` - S/N: ${config.equipamento.equipment_serial}` : ''}
+                            </Text>
+                        </View>
 
-                {/* COMMON SECTIONS (SIGNATURE) */}
+                        {config.template ? (
+                            <View style={styles.equipmentFormsContainer}>
+                                {config.template.fields.map((field: any) => renderDynamicField(eqKey, field, config.data))}
+                            </View>
+                        ) : (
+                            <View style={[styles.section, { alignItems: 'center', padding: 24 }]}>
+                                <Ionicons name="document-text-outline" size={40} color="#ccc" />
+                                <Text style={{ color: '#666', marginTop: 10 }}>Nenhum formulário dinâmico vinculado.</Text>
+                            </View>
+                        )}
+                    </View>
+                ))}
+
+                {/* CONCLUSÃO GLOBAL */}
+                <View style={styles.globalConclusionSection}>
+                    <View style={styles.equipmentHeader}>
+                        <Ionicons name="checkmark-done-circle-outline" size={20} color="#fff" />
+                        <Text style={styles.equipmentTitle}>Conclusão Geral da OS</Text>
+                    </View>
+
+                    <View style={[styles.section, { borderTopWidth: 0, marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
+                        <ThemedText type="subtitle">Relatório Técnico</ThemedText>
+                        <TextInput
+                            style={[styles.input, styles.textArea]}
+                            placeholder="Descreva o serviço realizado, diagnósticos e considerações finais..."
+                            multiline
+                            numberOfLines={4}
+                            value={technicalReport}
+                            onChangeText={setTechnicalReport}
+                        />
+
+                        <View style={{ marginTop: 24 }}>
+                            <ThemedText type="subtitle">Peças e Materiais Utilizados</ThemedText>
+                            <TextInput
+                                style={[styles.input]}
+                                placeholder="Anotações sobre materiais (opcional)"
+                                value={partsUsed}
+                                onChangeText={setPartsUsed}
+                            />
+                        </View>
+
+                        <View style={{ marginTop: 24 }}>
+                            <ThemedText type="subtitle">Anexos Extras ({extraPhotos.length})</ThemedText>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+                                {extraPhotos.map((photoUri, index) => (
+                                    <Pressable key={index} style={{ position: 'relative', width: 80, height: 80, borderRadius: 8, overflow: 'hidden' }}
+                                        onPress={() => { setSelectedImage(photoUri); setViewerVisible(true); }}>
+                                        <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} />
+                                        <Pressable style={{ position: 'absolute', bottom: 0, width: '100%', backgroundColor: 'rgba(255,0,0,0.7)', alignItems: 'center', padding: 2 }}
+                                            onPress={() => setExtraPhotos(prev => prev.filter((_, i) => i !== index))}>
+                                            <Ionicons name="trash" size={14} color="#fff" />
+                                        </Pressable>
+                                    </Pressable>
+                                ))}
+                                <Pressable style={[styles.photoFieldPlaceholder, { width: 80, height: 80, margin: 0, minHeight: 80 }]}
+                                    onPress={handleTakeExtraPhoto} disabled={isUploadingExtra}>
+                                    {isUploadingExtra ? <Text style={{ fontSize: 10, color: '#666' }}>Enviando...</Text> : <><Ionicons name="camera" size={20} color="#666" /><Text style={{ fontSize: 10, color: '#666', fontWeight: 'bold' }}>Anexar</Text></>}
+                                </Pressable>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+
+                {/* SIGNATURE SECTION */}
                 <View style={styles.section}>
                     <ThemedText type="subtitle">Validação do Cliente</ThemedText>
-
                     <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4, fontWeight: '600', color: '#666' }]}>Nome do Responsável / Cliente</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Nome de quem acompanhou o serviço"
-                        value={clientName}
-                        onChangeText={setClientName}
-                    />
+                    <TextInput style={styles.input} placeholder="Nome de quem acompanhou o serviço" value={clientName} onChangeText={setClientName} />
 
                     <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 8, fontWeight: '600', color: '#666' }]}>Assinatura Digital</Text>
                     {signature ? (
@@ -499,7 +505,6 @@ export default function ExecuteOSScreen() {
                         </Pressable>
                     )}
                 </View>
-
             </ScrollView>
 
             <View style={styles.footer}>
@@ -511,9 +516,7 @@ export default function ExecuteOSScreen() {
             {/* Modals */}
             <Modal visible={isSignatureModalVisible} animationType="slide" onRequestClose={() => setSignatureModalVisible(false)}>
                 <View style={styles.signatureModalContainer}>
-                    <SignatureScreen
-                        ref={signatureRef}
-                        onOK={handleSignature}
+                    <SignatureScreen ref={signatureRef} onOK={handleSignature}
                         webStyle={`.m-signature-pad--footer {display: none; margin: 0px;} body,html {width: 100%; height: 100%;}`}
                     />
                     <View style={styles.signatureFooter}>
@@ -523,11 +526,7 @@ export default function ExecuteOSScreen() {
                 </View>
             </Modal>
 
-            <ImageViewerModal
-                visible={viewerVisible}
-                imageUri={selectedImage}
-                onClose={() => setViewerVisible(false)}
-            />
+            <ImageViewerModal visible={viewerVisible} imageUri={selectedImage} onClose={() => setViewerVisible(false)} />
         </ThemedView>
     );
 }
@@ -535,15 +534,16 @@ export default function ExecuteOSScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f5f7fa' },
     content: { padding: 16, paddingBottom: 100 },
-    section: { marginBottom: 24, backgroundColor: '#fff', padding: 16, borderRadius: 12, elevation: 1 },
-    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    section: { marginBottom: 16, backgroundColor: '#fff', padding: 16, borderRadius: 12, elevation: 1 },
     input: { borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fafafa', marginTop: 8 },
     textArea: { minHeight: 120, textAlignVertical: 'top' },
-    addButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1c2d4f', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, gap: 6 },
-    addButtonText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-    photosContainer: { flexDirection: 'row', marginTop: 8 },
-    photoWrapper: { marginRight: 12 },
-    photoThumbnail: { width: 100, height: 100, borderRadius: 8, backgroundColor: '#eee' },
+    pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    optionBtn: { padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e0e0e0', backgroundColor: '#fafafa' },
+    optionBtnSelected: { backgroundColor: '#1c2d4f', borderColor: '#1c2d4f' },
+    optionText: { color: '#333' },
+    optionTextSelected: { color: '#fff' },
+    photoFieldPlaceholder: { height: 120, borderWidth: 2, borderColor: '#e0e0e0', borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', marginTop: 8, gap: 8 },
+    fieldLabel: { fontSize: 13, color: '#333' },
     signaturePlaceholder: { height: 150, borderWidth: 2, borderColor: '#e0e0e0', borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', marginTop: 8, gap: 8 },
     signaturePlaceholderText: { color: '#666', fontSize: 16 },
     signaturePreviewContainer: { alignItems: 'center', marginTop: 8 },
@@ -557,36 +557,17 @@ const styles = StyleSheet.create({
     signatureActionBtn: { paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, backgroundColor: '#f5f5f5' },
     confirmBtn: { backgroundColor: '#1c2d4f' },
     confirmText: { color: '#fff' },
-    pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-    optionBtn: { padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e0e0e0', backgroundColor: '#fafafa' },
-    optionBtnSelected: { backgroundColor: '#1c2d4f', borderColor: '#1c2d4f' },
-    optionText: { color: '#333' },
-    optionTextSelected: { color: '#fff' },
-    photoFieldContainer: { marginTop: 12, borderRadius: 8, overflow: 'hidden', position: 'relative' },
-    photoFieldPreview: { width: '100%', height: 200, borderRadius: 8, backgroundColor: '#eee' },
-    removePhotoBtn: { position: 'absolute', bottom: 12, right: 12, backgroundColor: 'rgba(211, 47, 47, 0.9)', flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 6, gap: 6 },
-    removePhotoText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-    photoFieldPlaceholder: { height: 120, borderWidth: 2, borderColor: '#e0e0e0', borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', marginTop: 8, gap: 8 },
-    photoFieldPlaceholderText: { color: '#666', fontSize: 14, fontWeight: '600' },
-    signaturePlaceholderSmall: { height: 80, borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', marginTop: 8, flexDirection: 'row', gap: 12 },
-
-    // Info Card Styles
-    infoCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 24, borderLeftWidth: 6, borderLeftColor: '#1c2d4f', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 },
+    infoCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 24, borderLeftWidth: 6, borderLeftColor: '#1c2d4f', elevation: 4 },
     infoCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingBottom: 10 },
-    infoCardTitle: { fontSize: 16, fontWeight: '800', color: '#1c2d4f', textTransform: 'uppercase', letterSpacing: 0.5 },
+    infoCardTitle: { fontSize: 16, fontWeight: '800', color: '#1c2d4f', textTransform: 'uppercase' },
     infoRow: { marginBottom: 12 },
-    infoLabel: { fontSize: 10, fontWeight: 'bold', color: '#94a3b8', marginBottom: 2, letterSpacing: 1 },
+    infoLabel: { fontSize: 10, fontWeight: 'bold', color: '#94a3b8', marginBottom: 2 },
     infoValue: { fontSize: 14, color: '#475569', fontWeight: '500' },
     infoDivider: { height: 1, backgroundColor: '#f0f0f0', marginVertical: 12 },
     infoValueBold: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
-    infoValueDesc: { fontSize: 13, color: '#64748b', lineHeight: 18, fontStyle: 'italic' },
-    fieldHint: { fontSize: 12, color: '#94a3b8', marginBottom: 8, lineHeight: 16 },
-    standardField: { marginTop: 16, borderTopWidth: 1, borderTopColor: '#f0f0f0', paddingTop: 16 },
-    standardLabel: { fontSize: 13, fontWeight: '700', color: '#334155', marginBottom: 10 },
-    errorContainer: { padding: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderRadius: 16, marginTop: 20 },
-    errorTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e293b', marginTop: 16, marginBottom: 8 },
-    errorMessage: { fontSize: 14, color: '#64748b', textAlign: 'center', marginBottom: 16, lineHeight: 20 },
-    errorDetail: { fontSize: 10, color: '#94a3b8', textAlign: 'left', marginBottom: 24, backgroundColor: '#f8fafc', padding: 12, borderRadius: 8, fontFamily: 'monospace', width: '100%' },
-    retryButton: { backgroundColor: '#1c2d4f', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
-    retryButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+    equipmentGroup: { marginBottom: 24, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden' },
+    equipmentHeader: { backgroundColor: '#1c2d4f', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+    equipmentTitle: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
+    equipmentFormsContainer: { padding: 12 },
+    globalConclusionSection: { marginBottom: 24, borderRadius: 12, overflow: 'hidden' }
 });
