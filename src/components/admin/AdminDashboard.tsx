@@ -94,6 +94,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // ── Server-Side Pagination ─────────────────────────────────────────
   const { session, isAuthLoading } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [serviceTypes, setServiceTypes] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('scheduled');
   // techFilter armazena o techId (UUID), não o nome — enviado direto para o servidor
@@ -405,6 +406,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!selectedOrder) return;
     // Pre-fetch stock if needed
     if (allStockItems.length === 0) fetchStockForPicker();
+
+    // Buscar Service Types dinamicamente do banco para popular o select de Modalidade
+    if (serviceTypes.length === 0) {
+      DataService.getServiceTypes().then(st => setServiceTypes(st || []));
+    }
+
     setEditDraft({
       title: selectedOrder.title,
       description: selectedOrder.description,
@@ -1032,6 +1039,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="space-y-1.5 opacity-50">
                           <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cronograma Atual</label>
                           <div className="text-sm text-slate-600 font-bold">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Modalidade do Atendimento</label>
+                          {isEditing
+                            ? (
+                              <select
+                                className="w-full border border-amber-200 bg-amber-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-amber-300 transition-all cursor-pointer"
+                                value={editDraft.operationType || ''}
+                                onChange={e => setEditDraft(d => ({ ...d, operationType: e.target.value }))}
+                              >
+                                {serviceTypes.length > 0 ? (
+                                  serviceTypes.map(type => (
+                                    <option key={type.id || type.name} value={type.name}>{type.name}</option>
+                                  ))
+                                ) : (
+                                  <option value={selectedOrder.operationType}>{selectedOrder.operationType || 'Carregando opções...'}</option>
+                                )}
+                              </select>
+                            )
+                            : <div className="text-sm text-slate-600 font-medium leading-relaxed">{selectedOrder.operationType || 'Não informada'}</div>
+                          }
                         </div>
                       </div>
                     </div>
