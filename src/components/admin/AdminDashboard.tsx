@@ -1528,7 +1528,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           ) : savedEntries.map(([key, val]) => (
                             <div key={key} className="px-6 py-3.5 flex justify-between gap-6 items-center hover:bg-slate-50/50">
                               <p className="text-[13px] font-medium text-slate-700 flex-1">
-                                {!isNaN(Number(key)) ? `Pergunta ${key}` : key.replace(/_/g, ' ')}
+                                {!isNaN(Number(key)) ? `Pergunta ${key}` : key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ')}
                               </p>
                               {isImg(val) ? (
                                 <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(String(val))} alt="foto" />
