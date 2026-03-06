@@ -366,6 +366,9 @@ export interface Customer {
   address: string;
   number: string;
   complement: string;
+  neighborhood?: string;
+  latitude?: number;
+  longitude?: number;
   active: boolean;
 }
 

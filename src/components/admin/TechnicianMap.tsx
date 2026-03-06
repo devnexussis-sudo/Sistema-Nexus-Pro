@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Navigation, MapPin, Clock, RefreshCw, History, Calendar, ChevronLeft, Search, User } from 'lucide-react';
+import { Navigation, MapPin, Clock, RefreshCw, History, Calendar, Search, Map as MapIcon, Layers, Satellite, Users, ClipboardList } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { CacheManager } from '../../lib/cache';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { OrderStatus } from '../../types';
 
 // Fix for default marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -49,7 +51,7 @@ const createTechIcon = (avatarUrl: string, isMoving: boolean = true) => {
                 }
             </style>
             <div style="position: relative; width: 40px; height: 40px;">
-                <img src="${avatarUrl}" style="width: 40px; height: 40px; border-radius: 50%; border: 3px solid ${borderColor}; box-shadow: 0 2px 8px rgba(0,0,0,0.3); object-fit: cover; ${isMoving ? '' : 'opacity: 0.7;'}" />
+                <img src="${avatarUrl || 'https://ui-avatars.com/api/?name=Tech&background=random'}" style="width: 40px; height: 40px; border-radius: 50%; border: 3px solid ${borderColor}; box-shadow: 0 2px 8px rgba(0,0,0,0.3); object-fit: cover; ${!isMoving ? 'opacity: 0.7;' : ''}" />
                 <div style="position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; background: ${statusColor}; border: 2px solid white; border-radius: 50%; ${pulseAnimation}"></div>
             </div>
         `,
@@ -59,24 +61,83 @@ const createTechIcon = (avatarUrl: string, isMoving: boolean = true) => {
     });
 };
 
+const getStatusColorHex = (status: OrderStatus) => {
+    switch (status) {
+        case OrderStatus.PENDING: return '#3b82f6';
+        case OrderStatus.ASSIGNED: return '#1d4ed8';
+        case OrderStatus.TRAVELING: return '#f59e0b';
+        case OrderStatus.ARRIVED: return '#8b5cf6';
+        case OrderStatus.IN_PROGRESS: return '#eab308';
+        case OrderStatus.PAUSED: return '#6b7280';
+        case OrderStatus.COMPLETED: return '#10b981';
+        case OrderStatus.CANCELED: return '#d946ef';
+        case OrderStatus.BLOCKED: return '#ef4444';
+        default: return '#94a3b8';
+    }
+};
+
+const createOrderIcon = (status: OrderStatus, displayId: string) => {
+    const color = getStatusColorHex(status);
+    return L.divIcon({
+        html: `
+            <div style="background-color: ${color}; width: 28px; height: 28px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; position: relative;">
+                <div style="position: absolute; bottom: -6px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid ${color};"></div>
+                <div style="width: 8px; height: 8px; background: white; border-radius: 50%;"></div>
+            </div>
+        `,
+        className: 'os-marker',
+        iconSize: [28, 34],
+        iconAnchor: [14, 34],
+    });
+};
+
+// Custom cluster icon for OS
+const createClusterCustomIcon = function (cluster: any) {
+    const childCount = cluster.getChildCount();
+    let size = 40;
+    if (childCount > 10) size = 50;
+    if (childCount > 100) size = 60;
+
+    return L.divIcon({
+        html: `<div style="background: rgba(245, 158, 11, 0.85); min-width: ${size}px; height: ${size}px; border-radius: 50%; border: 3px solid rgba(251, 191, 36, 1); display: flex; align-items: center; justify-content: center; font-weight: 900; color: white; font-size: ${size > 40 ? '16px' : '14px'}; box-shadow: 0 4px 12px rgba(0,0,0,0.2);"><span style="text-shadow: 0px 1px 2px rgba(0,0,0,0.5);">${childCount}</span></div>`,
+        className: 'custom-cluster-icon',
+        iconSize: L.point(size, size, true),
+    });
+};
+
+
 export const TechnicianMap: React.FC = () => {
-    const [technicians, setTechnicians] = useState<Technician[]>([]);
+    // 🌍 General Maps State
+    const [viewMode, setViewMode] = useState<'TECHS' | 'ORDERS'>('ORDERS');
+    const [mapType, setMapType] = useState<'DEFAULT' | 'SATELLITE'>('DEFAULT');
+    const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // 🕒 History Mode States
+    // 👷 Techs State
+    const [technicians, setTechnicians] = useState<Technician[]>([]);
     const [isHistoryMode, setIsHistoryMode] = useState(false);
     const [selectedHistoryTech, setSelectedHistoryTech] = useState<Technician | null>(null);
     const [selectedHistoryDate, setSelectedHistoryDate] = useState(new Date().toISOString().split('T')[0]);
     const [historyPath, setHistoryPath] = useState<LocationHistory[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-    const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+
+    // 📋 Orders State
+    const [orders, setOrders] = useState<any[]>([]);
+    const [customers, setCustomers] = useState<any[]>([]);
 
     useEffect(() => {
-        loadTechnicians();
-        const interval = setInterval(loadTechnicians, 30000); // Refresh every 30s
+        if (viewMode === 'TECHS') {
+            loadTechnicians();
+        } else {
+            loadOrders();
+        }
 
-        // 🔧 Nexus Map Fix: Garante que o mapa recalcule seu tamanho após a renderização inicial
+        const interval = setInterval(() => {
+            if (viewMode === 'TECHS') loadTechnicians();
+            if (viewMode === 'ORDERS') loadOrders();
+        }, 30000); // Refresh every 30s
+
         const timer = setTimeout(() => {
             if (mapInstance) {
                 mapInstance.invalidateSize();
@@ -87,45 +148,29 @@ export const TechnicianMap: React.FC = () => {
             clearInterval(interval);
             clearTimeout(timer);
         };
-    }, [mapInstance]);
+    }, [mapInstance, viewMode]);
 
-    // 🌙 Verifica se virou o dia e limpa cache automaticamente
-    useEffect(() => {
-        const checkDailyReset = () => {
-            const lastResetDate = sessionStorage.getItem('last_map_reset_date');
-            const today = new Date().toDateString();
-
-            if (lastResetDate !== today) {
-                console.log('[Map] 🌙 Novo dia detectado! Limpando cache do mapa...');
-                const tenantId = DataService.getCurrentTenantId();
-                if (tenantId) {
-                    CacheManager.invalidate(`techs_${tenantId}`);
-                }
-                sessionStorage.setItem('last_map_reset_date', today);
-                loadTechnicians();
+    const loadOrders = async () => {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const ords = await DataService.getOrders();
+            const custs = await DataService.getCustomers();
+            clearTimeout(timeoutId);
+            setOrders(ords);
+            setCustomers(custs);
+        } catch (error: any) {
+            if (error?.name !== 'AbortError') {
+                console.error('[Map] Erro ao carregar OS:', error);
             }
-        };
-
-        checkDailyReset();
-        // Verifica a cada 5 minutos se virou o dia
-        const resetInterval = setInterval(checkDailyReset, 5 * 60 * 1000);
-        return () => clearInterval(resetInterval);
-    }, []);
-
+        }
+    };
 
     const loadTechnicians = async () => {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s max
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
             const techs = await DataService.getAllTechnicians();
-
-            // 🐛 DEBUG NEXUS: Check Battery Levels
-            console.log('[Map] 🔍 Techs loaded:', techs.map(t => ({
-                name: t.name,
-                battery: t.battery_level,
-                raw: t
-            })));
-
             clearTimeout(timeoutId);
             setTechnicians(techs);
         } catch (error: any) {
@@ -135,24 +180,23 @@ export const TechnicianMap: React.FC = () => {
         }
     };
 
-    // 🔄 Força atualização com invalidação de cache
     const handleRefresh = async () => {
         setIsRefreshing(true);
-
-        // 🛡️ Safety timeout: Garante que o spinner para em no máximo 15s
         const safetyTimeout = setTimeout(() => {
             setIsRefreshing(false);
-            console.warn('[Map] ⚠️ Refresh safety timeout (15s) - liberando botão.');
         }, 15000);
 
         try {
-            // Invalida o cache antes de recarregar
             const tenantId = DataService.getCurrentTenantId();
             if (tenantId) {
-                CacheManager.invalidate(`techs_${tenantId}`);
+                if (viewMode === 'TECHS') CacheManager.invalidate(`techs_${tenantId}`);
+                if(viewMode === 'ORDERS') {
+                    CacheManager.invalidate(`orders_${tenantId}`);
+                    CacheManager.invalidate(`customers_${tenantId}`);
+                }
             }
-            // Recarrega dados frescos
-            await loadTechnicians();
+            if(viewMode === 'TECHS') await loadTechnicians();
+            if(viewMode === 'ORDERS') await loadOrders();
         } catch (error) {
             console.error('[Map] Erro ao atualizar:', error);
         } finally {
@@ -180,7 +224,6 @@ export const TechnicianMap: React.FC = () => {
             if (error) throw error;
             setHistoryPath(data || []);
 
-            // Centralizar no caminho se houver pontos
             if (data && data.length > 0 && mapInstance) {
                 const bounds = L.latLngBounds(data.map(p => [p.latitude, p.longitude]));
                 mapInstance.fitBounds(bounds, { padding: [50, 50] });
@@ -200,14 +243,6 @@ export const TechnicianMap: React.FC = () => {
         }
     }, [isHistoryMode, selectedHistoryTech, selectedHistoryDate]);
 
-    const activeTechs = technicians.filter(t =>
-        t.last_latitude && t.last_longitude && t.active !== false
-    );
-
-    const filteredTechs = activeTechs.filter(t =>
-        t.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
     const formatLastSeen = (lastSeen?: string) => {
         if (!lastSeen) return 'Nunca visto';
         const diff = Date.now() - new Date(lastSeen).getTime();
@@ -219,94 +254,108 @@ export const TechnicianMap: React.FC = () => {
         return `${Math.floor(hours / 24)}d atrás`;
     };
 
-    // Verifica se o técnico está em movimento (ping nos últimos 30 minutos)
     const isTechMoving = (lastSeen?: string): boolean => {
         if (!lastSeen) return false;
         const diff = Date.now() - new Date(lastSeen).getTime();
-        const minutes = Math.floor(diff / 60000);
-        return minutes < 30;
+        return Math.floor(diff / 60000) < 30;
     };
 
-    // Separa técnicos em movimento dos parados
+    const activeTechs = technicians.filter(t => t.last_latitude && t.last_longitude && t.active !== false);
     const movingTechs = activeTechs.filter(t => isTechMoving(t.last_seen));
     const stoppedTechs = activeTechs.filter(t => !isTechMoving(t.last_seen));
 
+    const mappedOrders = orders.map(o => {
+        const c = customers.find(cust => cust.id === o.customerId || cust.name === o.customerName);
+        return { ...o, latitude: c?.latitude, longitude: c?.longitude };
+    }).filter(o => o.latitude && o.longitude);
+
+    const tileLayerUrl = mapType === 'SATELLITE'
+        ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+    const tileAttribution = mapType === 'SATELLITE'
+        ? "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
+        : "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors &copy; <a href='https://carto.com/attributions'>CARTO</a>";
+
+
     return (
         <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden">
-            {/* 🔮 NEXUS COMPACT TOP BAR */}
-            <div className="absolute top-4 left-4 right-4 z-[1000] flex items-center gap-2">
-                {/* Radar Info */}
-                <div className="bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg border border-white/20 flex items-center gap-2">
-                    <div className="p-1 bg-primary-600 rounded-lg shadow-lg shadow-primary-600/20">
-                        <Navigation size={12} className="text-white" />
-                    </div>
-                    <span className="text-[8px] font-black text-slate-900 uppercase tracking-wider">Radar</span>
-                    <div className="w-px h-3 bg-slate-300"></div>
-                    <span className="text-[7px] font-black text-slate-400 uppercase">Em movimento:</span>
-                    <span className="text-[9px] font-black text-emerald-600">{activeTechs.length}</span>
-                    <div className="w-px h-3 bg-slate-300"></div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-[7px] font-black text-slate-400 uppercase">Parados:</span>
-                        <span className="text-[9px] font-black text-red-600">{stoppedTechs.length}</span>
-                    </div>
+            {/* 🔮 NEXUS TOP BAR */}
+            <div className="absolute top-4 left-4 right-4 z-[1000] flex flex-wrap items-center gap-2">
+                
+                {/* Modos Principais */}
+                <div className="bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-white/20 flex overflow-hidden p-1">
+                    <button
+                        onClick={() => { setViewMode('ORDERS'); setIsHistoryMode(false); }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${viewMode === 'ORDERS' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
+                    >
+                        <ClipboardList size={14} /> OS Georreferenciadas
+                    </button>
+                    <button
+                        onClick={() => setViewMode('TECHS')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${viewMode === 'TECHS' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
+                    >
+                        <Users size={14} /> Técnicos
+                    </button>
                 </div>
 
-                {/* Search Bar - Expandable */}
-                <div className="flex-1 max-w-xs">
-                    <input
-                        type="text"
-                        placeholder="Buscar técnico..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full bg-white/90 backdrop-blur-md border border-white/20 rounded-full px-4 py-2 text-[8px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/30 transition-all italic placeholder:text-slate-400 shadow-lg"
-                    />
-                </div>
+                {/* Map Type Toggle */}
+                <button
+                    onClick={() => setMapType(prev => prev === 'DEFAULT' ? 'SATELLITE' : 'DEFAULT')}
+                    className="bg-white/95 backdrop-blur-md rounded-full p-2 lg:px-4 lg:py-2.5 shadow-lg border border-white/20 hover:bg-slate-50 transition-all text-slate-700 flex items-center gap-2"
+                    title="Mudar Tipo de Mapa"
+                >
+                    <Layers size={14} className="text-primary-600" />
+                    <span className="hidden lg:inline text-[9px] font-black uppercase tracking-widest text-slate-600 border-l border-slate-200 pl-2">
+                        {mapType === 'DEFAULT' ? 'Padrão' : 'Satélite'}
+                    </span>
+                </button>
 
-                {/* Refresh Button - Only in Live Mode */}
+                {viewMode === 'TECHS' && (
+                    <div className="bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg border border-white/20 flex items-center gap-2 shrink-0">
+                        <div className="p-1 bg-primary-600 rounded-lg shadow-lg shadow-primary-600/20"><Navigation size={12} className="text-white" /></div>
+                        <span className="text-[8px] font-black text-slate-900 uppercase tracking-wider hidden md:inline">Radar</span>
+                        <div className="w-px h-3 bg-slate-300 hidden md:inline"></div>
+                        <span className="text-[9px] font-black text-emerald-600">{movingTechs.length} <span className="text-[7px] text-slate-400">MOV.</span></span>
+                        <div className="w-px h-3 bg-slate-300"></div>
+                        <span className="text-[9px] font-black text-red-600">{stoppedTechs.length} <span className="text-[7px] text-slate-400">PARADOS</span></span>
+                    </div>
+                )}
+
+                {viewMode === 'ORDERS' && (
+                    <div className="bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg border border-white/20 flex items-center gap-2 shrink-0">
+                        <div className="p-1 bg-primary-600 rounded-lg shadow-lg shadow-primary-600/20"><MapPin size={12} className="text-white" /></div>
+                        <span className="text-[8px] font-black text-slate-900 uppercase tracking-wider hidden md:inline flex-1">Mapa de Tarefas</span>
+                        <div className="w-px h-3 bg-slate-300 hidden md:inline"></div>
+                        <span className="text-[9px] font-black text-primary-600">{mappedOrders.length} <span className="text-[7px] text-slate-400">LOCALIZADAS</span></span>
+                    </div>
+                )}
+
+                {/* Refresh Button */}
                 {!isHistoryMode && (
                     <button
                         onClick={handleRefresh}
                         disabled={isRefreshing}
-                        className="bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border border-white/20 hover:bg-primary-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
-                        title="Atualizar posições"
+                        className="bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border border-white/20 hover:bg-primary-50 transition-all disabled:opacity-50"
+                        title="Atualizar"
                     >
-                        <RefreshCw
-                            size={14}
-                            className={`text-primary-600 transition-transform ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`}
-                        />
+                        <RefreshCw size={14} className={`text-primary-600 transition-transform ${isRefreshing ? 'animate-spin' : ''}`} />
                     </button>
                 )}
 
-                {/* History Toggle Button */}
-                <button
-                    onClick={() => setIsHistoryMode(!isHistoryMode)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border transition-all font-black text-[8px] uppercase tracking-widest ${isHistoryMode
-                        ? 'bg-primary-600 text-white border-primary-700'
-                        : 'bg-white/90 backdrop-blur-md text-slate-600 border-white/20 hover:bg-primary-50'
-                        }`}
-                >
-                    <History size={14} />
-                    {isHistoryMode ? 'Modo Histórico' : 'Ver Histórico'}
-                </button>
-
-                {/* Legend - Only in Live Mode */}
-                {!isHistoryMode && (
-                    <div className="bg-white/90 backdrop-blur-md rounded-full py-2 px-4 shadow-lg border border-white/20 flex items-center gap-3">
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                            <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest">Em Movimento</span>
-                        </div>
-                        <div className="w-px h-2 bg-slate-200"></div>
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                            <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest">Parado</span>
-                        </div>
-                    </div>
+                {/* History Toggle Button for Techs */}
+                {viewMode === 'TECHS' && (
+                    <button
+                        onClick={() => setIsHistoryMode(!isHistoryMode)}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border transition-all font-black text-[9px] uppercase tracking-widest ${isHistoryMode ? 'bg-[#1c2d4f] text-white border-[#1c2d4f]' : 'bg-white/90 text-slate-600 border-white/20 hover:bg-slate-50'}`}
+                    >
+                        <History size={14} /> <span className="hidden lg:inline">{isHistoryMode ? 'Sair Histórico' : 'Ver Histórico'}</span>
+                    </button>
                 )}
+
             </div>
 
             {/* 🕒 History Controls Overlay */}
-            {isHistoryMode && (
+            {isHistoryMode && viewMode === 'TECHS' && (
                 <div className="absolute top-20 left-4 right-4 z-[1000] flex flex-wrap gap-3 pointer-events-none">
                     <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-primary-100 flex flex-col md:flex-row items-center gap-4 pointer-events-auto">
                         <div className="flex flex-col gap-1">
@@ -348,20 +397,15 @@ export const TechnicianMap: React.FC = () => {
                 </div>
             )}
 
-            {/* Technician List - Floating Left Sidebar (only when searching) */}
-            {searchQuery && filteredTechs.length > 0 && (
-                <div className="absolute top-16 left-4 z-[1000] w-64 bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-2xl border border-white/20 max-h-96 overflow-y-auto custom-scrollbar">
-                    <div className="space-y-1">
-                        {filteredTechs.map(t => (
-                            <div
-                                key={t.id}
-                                className="flex items-center gap-2 p-2 rounded-xl bg-slate-50/50 hover:bg-primary-50 border border-transparent hover:border-primary-100 transition-all cursor-pointer group"
-                            >
-                                <img src={t.avatar} className="w-8 h-8 rounded-lg object-cover shadow-sm" alt={t.name} />
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[9px] font-black text-slate-900 uppercase truncate leading-none">{t.name}</p>
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-wide mt-0.5 block">{formatLastSeen(t.last_seen)}</span>
-                                </div>
+            {/* Legend Overlay for OS */}
+            {viewMode === 'ORDERS' && (
+                <div className="absolute bottom-6 mb-8 md:mb-0 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-white/20 pointer-events-auto max-w-[200px]">
+                    <h4 className="text-[9px] font-black text-slate-900 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Status da OS</h4>
+                    <div className="space-y-2">
+                        {Object.values(OrderStatus).map(status => (
+                            <div key={status} className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full border border-black/10" style={{ backgroundColor: getStatusColorHex(status) }}></div>
+                                <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter truncate">{status}</span>
                             </div>
                         ))}
                     </div>
@@ -373,17 +417,58 @@ export const TechnicianMap: React.FC = () => {
                     center={[-15.7801, -47.9292] as any} // Brasília (Centro do Brasil)
                     zoom={4}
                     style={{ height: '100%', width: '100%' }}
-                    zoomControl={false}
+                    zoomControl={true}
                     className="nexus-map"
                     ref={setMapInstance}
                 >
-                    <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
+                    <TileLayer attribution={tileAttribution} url={tileLayerUrl} />
 
-                    {/* --- LIVE MODE RENDERING --- */}
-                    {!isHistoryMode && filteredTechs.map(t => {
+                    {/* --- ORDERS MODE RENDERING --- */}
+                    {viewMode === 'ORDERS' && (
+                        <MarkerClusterGroup
+                            chunkedLoading
+                            iconCreateFunction={createClusterCustomIcon}
+                            showCoverageOnHover={false}
+                            maxClusterRadius={60}
+                        >
+                            {mappedOrders.map(o => (
+                                <Marker
+                                    key={o.id}
+                                    position={[o.latitude!, o.longitude!] as any}
+                                    icon={createOrderIcon(o.status, o.displayId || o.id.split('-')[0])}
+                                >
+                                    <Popup>
+                                        <div className="p-3 w-48">
+                                            <p className="font-black text-sm text-[#1c2d4f] truncate">{o.title}</p>
+                                            <p className="text-[10px] text-slate-500 font-bold mb-2 break-all">{o.displayId || o.id}</p>
+                                            
+                                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 mb-2">
+                                                <div className="flex items-center gap-1.5 mb-1.5">
+                                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getStatusColorHex(o.status) }}></span>
+                                                    <span className="text-[9px] font-black uppercase text-slate-700 tracking-wider tooltip">{o.status}</span>
+                                                </div>
+                                                <div className="flex items-start gap-1 text-[10px] text-slate-600">
+                                                    <MapPin size={12} className="shrink-0 text-slate-400 mt-0.5" />
+                                                    <span className="truncate">{o.customerAddress}</span>
+                                                </div>
+                                            </div>
+
+                                            {o.scheduledDate && (
+                                                <div className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mt-2">
+                                                    <Calendar size={12} className="text-primary-500" />
+                                                    <span>Agendado: {format(new Date(o.scheduledDate), "dd/MM/yyyy")} {o.scheduledTime}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </Popup>
+                                </Marker>
+                            ))}
+                        </MarkerClusterGroup>
+                    )}
+
+
+                    {/* --- TECHS LIVE MODE RENDERING --- */}
+                    {viewMode === 'TECHS' && !isHistoryMode && activeTechs.map(t => {
                         const isMoving = isTechMoving(t.last_seen);
                         return (
                             <Marker
@@ -392,100 +477,67 @@ export const TechnicianMap: React.FC = () => {
                                 icon={createTechIcon(t.avatar || '', isMoving)}
                             >
                                 <Popup>
-                                    <div className="p-2">
-
+                                    <div className="p-2 w-48">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <img src={t.avatar} className="w-10 h-10 rounded-lg object-cover shadow" alt={t.name} />
-                                            <div>
-                                                <p className="font-black text-sm text-slate-900">{t.name}</p>
-                                                <p className="text-[10px] text-slate-500">{t.email}</p>
+                                            <img src={t.avatar || 'https://ui-avatars.com/api/?name=Tech'} className="w-10 h-10 rounded-lg object-cover shadow" alt={t.name} />
+                                            <div className="overflow-hidden">
+                                                <p className="font-black text-sm text-slate-900 truncate">{t.name}</p>
+                                                <p className="text-[9px] text-slate-500 truncate">{t.email}</p>
                                             </div>
                                         </div>
                                         <div className="mb-2">
-                                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase ${isMoving ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                                                }`}>
-                                                {isMoving ? '🟢 Online (< 30m)' : '🔴 Offline (> 30m)'}
+                                            <span className={`inline-flex w-full justify-center items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase ${isMoving ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                                {isMoving ? '🟢 Em Deslocamento (< 30m)' : '🔴 Parado (> 30m)'}
                                             </span>
                                         </div>
-
-                                        {/* 🔋 Battery Indicator (Moved Up for Visibility) */}
-                                        <div className="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border border-slate-100 mb-2">
-                                            <span className="text-[10px] text-slate-500 font-bold">Bateria:</span>
+                                        <div className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100 mb-2">
+                                            <span className="text-[9px] text-slate-500 font-bold uppercase">Bateria:</span>
                                             <div className={`flex items-center gap-1 font-black text-[10px] ${(t.battery_level ?? 0) > 20 ? 'text-emerald-600' : 'text-red-500'}`}>
                                                 <div className="relative w-4 h-2 border border-current rounded-sm flex items-center p-px">
-                                                    <div
-                                                        className="h-full bg-current rounded-[0.5px]"
-                                                        style={{ width: `${Math.min(t.battery_level ?? 0, 100)}%` }}
-                                                    />
+                                                    <div className="h-full bg-current rounded-[0.5px]" style={{ width: `${Math.min(t.battery_level ?? 0, 100)}%` }} />
                                                     <div className="absolute -right-0.5 top-0.5 w-0.5 h-1 bg-current rounded-e-sm" />
                                                 </div>
-                                                <span>
-                                                    {(t.battery_level !== undefined && t.battery_level !== null)
-                                                        ? `${Math.round(t.battery_level)}%`
-                                                        : '--'}
-                                                </span>
+                                                <span>{(t.battery_level !== undefined && t.battery_level !== null) ? `${Math.round(t.battery_level)}%` : '--'}</span>
                                             </div>
                                         </div>
-
-                                        <div className="flex items-center gap-1 text-[10px] text-slate-600">
-                                            <Clock size={10} />
-                                            <span>{formatLastSeen(t.last_seen)}</span>
+                                        <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+                                            <Clock size={12} className="text-slate-400" />
+                                            <span className="font-bold">{formatLastSeen(t.last_seen)}</span>
                                         </div>
-                                        <div className="flex items-center gap-1 text-[10px] text-slate-600 mt-1">
-                                            <MapPin size={10} />
-                                            <span>
-                                                {t.last_latitude?.toFixed(4)}, {t.last_longitude?.toFixed(4)}
-                                            </span>
-                                        </div>
-                                        {t.speed !== undefined && (
-                                            <div className="flex items-center gap-1 text-[10px] text-slate-600 mt-1">
-                                                <Navigation size={10} />
-                                                <span>{Math.round(t.speed * 3.6)} km/h</span>
-                                            </div>
-                                        )}
                                     </div>
                                 </Popup>
                             </Marker>
                         );
                     })}
 
-                    {/* --- HISTORY MODE RENDERING --- */}
-                    {isHistoryMode && historyPath.length > 0 && (
+                    {/* --- TECHS HISTORY MODE RENDERING --- */}
+                    {viewMode === 'TECHS' && isHistoryMode && historyPath.length > 0 && (
                         <>
-                            {/* Path Line */}
                             <Polyline
                                 positions={historyPath.map(p => [p.latitude, p.longitude]) as any}
-                                color="var(--color-primary-600, #2563eb)"
-                                weight={3}
-                                opacity={0.6}
+                                color="var(--color-primary-600, #1c2d4f)"
+                                weight={4}
+                                opacity={0.8}
                                 dashArray="5, 10"
                             />
-
-                            {/* Breadcrumbs (Individual Points) */}
                             {historyPath.map((point, idx) => (
                                 <CircleMarker
                                     key={`hist-${idx}`}
                                     center={[point.latitude, point.longitude] as any}
-                                    radius={4}
+                                    radius={5}
                                     pathOptions={{
-                                        fillColor: idx === 0 ? '#10b981' : (idx === historyPath.length - 1 ? '#ef4444' : 'var(--color-primary-600, #2563eb)'),
+                                        fillColor: idx === 0 ? '#10b981' : (idx === historyPath.length - 1 ? '#ef4444' : '#1c2d4f'),
                                         color: 'white',
-                                        weight: 1,
+                                        weight: 2,
                                         fillOpacity: 1
                                     }}
                                 >
                                     <Popup>
                                         <div className="p-2 min-w-[150px]">
-                                            <p className="font-black text-[10px] text-slate-900 uppercase">Ping #{idx + 1}</p>
-                                            <p className="text-[9px] text-slate-500 font-bold mt-1">
+                                            <p className="font-black text-[10px] text-slate-900 uppercase">Ponto #{idx + 1}</p>
+                                            <p className="text-[10px] text-slate-500 font-bold mt-1">
                                                 {format(new Date(point.recorded_at), "HH:mm:ss 'em' dd/MM", { locale: ptBR })}
                                             </p>
-                                            <div className="mt-2 flex items-center justify-between gap-4 border-t border-slate-100 pt-2">
-                                                <span className="text-[8px] font-black text-slate-400">STATUS</span>
-                                                <span className={`text-[8px] font-black ${idx === 0 ? 'text-emerald-600' : (idx === historyPath.length - 1 ? 'text-red-500' : 'text-primary-600')}`}>
-                                                    {idx === 0 ? 'PARTIDA' : (idx === historyPath.length - 1 ? 'LOCAL ATUAL' : 'EM TRÂNSITO')}
-                                                </span>
-                                            </div>
                                         </div>
                                     </Popup>
                                 </CircleMarker>
@@ -494,22 +546,30 @@ export const TechnicianMap: React.FC = () => {
                     )}
                 </MapContainer>
             </div>
-
+            {/* Custom Map Control Styles adjustments */}
             <style>{`
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 4px;
+                .leaflet-control-zoom {
+                    border: none !important;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+                    margin-top: 80px !important;
                 }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: transparent;
+                .leaflet-control-zoom a {
+                    background-color: rgba(255,255,255,0.95) !important;
+                    color: #1c2d4f !important;
+                    border: 1px solid rgba(28, 45, 79, 0.1) !important;
+                    width: 36px !important;
+                    height: 36px !important;
+                    line-height: 36px !important;
+                    font-size: 16px !important;
+                    border-radius: 8px !important;
                 }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: rgba(100, 116, 139, 0.3);
-                    border-radius: 10px;
+                .leaflet-control-zoom a:first-child {
+                    margin-bottom: 4px;
                 }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: rgba(100, 116, 139, 0.5);
+                .leaflet-bottom {
+                    z-index: 100 !important;
                 }
             `}</style>
-        </div >
+        </div>
     );
 };

@@ -285,6 +285,9 @@ export interface DbCustomer {
     address: string;
     number: string;
     complement: string;
+    neighborhood?: string;
+    latitude?: number;
+    longitude?: number;
     active: boolean;
     created_at?: string;
     updated_at?: string;

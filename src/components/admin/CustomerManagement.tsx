@@ -120,19 +120,45 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     if (zip.length === 8) {
       setLoadingZip(true);
       try {
-        const response = await fetch(`https://viacep.com.br/ws/${zip}/json/`);
+        // Usar BrasilAPI v2 que também retorna geolocalização
+        const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${zip}`);
         const data = await response.json();
-        if (!data.erro) {
+
+        if (!data.errors) {
+          const lat = data.location?.coordinates?.latitude ? parseFloat(data.location.coordinates.latitude) : undefined;
+          const lng = data.location?.coordinates?.longitude ? parseFloat(data.location.coordinates.longitude) : undefined;
+
           setFormData(prev => ({
             ...prev,
             zip: data.cep,
-            state: data.uf,
-            city: data.localidade,
-            address: data.logradouro
+            state: data.state,
+            city: data.city,
+            address: data.street,
+            neighborhood: data.neighborhood,
+            latitude: lat,
+            longitude: lng
           }));
         }
       } catch (error) {
         console.error("Erro ao buscar CEP", error);
+
+        // Fallback para viacep
+        try {
+          const fallbackResponse = await fetch(`https://viacep.com.br/ws/${zip}/json/`);
+          const fallbackData = await fallbackResponse.json();
+          if (!fallbackData.erro) {
+            setFormData(prev => ({
+              ...prev,
+              zip: fallbackData.cep,
+              state: fallbackData.uf,
+              city: fallbackData.localidade,
+              address: fallbackData.logradouro,
+              neighborhood: fallbackData.bairro
+            }));
+          }
+        } catch (fallbackError) {
+          console.error("Erro no fallback de CEP", fallbackError);
+        }
       } finally {
         setLoadingZip(false);
       }
