@@ -236,8 +236,7 @@ export default function OrderDetailsScreen() {
                             <View style={styles.card}>
                                 <ThemedText type="subtitle">Checklist / Formulário</ThemedText>
                                 <View style={{ marginTop: 10 }}>
-                                    {Object.entries(order.formData).map(([key, val]) => {
-                                        // Pular campos de sistema ou mídia
+                                    {(() => {
                                         const SYSTEM_KEYS = [
                                             'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
                                             'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
@@ -252,22 +251,43 @@ export default function OrderDetailsScreen() {
                                             k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
                                             k.toLowerCase().includes('cpf') || k.toLowerCase().includes('nascimento');
 
-                                        if (SYSTEM_KEYS.includes(key) || isSignatureKey(key)) return null;
-                                        if (Array.isArray(val)) return null;
-                                        if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) return null;
+                                        const formEntries = Object.entries(order.formData).filter(([key, val]) => {
+                                            if (SYSTEM_KEYS.includes(key) || isSignatureKey(key)) return false;
+                                            if (Array.isArray(val)) return false;
+                                            if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) return false;
+                                            if (val === null || val === undefined || val === '') return false;
+                                            return true;
+                                        });
 
-                                        return (
-                                            <View key={key} style={styles.dynamicFieldRow}>
-                                                <Text style={styles.dynamicFieldLabel}>{key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ')}</Text>
-                                                <Text style={[
-                                                    styles.dynamicFieldValue,
-                                                    (val === 'OK' || val === 'Sim') && { color: '#2e7d32', fontWeight: 'bold' }
-                                                ]}>
-                                                    {String(val)}
-                                                </Text>
+                                        const groupedEntries = formEntries.reduce((acc, [key, val]) => {
+                                            const match = key.match(/^\[(.*?)\]\s*(?:-|$)/);
+                                            const groupName = match ? match[1] : 'Formulário';
+                                            if (!acc[groupName]) acc[groupName] = [];
+                                            acc[groupName].push([key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' '), val]);
+                                            return acc;
+                                        }, {} as Record<string, [string, any][]>);
+
+                                        return Object.entries(groupedEntries).map(([group, items], i) => (
+                                            <View key={group} style={{ marginBottom: i < Object.keys(groupedEntries).length - 1 ? 16 : 0 }}>
+                                                {group !== 'Formulário' && Object.keys(groupedEntries).length > 1 && (
+                                                    <View style={{ backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 8, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                                        <Text style={{ fontSize: 10, fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>{group}</Text>
+                                                    </View>
+                                                )}
+                                                {items.map(([cleanKey, val]) => (
+                                                    <View key={cleanKey} style={styles.dynamicFieldRow}>
+                                                        <Text style={styles.dynamicFieldLabel}>{cleanKey}</Text>
+                                                        <Text style={[
+                                                            styles.dynamicFieldValue,
+                                                            (val === 'OK' || val === 'Sim') && { color: '#2e7d32', fontWeight: 'bold' }
+                                                        ]}>
+                                                            {String(val)}
+                                                        </Text>
+                                                    </View>
+                                                ))}
                                             </View>
-                                        );
-                                    })}
+                                        ));
+                                    })()}
                                 </View>
                             </View>
                         )}
