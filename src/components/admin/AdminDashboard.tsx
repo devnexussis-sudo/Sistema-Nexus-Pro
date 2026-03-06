@@ -1486,6 +1486,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
                       'impediment_reason', 'impediment_photos', 'totalValue', 'price',
                       'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+                      'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
                       'clientName', 'customerName', 'customerAddress', 'tenantId',
                       'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
                       'extra_photos', 'photos', 'equipment_ids'
@@ -1958,15 +1959,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                       let signatureUrl: string | null = selectedOrder.signature || null;
                       let signatureRefName: string | null = selectedOrder.signatureName || null;
+                      let signatureDoc: string | null = selectedOrder.signatureDoc || null;
 
                       // Se não achar na base oficial, procura dentro do formData como fallback
-                      if (!signatureUrl) {
+                      if (!signatureUrl || !signatureDoc) {
                         [...allForms].reverse().forEach(data => {
                           if (!signatureUrl) {
                             signatureUrl = data.signature || data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string' && (v.startsWith('data:') || v.startsWith('http')))?.[1];
                             if (signatureUrl) {
                               signatureRefName = data.signatureName || data['Assinatura do Cliente - Nome'] || selectedOrder.customerName;
                             }
+                          }
+                          if (!signatureDoc) {
+                            signatureDoc = data.signatureDoc || data['assinaturaDoc'] || data['CPF'] || Object.entries(data).find(([k]) => k.toLowerCase() === 'cpf')?.[1] || null;
                           }
                         });
                       }
@@ -1977,12 +1982,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="w-full">
                           <img src={signatureUrl} className="h-28 mx-auto object-contain mix-blend-multiply mb-6" alt="Assinatura" />
                           <div className="pt-6 border-t border-slate-100">
-                            <div className="text-base font-bold text-slate-900">{name}</div>
-                            <div className="text-[10px] text-emerald-600 font-bold uppercase mt-1">✓ Assinado Digitalmente</div>
+                            <div className="text-base font-bold text-slate-900 uppercase text-center">{name}</div>
+                            {signatureDoc && <div className="text-xs font-semibold text-slate-500 font-mono text-center mt-1">CPF/Doc: {signatureDoc}</div>}
+                            <div className="text-center">
+                              <div className="text-[10px] text-emerald-600 font-bold uppercase mt-2 inline-block px-2 py-1 bg-emerald-50 rounded-md">✓ Assinado Digitalmente no App</div>
+                            </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="py-8 w-full border-t border-slate-100">
+                        <div className="py-8 w-full border-t border-slate-100 text-center">
                           <p className="text-xs text-slate-400 font-bold uppercase bg-slate-50 py-4 rounded-md border border-dashed border-slate-200 tracking-widest">Assinatura Pendente</p>
                         </div>
                       );
