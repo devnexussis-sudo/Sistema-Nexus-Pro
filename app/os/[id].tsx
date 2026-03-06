@@ -257,7 +257,7 @@ export default function OrderDetailsScreen() {
 
                                         return (
                                             <View key={key} style={styles.dynamicFieldRow}>
-                                                <Text style={styles.dynamicFieldLabel}>{key.replace(/_/g, ' ')}</Text>
+                                                <Text style={styles.dynamicFieldLabel}>{key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ')}</Text>
                                                 <Text style={[
                                                     styles.dynamicFieldValue,
                                                     (val === 'OK' || val === 'Sim') && { color: '#2e7d32', fontWeight: 'bold' }
