@@ -153,23 +153,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       status: techId ? OrderStatus.ASSIGNED : OrderStatus.PENDING
     }));
 
-    // Ao selecionar um técnico, carregar o estoque DELE para as peças
-    if (techId) {
-      try {
-        const techItems = await DataService.getTechStock(techId);
-        const formattedStock = techItems.map(ts => ({
-          ...ts.item,
-          id: ts.stockItemId,
-          quantity: ts.quantity
-        }));
-        setStock(formattedStock as any);
-      } catch (error) {
-        console.error('Erro ao carregar estoque do técnico:', error);
-      }
-    } else {
-      const generalStock = await DataService.getStockItems();
-      setStock(generalStock);
-    }
+    // No painel administrativo (Admin/Nexus Dashboard), a aba de Composição 
+    // de Valores sempre deve buscar as peças do "Estoque Geral" da empresa, 
+    // mesmo quando a OS já está designada a um técnico.
+    // Portanto, a sobreposição do estado de estoque por getTechStock() foi desativada.
   };
 
   const handleSelectClient = (client: any) => {
@@ -408,8 +395,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const totalValue = items.reduce((acc, i) => acc + i.total, 0);
 
   const filteredStock = stock.filter(s =>
-    s.description.toLowerCase().includes(stockSearch.toLowerCase()) ||
-    s.code.toLowerCase().includes(stockSearch.toLowerCase())
+    (s.description || '').toLowerCase().includes((stockSearch || '').toLowerCase()) ||
+    (s.code || '').toLowerCase().includes((stockSearch || '').toLowerCase())
   );
 
   const openNewVisitModal = () => {
