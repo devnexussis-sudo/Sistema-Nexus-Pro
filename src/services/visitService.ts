@@ -386,19 +386,18 @@ export const VisitService = {
 
 
     /**
-     * Remove (soft delete) um equipamento de uma OS.
+     * Remove (soft delete) um equipamento de uma OS via RPC.
      */
     removeEquipmentFromOrder: async (equipmentEntryId: string): Promise<void> => {
         const tenantId = getCurrentTenantId();
         if (!tenantId) throw new Error('TENANT_NOT_FOUND');
 
-        const { error } = await supabase
-            .from('service_order_equipments')
-            .update({ deleted_at: new Date().toISOString() })
-            .eq('id', equipmentEntryId)
-            .eq('tenant_id', tenantId);
+        const { error } = await supabase.rpc('nexus_remove_equipment_from_order', {
+            p_equipment_entry_id: equipmentEntryId,
+            p_tenant_id: tenantId
+        });
 
-        if (error) throw new Error(`DB_ERROR: ${error.message}`);
+        if (error) throw new Error(`RPC_ERROR: ${error.message}`);
     },
 
     /**
@@ -408,13 +407,13 @@ export const VisitService = {
         const tenantId = getCurrentTenantId();
         if (!tenantId) throw new Error('TENANT_NOT_FOUND');
 
-        const { error } = await supabase
-            .from('service_order_equipments')
-            .update({ form_id: formId, updated_at: new Date().toISOString() })
-            .eq('id', equipmentEntryId)
-            .eq('tenant_id', tenantId);
+        const { error } = await supabase.rpc('nexus_update_equipment_form_id', {
+            p_equipment_entry_id: equipmentEntryId,
+            p_form_id: formId,
+            p_tenant_id: tenantId
+        });
 
-        if (error) throw new Error(`DB_ERROR: ${error.message}`);
+        if (error) throw new Error(`RPC_ERROR: ${error.message}`);
     },
 
     /**
