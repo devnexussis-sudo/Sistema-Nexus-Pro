@@ -1351,7 +1351,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {eqList.map((eq: any, idx: number) => {
-                          const hasFormData = !!(eq.formData && Object.keys(eq.formData).length > 0);
+                          const eqPrefix = `[${eq.equipmentModel || eq.equipmentName || 'Equipamento'}`;
+                          const hasFormData = Object.keys(selectedOrder.formData || {}).some(k => k.startsWith(eqPrefix)) || !!(eq.formData && Object.keys(eq.formData).length > 0);
                           const isActive = selectedOrder.status !== 'CONCLUÍDO' && selectedOrder.status !== 'CANCELADO';
                           return (
                             <div key={eq.id || idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-primary-200 transition-all">
@@ -1448,6 +1449,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     const answer = allFormData[field.id];
                     const hasAnswer = answer !== undefined && answer !== null && answer !== '';
                     const isImage = typeof answer === 'string' && (answer.startsWith('http') || answer.startsWith('data:image'));
+                    const isImageArray = Array.isArray(answer) && answer.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image')));
                     const isOk = String(answer).toLowerCase() === 'ok' || String(answer).toLowerCase() === 'sim';
                     return (
                       <div key={field.id} className={`px-6 py-3.5 flex justify-between gap-6 items-center transition-colors ${!hasAnswer ? 'bg-blue-50/30' : 'hover:bg-slate-50/50'}`}>
@@ -1456,7 +1458,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           {field.type && <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">{field.type}</p>}
                         </div>
                         {isImage ? (
-                          <img src={answer} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                          <img src={answer} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(answer)} alt="foto" />
+                        ) : isImageArray ? (
+                          <div className="flex gap-2">
+                            {(answer as string[]).map((img, i) => (
+                              <img key={i} src={img} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(img)} alt="foto" />
+                            ))}
+                          </div>
                         ) : hasAnswer ? (
                           <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{String(answer)}</div>
                         ) : (
@@ -1480,6 +1488,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       'finishedAt', 'completedAt', 'technical_report', 'parts_used',
                       'clientName', 'customerName', 'customerAddress', 'tenantId',
                       'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+                      'extra_photos', 'photos', 'equipment_ids'
                     ]);
                     const isSignatureKey = (k: string) =>
                       k.toLowerCase().includes('assinatura') ||
@@ -1488,9 +1497,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       k.toLowerCase().includes('nascimento');
                     const savedEntries = Object.entries(allFormData)
                       .filter(([k]) => !SYSTEM_KEYS.has(k) && !isSignatureKey(k))
-                      .filter(([, v]) => v !== null && v !== undefined && v !== '');
+                      .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true));
                     const isOk = (v: any) => String(v).toLowerCase() === 'ok' || String(v).toLowerCase() === 'sim';
                     const isImg = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'));
+                    const isImgArray = (v: any) => Array.isArray(v) && v.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image')));
+
                     return (
                       <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                         <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-emerald-50">
@@ -1517,13 +1528,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           ) : savedEntries.map(([key, val]) => (
                             <div key={key} className="px-6 py-3.5 flex justify-between gap-6 items-center hover:bg-slate-50/50">
                               <p className="text-[13px] font-medium text-slate-700 flex-1">
-                                {!isNaN(Number(key)) ? `Pergunta ${key}` : key}
+                                {!isNaN(Number(key)) ? `Pergunta ${key}` : key.replace(/_/g, ' ')}
                               </p>
                               {isImg(val) ? (
-                                <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                                <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(String(val))} alt="foto" />
+                              ) : isImgArray(val) ? (
+                                <div className="flex gap-2">
+                                  {(val as string[]).map((img, i) => (
+                                    <img key={i} src={img} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(img)} alt="foto" />
+                                  ))}
+                                </div>
                               ) : (
                                 <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk(val) ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'
-                                  }`}>{String(val)}</div>
+                                  }`}>{Array.isArray(val) ? String(val).replace(/,/g, ', ') : String(val)}</div>
                               )}
                             </div>
                           ))}
@@ -1939,18 +1956,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }
                       orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
 
-                      let signatureUrl: string | null = null;
-                      let signatureRefName: string | null = null;
+                      let signatureUrl: string | null = selectedOrder.signature || null;
+                      let signatureRefName: string | null = selectedOrder.signatureName || null;
 
-                      // Pega a última assinatura válida registrada
-                      [...allForms].reverse().forEach(data => {
-                        if (!signatureUrl) {
-                          signatureUrl = data.signature || data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string' && (v.startsWith('data:') || v.startsWith('http')))?.[1];
-                          if (signatureUrl) {
-                            signatureRefName = data.signatureName || data['Assinatura do Cliente - Nome'] || selectedOrder.customerName;
+                      // Se não achar na base oficial, procura dentro do formData como fallback
+                      if (!signatureUrl) {
+                        [...allForms].reverse().forEach(data => {
+                          if (!signatureUrl) {
+                            signatureUrl = data.signature || data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string' && (v.startsWith('data:') || v.startsWith('http')))?.[1];
+                            if (signatureUrl) {
+                              signatureRefName = data.signatureName || data['Assinatura do Cliente - Nome'] || selectedOrder.customerName;
+                            }
                           }
-                        }
-                      });
+                        });
+                      }
 
                       const name = signatureRefName || selectedOrder.customerName;
 
