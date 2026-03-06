@@ -238,7 +238,20 @@ export default function OrderDetailsScreen() {
                                 <View style={{ marginTop: 10 }}>
                                     {Object.entries(order.formData).map(([key, val]) => {
                                         // Pular campos de sistema ou mídia
-                                        if (['technical_report', 'parts_used', 'signature', 'photos'].includes(key)) return null;
+                                        const SYSTEM_KEYS = [
+                                            'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+                                            'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+                                            'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+                                            'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+                                            'clientName', 'customerName', 'customerAddress', 'tenantId',
+                                            'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+                                            'extra_photos', 'photos', 'equipment_ids'
+                                        ];
+                                        const isSignatureKey = (k: string) =>
+                                            k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
+                                            k.toLowerCase().includes('cpf') || k.toLowerCase().includes('nascimento');
+
+                                        if (SYSTEM_KEYS.includes(key) || isSignatureKey(key)) return null;
                                         if (Array.isArray(val)) return null;
                                         if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) return null;
 
