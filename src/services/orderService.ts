@@ -411,12 +411,15 @@ export const OrderService = {
                         ? crypto.randomUUID()
                         : Math.random().toString(36).substring(2) + Date.now().toString(36);
 
+                    const { data: userData } = await supabase.auth.getUser();
+
                     const dbPayload = {
                         id: generatedId,
                         ...OrderService._mapOrderToDB(order),
                         display_id: protocol, // Protocolo formatado
                         public_token: generatedToken,
                         tenant_id: tid,
+                        created_by: userData?.user?.id,
                         created_at: new Date().toISOString()
                     };
 
@@ -891,10 +894,10 @@ export const OrderService = {
                     if (userData && userData.name) {
                         creationEvent.userName = userData.name;
                     } else {
-                        creationEvent.userName = 'Equipe Base (Admin)';
+                        creationEvent.userName = 'Equipe Base (Usuário Inativo)';
                     }
                 } else {
-                    creationEvent.userName = 'Sistema Automático';
+                    creationEvent.userName = 'Sistema / Cliente';
                 }
             } catch (err) {
                 console.warn('Fallback creator name failed', err);
