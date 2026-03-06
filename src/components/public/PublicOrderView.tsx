@@ -119,48 +119,75 @@ const CollapsibleFormSection: React.FC<{
 
       {/* Expanded content — cada item do formulário com texto + fotos juntos */}
       {isOpen && (
-        <div className="border-t border-slate-100 px-6 sm:px-8 py-6 space-y-4 animate-fade-in">
-          {formItems.map(({ key, text, photos }) => (
-            <div key={key} className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-              {/* Pergunta + Resposta */}
-              <div className="px-4 pt-4 pb-3">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  {!isNaN(Number(key)) ? `Pergunta nº ${key}` : key.replace(/^\[.*?\]\s*-\s*/, '')}
-                </p>
-                {text !== null && (
-                  <p className={`text-sm font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
-                    ? 'text-emerald-600'
-                    : 'text-slate-800'
-                    }`}>
-                    {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
-                    {text}
-                  </p>
-                )}
-                {text === null && photos.length > 0 && (
-                  <p className="text-[10px] font-bold text-slate-400 italic">Evidência fotográfica</p>
-                )}
-              </div>
+        <div className="border-t border-slate-100 px-6 sm:px-8 py-6 space-y-8 animate-fade-in">
+          {(() => {
+            const groupedItems = formItems.reduce((acc, item) => {
+              const match = item.key.match(/^\[(.*?)\]\s*(?:-|$)/);
+              const groupName = match ? match[1] : 'Ficha Técnica';
+              if (!acc[groupName]) acc[groupName] = [];
+              acc[groupName].push({
+                ...item,
+                cleanKey: item.key.replace(/^\[.*?\]\s*-\s*/, '')
+              });
+              return acc;
+            }, {} as Record<string, typeof formItems & { cleanKey?: string }[]>);
 
-              {/* Fotos da mesma pergunta */}
-              {photos.length > 0 && (
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 px-3 pb-3">
-                  {photos.map((url, i) => (
-                    <div
-                      key={i}
-                      className="aspect-square rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all"
-                      onClick={() => onImageClick(url)}
-                    >
-                      <img
-                        src={url}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                        alt={key}
-                      />
+            return Object.entries(groupedItems).map(([group, items]) => (
+              <div key={group} className="space-y-4">
+                {group !== 'Ficha Técnica' && Object.keys(groupedItems).length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                      <CheckCircle2 size={12} className="text-emerald-600" />
+                    </div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
+                  </div>
+                )}
+                <div className="grid gap-4">
+                  {items.map(({ key, cleanKey, text, photos }) => (
+                    <div key={key} className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+                      {/* Pergunta + Resposta */}
+                      <div className="px-4 pt-4 pb-3">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                          {!isNaN(Number(cleanKey)) ? `Pergunta nº ${cleanKey}` : cleanKey}
+                        </p>
+                        {text !== null && (
+                          <p className={`text-sm font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
+                            ? 'text-emerald-600'
+                            : 'text-slate-800'
+                            }`}>
+                            {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
+                            {text}
+                          </p>
+                        )}
+                        {text === null && photos.length > 0 && (
+                          <p className="text-[10px] font-bold text-slate-400 italic">Evidência fotográfica</p>
+                        )}
+                      </div>
+
+                      {/* Fotos da mesma pergunta */}
+                      {photos.length > 0 && (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 px-3 pb-3">
+                          {photos.map((url, i) => (
+                            <div
+                              key={i}
+                              className="aspect-square rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all"
+                              onClick={() => onImageClick(url)}
+                            >
+                              <img
+                                src={url}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                alt={key}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            ));
+          })()}
         </div>
       )}
     </div>
