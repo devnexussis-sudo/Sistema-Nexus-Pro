@@ -67,7 +67,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // ── Aba Equipamentos (do catálogo, vinculados via campos da OS) ────
   const [osEquipments, setOsEquipments] = useState<any[]>([]);
   const [equipments, setEquipments] = useState<any[]>([]); // ServiceOrderEquipment[] — keep compat
+  const [allEquipmentsCatalog, setAllEquipmentsCatalog] = useState<any[]>([]);
   const [equipmentsLoading, setEquipmentsLoading] = useState(false);
+
 
   // ── Aba Formulários ──────────────────────────────────────────
   const [activationRules, setActivationRules] = useState<any[]>([]);
@@ -242,6 +244,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         VisitService.getOrderEquipments(selectedOrder.id),
         EquipmentService.getEquipments(),
       ]).then(([soeList, catalog]) => {
+        setAllEquipmentsCatalog(catalog);
         // Fonte primária: service_order_equipments (suporta múltiplos)
         let list: any[] = soeList.map(s => {
           const found = catalog.find(c => c.serialNumber === s.equipmentSerial || c.model === s.equipmentModel);
@@ -430,6 +433,81 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditDraft({});
+  };
+
+  const handleAddEquipment = async (eqId: string) => {
+    const eq = allEquipmentsCatalog.find(e => e.id === eqId);
+    if (!eq || !selectedOrder) return;
+
+    setEquipmentsLoading(true);
+    try {
+      const newEq = await VisitService.addEquipmentToOrder({
+        orderId: selectedOrder.id,
+        equipmentId: eq.id,
+        equipmentName: eq.model,
+        equipmentModel: eq.model,
+        equipmentSerial: eq.serialNumber,
+        equipmentFamily: eq.familyName || '',
+        formId: undefined
+      });
+
+      let newFormId = null;
+      const rules = activationRules.length > 0 ? activationRules : await FormService.getActivationRules();
+      const templates = formTemplatesAll.length > 0 ? formTemplatesAll : await FormService.getFormTemplates();
+      const types = serviceTypes.length > 0 ? serviceTypes : await DataService.getServiceTypes();
+
+      const matchedService = types.find((s: any) => s.name === selectedOrder.operationType);
+      const serviceTypeId = matchedService?.id || selectedOrder.operationType;
+
+      const rule = rules.find(r =>
+        (r.serviceTypeId === serviceTypeId || r.service_type_id === serviceTypeId) &&
+        (!r.equipmentFamily || r.equipmentFamily === 'Todos' || r.equipmentFamily === eq.familyName)
+      );
+
+      newFormId = rule?.formId || rule?.form_id || null;
+      if (!newFormId) {
+        const fallbackForm = templates.find((f: any) =>
+          (f.title || '').toLowerCase().includes((selectedOrder.operationType || '').toLowerCase()) ||
+          (f.serviceTypes || []).includes(selectedOrder.operationType || '')
+        );
+        newFormId = fallbackForm?.id || null;
+      }
+
+      if (newFormId) {
+        await VisitService.updateEquipmentFormId(newEq.id, newFormId);
+        newEq.formId = newFormId;
+      }
+
+      const newList = [...equipments, newEq];
+      setEquipments(newList);
+      setOsEquipments(newList);
+      ordersRefetch();
+    } catch (e: any) {
+      alert("Erro ao vincular equipamento: " + e.message);
+    } finally {
+      setEquipmentsLoading(false);
+    }
+  };
+
+  const handleRemoveEquipment = async (eqEntryId: string, isLast: boolean) => {
+    if (isLast) {
+      alert("Não é possível remover todos os ativos. Deixe ao menos um ativo ou cancele a OS.");
+      return;
+    }
+    if (!confirm("Tem certeza que deseja remover este equipamento desta OS? Formulários e checklists atrelados podem ser afetados.")) return;
+
+    setEquipmentsLoading(true);
+    try {
+      await VisitService.removeEquipmentFromOrder(eqEntryId);
+      const newList = equipments.filter(e => e.id !== eqEntryId);
+      setEquipments(newList);
+      setOsEquipments(newList);
+      ordersRefetch();
+    } catch (e: any) {
+      alert("Erro ao remover equipamento: " + e.message);
+    } finally {
+      setEquipmentsLoading(false);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -1235,6 +1313,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </h3>
                         <p className="text-[11px] text-slate-400 font-medium mt-0.5">Ativos associados a esta OS</p>
                       </div>
+
+                      {isEditing && (
+                        <div className="flex gap-2">
+                          <select
+                            className="text-xs font-semibold bg-white border border-slate-200 text-slate-600 rounded-lg px-3 py-2 outline-none max-w-[280px] shadow-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-300 transition-all cursor-pointer"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleAddEquipment(e.target.value);
+                                e.target.value = '';
+                              }
+                            }}
+                          >
+                            <option value="">+ Adicionar Equipamento</option>
+                            {allEquipmentsCatalog
+                              .filter((e: any) => e.customerId === customers.find(c => c.name === selectedOrder.customerName)?.id && !eqList.some((osEq: any) => osEq.equipmentId === e.id))
+                              .map((e: any) => (
+                                <option key={e.id} value={e.id}>{e.model} ({e.serialNumber || 'Sem Série'})</option>
+                              ))
+                            }
+                          </select>
+                        </div>
+                      )}
                     </div>
 
                     {equipmentsLoading ? (
@@ -1265,10 +1365,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <p className="text-[11px] text-slate-500 font-medium">{eq.equipmentModel}</p>
                                   )}
                                 </div>
-                                <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isActive ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'
-                                  }`}>
-                                  {isActive ? 'Ativo' : 'Concluído'}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isActive ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                    {isActive ? 'Ativo' : 'Concluído'}
+                                  </span>
+                                  {isEditing && (
+                                    <button
+                                      onClick={() => handleRemoveEquipment(eq.id, eqList.length <= 1)}
+                                      className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                      title="Remover ativo da OS"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                               <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3">
                                 {eq.equipmentSerial && eq.equipmentSerial !== '-' && (
