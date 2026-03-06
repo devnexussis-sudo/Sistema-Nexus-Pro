@@ -1496,9 +1496,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       k.toLowerCase().includes('signature') ||
                       k.toLowerCase().includes('cpf') ||
                       k.toLowerCase().includes('nascimento');
+
+                    const validFieldLabels = template.fields
+                      .filter((f: any) => f.type !== 'LOGIC' && f.type !== 'CONDITIONAL' && !f.id?.toLowerCase().includes('logic'))
+                      .map((f: any) => f.label.toLowerCase().trim());
+
                     const savedEntries = Object.entries(allFormData)
                       .filter(([k]) => !SYSTEM_KEYS.has(k) && !isSignatureKey(k))
-                      .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true));
+                      .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true))
+                      .filter(([k]) => {
+                        const cleanKey = k.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ').toLowerCase().trim();
+                        return validFieldLabels.includes(cleanKey);
+                      });
+
                     const isOk = (v: any) => String(v).toLowerCase() === 'ok' || String(v).toLowerCase() === 'sim';
                     const isImg = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'));
                     const isImgArray = (v: any) => Array.isArray(v) && v.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image')));
@@ -1962,21 +1972,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       let signatureDoc: string | null = selectedOrder.signatureDoc || null;
 
                       // Se não achar na base oficial, procura dentro do formData como fallback
-                      if (!signatureUrl || !signatureDoc) {
+                      if (!signatureUrl || !signatureDoc || !signatureRefName) {
                         [...allForms].reverse().forEach(data => {
                           if (!signatureUrl) {
                             signatureUrl = data.signature || data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string' && (v.startsWith('data:') || v.startsWith('http')))?.[1];
-                            if (signatureUrl) {
-                              signatureRefName = data.signatureName || data['Assinatura do Cliente - Nome'] || selectedOrder.customerName;
-                            }
+                          }
+                          if (!signatureRefName) {
+                            signatureRefName = data.signatureName || data.clientName || data.client_signature_name || data['Assinatura do Cliente - Nome'] || null;
                           }
                           if (!signatureDoc) {
-                            signatureDoc = data.signatureDoc || data['assinaturaDoc'] || data['CPF'] || Object.entries(data).find(([k]) => k.toLowerCase() === 'cpf')?.[1] || null;
+                            signatureDoc = data.signatureDoc || data.clientDoc || data['assinaturaDoc'] || data['CPF'] || Object.entries(data).find(([k]) => k.toLowerCase() === 'cpf')?.[1] || null;
                           }
                         });
                       }
 
-                      const name = signatureRefName || selectedOrder.customerName;
+                      const name = signatureRefName || selectedOrder.customerName || selectedOrder.customer?.name;
 
                       return signatureUrl ? (
                         <div className="w-full">
@@ -2118,8 +2128,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="space-y-3">
                       {visits.map((visit, idx) => {
                         const isLast = idx === visits.length - 1;
-                        // canEdit independe do modo de edição da OS
-                        const canEdit = visit.status !== VisitStatusEnum.COMPLETED && !visit.isLocked;
+                        const rawStatus = visit.status;
+                        const effectiveStatus = (rawStatus === 'pending' || rawStatus === 'ongoing') && selectedOrder.status === 'CONCLUÍDO' ? 'completed' : rawStatus;
+
+                        const canEdit = effectiveStatus !== VisitStatusEnum.COMPLETED && !visit.isLocked;
                         const isEditingThis = editingVisitId === visit.id;
                         const statusColors: Record<string, string> = {
                           pending: 'bg-slate-100 text-slate-600 border-slate-200',
@@ -2149,8 +2161,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${statusColors[visit.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                    {statusLabel[visit.status] || visit.status}
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${statusColors[effectiveStatus] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                    {statusLabel[effectiveStatus] || effectiveStatus}
                                   </span>
                                   {isLast && <span className="text-[9px] font-black text-primary-500 bg-primary-50 px-2 py-0.5 rounded-full uppercase">Atual</span>}
                                   {visit.isLocked && <span className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase">🔒 Concluída</span>}
