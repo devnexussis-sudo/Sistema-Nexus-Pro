@@ -280,7 +280,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                 <X size={18} />
               </button>
 
-              <p className="text-[10px] font-black text-primary-200 uppercase tracking-[0.2em] mb-1">Agenda do Dia</p>
+              <p className="text-[12px] font-black text-white uppercase tracking-[0.2em] mb-1 drop-shadow-sm">Agenda do Dia</p>
               <h3 className="text-3xl font-black text-white capitalize leading-none drop-shadow-md">
                 {format(selectedDayData.day, "dd ", { locale: ptBR })}
                 <span className="font-light">{format(selectedDayData.day, "MMMM", { locale: ptBR })}</span>
@@ -290,7 +290,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             {/* Content list */}
             <div className="flex-1 overflow-y-auto px-4 pb-4 -mt-4 z-10 custom-scrollbar">
               <div className="flex items-center justify-between mb-3 px-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{selectedDayData.orders.length} agendamentos</span>
+                <span className="text-[11px] font-black text-white/90 uppercase tracking-widest drop-shadow-sm">{selectedDayData.orders.length} agendamentos</span>
               </div>
 
               <div className="space-y-3">
