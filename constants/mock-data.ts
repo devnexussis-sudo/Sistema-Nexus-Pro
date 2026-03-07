@@ -1,5 +1,5 @@
 
-export type OrderStatus = 'pending' | 'in_progress' | 'completed' | 'canceled';
+export type OrderStatus = 'pending' | 'assigned' | 'traveling' | 'in_progress' | 'completed' | 'canceled' | 'blocked';
 
 export interface ServiceOrder {
     id: string;
@@ -19,7 +19,7 @@ export interface ServiceOrder {
 
 const generateMockData = (): ServiceOrder[] => {
     const data: ServiceOrder[] = [];
-    const statuses: OrderStatus[] = ['pending', 'in_progress', 'completed', 'canceled'];
+    const statuses: OrderStatus[] = ['pending', 'assigned', 'traveling', 'in_progress', 'completed', 'canceled', 'blocked'];
     const equipments = ['Roteador Cisco 2901', 'Switch HP 1920', 'Servidor Dell PowerEdge', 'ONU Huawei', 'Nobreak SMS 3000VA'];
 
     for (let i = 1; i <= 35; i++) {
@@ -48,8 +48,11 @@ const generateMockData = (): ServiceOrder[] => {
 export const MOCK_ORDERS: ServiceOrder[] = generateMockData();
 
 export const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
-    pending: { label: 'Pendente', color: '#f59e0b' }, // Amber
-    in_progress: { label: 'Em Andamento', color: '#3b82f6' }, // Blue
-    completed: { label: 'Concluída', color: '#10b981' }, // Emerald
-    canceled: { label: 'Cancelada', color: '#ef4444' }, // Red
+    pending: { label: 'Pendente', color: '#64748b' },
+    assigned: { label: 'Atribuído', color: '#3b82f6' },
+    traveling: { label: 'Em Deslocamento', color: '#6366f1' },
+    in_progress: { label: 'Em Andamento', color: '#f59e0b' },
+    completed: { label: 'Concluída', color: '#10b981' },
+    canceled: { label: 'Cancelada', color: '#6b7280' },
+    blocked: { label: 'Impedida', color: '#f43f5e' },
 };

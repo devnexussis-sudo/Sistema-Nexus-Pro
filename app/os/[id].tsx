@@ -57,7 +57,7 @@ export default function OrderDetailsScreen() {
         );
     }
 
-    const isEditable = order.status === 'pending' || order.status === 'in_progress';
+    const isEditable = ['pending', 'assigned', 'traveling', 'in_progress'].includes(order.status);
 
     const openGPS = () => {
         const query = encodeURIComponent(order.address);
@@ -72,25 +72,78 @@ export default function OrderDetailsScreen() {
     };
 
     const handleExecute = () => {
-        Alert.alert(
-            'Iniciar Execução',
-            'Tem certeza que deseja iniciar a execução desta OS?',
-            [
-                { text: 'Não', style: 'cancel' },
-                {
-                    text: 'Sim',
-                    onPress: async () => {
-                        if (order.status !== 'in_progress' && order.status !== 'EM ANDAMENTO') {
-                            await OrderService.startExecution(id as string);
+        if (order.status === 'assigned') {
+            Alert.alert(
+                'Iniciar OS',
+                'Deseja iniciar o deslocamento ou já está no local do cliente?',
+                [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                        text: 'Iniciar Deslocamento', onPress: async () => {
+                            try {
+                                await OrderService.startDisplacement(id as string);
+                                const updated = await OrderService.getOrderById(id as string);
+                                setOrder(updated);
+                            } catch (err: any) {
+                                Alert.alert('Erro no Deslocamento', err?.message || String(err));
+                            }
                         }
-                        router.push({
-                            pathname: '/os/execute',
-                            params: { id: id as string }
-                        });
+                    },
+                    {
+                        text: 'Já estou no cliente', onPress: async () => {
+                            try {
+                                await OrderService.startExecution(id as string);
+                                router.push({ pathname: '/os/execute', params: { id: id as string } });
+                            } catch (err: any) {
+                                Alert.alert('Erro na Execução', err?.message || String(err));
+                            }
+                        }
                     }
-                }
-            ]
-        );
+                ]
+            );
+        } else if (order.status === 'traveling') {
+            Alert.alert(
+                'Chegada no Local',
+                'Confirmar chegada no local do cliente e iniciar o serviço?',
+                [
+                    { text: 'Ainda não', style: 'cancel' },
+                    {
+                        text: 'Cheguei', onPress: async () => {
+                            try {
+                                await OrderService.startExecution(id as string);
+                                router.push({ pathname: '/os/execute', params: { id: id as string } });
+                            } catch (err: any) {
+                                Alert.alert('Erro na Chegada', err?.message || String(err));
+                            }
+                        }
+                    }
+                ]
+            );
+        } else {
+            Alert.alert(
+                'Acessar Execução',
+                'Deseja ir para a tela de execução?',
+                [
+                    { text: 'Não', style: 'cancel' },
+                    {
+                        text: 'Sim',
+                        onPress: async () => {
+                            try {
+                                if (order.status !== 'in_progress' && order.status !== 'EM ANDAMENTO') {
+                                    await OrderService.startExecution(id as string);
+                                }
+                                router.push({
+                                    pathname: '/os/execute',
+                                    params: { id: id as string }
+                                });
+                            } catch (err: any) {
+                                Alert.alert('Erro na Execução', err?.message || String(err));
+                            }
+                        }
+                    }
+                ]
+            );
+        }
     };
 
     const handleBlock = () => {
@@ -352,15 +405,18 @@ export default function OrderDetailsScreen() {
 
             {/* Footer Actions - Only show if pending or in_progress */}
             {isEditable && (
-                <View style={styles.footer}>
+                <View style={[styles.footer, order.status === 'completed' && { paddingBottom: 20 }]}>
                     <Pressable style={[styles.actionButton, styles.blockButton]} onPress={handleBlock}>
-                        <Ionicons name="hand-left-outline" size={20} color="#d32f2f" />
+                        <Ionicons name="hand-left-outline" size={20} color="#e11d48" />
                         <Text style={styles.blockButtonText}>Impedir</Text>
                     </Pressable>
 
                     <Pressable style={[styles.actionButton, styles.executeButton]} onPress={handleExecute}>
                         <Ionicons name="play-outline" size={20} color="#fff" />
-                        <Text style={styles.executeButtonText}>Executar</Text>
+                        <Text style={styles.executeButtonText}>
+                            {order.status === 'assigned' ? 'Iniciar OS' :
+                                order.status === 'traveling' ? 'Cheguei no Local' : 'Executar'}
+                        </Text>
                     </Pressable>
                 </View>
             )}
@@ -411,11 +467,22 @@ export default function OrderDetailsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8fafc', // Sofisticated grayish blue
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f8fafc',
+    },
+    errorText: {
+        fontSize: 16,
+        color: '#64748b',
+        fontWeight: '500',
     },
     content: {
         padding: 16,
-        paddingBottom: 100, // Space for footer
+        paddingBottom: 100, // Make room for footer
     },
     header: {
         flexDirection: 'row',
@@ -424,127 +491,155 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#1c2d4f',
+        fontSize: 26, // Little larger, bolder
+        fontWeight: '900', // Black font weight for big tech look
+        color: '#0f172a',
+        letterSpacing: -0.5,
     },
     statusBadge: {
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 16,
+        borderRadius: 20,
+        backgroundColor: '#e6f3ff', // default fallback
     },
     statusText: {
-        fontWeight: 'bold',
+        fontSize: 11,
+        fontWeight: '900',
         textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     card: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 16,
+        backgroundColor: '#ffffff',
+        borderRadius: 16, // Softer radius
+        padding: 20,
         marginBottom: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+        shadowColor: '#64748b',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 2,
+        borderWidth: 1,
+        borderColor: '#f1f5f9',
     },
     infoText: {
         fontSize: 16,
-        color: '#333',
-        marginTop: 4,
+        color: '#334155',
+        marginTop: 6,
+        lineHeight: 24,
     },
     detailRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 8,
-        gap: 8,
+        alignItems: 'flex-start',
+        marginTop: 12,
+        gap: 12,
     },
     infoTextLabel: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#666',
-        width: 70,
+        fontSize: 13,
+        fontWeight: '900',
+        color: '#94a3b8',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        width: 80,
     },
     infoTextValue: {
-        fontSize: 14,
-        color: '#333',
+        fontSize: 15,
+        color: '#1e293b',
         flex: 1,
+        fontWeight: '500',
     },
     addressText: {
-        fontSize: 16,
-        color: '#333',
-        marginTop: 4,
-        marginBottom: 12,
+        fontSize: 15,
+        color: '#334155',
+        marginTop: 6,
+        marginBottom: 16,
+        lineHeight: 22,
     },
     gpsButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#3b82f6', // GPS Blue
-        paddingVertical: 10,
-        borderRadius: 8,
+        backgroundColor: '#f1f5f9', // Light gray blue instead of heavy blue
+        paddingVertical: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
         gap: 8,
     },
     gpsButtonText: {
-        color: '#fff',
-        fontWeight: '600',
+        color: '#3b82f6', // Bright blue text
+        fontWeight: '800', // Extra bold
         fontSize: 14,
     },
     photosContainer: {
         flexDirection: 'row',
-        marginTop: 8,
+        marginTop: 12,
     },
     photoThumbnail: {
         width: 100,
         height: 100,
-        borderRadius: 8,
-        backgroundColor: '#eee',
+        borderRadius: 12,
+        backgroundColor: '#f1f5f9',
         marginRight: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
     },
     signatureImage: {
         width: '100%',
-        height: 100,
-        backgroundColor: '#fff',
-        marginTop: 8,
+        height: 120,
+        backgroundColor: '#ffffff',
+        marginTop: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
     },
     footer: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: '#fff',
+        backgroundColor: '#ffffff',
         padding: 16,
         flexDirection: 'row',
         justifyContent: 'space-between',
         borderTopWidth: 1,
-        borderTopColor: '#e0e0e0',
-        paddingBottom: Platform.OS === 'ios' ? 40 : 50, // Increased to avoid system UI overlap
+        borderTopColor: '#f1f5f9',
+        paddingBottom: Platform.OS === 'ios' ? 40 : 20, // Adjusted padding
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -10 },
+        shadowOpacity: 0.03,
+        shadowRadius: 15,
+        elevation: 10,
     },
     actionButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         flex: 0.48, // slightly less than half to leave gap
-        paddingVertical: 14,
-        borderRadius: 8,
+        paddingVertical: 16,
+        borderRadius: 14,
         gap: 8,
     },
     blockButton: {
-        backgroundColor: '#ffebee',
+        backgroundColor: '#fff1f2',
         borderWidth: 1,
-        borderColor: '#d32f2f',
+        borderColor: '#fecdd3',
     },
     blockButtonText: {
-        color: '#d32f2f',
-        fontWeight: 'bold',
+        color: '#e11d48',
+        fontWeight: '800',
         fontSize: 16,
     },
     executeButton: {
-        backgroundColor: '#1c2d4f',
+        backgroundColor: '#1e293b', // Deep slate
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+        elevation: 4,
     },
     executeButtonText: {
-        color: '#fff',
-        fontWeight: 'bold',
+        color: '#ffffff',
+        fontWeight: '800',
         fontSize: 16,
     },
     // Modal Styles

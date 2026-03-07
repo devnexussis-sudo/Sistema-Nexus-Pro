@@ -41,6 +41,15 @@ class LoggerService {
         // For now: Just store. The override handles the printing.
     }
 
+    private formatArgs(args: any[]) {
+        return args.map(arg => {
+            if (arg instanceof Error) {
+                return `${arg.name}: ${arg.message}\n${arg.stack}`;
+            }
+            return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+        }).join(' ');
+    }
+
     enableGlobalCapture() {
         if (this.isCapturing) return;
 
@@ -48,26 +57,20 @@ class LoggerService {
 
         console.log = (...args) => {
             this.originalConsole.log(...args); // Print to terminal/device log
-            const message = args.map(arg =>
-                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-            ).join(' ');
+            const message = this.formatArgs(args);
             // Store in memory without printing again
             this.log(message, 'info');
         };
 
         console.warn = (...args) => {
             this.originalConsole.warn(...args);
-            const message = args.map(arg =>
-                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-            ).join(' ');
+            const message = this.formatArgs(args);
             this.log(message, 'warn');
         };
 
         console.error = (...args) => {
             this.originalConsole.error(...args);
-            const message = args.map(arg =>
-                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-            ).join(' ');
+            const message = this.formatArgs(args);
             this.log(message, 'error');
         };
 

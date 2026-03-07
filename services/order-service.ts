@@ -152,11 +152,12 @@ export class OrderService {
         let status: OrderStatus = 'pending';
         switch (dbOrder.status) {
             case 'PENDENTE': status = 'pending'; break;
-            case 'ATRIBUÍDO': status = 'pending'; break;
+            case 'ATRIBUÍDO': status = 'assigned'; break;
+            case 'EM DESLOCAMENTO': status = 'traveling'; break;
             case 'EM ANDAMENTO': status = 'in_progress'; break;
             case 'CONCLUÍDO': status = 'completed'; break;
             case 'CANCELADO': status = 'canceled'; break;
-            case 'IMPEDIDO': status = 'canceled'; break;
+            case 'IMPEDIDO': status = 'blocked'; break;
             default: status = 'pending';
         }
 
@@ -220,6 +221,7 @@ export class OrderService {
             operationType: dbOrder.operation_type,
             priority: dbOrder.priority,
             displayId: displayId,
+            publicToken: dbOrder.public_token,
             formId: dbOrder.form_id,
             formData: dbOrder.form_data,
             scheduledDate: dbOrder.scheduled_date,
@@ -366,8 +368,8 @@ export class OrderService {
                     clientDoc: details.clientDoc,   // Save Client Doc (CPF)
                     ...(details.formData || {}) // Include dynamic form data
                 },
-                signature_url: signatureUrl,
-                signature_doc: details.clientDoc
+                signature_url: signatureUrl
+                // signature_doc column does not exist on orders yet, only client_signature_name
             };
 
             // If the schema supports client_signature_name, we can save it directly too
@@ -431,6 +433,24 @@ export class OrderService {
 
         } catch (error) {
             logger.log(`Error blocking order: ${error}`, 'error');
+            throw error;
+        }
+    }
+
+    static async startDisplacement(id: string): Promise<void> {
+        try {
+            const { error } = await supabase
+                .from('orders')
+                .update({
+                    status: 'EM DESLOCAMENTO',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id);
+
+            if (error) throw error;
+            logger.log(`Order ${id} displacement started`, 'info');
+        } catch (error) {
+            logger.log(`Error starting displacement: ${error}`, 'error');
             throw error;
         }
     }

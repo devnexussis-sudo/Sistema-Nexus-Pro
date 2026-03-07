@@ -10,6 +10,8 @@ Notifications.setNotificationHandler({
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true
     }),
 });
 
@@ -47,6 +49,11 @@ export const NotificationService = {
             // Obtém o token do Expo
             const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
 
+            if (!projectId) {
+                console.log('Push notifications (Expo) desativadas: projectId não encontrado. Isso é normal no Expo Go.');
+                return null;
+            }
+
             try {
                 token = (await Notifications.getExpoPushTokenAsync({
                     projectId: projectId
@@ -63,10 +70,10 @@ export const NotificationService = {
                         updated_at: new Date().toISOString()
                     }, { onConflict: 'user_id, token' });
 
-                    if (error) console.error("Erro ao salvar token de push:", error);
+                    if (error) console.log("Erro ao salvar token de push:", error);
                 }
             } catch (e) {
-                console.error("Erro ao obter push token:", e);
+                console.log("Aviso: Erro ao obter push token (verifique doc do Expo):", e);
             }
         } else {
             console.log('Must use physical device for Push Notifications');
@@ -102,7 +109,7 @@ export const NotificationService = {
                         data: { orderId, type: 'REMINDER_60' },
                         sound: true
                     },
-                    trigger: { date: time60 },
+                    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: time60 } as Notifications.DateTriggerInput,
                     identifier: `reminder-60-${orderId}`
                 });
             }
@@ -117,7 +124,7 @@ export const NotificationService = {
                         data: { orderId, type: 'REMINDER_30' },
                         sound: true
                     },
-                    trigger: { date: time30 },
+                    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: time30 } as Notifications.DateTriggerInput,
                     identifier: `reminder-30-${orderId}`
                 });
             }

@@ -1,6 +1,6 @@
 import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { StyleSheet, FlatList, Pressable, View, Text, Platform, RefreshControl } from 'react-native';
+import { StyleSheet, FlatList, Pressable, View, Text, Platform, RefreshControl, Share, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ThemedView } from '@/components/themed-view';
@@ -172,6 +172,25 @@ export default function HomeScreen() {
     </Pressable>
   );
 
+  const handleShareOS = async (publicToken: string, displayId: string) => {
+    if (publicToken) {
+      const url = `https://app.dunoup.com.br/#/order/view/${publicToken}`;
+      try {
+        await Share.share({
+          message: `📄 Resumo da Ordem de Serviço ${displayId}:\nPara acessar todos os detalhes, fotos e checklists, clique no link abaixo:\n\n${url}`,
+          url,
+        });
+      } catch (error) {
+        Alert.alert("Erro", "Não foi possível compartilhar a OS.");
+      }
+    } else {
+      Alert.alert(
+        "Emissão Pendente",
+        "Esta OS ainda não possui um link de relatório público. Reabra a OS no painel de administração para forçar a geração."
+      );
+    }
+  };
+
   return (
     <ThemedView style={styles.container}>
       {/* Dashboard Section */}
@@ -248,6 +267,10 @@ export default function HomeScreen() {
           data={paginatedOrders}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
@@ -272,8 +295,25 @@ export default function HomeScreen() {
               </View>
 
               <View style={styles.cardFooter}>
-                <Text style={styles.dateText}>{item.date}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#ccc" />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="calendar-outline" size={14} color="#999" />
+                  <Text style={styles.dateText}>{item.date}</Text>
+                </View>
+
+                {item.status === 'completed' && item.publicToken ? (
+                  <Pressable
+                    style={styles.shareButton}
+                    onPress={(e) => {
+                      e.stopPropagation(); // Avoid triggering card navigation
+                      handleShareOS(item.publicToken, item.displayId || item.id);
+                    }}
+                  >
+                    <Ionicons name="share-social-outline" size={16} color="#10b981" />
+                    <Text style={styles.shareButtonText}>Compartilhar</Text>
+                  </Pressable>
+                ) : (
+                  <Ionicons name="chevron-forward" size={20} color="#ccc" />
+                )}
               </View>
             </Pressable>
           )}
@@ -482,6 +522,22 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 12,
     color: '#999',
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+    gap: 6,
+  },
+  shareButtonText: {
+    fontSize: 12,
+    color: '#10b981',
+    fontWeight: '700',
   },
   emptyState: {
     alignItems: 'center',

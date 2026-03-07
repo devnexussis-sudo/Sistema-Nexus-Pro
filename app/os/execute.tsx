@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, Alert, Image, Modal } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, Alert, Image, Modal, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemedView } from '@/components/themed-view';
@@ -20,6 +20,13 @@ export default function ExecuteOSScreen() {
     // Multi-equipment forms state
     // { equipmentIndex_or_id: { equipamento: any, template: any, data: any } }
     const [formsConfig, setFormsConfig] = useState<Record<string, { equipamento: any, template: any, data: any }>>({});
+
+    // Collapsible State (true means collapsed)
+    const [collapsedForms, setCollapsedForms] = useState<Record<string, boolean>>({});
+
+    const toggleFormCollapse = (eqKey: string) => {
+        setCollapsedForms(prev => ({ ...prev, [eqKey]: !prev[eqKey] }));
+    };
 
     // Global fields
     const [technicalReport, setTechnicalReport] = useState('');
@@ -416,34 +423,53 @@ export default function ExecuteOSScreen() {
                 )}
 
                 {/* EQUIPMENT FORMS */}
-                {Object.entries(formsConfig).map(([eqKey, config]) => (
-                    <View key={eqKey} style={styles.equipmentGroup}>
-                        <View style={styles.equipmentHeader}>
-                            <Ionicons name="hardware-chip-outline" size={20} color="#fff" />
-                            <Text style={styles.equipmentTitle}>
-                                {config.equipamento?.equipment_model || config.equipamento?.equipment_name || 'Equipamento'}
-                                {config.equipamento?.equipment_serial ? ` - S/N: ${config.equipamento.equipment_serial}` : ''}
-                            </Text>
-                        </View>
+                {Object.entries(formsConfig).map(([eqKey, config]) => {
+                    const isCollapsed = !!collapsedForms[eqKey];
+                    return (
+                        <View key={eqKey} style={styles.equipmentGroup}>
+                            <Pressable
+                                style={styles.equipmentHeader}
+                                onPress={() => toggleFormCollapse(eqKey)}
+                            >
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                                    <View style={styles.equipmentIconWrapper}>
+                                        <Ionicons name="hardware-chip-outline" size={18} color="#1c2d4f" />
+                                    </View>
+                                    <Text style={styles.equipmentTitle}>
+                                        {config.equipamento?.equipment_model || config.equipamento?.equipment_name || 'Equipamento'}
+                                        {config.equipamento?.equipment_serial ? ` - S/N: ${config.equipamento.equipment_serial}` : ''}
+                                    </Text>
+                                </View>
+                                <Ionicons name={isCollapsed ? "chevron-down" : "chevron-up"} size={22} color="#fff" />
+                            </Pressable>
 
-                        {config.template ? (
-                            <View style={styles.equipmentFormsContainer}>
-                                {config.template.fields.map((field: any) => renderDynamicField(eqKey, field, config.data))}
-                            </View>
-                        ) : (
-                            <View style={[styles.section, { alignItems: 'center', padding: 24 }]}>
-                                <Ionicons name="document-text-outline" size={40} color="#ccc" />
-                                <Text style={{ color: '#666', marginTop: 10 }}>Nenhum formulário dinâmico vinculado.</Text>
-                            </View>
-                        )}
-                    </View>
-                ))}
+                            {!isCollapsed && (
+                                <>
+                                    {config.template ? (
+                                        <View style={styles.equipmentFormsContainer}>
+                                            {config.template.fields.map((field: any) => renderDynamicField(eqKey, field, config.data))}
+                                        </View>
+                                    ) : (
+                                        <View style={[styles.section, { alignItems: 'center', padding: 24, margin: 16, backgroundColor: '#f8fafc', elevation: 0 }]}>
+                                            <Ionicons name="document-text-outline" size={40} color="#cbd5e1" />
+                                            <Text style={{ color: '#94a3b8', marginTop: 10, fontWeight: '600' }}>Nenhum formulário dinâmico vinculado.</Text>
+                                        </View>
+                                    )}
+                                </>
+                            )}
+                        </View>
+                    );
+                })}
 
                 {/* CONCLUSÃO GLOBAL */}
                 <View style={styles.globalConclusionSection}>
-                    <View style={styles.equipmentHeader}>
-                        <Ionicons name="checkmark-done-circle-outline" size={20} color="#fff" />
-                        <Text style={styles.equipmentTitle}>Conclusão Geral da OS</Text>
+                    <View style={styles.conclusionHeader}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <View style={[styles.equipmentIconWrapper, { backgroundColor: '#e2e8f0' }]}>
+                                <Ionicons name="checkmark-done-circle-outline" size={18} color="#0f172a" />
+                            </View>
+                            <Text style={[styles.equipmentTitle, { color: '#0f172a' }]}>Conclusão Geral da OS</Text>
+                        </View>
                     </View>
 
                     <View style={[styles.section, { borderTopWidth: 0, marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
@@ -538,42 +564,44 @@ export default function ExecuteOSScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f5f7fa' },
+    container: { flex: 1, backgroundColor: '#f8fafc' }, // Modern bluish gray
     content: { padding: 16, paddingBottom: 100 },
-    section: { marginBottom: 16, backgroundColor: '#fff', padding: 16, borderRadius: 12, elevation: 1 },
-    input: { borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fafafa', marginTop: 8 },
+    section: { marginBottom: 16, backgroundColor: '#ffffff', padding: 20, borderRadius: 16, shadowColor: '#64748b', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2, borderWidth: 1, borderColor: '#f1f5f9' },
+    input: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 14, fontSize: 16, backgroundColor: '#f8fafc', marginTop: 10, color: '#1e293b' },
     textArea: { minHeight: 120, textAlignVertical: 'top' },
-    pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-    optionBtn: { padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e0e0e0', backgroundColor: '#fafafa' },
-    optionBtnSelected: { backgroundColor: '#1c2d4f', borderColor: '#1c2d4f' },
-    optionText: { color: '#333' },
-    optionTextSelected: { color: '#fff' },
-    photoFieldPlaceholder: { height: 120, borderWidth: 2, borderColor: '#e0e0e0', borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', marginTop: 8, gap: 8 },
-    fieldLabel: { fontSize: 13, color: '#333' },
-    signaturePlaceholder: { height: 150, borderWidth: 2, borderColor: '#e0e0e0', borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa', marginTop: 8, gap: 8 },
-    signaturePlaceholderText: { color: '#666', fontSize: 16 },
-    signaturePreviewContainer: { alignItems: 'center', marginTop: 8 },
-    signaturePreview: { width: '100%', height: 150, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0' },
-    clearSignatureText: { color: '#d32f2f', fontWeight: '600', marginTop: 8 },
-    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', padding: 16, borderTopWidth: 1, borderTopColor: '#e0e0e0', paddingBottom: 40 },
-    submitButton: { backgroundColor: '#2e7d32', paddingVertical: 16, borderRadius: 8, alignItems: 'center' },
-    submitButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-    signatureModalContainer: { flex: 1, backgroundColor: '#fff', paddingTop: 40 },
-    signatureFooter: { flexDirection: 'row', padding: 16, justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#e0e0e0', paddingBottom: 40 },
-    signatureActionBtn: { paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, backgroundColor: '#f5f5f5' },
-    confirmBtn: { backgroundColor: '#1c2d4f' },
-    confirmText: { color: '#fff' },
-    infoCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 24, borderLeftWidth: 6, borderLeftColor: '#1c2d4f', elevation: 4 },
-    infoCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingBottom: 10 },
-    infoCardTitle: { fontSize: 16, fontWeight: '800', color: '#1c2d4f', textTransform: 'uppercase' },
-    infoRow: { marginBottom: 12 },
-    infoLabel: { fontSize: 10, fontWeight: 'bold', color: '#94a3b8', marginBottom: 2 },
-    infoValue: { fontSize: 14, color: '#475569', fontWeight: '500' },
-    infoDivider: { height: 1, backgroundColor: '#f0f0f0', marginVertical: 12 },
-    infoValueBold: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
-    equipmentGroup: { marginBottom: 24, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden' },
-    equipmentHeader: { backgroundColor: '#1c2d4f', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
-    equipmentTitle: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-    equipmentFormsContainer: { padding: 12 },
-    globalConclusionSection: { marginBottom: 24, borderRadius: 12, overflow: 'hidden' }
+    pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
+    optionBtn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
+    optionBtnSelected: { backgroundColor: '#0f172a', borderColor: '#0f172a' },
+    optionText: { color: '#475569', fontWeight: '600' },
+    optionTextSelected: { color: '#ffffff', fontWeight: 'bold' },
+    photoFieldPlaceholder: { height: 120, borderWidth: 2, borderColor: '#cbd5e1', borderStyle: 'dashed', borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', marginTop: 10, gap: 8 },
+    fieldLabel: { fontSize: 13, color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+    signaturePlaceholder: { height: 140, borderWidth: 2, borderColor: '#cbd5e1', borderStyle: 'dashed', borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', marginTop: 8, gap: 8 },
+    signaturePlaceholderText: { color: '#64748b', fontSize: 15, fontWeight: '600' },
+    signaturePreviewContainer: { alignItems: 'center', marginTop: 12 },
+    signaturePreview: { width: '100%', height: 150, backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+    clearSignatureText: { color: '#e11d48', fontWeight: '700', marginTop: 10 },
+    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingBottom: Platform.OS === 'ios' ? 40 : 20, shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.03, shadowRadius: 15, elevation: 10 },
+    submitButton: { backgroundColor: '#10b981', paddingVertical: 18, borderRadius: 14, alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+    submitButtonText: { color: '#ffffff', fontSize: 18, fontWeight: '900', letterSpacing: 0.5 },
+    signatureModalContainer: { flex: 1, backgroundColor: '#ffffff', paddingTop: 40 },
+    signatureFooter: { flexDirection: 'row', padding: 20, justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
+    signatureActionBtn: { paddingVertical: 14, paddingHorizontal: 28, borderRadius: 12, backgroundColor: '#f1f5f9' },
+    confirmBtn: { backgroundColor: '#0f172a' },
+    confirmText: { color: '#ffffff', fontWeight: 'bold' },
+    infoCard: { backgroundColor: '#ffffff', borderRadius: 16, padding: 20, marginBottom: 24, borderLeftWidth: 6, borderLeftColor: '#0f172a', shadowColor: '#64748b', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+    infoCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: 12 },
+    infoCardTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 },
+    infoRow: { marginBottom: 14 },
+    infoLabel: { fontSize: 11, fontWeight: '900', color: '#94a3b8', marginBottom: 4, letterSpacing: 0.5 },
+    infoValue: { fontSize: 15, color: '#334155', fontWeight: '500' },
+    infoDivider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 14 },
+    infoValueBold: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
+    equipmentGroup: { marginBottom: 24, borderRadius: 16, backgroundColor: '#ffffff', shadowColor: '#64748b', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2, borderWidth: 1, borderColor: '#f1f5f9', overflow: 'hidden' },
+    equipmentHeader: { backgroundColor: '#1e293b', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    equipmentIconWrapper: { backgroundColor: '#ffffff', padding: 6, borderRadius: 8 },
+    equipmentTitle: { color: '#ffffff', fontWeight: '800', fontSize: 15, flex: 1, letterSpacing: -0.2 },
+    equipmentFormsContainer: { padding: 8, backgroundColor: '#f8fafc' },
+    globalConclusionSection: { marginBottom: 24, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff' },
+    conclusionHeader: { backgroundColor: '#f1f5f9', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }
 });
