@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import {
   format,
@@ -12,7 +11,8 @@ import {
   isSameDay,
   eachDayOfInterval,
   parseISO,
-  addDays
+  addDays,
+  isToday as isDateToday
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -26,16 +26,35 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Layers,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { ServiceOrder, User as TechUser, Customer, OrderStatus } from '../../types';
-import { getStatusCalendarStyle, getStatusLabel } from '../../lib/statusColors';
+import { getStatusCalendarStyle, getStatusColor } from '../../lib/statusColors';
 
 interface OrderCalendarProps {
   orders: ServiceOrder[];
   techs: TechUser[];
   customers: Customer[];
 }
+
+// Map Status to Hex colors for dynamic gradient accents
+const getStatusHexColor = (status: OrderStatus) => {
+    switch (status) {
+        case OrderStatus.PENDING: return '#3b82f6'; // Azul
+        case OrderStatus.ASSIGNED: return '#1d4ed8'; // Azul Escuro
+        case OrderStatus.TRAVELING: return '#f59e0b'; // Laranja
+        case OrderStatus.ARRIVED: return '#8b5cf6'; // Roxo
+        case OrderStatus.IN_PROGRESS: return '#eab308'; // Amarelo
+        case OrderStatus.PAUSED: return '#6b7280'; // Cinza
+        case OrderStatus.COMPLETED: return '#10b981'; // Verde
+        case OrderStatus.CANCELED: return '#d946ef'; // Rosa
+        case OrderStatus.BLOCKED: return '#ef4444'; // Vermelho
+        default: return '#94a3b8';
+    }
+};
 
 export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, customers }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -98,259 +117,359 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
     });
   };
 
-  // ✅ Usando cores vibrantes do Design System para boa visibilidade no calendário
   const getStatusStyle = getStatusCalendarStyle;
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] overflow-hidden">
-      {/* HEADER ULTRA-COMPACTO - APENAS FILTROS E NAVEGAÇÃO */}
-      <header className="px-6 py-3 bg-white border-b border-slate-200 flex items-center gap-4 z-30 shadow-sm shrink-0">
-        {/* Navegação de Data Compacta */}
-        <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200 shrink-0">
-          <button onClick={prevMonth} className="p-1.5 hover:bg-white rounded-lg text-slate-600 transition-all active:scale-95"><ChevronLeft size={16} /></button>
-          <div className="px-3 text-[10px] font-black text-slate-900 uppercase italic min-w-[120px] text-center tracking-tighter">
-            {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+    <div className="flex flex-col h-full bg-[#f4f7fb] overflow-hidden">
+      {/* HEADER ELEGANTE COM EFEITO GLASS */}
+      <header className="px-6 py-4 bg-white/80 backdrop-blur-md border-b border-slate-200/50 flex flex-wrap lg:flex-nowrap items-center gap-4 z-30 shadow-sm shrink-0">
+        
+        {/* Controle Mês/Ano com microinterações */}
+        <div className="flex items-center bg-white rounded-2xl p-1.5 shadow-sm border border-slate-100 shrink-0">
+          <button onClick={prevMonth} className="p-2 hover:bg-slate-50 rounded-xl text-slate-500 transition-all active:scale-95"><ChevronLeft size={18} /></button>
+          <div className="px-4 flex flex-col items-center justify-center min-w-[140px]">
+             <span className="text-[14px] font-black text-slate-800 capitalize leading-none mb-0.5">{format(currentMonth, 'MMMM', { locale: ptBR })}</span>
+             <span className="text-[9px] font-black text-primary-500 uppercase tracking-widest">{format(currentMonth, 'yyyy')}</span>
           </div>
-          <button onClick={nextMonth} className="p-1.5 hover:bg-white rounded-lg text-slate-600 transition-all active:scale-95"><ChevronRight size={16} /></button>
+          <button onClick={nextMonth} className="p-2 hover:bg-slate-50 rounded-xl text-slate-500 transition-all active:scale-95"><ChevronRight size={18} /></button>
         </div>
 
-        <button onClick={goToToday} className="px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[#253a66] transition-all active:scale-95 shadow-lg shadow-primary-100 shrink-0">Hoje</button>
+        <button onClick={goToToday} className="px-5 py-3.5 bg-gradient-to-br from-[#1c2d4f] to-[#2a457a] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:shadow-lg hover:shadow-[#1c2d4f]/30 transition-all active:scale-95 shrink-0 flex items-center gap-2">
+            <CalendarIcon size={14} className="opacity-70" /> Hoje
+        </button>
 
-        <div className="h-6 w-px bg-slate-200 mx-1"></div>
+        <div className="h-8 w-px bg-slate-200 mx-2 hidden lg:block"></div>
 
-        {/* Filtros Padronizados */}
-        <div className="flex-1 flex items-center gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+        {/* Filtros Padronizados Modernizados */}
+        <div className="flex-1 flex flex-wrap md:flex-nowrap items-center gap-3 w-full lg:w-auto mt-2 lg:mt-0">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
-              placeholder="BUSCAR O.S. OU CLIENTE..."
-              className="w-full bg-slate-100 border border-transparent rounded-xl py-2 pl-10 pr-4 text-[9px] font-black uppercase tracking-widest outline-none focus:bg-white focus:border-primary-500 transition-all italic"
+              placeholder="Pesquisar O.S., Cliente, etc..."
+              className="w-full bg-white border border-slate-200 rounded-2xl py-3.5 pl-11 pr-4 text-[11px] font-bold text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <select
-              className="bg-slate-100 border border-slate-200 rounded-xl py-2 px-3 text-[9px] font-black uppercase tracking-widest outline-none focus:bg-white focus:border-primary-500 transition-all cursor-pointer min-w-[180px]"
-              value={techFilter}
-              onChange={(e) => setTechFilter(e.target.value)}
-            >
-              <option value="ALL">TODOS OS TÉCNICOS</option>
-              {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-            </select>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative shrink-0 flex-1 md:flex-none min-w-[180px]">
+                <User size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+                <select
+                  className="w-full bg-white border border-slate-200 rounded-2xl py-3.5 pl-10 pr-8 text-[10px] font-bold uppercase tracking-wider text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 transition-all cursor-pointer shadow-sm appearance-none"
+                  value={techFilter}
+                  onChange={(e) => setTechFilter(e.target.value)}
+                >
+                  <option value="ALL">Qualquer Técnico</option>
+                  {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                </select>
+            </div>
 
-            <select
-              className={`border rounded-xl py-2 px-3 text-[9px] font-black uppercase tracking-widest outline-none transition-all cursor-pointer min-w-[150px] ${statusFilter === 'ALL' ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-primary-50 border-primary-200 text-primary-700'}`}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-            >
-              <option value="ALL">TODOS STATUS</option>
-              {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s === OrderStatus.PENDING ? '📍 AGENDADAS' : s.toUpperCase()}</option>)}
-            </select>
+            <div className="relative shrink-0 flex-1 md:flex-none min-w-[160px]">
+                <Layers size={14} className={`absolute left-3.5 top-1/2 -translate-y-1/2 z-10 ${statusFilter === 'ALL' ? 'text-slate-400' : 'text-primary-600'}`} />
+                <select
+                  className={`w-full border rounded-2xl py-3.5 pl-10 pr-8 text-[10px] font-bold uppercase tracking-wider outline-none transition-all cursor-pointer shadow-sm appearance-none ${statusFilter === 'ALL' ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-primary-50 border-primary-200 text-primary-700 ring-2 ring-primary-100'}`}
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                >
+                  <option value="ALL">Todo Status</option>
+                  {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s === OrderStatus.PENDING ? '📍 AGENDADAS' : s.toUpperCase()}</option>)}
+                </select>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* GRID DO CALENDÁRIO - SEM SCROLL NO CONTAINER PAI */}
-      <main className="flex-1 overflow-hidden flex flex-col bg-slate-100/50 min-h-0">
-        {/* DIAS DA SEMANA */}
-        <div className="grid grid-cols-7 bg-white shrink-0">
-          {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
-            <div key={day} className="py-2 text-center text-[8px] font-black text-slate-400 uppercase tracking-[0.3em] italic border-r border-slate-100 last:border-0 border-b">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* GRID DE DIAS - FLEX-1 PARA PREENCHER TELA */}
-        <div className="flex-1 grid grid-cols-7 auto-rows-fr gap-px bg-slate-200 min-h-0">
-          {days.map((day, idx) => {
-            const dayOrders = getOrdersForDay(day);
-            const isToday = isSameDay(day, new Date());
-            const isCurrentMonth = isSameMonth(day, currentMonth);
-
-            return (
-              <div
-                key={idx}
-                onClick={() => handleDayClick(day, dayOrders)}
-                className={`flex flex-col items-center justify-center overflow-hidden relative transition-all group min-h-0 cursor-pointer
-                  ${isCurrentMonth ? 'bg-white' : 'bg-slate-50 opacity-40'} 
-                  ${isToday ? 'bg-primary-50/20' : ''}
-                  ${dayOrders.length > 0 ? 'hover:bg-slate-50' : ''}
-                `}
-              >
-                {/* Indicador de Dia Compacto */}
-                <div className="absolute top-2 left-2 flex justify-between items-center z-10">
-                  <span className={`text-sm font-black italic tracking-tighter transition-all shrink-0
-                    ${isToday ? 'text-primary-600 scale-110 drop-shadow-sm' : 'text-slate-300 group-hover:text-slate-900'}
-                  `}>
-                    {format(day, 'd')}
-                  </span>
+      {/* GRID DO CALENDÁRIO */}
+      <main className="flex-1 overflow-hidden flex flex-col p-4 pt-2 lg:p-6 min-h-0 bg-[#f4f7fb]">
+        
+        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200/60 overflow-hidden flex flex-col h-full ring-1 ring-slate-900/5">
+            {/* DIAS DA SEMANA */}
+            <div className="grid grid-cols-7 bg-slate-50/50 shrink-0 border-b border-slate-100">
+            {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((day, i) => (
+                <div key={day} className={`py-3 text-center text-[10px] font-black uppercase tracking-widest ${i === 0 || i === 6 ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <span className="hidden md:inline">{day}</span>
+                    <span className="md:hidden">{day.substring(0, 3)}</span>
                 </div>
+            ))}
+            </div>
 
-                {/* VISUALIZAÇÃO DE QUANTIDADE (O que o usuário pediu) */}
-                {dayOrders.length > 0 ? (
-                  <div className="flex flex-col items-center gap-1 group-hover:scale-110 transition-transform">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 shadow-sm
-                      ${isToday
-                        ? 'bg-primary-600 border-primary-400 text-white'
-                        : 'bg-slate-900 border-slate-700 text-white'
-                      }
-                    `}>
-                      <span className="text-xl font-black italic">{dayOrders.length}</span>
+            {/* GRID DE DIAS */}
+            <div className="flex-1 grid grid-cols-7 auto-rows-fr bg-slate-100 min-h-0">
+            {days.map((day, idx) => {
+                const dayOrders = getOrdersForDay(day);
+                const isToday = isDateToday(day);
+                const isCurrentMonth = isSameMonth(day, currentMonth);
+                
+                // Sort dayOrders by time if possible
+                dayOrders.sort((a,b) => (a.scheduledTime || '') > (b.scheduledTime || '') ? 1 : -1);
+
+                return (
+                <div
+                    key={idx}
+                    onClick={() => handleDayClick(day, dayOrders)}
+                    className={`
+                    relative p-1 md:p-2 border-r border-b border-transparent transition-all group min-h-0 cursor-text overflow-hidden
+                    ${isCurrentMonth ? 'bg-white hover:bg-slate-50/50' : 'bg-[#fafcff] opacity-60'} 
+                    ${dayOrders.length > 0 ? 'cursor-pointer' : ''}
+                    `}
+                    style={{ borderColor: '#f1f5f9' }}
+                >
+                    {/* Indicador de Dia e Bolinha do Hoje */}
+                    <div className="flex justify-between items-start mb-1 h-6">
+                        <div className={`
+                            flex items-center justify-center w-7 h-7 rounded-full text-xs font-black transition-all
+                            ${isToday ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30' : 'text-slate-400 group-hover:text-slate-900'}
+                            ${!isCurrentMonth && !isToday ? 'text-slate-300' : ''}
+                        `}>
+                            {format(day, 'd')}
+                        </div>
+
+                        {/* Summary Pill for mobile or lots of items */}
+                        {dayOrders.length > 0 && (
+                             <div className="md:hidden flex items-center justify-center bg-primary-100 text-primary-700 text-[9px] font-black w-6 h-6 rounded-full mt-0.5 mr-0.5">
+                                 {dayOrders.length}
+                             </div>
+                        )}
                     </div>
-                    <span className="text-[7px] font-black uppercase text-slate-400 tracking-widest group-hover:text-slate-900">
-                      {dayOrders.length === 1 ? 'Ordem' : 'Ordens'}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center opacity-10 grayscale">
-                    <CalendarIcon size={24} className="text-slate-200" />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+
+                    {/* RENDERING DE OS NO DIA (Apenas Desktop / Telas maiores) */}
+                    <div className="hidden md:flex flex-col gap-1 overflow-y-auto custom-scrollbar-thin max-h-[calc(100%-28px)] pr-1 pb-1">
+                        {dayOrders.map((order, i) => {
+                            const colorHex = getStatusHexColor(order.status);
+                            return (
+                                <div 
+                                    key={order.id}
+                                    title={`${order.scheduledTime || ''} - ${order.title} (${order.customerName})`}
+                                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border shadow-sm pointer-events-none transition-transform group-hover/item:scale-[1.02]"
+                                    style={{ borderColor: `${colorHex}30`, backgroundColor: `${colorHex}08` }}
+                                >
+                                    <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: colorHex }}></div>
+                                    <span className="text-[9px] font-bold text-slate-700 truncate leading-none flex-1">
+                                        {order.scheduledTime ? `${order.scheduledTime} ` : ''}{order.customerName.split(' ')[0]}
+                                    </span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                    
+                    {/* Gradient Fade for overflow lines */}
+                    {dayOrders.length > 3 && (
+                        <div className="hidden md:block absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white to-transparent pointer-events-none"></div>
+                    )}
+                </div>
+                );
+            })}
+            </div>
         </div>
       </main>
 
-      {/* MODAL DE LISTAGEM POR DIA (QUANTIDADE -> LISTA) */}
+      {/* MODAL DE LISTAGEM DO DIA */}
       {selectedDayData && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[80vh]">
-            <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
-              <div>
-                <h3 className="text-lg font-black text-slate-900 uppercase italic tracking-tighter">
-                  {format(selectedDayData.day, "dd 'de' MMMM", { locale: ptBR })}
+          <div className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[85vh]">
+            
+            {/* Header Decorativo */}
+            <div className="bg-gradient-to-br from-[#1c2d4f] to-[#253a66] p-6 pb-8 relative overflow-hidden shrink-0">
+                <div className="absolute top-0 right-0 p-8 opacity-10">
+                    <CalendarIcon size={120} className="transform rotate-12" />
+                </div>
+                
+                <button onClick={() => setSelectedDayData(null)} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white backdrop-blur-md transition-all">
+                    <X size={18} />
+                </button>
+
+                <p className="text-[10px] font-black text-primary-200 uppercase tracking-[0.2em] mb-1">Agenda do Dia</p>
+                <h3 className="text-3xl font-black text-white capitalize leading-none drop-shadow-md">
+                  {format(selectedDayData.day, "dd ", { locale: ptBR })}
+                  <span className="font-light">{format(selectedDayData.day, "MMMM", { locale: ptBR })}</span>
                 </h3>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{selectedDayData.orders.length} Ordens de Serviço</p>
-              </div>
-              <button onClick={() => setSelectedDayData(null)} className="p-2 hover:bg-white rounded-xl text-slate-400 transition-all"><X size={18} /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-              {selectedDayData.orders.map(order => (
-                <div
-                  key={order.id}
-                  onClick={() => handleOrderClick(order)}
-                  className={`group flex items-center gap-4 p-4 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-95 ${getStatusStyle(order.status)}`}
-                >
-                  <div className="w-10 h-10 rounded-xl bg-black/5 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
-                    <Clock size={16} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-black uppercase truncate leading-none mb-1">#{order.displayId || 'S/N'} - {techs.find(t => t.id === order.assignedTo)?.name || 'NÃO ATRIBUÍDO'}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-black italic">{order.scheduledTime || '--:--'}</span>
+            {/* Content list */}
+            <div className="flex-1 overflow-y-auto px-4 pb-4 -mt-4 z-10 custom-scrollbar">
+              <div className="flex items-center justify-between mb-3 px-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{selectedDayData.orders.length} agendamentos</span>
+              </div>
+
+              <div className="space-y-3">
+                {selectedDayData.orders.map(order => {
+                  const tech = techs.find(t => t.id === order.assignedTo);
+                  const colorHex = getStatusHexColor(order.status);
+                  
+                  return (
+                    <div
+                        key={order.id}
+                        onClick={() => handleOrderClick(order)}
+                        className="group bg-white flex flex-col md:flex-row items-stretch gap-4 p-4 rounded-3xl border border-slate-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all cursor-pointer hover:scale-[1.02] hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.1)] active:scale-95"
+                    >
+                        {/* Time Column */}
+                        <div className="flex flex-row md:flex-col items-center justify-center shrink-0 min-w-[60px] md:border-r border-slate-100 pr-0 md:pr-4">
+                            <span className="text-[16px] font-black text-slate-900 tracking-tighter">{order.scheduledTime || '--:--'}</span>
+                            <span className="text-[8px] font-black uppercase text-slate-400 mt-1 hidden md:block">Hora</span>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <div className="px-2 py-0.5 rounded-md text-[7px] font-black uppercase tracking-wider text-white" style={{ backgroundColor: colorHex }}>
+                                    {order.status}
+                                </div>
+                                <span className="text-[9px] font-black text-slate-400 capitalize bg-slate-100 px-2 py-0.5 rounded-md">#{order.displayId || 'S/N'}</span>
+                            </div>
+                            
+                            <h4 className="text-[13px] font-bold text-slate-800 leading-tight truncate mb-1.5">{order.title || 'Sem título'}</h4>
+                            
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-auto">
+                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
+                                    <MapPin size={10} className="text-slate-400" />
+                                    <span className="truncate max-w-[120px]">{order.customerName}</span>
+                                </div>
+                                {tech && (
+                                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
+                                        <User size={10} className="text-slate-400" />
+                                        <span className="truncate max-w-[100px] text-primary-600">{tech.name.split(' ')[0]}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        
+                        <div className="hidden md:flex items-center text-slate-300 group-hover:text-primary-500 transition-colors">
+                            <ChevronRight size={18} />
+                        </div>
                     </div>
-                  </div>
-                  <ChevronRight size={14} className="opacity-30 group-hover:opacity-100 transition-all" />
-                </div>
-              ))}
+                  )
+                })}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL / BALÃO DE DETALHES - MANTÉM O ESTILO PREMIUM */}
+      {/* MODAL DE DETALHES COMPLETO - ULTRA MODERNIZADO */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col">
-            {/* Cabeçalho */}
-            <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-start shrink-0">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className={`px-3 py-1 rounded-full text-[7px] font-black uppercase tracking-[0.2em] border flex items-center gap-1.5 ${getStatusStyle(selectedOrder.status)}`}>
-                    <span className="opacity-70">STATUS:</span>
-                    {selectedOrder.status}
-                  </div>
-                  <span className="text-[8px] font-black text-primary-600 uppercase tracking-widest">Detalhes da O.S.</span>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 md:p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[92vh]">
+            
+            {/* Header Super Premium */}
+            <div className="relative p-8 md:p-10 shrink-0 overflow-hidden" style={{ backgroundColor: getStatusHexColor(selectedOrder.status) }}>
+                {/* Patterns overlay */}
+                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+                <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+                <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
+
+                <div className="relative z-10 flex justify-between items-start">
+                    <div className="text-white">
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                                {selectedOrder.status}
+                            </div>
+                            <span className="px-3 py-1 rounded-full bg-black/20 backdrop-blur-sm border border-black/10 text-[9px] font-black uppercase tracking-[0.1em]">
+                                OS #{selectedOrder.displayId || selectedOrder.id.split('-')[0]}
+                            </span>
+                        </div>
+                        <h2 className="text-3xl md:text-4xl font-black tracking-tight leading-tight max-w-[80%] drop-shadow-lg">
+                            {selectedOrder.title || 'Manutenção Programada'}
+                        </h2>
+                    </div>
+                    
+                    <button onClick={() => setSelectedOrder(null)} className="p-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-white backdrop-blur-md transition-all active:scale-90">
+                        <X size={20} />
+                    </button>
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter leading-none">
-                  #{selectedOrder.displayId || selectedOrder.id}
-                </h3>
-              </div>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="p-2.5 hover:bg-white rounded-xl text-slate-400 hover:text-red-500 transition-all shadow-none hover:shadow-md"
-              >
-                <X size={18} />
-              </button>
             </div>
 
-            {/* Conteúdo - SCROLLABLE AREA */}
-            <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="col-span-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Cliente / Unidade</label>
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-base font-black text-slate-900 uppercase italic leading-tight">{selectedOrder.customerName}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Técnico Responsável</label>
-                  <div className="flex items-center gap-3 p-3 bg-primary-50/50 rounded-xl border border-primary-100">
-                    <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center">
-                      <User size={20} />
-                    </div>
-                    <span className="text-[11px] font-black text-slate-900 uppercase">
-                      {techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'NÃO ATRIBUÍDO'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Agenda / Horário</label>
-                  <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center">
-                      <Clock size={20} />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-black text-emerald-800 uppercase italic">
-                        {format(parseISO(selectedOrder.scheduledDate), "dd 'de' MMMM", { locale: ptBR })}
-                      </span>
-                      <span className="text-lg font-black italic text-emerald-700">{selectedOrder.scheduledTime || '--:--'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-span-2 space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Equipamento / Ativo</label>
-                  <div className="flex items-center gap-4 p-5 bg-slate-900 rounded-[1.5rem] text-white">
-                    <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-primary-300 shrink-0">
-                      <Box size={24} />
+            {/* Conteúdo Detalhado - Scrollable */}
+            <div className="p-8 md:p-10 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-8">
+              
+              {/* Grid 1: Cliente e Data */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Cliente Card */}
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex gap-5 items-center">
+                    <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
+                        <MapPin size={24} />
                     </div>
                     <div>
-                      <p className="text-sm font-black uppercase italic tracking-tight text-primary-300">
-                        {selectedOrder.equipmentName || 'MANUTENÇÃO GERAL'}
-                      </p>
-                      <p className="text-[9px] font-bold text-white/40 uppercase">
-                        {selectedOrder.equipmentModel || 'MODELO NÃO ESPECIFICADO'}
-                        {selectedOrder.equipmentSerial ? ` • SN: ${selectedOrder.equipmentSerial}` : ''}
-                      </p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Cliente / Local</p>
+                        <p className="text-sm font-bold text-slate-800 leading-tight">{selectedOrder.customerName}</p>
+                        <p className="text-[10px] font-bold text-slate-500 mt-1 truncate">{selectedOrder.customerAddress || 'Endereço não cadastrado'}</p>
                     </div>
-                  </div>
                 </div>
 
-                <div className="col-span-2 space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Motivo / Descrição</label>
-                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl max-h-32 overflow-y-auto italic text-[11px] font-bold text-slate-600 leading-relaxed">
-                    {selectedOrder.description || selectedOrder.title || 'Sem descrição detalhada.'}
-                  </div>
+                {/* Data Card */}
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex gap-5 items-center">
+                    <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0">
+                        <Clock size={24} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Agendamento</p>
+                        <p className="text-sm font-bold text-slate-800 capitalize leading-tight">
+                            {selectedOrder.scheduledDate ? format(parseISO(selectedOrder.scheduledDate), "EEEE, dd 'de' MMMM", { locale: ptBR }) : 'Data Indefinida'}
+                        </p>
+                        <p className="text-[11px] font-black text-emerald-600 mt-1 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded w-fit">
+                            H: {selectedOrder.scheduledTime || '--:--'}
+                        </p>
+                    </div>
                 </div>
               </div>
 
+              {/* Grid 2: Técnico e Equipamento */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] border-b border-slate-200 pb-2">Responsável Técnico</h4>
+                   <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-slate-100">
+                     <div className="w-10 h-10 bg-slate-900 text-white rounded-full flex items-center justify-center font-black">
+                         {techs.find(t => t.id === selectedOrder.assignedTo)?.name?.charAt(0) || <User size={16} />}
+                     </div>
+                     <p className="text-sm font-black text-slate-800 tracking-tight">
+                        {techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Não Atribuído'}
+                     </p>
+                   </div>
+                </div>
+
+                <div className="space-y-3">
+                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] border-b border-slate-200 pb-2">Ativo Vinculado</h4>
+                   <div className="bg-white p-4 rounded-2xl border border-slate-100 flex items-start gap-4">
+                     <div className="bg-amber-50 text-amber-600 p-2.5 rounded-xl shrink-0"><Box size={18} /></div>
+                     <div>
+                        <p className="text-xs font-black text-slate-800">{selectedOrder.equipmentName || 'Manutenção Geral'}</p>
+                        <p className="text-[10px] text-slate-500 font-bold mt-0.5">{selectedOrder.equipmentModel || '--'}</p>
+                        {selectedOrder.equipmentSerial && (
+                            <p className="text-[9px] text-slate-400 font-black mt-1 uppercase bg-slate-100 px-2 py-0.5 inline-block rounded">
+                                SN: {selectedOrder.equipmentSerial}
+                            </p>
+                        )}
+                     </div>
+                   </div>
+                </div>
+              </div>
+
+              {/* Descrição */}
+              {selectedOrder.description && (
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] mb-3 flex items-center gap-2">
+                          <AlertCircle size={14} /> Observações da Ordem
+                      </h4>
+                      <p className="text-xs text-slate-600 leading-relaxed font-medium whitespace-pre-wrap">
+                          {selectedOrder.description}
+                      </p>
+                  </div>
+              )}
+
+            </div>
+
+            {/* Footer Ações */}
+            <div className="p-6 md:p-8 bg-white border-t border-slate-100 flex justify-end shrink-0">
               <button
                 onClick={() => {
                   const publicUrl = `${window.location.origin}/#/order/view/${selectedOrder.publicToken || selectedOrder.id}`;
                   window.open(publicUrl, '_blank');
                 }}
-                className="w-full flex items-center justify-center gap-3 py-3.5 bg-primary-600 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] hover:bg-primary-700 transition-all shadow-xl shadow-primary-100 active:scale-95 shrink-0"
+                className="flex items-center justify-center gap-3 px-8 py-4 bg-[#1c2d4f] text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-primary-600 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1 w-full md:w-auto"
               >
-                <ExternalLink size={14} /> Abrir Relatório Público
+                Detalhes no Painel OS <ExternalLink size={14} />
               </button>
             </div>
           </div>
@@ -359,23 +478,23 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
       <style>{`
         .custom-scrollbar-thin::-webkit-scrollbar {
-          width: 2px;
+          width: 4px;
         }
         .custom-scrollbar-thin::-webkit-scrollbar-track {
           background: transparent;
         }
         .custom-scrollbar-thin::-webkit-scrollbar-thumb {
-          background: rgba(0,0,0,0.1);
+          background: #cbd5e1;
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
+          width: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: #f1f5f9;
+          background: #f8fafc;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
+          background: #94a3b8;
           border-radius: 10px;
         }
       `}</style>
