@@ -64,8 +64,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     const menuItems = [
         { path: '/admin', id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: true, enabled: isModuleEnabled('dashboard') },
         { path: '/admin/orders', id: 'orders', label: 'Atividade', icon: ClipboardList, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-        { path: '/admin/calendar', id: 'calendar', label: 'Calendário', icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-        { path: '/admin/map', id: 'map', label: 'Mapa NX', icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
+        { path: '/admin/calendar', id: 'calendar', label: 'Agenda', icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
+        { path: '/admin/map', id: 'map', label: 'Visão de campo', icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
         { path: '/admin/financial', id: 'financial', label: 'Financeiro', icon: DollarSign, visible: hasPermission('financial', 'read'), enabled: isModuleEnabled('financial') },
         { path: '/admin/quotes', id: 'quotes', label: 'Orçamentos', icon: DollarSign, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
         { path: '/admin/stock', id: 'stock', label: 'Estoque', icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
