@@ -276,8 +276,12 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                 <CalendarIcon size={120} className="transform rotate-12" />
               </div>
 
-              <button onClick={() => setSelectedDayData(null)} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white backdrop-blur-md transition-all">
-                <X size={18} />
+              <button
+                onClick={(e) => { e.stopPropagation(); setSelectedDayData(null); }}
+                className="absolute top-4 right-4 p-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-white backdrop-blur-md transition-all active:scale-75 z-[60]"
+                title="Fechar Agenda"
+              >
+                <X size={20} />
               </button>
 
               <p className="text-[12px] font-black text-white uppercase tracking-[0.2em] mb-1 drop-shadow-sm">Agenda do Dia</p>
@@ -376,8 +380,12 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   </h2>
                 </div>
 
-                <button onClick={() => setSelectedOrder(null)} className="p-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-white backdrop-blur-md transition-all active:scale-90">
-                  <X size={20} />
+                <button
+                  onClick={(e) => { e.stopPropagation(); setSelectedOrder(null); }}
+                  className="p-4 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-white backdrop-blur-md transition-all active:scale-75 z-[60]"
+                  title="Fechar Detalhes"
+                >
+                  <X size={22} />
                 </button>
               </div>
             </div>
