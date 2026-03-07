@@ -182,7 +182,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
       </header>
 
       {/* GRID DO CALENDÁRIO */}
-      <main className="flex-1 overflow-hidden flex flex-col p-4 pt-2 lg:p-6 min-h-0 bg-[#f4f7fb]">
+      <main className="flex-1 overflow-hidden flex flex-col p-4 pt-2 lg:p-6 min-h-0 bg-[#f0f4f9]">
 
         <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200/60 overflow-hidden flex flex-col h-full ring-1 ring-slate-900/5">
           {/* DIAS DA SEMANA */}
@@ -196,7 +196,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
           </div>
 
           {/* GRID DE DIAS */}
-          <div className="flex-1 grid grid-cols-7 auto-rows-fr bg-slate-100 min-h-0">
+          <div className="flex-1 grid grid-cols-7 auto-rows-fr bg-slate-200/50 min-h-0">
             {days.map((day, idx) => {
               const dayOrders = getOrdersForDay(day);
               const isToday = isDateToday(day);
@@ -211,7 +211,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   onClick={() => handleDayClick(day, dayOrders)}
                   className={`
                     relative p-1 md:p-2 border-r border-b border-transparent transition-all group min-h-0 cursor-text overflow-hidden
-                    ${isCurrentMonth ? 'bg-white hover:bg-slate-50/50' : 'bg-[#fafcff] opacity-60'} 
+                    ${isCurrentMonth ? 'bg-white hover:bg-blue-50/30' : 'bg-slate-50/50 opacity-60'} 
                     ${dayOrders.length > 0 ? 'cursor-pointer' : ''}
                     `}
                   style={{ borderColor: '#f1f5f9' }}
@@ -220,7 +220,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   <div className="flex justify-between items-start mb-1 h-6">
                     <div className={`
                             flex items-center justify-center w-7 h-7 rounded-full text-xs font-black transition-all
-                            ${isToday ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30' : 'text-slate-400 group-hover:text-slate-900'}
+                            ${isToday ? 'bg-[#1c2d4f] text-white shadow-lg shadow-[#1c2d4f]/20 scale-110' : 'text-slate-400 group-hover:text-slate-900'}
                             ${!isCurrentMonth && !isToday ? 'text-slate-300' : ''}
                         `}>
                       {format(day, 'd')}
