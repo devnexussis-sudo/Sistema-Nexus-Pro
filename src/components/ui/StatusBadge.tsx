@@ -49,16 +49,16 @@ export const PriorityBadge: React.FC<{ priority: OrderPriority }> = ({ priority 
     [OrderPriority.CRITICAL]: 'text-rose-500 bg-rose-50 font-black',
   };
 
-  const labels = {
-    [OrderPriority.LOW]: 'Baixa',
+  const PRIORITY_TEXT: Record<OrderPriority, string> = {
+    [OrderPriority.LOW]: 'Baixo',
     [OrderPriority.MEDIUM]: 'Média',
     [OrderPriority.HIGH]: 'Alta',
-    [OrderPriority.CRITICAL]: 'Crítica',
+    [OrderPriority.CRITICAL]: 'Urgente'
   };
 
   return (
     <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-[0.2em] ${styles[priority]}`}>
-      {labels[priority]}
+      {PRIORITY_TEXT[priority]}
     </span>
   )
 }
