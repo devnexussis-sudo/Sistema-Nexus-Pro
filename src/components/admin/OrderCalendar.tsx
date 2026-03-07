@@ -400,7 +400,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
                     <MapPin size={24} />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Cliente / Local</p>
                     <p className="text-sm font-bold text-slate-800 leading-tight">{selectedOrder.customerName}</p>
                     <p className="text-[10px] font-bold text-slate-500 mt-1 truncate">{selectedOrder.customerAddress || 'Endereço não cadastrado'}</p>
@@ -412,7 +412,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0">
                     <Clock size={24} />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Agendamento</p>
                     <p className="text-sm font-bold text-slate-800 capitalize leading-tight">
                       {selectedOrder.scheduledDate ? format(parseISO(selectedOrder.scheduledDate), "EEEE, dd 'de' MMMM", { locale: ptBR }) : 'Data Indefinida'}
@@ -442,7 +442,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] border-b border-slate-200 pb-2">Ativo Vinculado</h4>
                   <div className="bg-white p-4 rounded-2xl border border-slate-100 flex items-start gap-4">
                     <div className="bg-amber-50 text-amber-600 p-2.5 rounded-xl shrink-0"><Box size={18} /></div>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs font-black text-slate-800">{selectedOrder.equipmentName || 'Manutenção Geral'}</p>
                       <p className="text-[10px] text-slate-500 font-bold mt-0.5">{selectedOrder.equipmentModel || '--'}</p>
                       {selectedOrder.equipmentSerial && (
