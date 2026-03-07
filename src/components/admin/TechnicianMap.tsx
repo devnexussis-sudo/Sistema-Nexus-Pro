@@ -346,7 +346,7 @@ export const TechnicianMap: React.FC = () => {
                 {viewMode === 'ORDERS' && (
                     <div className="bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg border border-white/20 flex items-center gap-2 shrink-0">
                         <div className="p-1 bg-primary-600 rounded-lg shadow-lg shadow-primary-600/20"><MapPin size={12} className="text-white" /></div>
-                        <span className="text-[8px] font-black text-slate-900 uppercase tracking-wider hidden md:inline flex-1">Mapa de Tarefas</span>
+                        <span className="text-[8px] font-black text-slate-900 uppercase tracking-wider hidden md:inline flex-1">Visão de Campo</span>
                         <div className="w-px h-3 bg-slate-300 hidden md:inline"></div>
                         <span className="text-[9px] font-black text-primary-600">{mappedOrders.length} <span className="text-[7px] text-slate-400">LOCALIZADAS</span></span>
                     </div>
