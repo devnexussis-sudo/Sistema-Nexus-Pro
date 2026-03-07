@@ -3,10 +3,10 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker } from '
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Navigation, MapPin, Clock, RefreshCw, History, Calendar, Search, Map as MapIcon, Layers, Satellite, Users, ClipboardList } from 'lucide-react';
+import { Navigation, MapPin, Clock, RefreshCw, History, Calendar, Search, Map as MapIcon, Layers, Satellite, Users, ClipboardList, X } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { CacheManager } from '../../lib/cache';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { OrderStatus } from '../../types';
 
@@ -126,6 +126,12 @@ export const TechnicianMap: React.FC = () => {
     const [orders, setOrders] = useState<any[]>([]);
     const [customers, setCustomers] = useState<any[]>([]);
 
+    // 📅 Date Filter State (Padrão: Mês Vigente)
+    const [dateRange, setDateRange] = useState({
+        start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+        end: format(endOfMonth(new Date()), 'yyyy-MM-dd')
+    });
+
     useEffect(() => {
         if (viewMode === 'TECHS') {
             loadTechnicians();
@@ -190,13 +196,13 @@ export const TechnicianMap: React.FC = () => {
             const tenantId = DataService.getCurrentTenantId();
             if (tenantId) {
                 if (viewMode === 'TECHS') CacheManager.invalidate(`techs_${tenantId}`);
-                if(viewMode === 'ORDERS') {
+                if (viewMode === 'ORDERS') {
                     CacheManager.invalidate(`orders_${tenantId}`);
                     CacheManager.invalidate(`customers_${tenantId}`);
                 }
             }
-            if(viewMode === 'TECHS') await loadTechnicians();
-            if(viewMode === 'ORDERS') await loadOrders();
+            if (viewMode === 'TECHS') await loadTechnicians();
+            if (viewMode === 'ORDERS') await loadOrders();
         } catch (error) {
             console.error('[Map] Erro ao atualizar:', error);
         } finally {
@@ -260,6 +266,8 @@ export const TechnicianMap: React.FC = () => {
         return Math.floor(diff / 60000) < 30;
     };
 
+    const isMovingTechsHistory = historyPath.length > 5; // Simulação de status de movimento para o resumo histórico
+
     const activeTechs = technicians.filter(t => t.last_latitude && t.last_longitude && t.active !== false);
     const movingTechs = activeTechs.filter(t => isTechMoving(t.last_seen));
     const stoppedTechs = activeTechs.filter(t => !isTechMoving(t.last_seen));
@@ -267,7 +275,21 @@ export const TechnicianMap: React.FC = () => {
     const mappedOrders = orders.map(o => {
         const c = customers.find(cust => cust.id === o.customerId || cust.name === o.customerName);
         return { ...o, latitude: c?.latitude, longitude: c?.longitude };
-    }).filter(o => o.latitude && o.longitude);
+    }).filter(o => {
+        const hasCoords = o.latitude && o.longitude;
+        if (!hasCoords) return false;
+
+        // Filtro por Data (Mês Vigente por padrão)
+        if (o.scheduledDate) {
+            const orderDate = parseISO(o.scheduledDate);
+            const start = parseISO(dateRange.start);
+            const end = parseISO(dateRange.end);
+            end.setHours(23, 59, 59, 999);
+
+            return isWithinInterval(orderDate, { start, end });
+        }
+        return false;
+    });
 
     const tileLayerUrl = mapType === 'SATELLITE'
         ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -281,7 +303,7 @@ export const TechnicianMap: React.FC = () => {
         <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden">
             {/* 🔮 NEXUS TOP BAR */}
             <div className="absolute top-4 left-4 right-4 z-[1000] flex flex-wrap items-center gap-2">
-                
+
                 {/* Modos Principais */}
                 <div className="bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-white/20 flex overflow-hidden p-1">
                     <button
@@ -332,70 +354,142 @@ export const TechnicianMap: React.FC = () => {
 
                 {/* Refresh Button */}
                 {!isHistoryMode && (
-                    <button
-                        onClick={handleRefresh}
-                        disabled={isRefreshing}
-                        className="bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border border-white/20 hover:bg-primary-50 transition-all disabled:opacity-50"
-                        title="Atualizar"
-                    >
-                        <RefreshCw size={14} className={`text-primary-600 transition-transform ${isRefreshing ? 'animate-spin' : ''}`} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <div className="bg-white/95 backdrop-blur-md rounded-full px-4 py-1.5 shadow-lg border border-white/20 flex items-center gap-3">
+                            <Calendar size={14} className="text-primary-600" />
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="date"
+                                    value={dateRange.start}
+                                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                                    className="bg-transparent text-[9px] font-black uppercase tracking-tighter text-slate-700 outline-none"
+                                />
+                                <span className="text-slate-300 text-[10px]">até</span>
+                                <input
+                                    type="date"
+                                    value={dateRange.end}
+                                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                                    className="bg-transparent text-[9px] font-black uppercase tracking-tighter text-slate-700 outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
+                            className="bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border border-white/20 hover:bg-primary-50 transition-all disabled:opacity-50"
+                            title="Atualizar"
+                        >
+                            <RefreshCw size={14} className={`text-primary-600 transition-transform ${isRefreshing ? 'animate-spin' : ''}`} />
+                        </button>
+                    </div>
                 )}
 
                 {/* History Toggle Button for Techs */}
                 {viewMode === 'TECHS' && (
                     <button
                         onClick={() => setIsHistoryMode(!isHistoryMode)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border transition-all font-black text-[9px] uppercase tracking-widest ${isHistoryMode ? 'bg-[#1c2d4f] text-white border-[#1c2d4f]' : 'bg-white/90 text-slate-600 border-white/20 hover:bg-slate-50'}`}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border transition-all font-black text-[9px] uppercase tracking-widest ${isHistoryMode ? 'bg-primary-600 text-white border-primary-500' : 'bg-white/90 text-slate-600 border-white/20 hover:bg-slate-50'}`}
                     >
-                        <History size={14} /> <span className="hidden lg:inline">{isHistoryMode ? 'Sair Histórico' : 'Ver Histórico'}</span>
+                        <History size={14} /> <span className="hidden lg:inline">{isHistoryMode ? 'Fechar Histórico' : 'Rastrear Histórico'}</span>
                     </button>
                 )}
 
             </div>
 
-            {/* 🕒 History Controls Overlay */}
-            {isHistoryMode && viewMode === 'TECHS' && (
-                <div className="absolute top-20 left-4 right-4 z-[1000] flex flex-wrap gap-3 pointer-events-none">
-                    <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-primary-100 flex flex-col md:flex-row items-center gap-4 pointer-events-auto">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Técnico</label>
-                            <select
-                                value={selectedHistoryTech?.id || ''}
-                                onChange={(e) => setSelectedHistoryTech(technicians.find(t => t.id === e.target.value) || null)}
-                                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-primary-500"
-                            >
-                                <option value="">Selecione um técnico</option>
+            {/* 🕒 Side History Drawer (Big Tech Style) */}
+            <div className={`absolute top-0 right-0 bottom-0 z-[1001] w-full max-w-xs transition-all duration-500 transform ${isHistoryMode ? 'translate-x-0' : 'translate-x-full'}`}>
+                <div className="h-full bg-white/95 backdrop-blur-xl shadow-2xl border-l border-slate-200 flex flex-col pt-24 px-6 gap-6 relative">
+                    <button
+                        onClick={() => setIsHistoryMode(false)}
+                        className="absolute top-6 left-6 p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-400 hover:text-slate-600 transition-all"
+                    >
+                        <X size={20} />
+                    </button>
+
+                    <div className="flex flex-col gap-1 mt-4">
+                        <h2 className="text-2xl font-black text-[#1c2d4f] italic tracking-tighter">Histórico</h2>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Rastreamento de ativos e rotas</p>
+                    </div>
+
+                    <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar-thin pr-2">
+                        {/* Seletor de Técnico */}
+                        <div className="space-y-3">
+                            <label className="flex items-center gap-2 text-[10px] font-black text-primary-600 uppercase tracking-widest">
+                                <Users size={12} /> Selecionar Técnico
+                            </label>
+                            <div className="grid grid-cols-1 gap-2">
                                 {technicians.map(t => (
-                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                    <button
+                                        key={t.id}
+                                        onClick={() => setSelectedHistoryTech(t)}
+                                        className={`flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${selectedHistoryTech?.id === t.id ? 'bg-primary-50 border-primary-200 shadow-sm ring-1 ring-primary-100' : 'bg-white border-slate-100 hover:border-slate-300'}`}
+                                    >
+                                        <img src={t.avatar || `https://ui-avatars.com/api/?name=${t.name}&background=random`} className="w-8 h-8 rounded-full border border-white shadow-sm" alt="" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className={`text-[11px] font-black uppercase truncate ${selectedHistoryTech?.id === t.id ? 'text-primary-700' : 'text-slate-700'}`}>{t.name}</p>
+                                            <p className="text-[8px] text-slate-400 truncate tracking-tight">{t.email}</p>
+                                        </div>
+                                    </button>
                                 ))}
-                            </select>
+                            </div>
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Data do Percurso</label>
-                            <input
-                                type="date"
-                                value={selectedHistoryDate}
-                                onChange={(e) => setSelectedHistoryDate(e.target.value)}
-                                max={new Date().toISOString().split('T')[0]}
-                                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-primary-500"
-                            />
+
+                        {/* Seletor de Data */}
+                        <div className="space-y-3">
+                            <label className="flex items-center gap-2 text-[10px] font-black text-primary-600 uppercase tracking-widest">
+                                <Calendar size={12} /> Período
+                            </label>
+                            <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 italic">
+                                <input
+                                    type="date"
+                                    value={selectedHistoryDate}
+                                    onChange={(e) => setSelectedHistoryDate(e.target.value)}
+                                    max={new Date().toISOString().split('T')[0]}
+                                    className="w-full bg-transparent border-none text-sm font-black text-slate-700 outline-none"
+                                />
+                            </div>
                         </div>
+
+                        {/* Estatística do Percurso */}
                         {selectedHistoryTech && (
-                            <div className="flex flex-col gap-1 items-center px-4 border-l border-slate-100">
-                                {isLoadingHistory ? (
-                                    <RefreshCw size={16} className="text-primary-600 animate-spin" />
-                                ) : (
-                                    <>
-                                        <span className="text-[12px] font-black text-primary-600">{historyPath.length}</span>
-                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Pontos</span>
-                                    </>
-                                )}
+                            <div className="bg-slate-900 rounded-[2rem] p-6 text-white overflow-hidden relative group">
+                                <div className="absolute -right-4 -top-4 p-8 opacity-10 group-hover:scale-110 transition-transform"><Navigation size={120} /></div>
+                                <p className="text-[10px] font-black text-primary-400 uppercase tracking-[0.2em] mb-4">Resumo do Percurso</p>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex flex-col">
+                                        {isLoadingHistory ? (
+                                            <RefreshCw size={24} className="animate-spin text-white mb-2" />
+                                        ) : (
+                                            <span className="text-3xl font-black italic leading-none mb-1">{historyPath.length}</span>
+                                        )}
+                                        <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Registros</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-3xl font-black italic leading-none mb-1">{isMovingTechsHistory ? 'ATIVO' : 'PARADO'}</span>
+                                        <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Status Médio</span>
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 pt-6 border-t border-white/10">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Rota Disponível</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {!selectedHistoryTech && !technicians.length && (
+                            <div className="py-10 text-center flex flex-col items-center gap-4 opacity-30">
+                                <Search size={40} className="text-slate-300" />
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nenhum técnico encontrado</p>
                             </div>
                         )}
                     </div>
                 </div>
-            )}
+            </div>
 
             {/* Legend Overlay for OS */}
             {viewMode === 'ORDERS' && (
@@ -441,7 +535,7 @@ export const TechnicianMap: React.FC = () => {
                                         <div className="p-3 w-48">
                                             <p className="font-black text-sm text-[#1c2d4f] truncate">{o.title}</p>
                                             <p className="text-[10px] text-slate-500 font-bold mb-2 break-all">{o.displayId || o.id}</p>
-                                            
+
                                             <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 mb-2">
                                                 <div className="flex items-center gap-1.5 mb-1.5">
                                                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getStatusColorHex(o.status) }}></span>
