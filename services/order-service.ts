@@ -63,6 +63,7 @@ export interface ExtendedServiceOrder extends ServiceOrder {
     type?: string;
     priority?: string;
     displayId?: string; // Short ID for display
+    rawStatus?: string;
     formId?: string;
     formData?: any; // The initial form data from opening
     operationType?: string;
@@ -72,6 +73,7 @@ export interface ExtendedServiceOrder extends ServiceOrder {
     scheduledDate?: string;
     scheduledTime?: string;
     equipments?: any[];
+    publicToken?: string;
 }
 
 export class OrderService {
@@ -150,14 +152,24 @@ export class OrderService {
     private static mapDbOrderToApp(dbOrder: any): ExtendedServiceOrder {
         // Map status
         let status: OrderStatus = 'pending';
-        switch (dbOrder.status) {
-            case 'PENDENTE': status = 'pending'; break;
-            case 'ATRIBUÍDO': status = 'assigned'; break;
-            case 'EM DESLOCAMENTO': status = 'traveling'; break;
-            case 'EM ANDAMENTO': status = 'in_progress'; break;
-            case 'CONCLUÍDO': status = 'completed'; break;
-            case 'CANCELADO': status = 'canceled'; break;
-            case 'IMPEDIDO': status = 'blocked'; break;
+        switch (dbOrder.status?.toUpperCase()) {
+            case 'PENDENTE':
+            case 'ABERTA':
+            case 'ABERTO':
+            case 'NOVA':
+                status = 'pending'; break;
+            case 'ATRIBUÍDO':
+                status = 'assigned'; break;
+            case 'EM DESLOCAMENTO':
+                status = 'traveling'; break;
+            case 'EM ANDAMENTO':
+                status = 'in_progress'; break;
+            case 'CONCLUÍDO':
+                status = 'completed'; break;
+            case 'CANCELADO':
+                status = 'canceled'; break;
+            case 'IMPEDIDO':
+                status = 'blocked'; break;
             default: status = 'pending';
         }
 
@@ -216,7 +228,7 @@ export class OrderService {
             equipmentSerial: dbOrder.equipment_serial,
             problemReason: '',
             executionDetails: executionDetails,
-            blockReason: (status === 'canceled' && details.blockReason) ? details.blockReason : undefined,
+            blockReason: ((status === 'canceled' || status === 'blocked') && (dbOrder.block_reason || details.blockReason)) ? (dbOrder.block_reason || details.blockReason) : undefined,
             type: dbOrder.operation_type || dbOrder.type,
             operationType: dbOrder.operation_type,
             priority: dbOrder.priority,
@@ -225,7 +237,9 @@ export class OrderService {
             formId: dbOrder.form_id,
             formData: dbOrder.form_data,
             scheduledDate: dbOrder.scheduled_date,
-            scheduledTime: dbOrder.scheduled_time
+            scheduledTime: dbOrder.scheduled_time,
+            // 🏷️ DEBUG: Store raw status to identify the "missing" OS status
+            rawStatus: dbOrder.status
         };
     }
 
@@ -255,69 +269,200 @@ export class OrderService {
         }
     }
 
-    static async getAllOrders(): Promise<ExtendedServiceOrder[]> {
+    static async getAllOrders(options: {
+        page?: number;
+        pageSize?: number;
+        statusFilter?: OrderStatus | 'all';
+        startDate?: Date;
+        endDate?: Date;
+    } = {}): Promise<{ orders: ExtendedServiceOrder[], total: number, stats: Record<string, number> }> {
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id || authService.getCurrentUserId();
         if (!userId) {
             logger.log('Cannot fetch orders: No user logged in', 'warn');
-            return [];
+            return { orders: [], total: 0, stats: {} };
         }
 
-        // Fetch assigned orders. 
-        // We select * from orders. RLS handles filtering by tenant, 
-        // but we should also filter by assigned_to = userId OR if user is admin/manager.
-        // Assuming current user is a technician, let's just filter by assigned_to just in case 
-        // or let RLS handle it (but RLS "Orders SELECT" says: tenant_id = ...).
-        // Wait, typical Technician RLS is: assigned_to = auth.uid() OR is_admin().
-        // The policy "Orders SELECT" in schema.sql only checks tenant_id!
-        // "396: CREATE POLICY "Orders SELECT" ON public.orders FOR SELECT USING (tenant_id = public.get_user_tenant_id());"
-        // This means ALL technicians in the tenant see ALL orders.
-        // So we SHOULD client-side filter by assigned_to if we want them to see only theirs.
+        const { page = 1, pageSize = 100, statusFilter = 'all', startDate, endDate } = options;
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+
+        // Helper to format date as YYYY-MM-DD in local time
+        const formatLocalISO = (date: Date) => {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
+
+        const startDateStr = startDate ? formatLocalISO(startDate) : null;
+        const endDateStr = endDate ? formatLocalISO(endDate) : null;
 
         try {
-            console.log('[OrderService] Fetching orders for user:', userId);
+            // 1. Get User Profile for Role Check
+            const { data: userProfile } = await supabase.from('users').select('role').eq('id', userId).single();
+            const isAdmin = userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER';
 
-            // Check User Role to determine visibility
-            const { data: userProfile, error: profileError } = await supabase
-                .from('users')
-                .select('role')
-                .eq('id', userId)
-                .single();
+            // 🎯 CORREÇÃO DEFINITIVA: O problema é que o caractere 'Í' em 'ATRIBUÍDO'
+            // no código TypeScript tem codificação Unicode (NFC/NFD) diferente do que
+            // está gravado no ENUM do PostgreSQL. Por isso .in('status', ['ATRIBUÍDO'])
+            // NUNCA encontra resultados, enquanto 'CONCLUÍDO' funciona.
+            //
+            // SOLUÇÃO: Para 'pending' (Abertas), buscamos TODAS as OS do técnico
+            // e filtramos no JavaScript usando .includes('ATRIBU'), que ignora
+            // completamente a diferença de codificação do acento.
 
-            // Default to NOT admin for safety if profile can't be loaded
-            const isAdmin = !profileError && (userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER');
+            // STATUS_GROUPS para filtros que FUNCIONAM no banco (sem problema de encoding)
+            const STATUS_GROUPS_DB: Record<string, string[]> = {
+                in_progress: ['EM ANDAMENTO'],
+                traveling: ['EM DESLOCAMENTO'],
+                blocked: ['IMPEDIDO'],
+                completed: ['CONCLUÍDO'],
+                canceled: ['CANCELADO']
+            };
 
-            console.log(`[OrderService] User: ${userId} | Role: ${userProfile?.role || 'Unknown'} | IsAdmin: ${isAdmin}`);
+            // 2. Fetch Dashboard Stats
+            // Para 'pending', contamos no cliente. Para os demais, contamos no banco.
+            const statsMap: Record<string, number> = { all: 0, pending: 0 };
 
-            let query = supabase
-                .from('orders')
-                .select('*')
-                .order('created_at', { ascending: false });
+            // Stats para categorias que funcionam no banco
+            const dbStatsPromises = Object.entries(STATUS_GROUPS_DB).map(async ([key, statuses]) => {
+                let q = supabase.from('orders').select('*', { count: 'exact', head: true });
+                if (!isAdmin) q = q.eq('assigned_to', userId);
+                q = q.in('status', statuses);
+                if (startDateStr) q = q.gte('scheduled_date', startDateStr);
+                if (endDateStr) q = q.lte('scheduled_date', endDateStr);
+                const { count } = await q;
+                return { [key]: count || 0 };
+            });
 
-            // If not admin, strictly show only assigned orders
-            if (!isAdmin) {
-                console.log('[OrderService] 🔒 Applying Technician Filter: assigned_to =', userId);
-                query = query.eq('assigned_to', userId);
+            // Stat para 'all'
+            let allQuery = supabase.from('orders').select('*', { count: 'exact', head: true });
+            if (!isAdmin) allQuery = allQuery.eq('assigned_to', userId);
+            if (startDateStr) allQuery = allQuery.gte('scheduled_date', startDateStr);
+            if (endDateStr) allQuery = allQuery.lte('scheduled_date', endDateStr);
+
+            const [dbStatsResults, allResult] = await Promise.all([
+                Promise.all(dbStatsPromises),
+                allQuery
+            ]);
+
+            dbStatsResults.forEach(r => Object.assign(statsMap, r));
+            statsMap.all = allResult.count || 0;
+
+            // Stat para 'pending': buscar TODOS do técnico e contar client-side
+            let pendingCountQuery = supabase.from('orders').select('status');
+            if (!isAdmin) pendingCountQuery = pendingCountQuery.eq('assigned_to', userId);
+            const { data: allStatuses } = await pendingCountQuery;
+            if (allStatuses) {
+                statsMap.pending = allStatuses.filter(
+                    (o: any) => o.status && (o.status.toUpperCase().includes('ATRIBU') || o.status.toUpperCase().includes('PENDENT'))
+                ).length;
+            }
+
+            // 3. Fetch Paginated Orders
+            let query = supabase.from('orders').select('*', { count: 'exact' });
+            if (!isAdmin) query = query.eq('assigned_to', userId);
+
+            if (statusFilter === 'pending') {
+                // 🔓 Para 'pending': NÃO aplicar filtro de status no banco.
+                // Buscar tudo e filtrar no cliente após receber os dados.
+                // Também não aplicar filtro de data para mostrar backlog completo.
             } else {
-                console.log('[OrderService] 🔓 Admin access: showing all orders');
+                // Para outros filtros, usar o banco normalmente
+                if (statusFilter !== 'all' && STATUS_GROUPS_DB[statusFilter]) {
+                    query = query.in('status', STATUS_GROUPS_DB[statusFilter]);
+                }
+                if (startDateStr) query = query.gte('scheduled_date', startDateStr);
+                if (endDateStr) query = query.lte('scheduled_date', endDateStr);
             }
 
-            const { data, error } = await query;
-
-            console.log('[OrderService] Fetched orders count:', data?.length, 'Current User:', userId);
-            if (data && data.length > 0) {
-                console.log('[OrderService] First order assigned_to:', data[0].assigned_to);
-                console.log('[OrderService] First order details:', JSON.stringify(data[0], null, 2));
+            // Smart Sorting
+            if (statusFilter === 'pending') {
+                query = query.order('created_at', { ascending: false });
+            } else {
+                query = query
+                    .order('scheduled_date', { ascending: true })
+                    .order('scheduled_time', { ascending: true })
+                    .order('created_at', { ascending: false });
             }
+
+            // 🎯 OPTIMIZED RANGE: 
+            // Para 'pending', buscamos mais (200) pois filtramos no cliente.
+            // Para todos os outros, buscamos APENAS a página solicitada (from, to).
+            const startRange = statusFilter === 'pending' ? 0 : from;
+            const endRange = statusFilter === 'pending' ? 199 : to;
+
+            const { data, error, count } = await query.range(startRange, endRange);
 
             if (error) {
-                logger.log(`Fetch orders error: ${error.message}`, 'error');
+                logger.log(`Error fetching orders: ${error.message}`, 'error');
+                console.log(`[OrderService] Error: ${error.message}`);
+                return { orders: [], total: 0, stats: statsMap };
+            }
+
+            // 🎯 FILTRAGEM CLIENT-SIDE para 'pending'
+            let filteredData = data || [];
+            if (statusFilter === 'pending') {
+                filteredData = filteredData.filter((o: any) => {
+                    const s = (o.status || '').toUpperCase();
+                    return s.includes('ATRIBU') || s.includes('PENDENT') || s.includes('ABERT');
+                });
+                console.log(`[OrderService] Pending client-filter: ${data?.length} total → ${filteredData.length} matched`);
+            }
+
+            // Paginar os resultados
+            const finalData = statusFilter === 'pending'
+                ? filteredData.slice(from, from + pageSize) // Slice logic for client-side
+                : filteredData; // Already paginated via DB range
+            const finalTotal = statusFilter === 'pending'
+                ? filteredData.length
+                : (count || 0);
+
+            return {
+                orders: finalData.map(o => this.mapDbOrderToApp(o)),
+                total: finalTotal,
+                stats: statsMap
+            };
+        } catch (error) {
+            logger.log(`Fetch orders exception: ${error}`, 'error');
+            return { orders: [], total: 0, stats: {} };
+        }
+    }
+
+    static async getCalendarOrders(year: number, month: number): Promise<ExtendedServiceOrder[]> {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user?.id || authService.getCurrentUserId();
+            if (!userId) return [];
+
+            const startDate = new Date(year, month - 1, 1).toLocaleDateString("en-CA");
+            const endDate = new Date(year, month, 0).toLocaleDateString("en-CA");
+
+            let query = supabase.from('orders').select('*');
+
+            const { data: userProfile } = await supabase.from('users').select('role').eq('id', userId).single();
+            const isAdmin = userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER';
+
+            if (!isAdmin) {
+                query = query.eq('assigned_to', userId);
+            }
+
+            // Busca as ordens filtrando pela data de agendamento entre início e fim do mês
+            const { data, error } = await query
+                .gte('scheduled_date', startDate)
+                .lte('scheduled_date', endDate)
+                .order('scheduled_date', { ascending: true })
+                .order('scheduled_time', { ascending: true });
+
+            if (error) {
+                console.error('[OrderService] Error fetching calendar orders:', error.message);
                 return [];
             }
 
-            return (data || []).map(o => this.mapDbOrderToApp(o));
+            return (data || []).map((o: any) => this.mapDbOrderToApp(o));
         } catch (error) {
-            logger.log(`Fetch orders exception: ${error}`, 'error');
+            console.error('[OrderService] Fetch calendar orders exception:', error);
             return [];
         }
     }
@@ -355,11 +500,16 @@ export class OrderService {
                 if (url) signatureUrl = url;
             }
 
+            // Fetch current DB order to preserve existing form_data context
+            const { data: currentOrder } = await supabase.from('orders').select('form_data').eq('id', id).single();
+            const currentFormData = currentOrder?.form_data || {};
+
             // 3. Update DB
             const updateData: any = {
                 status: 'CONCLUÍDO',
                 end_date: new Date().toISOString(),
                 form_data: {
+                    ...currentFormData,
                     technicalReport: details.technicalReport,
                     partsUsed: details.partsUsed,
                     photos: uploadedPhotos,

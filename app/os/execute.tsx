@@ -64,7 +64,7 @@ export default function ExecuteOSScreen() {
             st.name?.toLowerCase().includes(String(typeValue).toLowerCase())
         );
 
-        const family = eq?.family_name || eq?.equipmentFamily || 'Todos';
+        const family = eq?.equipment_family || eq?.equipmentFamily || 'Todos';
         const typeId = matchedServiceType?.id || typeValue;
 
         const bestRule = rules.find(r => r.serviceTypeId === typeId && r.equipmentFamily === family)
@@ -126,9 +126,9 @@ export default function ExecuteOSScreen() {
                             let initialData: any = {};
                             if (template) {
                                 template.fields.forEach((field: any) => {
-                                    const eqPrefix = `[${eqName}] - `;
-                                    if (orderData.formData && orderData.formData[`${eqPrefix}${field.label}`] !== undefined) {
-                                        initialData[field.id] = orderData.formData[`${eqPrefix}${field.label}`];
+                                    const prefix = `[${eqName}${eq.equipment_serial ? ` S/N: ${eq.equipment_serial}` : ''}] - `;
+                                    if (orderData.formData && orderData.formData[`${prefix}${field.label}`] !== undefined) {
+                                        initialData[field.id] = orderData.formData[`${prefix}${field.label}`];
                                     } else if (orderData.formData && orderData.formData[field.id] !== undefined) {
                                         initialData[field.id] = orderData.formData[field.id];
                                     } else {
