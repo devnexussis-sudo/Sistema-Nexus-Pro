@@ -668,7 +668,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                           onChange={e => setFormData({ ...formData, priority: e.target.value as OrderPriority })}
                         >
                           {Object.values(OrderPriority).map(p => (
-                            <option key={p} value={p}>{p === OrderPriority.LOW ? 'Baixa' : p === OrderPriority.MEDIUM ? 'Média' : 'Alta / Crítica'}</option>
+                            <option key={p} value={p}>{p === OrderPriority.LOW ? 'Baixo' : p === OrderPriority.MEDIUM ? 'Média' : p === OrderPriority.HIGH ? 'Alta' : 'Urgente'}</option>
                           ))}
                         </select>
                       </div>
