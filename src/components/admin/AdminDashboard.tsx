@@ -1432,7 +1432,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     return typeMatch && famMatch;
                   });
                   const ids = [...new Set(rules.map((r: any) => r.formId).filter(Boolean))];
-                  return formTemplatesAll.filter((t: any) => ids.includes(t.id));
+                  let matchedTemplates = formTemplatesAll.filter((t: any) => ids.includes(t.id));
+
+                  // ── REPLICA O FALLBACK DO APP MOBILE ── 
+                  // Se não encontrou template via regras explícitas, tenta pelo titulo ou serviceType (como o execute.tsx faz)
+                  if (matchedTemplates.length === 0 && opType) {
+                    const fallback = formTemplatesAll.find((t: any) =>
+                      t.title.toLowerCase().includes(opType.toLowerCase()) ||
+                      (t.serviceTypes && t.serviceTypes.includes(opType))
+                    );
+                    if (fallback) matchedTemplates = [fallback];
+                  }
+
+                  return matchedTemplates;
                 };
 
                 // Garante que formId direto da OS apareça quando não há regras
