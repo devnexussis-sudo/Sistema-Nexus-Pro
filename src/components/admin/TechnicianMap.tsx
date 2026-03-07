@@ -37,9 +37,10 @@ interface LocationHistory {
     recorded_at: string;
 }
 
-const createTechIcon = (avatarUrl: string, isMoving: boolean = true) => {
-    const borderColor = isMoving ? '#10b981' : '#94a3b8'; // Verde se em movimento, cinza se parado
-    const statusColor = isMoving ? '#10b981' : '#ef4444'; // Verde se em movimento, vermelho se parado
+const createTechIcon = (avatarUrl: string, isMoving: boolean = true, customColorHex?: string) => {
+    const defaultColor = isMoving ? '#10b981' : '#ef4444'; // Verde se em movimento, vermelho se parado
+    const borderColor = customColorHex || (isMoving ? '#10b981' : '#94a3b8');
+    const statusColor = customColorHex || defaultColor;
     const pulseAnimation = isMoving ? 'animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;' : '';
 
     return L.divIcon({
@@ -52,7 +53,7 @@ const createTechIcon = (avatarUrl: string, isMoving: boolean = true) => {
             </style>
             <div style="position: relative; width: 40px; height: 40px;">
                 <img src="${avatarUrl || 'https://ui-avatars.com/api/?name=Tech&background=random'}" style="width: 40px; height: 40px; border-radius: 50%; border: 3px solid ${borderColor}; box-shadow: 0 2px 8px rgba(0,0,0,0.3); object-fit: cover; ${!isMoving ? 'opacity: 0.7;' : ''}" />
-                <div style="position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; background: ${statusColor}; border: 2px solid white; border-radius: 50%; ${pulseAnimation}"></div>
+                <div style="position: absolute; bottom: -2px; right: -2px; width: 14px; height: 14px; background: ${statusColor}; border: 2px solid white; border-radius: 50%; ${pulseAnimation}; box-shadow: 0 1px 4px rgba(0,0,0,0.4);"></div>
             </div>
         `,
         className: 'tech-marker',
@@ -269,6 +270,20 @@ export const TechnicianMap: React.FC = () => {
     const activeTechs = technicians.filter(t => t.last_latitude && t.last_longitude && t.active !== false);
     const movingTechs = activeTechs.filter(t => isTechMoving(t.last_seen));
     const stoppedTechs = activeTechs.filter(t => !isTechMoving(t.last_seen));
+
+    const getTechActiveOrder = (techId: string) => {
+        return orders.find(o =>
+            o.assignedTo === techId &&
+            (
+                o.status === OrderStatus.IN_PROGRESS ||
+                o.status === OrderStatus.TRAVELING ||
+                String(o.status).toUpperCase() === 'EM ANDAMENTO' ||
+                String(o.status).toUpperCase() === 'EM DESLOCAMENTO' ||
+                String(o.status).toLowerCase() === 'in_progress' ||
+                String(o.status).toLowerCase() === 'traveling'
+            )
+        );
+    };
 
     const mappedOrders = orders.map(o => {
         const c = customers.find(cust => cust.id === o.customerId || cust.name === o.customerName);
@@ -562,11 +577,14 @@ export const TechnicianMap: React.FC = () => {
                     {/* --- TECHS LIVE MODE RENDERING --- */}
                     {viewMode === 'TECHS' && !isHistoryMode && activeTechs.map(t => {
                         const isMoving = isTechMoving(t.last_seen);
+                        const activeOrder = getTechActiveOrder(t.id);
+                        const activeOrderStatusColor = activeOrder ? getStatusColorHex(activeOrder.status) : undefined;
+
                         return (
                             <Marker
                                 key={t.id}
                                 position={[t.last_latitude!, t.last_longitude!] as any}
-                                icon={createTechIcon(t.avatar || '', isMoving)}
+                                icon={createTechIcon(t.avatar || '', isMoving, activeOrderStatusColor)}
                             >
                                 <Popup>
                                     <div className="p-2 w-48">
@@ -577,10 +595,22 @@ export const TechnicianMap: React.FC = () => {
                                                 <p className="text-[9px] text-slate-500 truncate">{t.email}</p>
                                             </div>
                                         </div>
-                                        <div className="mb-2">
-                                            <span className={`inline-flex w-full justify-center items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase ${isMoving ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                                                {isMoving ? '🟢 Em Deslocamento (< 30m)' : '🔴 Parado (> 30m)'}
+                                        <div className="mb-2 flex flex-col gap-1">
+                                            <span className={`inline-flex w-full justify-center items-center gap-1 px-2 py-1 rounded-full text-[8px] font-black uppercase ${isMoving ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                                                {isMoving ? '🟢 Sinal GPS Recente' : '🔴 Sem Sinal (> 30m)'}
                                             </span>
+                                            {activeOrder && (
+                                                <span
+                                                    className="inline-flex w-full justify-center items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase text-white shadow-sm truncate"
+                                                    style={{ backgroundColor: activeOrderStatusColor }}
+                                                    title={activeOrder.title || activeOrder.displayId}
+                                                >
+                                                    {String(activeOrder.status).toUpperCase().includes('DESLOCAMENTO') || String(activeOrder.status).toLowerCase().includes('travel')
+                                                        ? '🚗 Deslocamento'
+                                                        : '🛠️ Em Execução'
+                                                    } - {activeOrder.displayId || (activeOrder.id && activeOrder.id.length > 8 ? activeOrder.id.split('-')[0] : activeOrder.id)}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-100 mb-2">
                                             <span className="text-[9px] text-slate-500 font-bold uppercase">Bateria:</span>
