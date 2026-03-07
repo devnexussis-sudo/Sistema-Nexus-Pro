@@ -115,50 +115,83 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     }
   }, [formData.document, customers, editingId]);
 
+  const fetchCoordinates = async (address: string, city: string, state: string, currentLat?: number, currentLng?: number) => {
+    if (currentLat && currentLng) return { lat: currentLat, lng: currentLng };
+    if (!address || !city || !state) return null;
+
+    try {
+      const query = encodeURIComponent(`${address}, ${city}, ${state}, Brasil`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
+        headers: { 'Accept-Language': 'pt-BR' }
+      });
+      const data = await res.json();
+      if (data && data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon)
+        };
+      }
+    } catch (err) {
+      console.error("Erro geocoding nominatim", err);
+    }
+    return null;
+  }
+
   const handleZipBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
     const zip = e.target.value.replace(/\D/g, '');
     if (zip.length === 8) {
       setLoadingZip(true);
       try {
-        // Usar BrasilAPI v2 que também retorna geolocalização
-        const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${zip}`);
-        const data = await response.json();
-
-        if (!data.errors) {
-          const lat = data.location?.coordinates?.latitude ? parseFloat(data.location.coordinates.latitude) : undefined;
-          const lng = data.location?.coordinates?.longitude ? parseFloat(data.location.coordinates.longitude) : undefined;
-
-          setFormData(prev => ({
-            ...prev,
-            zip: data.cep,
-            state: data.state,
-            city: data.city,
-            address: data.street,
-            neighborhood: data.neighborhood,
-            latitude: lat,
-            longitude: lng
-          }));
-        }
-      } catch (error) {
-        console.error("Erro ao buscar CEP", error);
-
-        // Fallback para viacep
+        let addressData: any = null;
         try {
+          const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${zip}`);
+          const data = await response.json();
+          if (!data.errors) {
+            addressData = {
+              zip: data.cep,
+              state: data.state,
+              city: data.city,
+              address: data.street,
+              neighborhood: data.neighborhood,
+              initialLat: data.location?.coordinates?.latitude ? parseFloat(data.location.coordinates.latitude) : undefined,
+              initialLng: data.location?.coordinates?.longitude ? parseFloat(data.location.coordinates.longitude) : undefined,
+            };
+          }
+        } catch (error) {
+          console.error("Erro na BrasilAPI, tentando ViaCEP...");
+        }
+
+        if (!addressData) {
           const fallbackResponse = await fetch(`https://viacep.com.br/ws/${zip}/json/`);
           const fallbackData = await fallbackResponse.json();
           if (!fallbackData.erro) {
-            setFormData(prev => ({
-              ...prev,
+            addressData = {
               zip: fallbackData.cep,
               state: fallbackData.uf,
               city: fallbackData.localidade,
               address: fallbackData.logradouro,
               neighborhood: fallbackData.bairro
-            }));
+            }
           }
-        } catch (fallbackError) {
-          console.error("Erro no fallback de CEP", fallbackError);
         }
+
+        if (addressData) {
+          const coords = await fetchCoordinates(addressData.address, addressData.city, addressData.state, addressData.initialLat, addressData.initialLng);
+
+          setFormData(prev => ({
+            ...prev,
+            zip: addressData.zip || prev.zip,
+            state: addressData.state || prev.state,
+            city: addressData.city || prev.city,
+            address: addressData.address || prev.address,
+            neighborhood: addressData.neighborhood || prev.neighborhood,
+            latitude: coords?.lat,
+            longitude: coords?.lng
+          }));
+        }
+
+      } catch (error) {
+        console.error("Erro geral na busca de CEP", error);
       } finally {
         setLoadingZip(false);
       }
@@ -518,11 +551,20 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                     <Input label="Estado (UF)" value={formData.state || ''} className="rounded-2xl py-4 border-slate-200 font-black text-primary-600" onChange={e => setFormData({ ...formData, state: e.target.value })} />
                     <Input label="Cidade" value={formData.city || ''} className="rounded-2xl py-4 border-slate-200 font-black text-slate-700" onChange={e => setFormData({ ...formData, city: e.target.value })} />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-                    <div className="md:col-span-9"><Input label="Logradouro" value={formData.address || ''} className="rounded-2xl py-4 border-slate-200 font-black text-slate-700" onChange={e => setFormData({ ...formData, address: e.target.value })} /></div>
-                    <div className="md:col-span-3"><Input label="Número" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} /></div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                    <div className="md:col-span-2"><Input label="Logradouro" value={formData.address || ''} className="rounded-2xl py-4 border-slate-200 font-black text-slate-700" onChange={e => setFormData({ ...formData, address: e.target.value })} /></div>
+                    <div className="md:col-span-1"><Input label="Número" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} /></div>
+                    <div className="md:col-span-1"><Input label="Bairro" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} /></div>
                   </div>
                   <Input label="Ponto de Referência / Complemento" icon={<Info size={18} />} className="rounded-2xl py-4 font-bold border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                    <div className="col-span-full">
+                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Geolocalização Customizada (Opcional)</h4>
+                      <p className="text-[9px] text-slate-400 mt-1">Preenchido automaticamente via CEP. Só altere se a posição do pino estiver incorreta.</p>
+                    </div>
+                    <Input label="Latitude" type="number" step="any" value={formData.latitude || ''} className="rounded-2xl py-4 border-slate-200 font-black text-primary-600" onChange={e => setFormData({ ...formData, latitude: parseFloat(e.target.value) || undefined })} />
+                    <Input label="Longitude" type="number" step="any" value={formData.longitude || ''} className="rounded-2xl py-4 border-slate-200 font-black text-primary-600" onChange={e => setFormData({ ...formData, longitude: parseFloat(e.target.value) || undefined })} />
+                  </div>
                 </div>
 
                 {errorMessage && (
