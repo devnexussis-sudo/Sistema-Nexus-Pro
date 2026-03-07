@@ -20,9 +20,7 @@ export type DbOrderStatus =
     | 'PENDENTE'
     | 'ATRIBUÍDO'
     | 'EM DESLOCAMENTO'
-    | 'NO LOCAL'
     | 'EM ANDAMENTO'
-    | 'PAUSADO'
     | 'CONCLUÍDO'
     | 'CANCELADO'
     | 'IMPEDIDO';

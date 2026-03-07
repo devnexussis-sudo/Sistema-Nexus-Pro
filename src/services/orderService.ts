@@ -590,7 +590,7 @@ export const OrderService = {
 
         if (role === 'technician' && uid) {
             let visitStatus = status === OrderStatus.COMPLETED ? 'completed' :
-                status === OrderStatus.PAUSED ? 'paused' :
+                status === OrderStatus.BLOCKED ? 'blocked' :
                     status === OrderStatus.IN_PROGRESS ? 'ongoing' : undefined;
 
             if (visitStatus) {

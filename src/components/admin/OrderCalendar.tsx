@@ -46,9 +46,7 @@ const getStatusHexColor = (status: OrderStatus) => {
     case OrderStatus.PENDING: return '#3b82f6'; // Azul
     case OrderStatus.ASSIGNED: return '#1d4ed8'; // Azul Escuro
     case OrderStatus.TRAVELING: return '#f59e0b'; // Laranja
-    case OrderStatus.ARRIVED: return '#8b5cf6'; // Roxo
     case OrderStatus.IN_PROGRESS: return '#eab308'; // Amarelo
-    case OrderStatus.PAUSED: return '#6b7280'; // Cinza
     case OrderStatus.COMPLETED: return '#10b981'; // Verde
     case OrderStatus.CANCELED: return '#d946ef'; // Rosa
     case OrderStatus.BLOCKED: return '#ef4444'; // Vermelho

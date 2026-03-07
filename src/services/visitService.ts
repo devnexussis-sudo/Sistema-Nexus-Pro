@@ -142,7 +142,7 @@ export const VisitService = {
             if (!VisitStateMachine.canCreateNewVisit(lastVisit.status)) {
                 throw new Error(
                     `INVALID_VISIT_STATE: Visita nº ${lastVisit.visitNumber} está "${lastVisit.status}". ` +
-                    `Nova visita só é criada a partir de PAUSADO ou IMPEDIDO.`
+                    `Nova visita só é criada a partir de IMPEDIDO.`
                 );
             }
         }
