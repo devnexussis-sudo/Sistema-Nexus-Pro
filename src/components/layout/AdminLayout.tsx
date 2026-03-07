@@ -3,7 +3,7 @@ import React, { useState, useCallback } from 'react';
 import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
-    Settings, LogOut, Bell, Package, ArrowRight,
+    Settings, LogOut, Bell, Package, ArrowRight, FileText,
     AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -56,7 +56,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         { path: '/admin/calendar', id: 'calendar', label: 'Agenda', icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
         { path: '/admin/map', id: 'map', label: 'Visão de campo', icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
         { path: '/admin/financial', id: 'financial', label: 'Financeiro', icon: DollarSign, visible: hasPermission('financial', 'read'), enabled: isModuleEnabled('financial') },
-        { path: '/admin/quotes', id: 'quotes', label: 'Orçamentos', icon: DollarSign, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
+        { path: '/admin/quotes', id: 'quotes', label: 'Orçamentos', icon: FileText, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
         { path: '/admin/stock', id: 'stock', label: 'Estoque', icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
         { path: '/admin/contracts', id: 'contracts', label: 'Contratos', icon: CalendarClock, visible: hasPermission('contracts', 'read'), enabled: isModuleEnabled('contracts') },
         { path: '/admin/customers', id: 'clients', label: 'Cliente', icon: Users, visible: hasPermission('customers', 'read'), enabled: isModuleEnabled('clients') },
