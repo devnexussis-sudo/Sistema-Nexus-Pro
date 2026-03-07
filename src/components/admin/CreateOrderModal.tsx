@@ -48,7 +48,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [localStatus, setLocalStatus] = useState<string | undefined>(initialData?.status);
   const isReadOnly = initialData?.status === OrderStatus.COMPLETED || initialData?.status === OrderStatus.CANCELED;
   const isCompleted = localStatus === OrderStatus.COMPLETED;
-  const canCreateVisit = localStatus === OrderStatus.PAUSED || localStatus === OrderStatus.BLOCKED;
+  const canCreateVisit = localStatus === OrderStatus.BLOCKED;
   const [isClientListOpen, setIsClientListOpen] = useState(false);
   const [isSerialListOpen, setIsSerialListOpen] = useState(false);
 

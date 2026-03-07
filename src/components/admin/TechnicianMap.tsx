@@ -66,9 +66,7 @@ const getStatusColorHex = (status: OrderStatus) => {
         case OrderStatus.PENDING: return '#3b82f6';
         case OrderStatus.ASSIGNED: return '#1d4ed8';
         case OrderStatus.TRAVELING: return '#f59e0b';
-        case OrderStatus.ARRIVED: return '#8b5cf6';
         case OrderStatus.IN_PROGRESS: return '#eab308';
-        case OrderStatus.PAUSED: return '#6b7280';
         case OrderStatus.COMPLETED: return '#10b981';
         case OrderStatus.CANCELED: return '#d946ef';
         case OrderStatus.BLOCKED: return '#ef4444';

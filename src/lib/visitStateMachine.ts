@@ -67,7 +67,6 @@ export const VisitStateMachine = {
     orderStatusToVisitStatus: (orderStatus: string): VisitStatusEnum | null => {
         const mapping: Record<string, VisitStatusEnum> = {
             'EM ANDAMENTO': VisitStatusEnum.ONGOING,
-            'PAUSADO': VisitStatusEnum.PAUSED,
             'IMPEDIDO': VisitStatusEnum.BLOCKED,
             'CONCLUÍDO': VisitStatusEnum.COMPLETED,
         };

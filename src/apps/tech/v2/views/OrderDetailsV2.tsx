@@ -53,8 +53,8 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
     const [showBlockModal, setShowBlockModal] = useState(false);
     const [blockReason, setBlockReason] = useState('');
 
-    // 📍 FLUXO DE ATENDIMENTO
-    const handleFlowAction = async (action: 'START_TRAVEL' | 'ARRIVE' | 'START_SERVICE' | 'PAUSE' | 'RESUME' | 'FINISH') => {
+    // 📍 FLUXO DE ATENDIMENTO (FSM v2 — 7 estados)
+    const handleFlowAction = async (action: 'START_TRAVEL' | 'START_WORK' | 'ARRIVE_START' | 'FINISH') => {
         setIsLoading(true);
         try {
             const now = new Date().toISOString();
@@ -64,53 +64,38 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
 
             // 1. Captura Geolocalização (se necessário)
             let location = null;
-            if (['START_TRAVEL', 'ARRIVE', 'FINISH'].includes(action)) {
+            if (['START_TRAVEL', 'ARRIVE_START', 'FINISH'].includes(action)) {
                 try {
                     location = await GeoService.getCurrentPosition();
                 } catch (e) {
                     console.warn("⚠️ Sem GPS:", e);
-                    // Continua mesmo sem GPS (apenas loga warning)
                 }
             }
 
             switch (action) {
                 case 'START_TRAVEL':
+                    // ATRIBUÍDO → EM DESLOCAMENTO
                     newStatus = OrderStatus.TRAVELING;
                     timeline.travelStartAt = now;
-                    updates.checkinLocation = location; // Salva local de partida
+                    updates.checkinLocation = location;
                     break;
 
-                case 'ARRIVE':
-                    newStatus = OrderStatus.ARRIVED;
-                    timeline.arrivedAt = now;
-                    updates.checkinLocation = location; // Salva local de chegada (overwrite ou secundário?)
-                    // Nota: Geralmente checkin é chegada. Vamos considerar ARRIVE como o Check-in oficial.
-                    break;
-
-                case 'START_SERVICE':
+                case 'START_WORK':
+                    // ATRIBUÍDO → EM ANDAMENTO (já está no cliente)
                     newStatus = OrderStatus.IN_PROGRESS;
+                    timeline.arrivedAt = now;
                     timeline.serviceStartAt = now;
+                    updates.checkinLocation = location;
                     setActiveSection('checklist');
                     break;
 
-                case 'PAUSE':
-                    newStatus = OrderStatus.PAUSED;
-                    timeline.pausedAt = now;
-                    updates.pauseReason = blockReason || 'Pausa solicitada pelo técnico';
-                    // Atualiza visitas pendentes/em andamento antes de onUpdateStatus
-                    if (order.assignedTo) {
-                        try {
-                            await OrderService.pauseActiveVisit(order.id, order.assignedTo, updates.pauseReason);
-                        } catch (err) {
-                            console.warn("Nenhuma visita anterior atualizada (Migration), ou outro erro:", err);
-                        }
-                    }
-                    break;
-
-                case 'RESUME':
+                case 'ARRIVE_START':
+                    // EM DESLOCAMENTO → EM ANDAMENTO (chegou no cliente)
                     newStatus = OrderStatus.IN_PROGRESS;
-                    timeline.resumedAt = now;
-                    // Calcula tempo pausado se necessário (complexo, ignorar por agora)
+                    timeline.arrivedAt = now;
+                    timeline.serviceStartAt = now;
+                    updates.checkinLocation = location;
+                    setActiveSection('checklist');
                     break;
             }
 
@@ -125,7 +110,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
             alert("Erro ao atualizar status. Tente novamente.");
         } finally {
             setIsLoading(false);
-            setShowBlockModal(false); // Fecha modal se estiver aberto (caso de pausa com motivo)
+            setShowBlockModal(false);
         }
     };
 
@@ -246,10 +231,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
     }, [order.id]);
 
     // Pausa com Motivo
-    const handlePauseOrder = async () => {
-        if (!blockReason.trim()) return;
-        await handleFlowAction('PAUSE');
-    };
+    // Removido: handlePauseOrder (PAUSED não existe mais na FSM)
 
     const handleSaveChecklist = async () => {
         setIsLoading(true);
@@ -292,71 +274,55 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
 
 
 
-    // Helper p/ renderizar botões de ação do fluxo
+    // Helper p/ renderizar botões de ação do fluxo (FSM v2)
     const renderActionButtons = () => {
         const s = order.status;
 
-        // 1. Iniciar Deslocamento (Pending/Assigned)
+        // 1. ATRIBUÍDO → Alert: Deslocamento ou Já no Cliente
         if (s === OrderStatus.PENDING || s === OrderStatus.ASSIGNED) {
             return (
                 <button
-                    onClick={() => handleFlowAction('START_TRAVEL')}
+                    onClick={() => {
+                        if (confirm('Você já está no cliente?\n\nSIM = Iniciar Serviço\nNÃO/Cancelar = Iniciar Deslocamento')) {
+                            handleFlowAction('START_WORK');
+                        } else {
+                            handleFlowAction('START_TRAVEL');
+                        }
+                    }}
                     className="w-full h-14 bg-indigo-600 text-white rounded-lg font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-200"
                 >
-                    {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" /> : <MapPin size={20} />}
-                    Iniciar Deslocamento
+                    {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" /> : <Play size={20} fill="currentColor" />}
+                    Executar OS
                 </button>
             );
         }
 
-        // 2. Reportar Chegada (Traveling)
+        // 2. EM DESLOCAMENTO → Cheguei no Cliente → EM ANDAMENTO
         if (s === OrderStatus.TRAVELING) {
             return (
                 <button
-                    onClick={() => handleFlowAction('ARRIVE')}
+                    onClick={() => handleFlowAction('ARRIVE_START')}
                     className="w-full h-14 bg-purple-600 text-white rounded-lg font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-purple-700 shadow-lg shadow-purple-200"
                 >
                     {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" /> : <MapPin size={20} />}
                     <div className="flex flex-col items-start leading-none gap-1">
-                        <span>Cheguei no Local</span>
-                        <span className="text-[9px] font-medium opacity-70 normal-case tracking-normal">Registrar Check-in</span>
+                        <span>Cheguei no Cliente</span>
+                        <span className="text-[9px] font-medium opacity-70 normal-case tracking-normal">Iniciar atendimento</span>
                     </div>
                 </button>
             );
         }
 
-        // 3. Iniciar Serviço (Arrived)
-        if (s === OrderStatus.ARRIVED) {
-            return (
-                <button
-                    onClick={() => handleFlowAction('START_SERVICE')}
-                    className="w-full h-14 bg-primary-600 text-white rounded-lg font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-primary-700 shadow-lg shadow-primary-200 ml-0"
-                >
-                    {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" /> : <Play size={20} fill="currentColor" />}
-                    Iniciar Execução
-                </button>
-            );
-        }
-
-        // 4. Em Andamento (Pausar ou Finalizar)
+        // 3. EM ANDAMENTO (Checklist / Finalizar)
         if (s === OrderStatus.IN_PROGRESS) {
             if (activeSection === 'info') {
                 return (
-                    <div className="flex gap-2 w-full">
-                        <button
-                            onClick={() => { setBlockReason(''); setShowBlockModal(true); }}
-                            className="w-16 h-14 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg flex flex-col items-center justify-center gap-1 active:scale-95 transition-all"
-                        >
-                            <span className="font-black text-[18px]">||</span>
-                            <span className="text-[8px] font-bold uppercase">Pausar</span>
-                        </button>
-                        <button
-                            onClick={() => setActiveSection('checklist')}
-                            className="flex-1 h-14 bg-primary-500 text-white rounded-lg font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-primary-200"
-                        >
-                            Ir para Checklist <ChevronDown className="rotate-[-90deg]" size={18} />
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => setActiveSection('checklist')}
+                        className="w-full h-14 bg-primary-500 text-white rounded-lg font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-primary-200"
+                    >
+                        Ir para Checklist <ChevronDown className="rotate-[-90deg]" size={18} />
+                    </button>
                 );
             }
             if (activeSection === 'checklist') {
@@ -378,19 +344,6 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                 >
                     {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <CheckCircle2 size={20} />}
                     Finalizar Atendimento
-                </button>
-            );
-        }
-
-        // 5. Pausado (Retomar)
-        if (s === OrderStatus.PAUSED) {
-            return (
-                <button
-                    onClick={() => handleFlowAction('RESUME')}
-                    className="w-full h-14 bg-orange-500 text-white rounded-lg font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-orange-600 shadow-lg shadow-orange-200"
-                >
-                    {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" /> : <Play size={20} fill="currentColor" />}
-                    Retomar Serviço
                 </button>
             );
         }
@@ -706,23 +659,13 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 >
                                     Voltar
                                 </button>
-                                {order.status === OrderStatus.IN_PROGRESS ? (
-                                    <button
-                                        onClick={handlePauseOrder}
-                                        disabled={!blockReason.trim() || isLoading}
-                                        className="py-3.5 rounded-lg bg-orange-500 text-white font-black text-[10px] uppercase tracking-wider shadow-none active:scale-95 transition-all disabled:opacity-50"
-                                    >
-                                        Confirmar Pausa
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={handleBlockOrder}
-                                        disabled={!blockReason.trim() || isLoading}
-                                        className="py-3.5 rounded-lg bg-rose-500 text-white font-black text-[10px] uppercase tracking-wider shadow-none active:scale-95 transition-all disabled:opacity-50"
-                                    >
-                                        Bloquear / Impedir
-                                    </button>
-                                )}
+                                <button
+                                    onClick={handleBlockOrder}
+                                    disabled={!blockReason.trim() || isLoading}
+                                    className="py-3.5 rounded-lg bg-rose-500 text-white font-black text-[10px] uppercase tracking-wider shadow-none active:scale-95 transition-all disabled:opacity-50"
+                                >
+                                    Confirmar Impedimento
+                                </button>
                             </div>
                         </div>
                     </div>

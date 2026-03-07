@@ -31,7 +31,7 @@ export const TechDashboardV2: React.FC = () => {
         if (selectedOrder) {
             const freshOrder = orders.find(o => o.id === selectedOrder.id);
             if (freshOrder) {
-                const statusOrder = [OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED, OrderStatus.BLOCKED];
+                const statusOrder = [OrderStatus.PENDING, OrderStatus.ASSIGNED, OrderStatus.TRAVELING, OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED, OrderStatus.BLOCKED];
                 const currentIdx = statusOrder.indexOf(selectedOrder.status as any);
                 const freshIdx = statusOrder.indexOf(freshOrder.status as any);
 
@@ -163,9 +163,7 @@ export const TechDashboardV2: React.FC = () => {
                                 { id: 'ALL', label: 'Tudo' },
                                 { id: OrderStatus.ASSIGNED, label: 'Pendentes' },
                                 { id: OrderStatus.TRAVELING, label: 'Deslocamento' },
-                                { id: OrderStatus.ARRIVED, label: 'Chegada' },
                                 { id: OrderStatus.IN_PROGRESS, label: 'Executando' },
-                                { id: OrderStatus.PAUSED, label: 'Pausa' },
                                 { id: OrderStatus.COMPLETED, label: 'Concluídas' },
                                 { id: OrderStatus.BLOCKED, label: 'Impedidas' }
                             ].map((st) => {

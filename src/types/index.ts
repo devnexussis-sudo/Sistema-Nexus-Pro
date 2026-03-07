@@ -74,9 +74,7 @@ export enum OrderStatus {
   PENDING = 'PENDENTE',
   ASSIGNED = 'ATRIBUÍDO',
   TRAVELING = 'EM DESLOCAMENTO',
-  ARRIVED = 'NO LOCAL',
   IN_PROGRESS = 'EM ANDAMENTO',
-  PAUSED = 'PAUSADO',
   COMPLETED = 'CONCLUÍDO',
   CANCELED = 'CANCELADO',
   BLOCKED = 'IMPEDIDO'
@@ -251,15 +249,14 @@ export type VisitStatus = 'pending' | 'ongoing' | 'paused' | 'blocked' | 'comple
 // Transições válidas — single source of truth
 export const VALID_VISIT_TRANSITIONS: Record<VisitStatusEnum, VisitStatusEnum[]> = {
   [VisitStatusEnum.PENDING]: [VisitStatusEnum.ONGOING],
-  [VisitStatusEnum.ONGOING]: [VisitStatusEnum.PAUSED, VisitStatusEnum.BLOCKED, VisitStatusEnum.COMPLETED],
-  [VisitStatusEnum.PAUSED]: [VisitStatusEnum.ONGOING],
+  [VisitStatusEnum.ONGOING]: [VisitStatusEnum.BLOCKED, VisitStatusEnum.COMPLETED],
+  [VisitStatusEnum.PAUSED]: [VisitStatusEnum.ONGOING], // Legacy: manter para visitas antigas
   [VisitStatusEnum.BLOCKED]: [],
   [VisitStatusEnum.COMPLETED]: [],
 };
 
 // Status de visita que permitem criação de nova visita na mesma OS
 export const CAN_CREATE_NEW_VISIT_FROM: VisitStatusEnum[] = [
-  VisitStatusEnum.PAUSED,
   VisitStatusEnum.BLOCKED,
 ];
 
