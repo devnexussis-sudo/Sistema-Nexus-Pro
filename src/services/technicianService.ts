@@ -132,7 +132,7 @@ export const TechnicianService = {
                     role: UserRole.TECHNICIAN,
                     tenantId: tenantId,
                     phone: tech.phone || '',
-                    avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name)}&backgroundColor=10b981`
+                    avatar: tech.avatar || ''
                 },
                 email_confirm: true
             });
@@ -147,7 +147,7 @@ export const TechnicianService = {
                 role: UserRole.TECHNICIAN,
                 active: tech.active ?? true,
                 tenant_id: tenantId,
-                avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`
+                avatar: tech.avatar || ''
             };
 
             const { error: userError } = await supabase.from('users').upsert([dbUser]);
@@ -163,7 +163,7 @@ export const TechnicianService = {
                 email: tech.email.toLowerCase(), // Pode falhar se não rodou a migração
                 active: tech.active ?? true,
                 phone: tech.phone || '',
-                avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`,
+                avatar: tech.avatar || '',
                 tenant_id: tenantId
             };
 
@@ -198,7 +198,7 @@ export const TechnicianService = {
                     role: 'TECHNICIAN',
                     tenantId: tenantId,
                     phone: tech.phone || '',
-                    avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`
+                    avatar: tech.avatar || ''
                 }
             };
 
@@ -243,7 +243,7 @@ export const TechnicianService = {
                 email: tech.email?.toLowerCase(),
                 active: tech.active ?? true,
                 phone: tech.phone || '',
-                avatar: tech.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(tech.name || 'Tecnico')}&backgroundColor=10b981`,
+                avatar: tech.avatar || '',
                 tenant_id: tenantId
             };
 

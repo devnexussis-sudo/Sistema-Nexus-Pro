@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
   Plus, Edit2, X, Save, Lock, AtSign,
-  Smartphone, Search, Filter, RefreshCw, ChevronLeft
+  Smartphone, Search, Filter, ChevronLeft
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { DataService } from '../../services/dataService';
@@ -98,24 +98,7 @@ export const TechnicianManagement: React.FC = () => {
     }
   };
 
-  const handleRandomizeAvatar = async (tech: UserType) => {
-    try {
-      // Randomiza entre diferentes estilos de avatar humanizados
-      const styles = ['avataaars', 'lorelei', 'personas', 'bottts-neutral', 'fun-emoji'];
-      const randomStyle = styles[Math.floor(Math.random() * styles.length)];
-      const randomSeed = `${tech.name}-${Date.now()}`;
-      const newAvatar = `https://api.dicebear.com/7.x/${randomStyle}/svg?seed=${encodeURIComponent(randomSeed)}&backgroundColor=10b981`;
 
-      // Atualiza localmente para feedback instantâneo
-      setTechnicians(prev => prev.map(t => t.id === tech.id ? { ...t, avatar: newAvatar } : t));
-
-      // Persiste no banco
-      await DataService.updateTechnician({ ...tech, avatar: newAvatar });
-    } catch (error) {
-      console.error("Erro ao randomizar avatar:", error);
-      alert("Erro ao trocar avatar. Verifique a conexão.");
-    }
-  };
 
   return (
     <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
@@ -175,14 +158,7 @@ export const TechnicianManagement: React.FC = () => {
                   <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0">
                     <div className="flex items-center gap-4">
                       <div className="relative group/avatar shrink-0">
-                        <img src={t.avatar} className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleRandomizeAvatar(t); }}
-                          className="absolute -bottom-1 -right-1 p-1 bg-primary-600 text-white rounded-md shadow-lg transition-all hover:bg-primary-700 scale-75"
-                          title="Trocar Avatar Aleatório"
-                        >
-                          <RefreshCw size={10} className={loading ? 'animate-spin' : ''} />
-                        </button>
+                        <img src={t.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(t.name) + '&background=10b981&color=fff'} className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
                       </div>
                       <div className="truncate">
                         <p className="font-black text-slate-900 uppercase tracking-tight text-xs truncate max-w-[150px]">{t.name}</p>

@@ -205,7 +205,7 @@ export const TenantService = {
                         name: processedTenant.name || 'Admin',
                         role: UserRole.ADMIN,
                         tenantId: tenantId,
-                        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(processedTenant.admin_name || 'Admin')}&backgroundColor=4f46e5`
+                        avatar: ''
                     },
                     email_confirm: true
                 });
@@ -219,7 +219,7 @@ export const TenantService = {
                         active: true,
                         tenant_id: tenantId,
                         group_id: adminGroupId,
-                        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(adminEmail || 'Admin')}&backgroundColor=4f46e5`,
+                        avatar: '',
                         permissions: {}
                     };
                     await supabase.from('users').upsert([dbUser]);
