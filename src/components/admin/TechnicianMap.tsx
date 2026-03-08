@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker } from '
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Navigation, MapPin, Clock, RefreshCw, History, Calendar, Search, Map as MapIcon, Layers, Satellite, Users, ClipboardList, X } from 'lucide-react';
+import { Navigation, MapPin, Clock, RefreshCw, History, Calendar, Search, Map as MapIcon, Layers, Satellite, Users, ClipboardList, X, ChevronDown, ChevronUp, Filter } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { CacheManager } from '../../lib/cache';
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
@@ -114,6 +114,8 @@ export const TechnicianMap: React.FC = () => {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isAutoRefresh, setIsAutoRefresh] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    const [showLegend, setShowLegend] = useState(true);
 
     // 👷 Techs State
     const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -339,127 +341,142 @@ export const TechnicianMap: React.FC = () => {
                             <h2 className="text-xl font-black text-white italic tracking-tighter">Nexus <span className="text-primary-400">Map</span></h2>
                             <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] leading-none">Console de Operações</p>
                         </div>
-                        <div className={`p-2 rounded-2xl ${isAutoRefresh ? 'bg-emerald-500/20 border border-emerald-500/50' : 'bg-white/5 border border-white/10'}`}>
-                            <Navigation size={18} className={isAutoRefresh ? 'text-emerald-400 animate-pulse' : 'text-white/40'} />
+                        <div className="flex items-center gap-2">
+                            <div className={`p-2 rounded-2xl ${isAutoRefresh ? 'bg-emerald-500/20 border border-emerald-500/50' : 'bg-white/5 border border-white/10'}`}>
+                                <Navigation size={18} className={isAutoRefresh ? 'text-emerald-400 animate-pulse' : 'text-white/40'} />
+                            </div>
+                            <button
+                                onClick={() => setIsCollapsed(!isCollapsed)}
+                                className="p-2 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/20 transition-all pointer-events-auto shadow-lg"
+                                title={isCollapsed ? "Expandir Filtros" : "Recolher Filtros"}
+                            >
+                                {isCollapsed ? <Filter size={18} /> : <ChevronUp size={18} />}
+                            </button>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mb-6">
-                        <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
-                            <p className="text-[8px] font-black text-white/30 uppercase mb-1">Técnicos Ativos</p>
-                            <div className="flex items-end gap-1">
-                                <span className="text-xl font-black text-white leading-none">{activeTechs.length}</span>
-                                <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-tighter pb-0.5">Online</span>
+                    <div className={`transition-all duration-500 overflow-hidden ${isCollapsed ? 'max-h-0 opacity-0 mb-0' : 'max-h-[200px] opacity-100 mb-6'}`}>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
+                                <p className="text-[8px] font-black text-white/30 uppercase mb-1">Técnicos Ativos</p>
+                                <div className="flex items-end gap-1">
+                                    <span className="text-xl font-black text-white leading-none">{activeTechs.length}</span>
+                                    <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-tighter pb-0.5">Online</span>
+                                </div>
                             </div>
-                        </div>
-                        <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
-                            <p className="text-[8px] font-black text-white/30 uppercase mb-1">OS Localizadas</p>
-                            <div className="flex items-end gap-1">
-                                <span className="text-xl font-black text-white leading-none">{mappedOrders.length}</span>
-                                <span className="text-[9px] font-bold text-primary-400 uppercase tracking-tighter pb-0.5">Map</span>
+                            <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
+                                <p className="text-[8px] font-black text-white/30 uppercase mb-1">OS Localizadas</p>
+                                <div className="flex items-end gap-1">
+                                    <span className="text-xl font-black text-white leading-none">{mappedOrders.length}</span>
+                                    <span className="text-[9px] font-bold text-primary-400 uppercase tracking-tighter pb-0.5">Map</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                        <div className="flex flex-col">
-                            <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Última Atualização</span>
-                            <span className="text-[10px] font-bold text-white/60">{format(lastUpdated, 'HH:mm:ss')}</span>
+                    <div className={`transition-all duration-500 overflow-hidden ${isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[100px] opacity-100'}`}>
+                        <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                            <div className="flex flex-col">
+                                <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Última Atualização</span>
+                                <span className="text-[10px] font-bold text-white/60">{format(lastUpdated, 'HH:mm:ss')}</span>
+                            </div>
+                            <button
+                                onClick={handleRefresh}
+                                disabled={isRefreshing}
+                                className={`p-2.5 rounded-xl transition-all ${isRefreshing ? 'bg-primary-500 text-white animate-spin' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                            >
+                                <RefreshCw size={14} />
+                            </button>
                         </div>
-                        <button
-                            onClick={handleRefresh}
-                            disabled={isRefreshing}
-                            className={`p-2.5 rounded-xl transition-all ${isRefreshing ? 'bg-primary-500 text-white animate-spin' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                        >
-                            <RefreshCw size={14} />
-                        </button>
                     </div>
                 </div>
 
                 {/* 🎮 Map & Data Controls */}
-                <div className="bg-white/90 backdrop-blur-xl rounded-[2rem] p-6 shadow-2xl border border-white/50 pointer-events-auto space-y-5">
+                <div className={`bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-white/50 pointer-events-auto overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isCollapsed ? 'max-h-0 p-0 opacity-0 border-none' : 'max-h-[800px] p-6 opacity-100'}`}>
+                    <div className={`${isCollapsed ? 'hidden' : 'space-y-5'}`}>
 
-                    {/* View Switcher */}
-                    <div className="flex bg-slate-100 p-1 rounded-2xl overflow-hidden">
-                        <button
-                            onClick={() => { setViewMode('ORDERS'); setIsHistoryMode(false); }}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${viewMode === 'ORDERS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
-                        >
-                            <ClipboardList size={14} /> Ordens
-                        </button>
-                        <button
-                            onClick={() => setViewMode('TECHS')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${viewMode === 'TECHS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
-                        >
-                            <Users size={14} /> Técnicos
-                        </button>
-                    </div>
+                        {/* View Switcher */}
+                        <div className="flex bg-slate-100 p-1 rounded-2xl overflow-hidden">
+                            <button
+                                onClick={() => { setViewMode('ORDERS'); setIsHistoryMode(false); }}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${viewMode === 'ORDERS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
+                            >
+                                <ClipboardList size={14} /> Ordens
+                            </button>
+                            <button
+                                onClick={() => setViewMode('TECHS')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${viewMode === 'TECHS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
+                            >
+                                <Users size={14} /> Técnicos
+                            </button>
+                        </div>
 
-                    {/* Date Filters */}
-                    {!isHistoryMode && (
-                        <div className="space-y-2">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Período Selecionado</p>
-                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1 px-3 h-12">
-                                <Calendar size={14} className="text-primary-600" />
-                                <div className="flex items-center gap-1 flex-1">
-                                    <input
-                                        type="date"
-                                        value={dateRange.start}
-                                        onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                                        className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-full"
-                                    />
-                                    <div className="w-px h-3 bg-slate-200 mx-1"></div>
-                                    <input
-                                        type="date"
-                                        value={dateRange.end}
-                                        onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                                        className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-full"
-                                    />
+                        {/* Date Filters */}
+                        {!isHistoryMode && (
+                            <div className="space-y-2">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Período Selecionado</p>
+                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1 px-3 h-12">
+                                    <Calendar size={14} className="text-primary-600" />
+                                    <div className="flex items-center gap-1 flex-1">
+                                        <input
+                                            type="date"
+                                            value={dateRange.start}
+                                            onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                                            className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-full"
+                                        />
+                                        <div className="w-px h-3 bg-slate-200 mx-1"></div>
+                                        <input
+                                            type="date"
+                                            value={dateRange.end}
+                                            onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                                            className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-full"
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Toggles */}
-                    <div className="grid grid-cols-1 gap-2">
-                        <button
-                            onClick={() => setIsAutoRefresh(!isAutoRefresh)}
-                            className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${isAutoRefresh ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}
-                        >
-                            <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`}></div>
-                                <span className={`text-[10px] font-black uppercase tracking-widest ${isAutoRefresh ? 'text-emerald-700' : 'text-slate-500'}`}>Monitoramento Live</span>
-                            </div>
-                            <div className={`w-8 h-4 rounded-full relative transition-colors ${isAutoRefresh ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${isAutoRefresh ? 'left-4.5' : 'left-0.5'}`} style={{ left: isAutoRefresh ? '18px' : '2px' }}></div>
-                            </div>
-                        </button>
-
-                        <button
-                            onClick={() => setMapType(prev => prev === 'DEFAULT' ? 'SATELLITE' : 'DEFAULT')}
-                            className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${mapType === 'SATELLITE' ? 'bg-[#1c2d4f] text-white border-primary-500/30' : 'bg-slate-50 border-slate-200'}`}
-                        >
-                            <div className="flex items-center gap-2">
-                                <Satellite size={14} className={mapType === 'SATELLITE' ? 'text-primary-400' : 'text-slate-400'} />
-                                <span className={`text-[10px] font-black uppercase tracking-widest ${mapType === 'SATELLITE' ? 'text-white' : 'text-slate-500'}`}>Mapa Satélite</span>
-                            </div>
-                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${mapType === 'SATELLITE' ? 'bg-white/10 text-primary-300' : 'bg-slate-200 text-slate-400'}`}>
-                                {mapType === 'SATELLITE' ? 'ON' : 'OFF'}
-                            </span>
-                        </button>
-
-                        {viewMode === 'TECHS' && (
+                        {/* Toggles */}
+                        <div className="grid grid-cols-1 gap-2">
                             <button
-                                onClick={() => setIsHistoryMode(!isHistoryMode)}
-                                className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${isHistoryMode ? 'bg-primary-600 text-white border-primary-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                                onClick={() => setIsAutoRefresh(!isAutoRefresh)}
+                                className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${isAutoRefresh ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}
                             >
                                 <div className="flex items-center gap-2">
-                                    <History size={14} className={isHistoryMode ? 'text-white' : 'text-slate-400'} />
-                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isHistoryMode ? 'text-white' : 'text-slate-500'}`}>Modo Histórico</span>
+                                    <div className={`w-2 h-2 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`}></div>
+                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isAutoRefresh ? 'text-emerald-700' : 'text-slate-500'}`}>Monitoramento Live</span>
                                 </div>
-                                <X size={14} className={isHistoryMode ? 'rotate-0' : 'rotate-45 opacity-0'} />
+                                <div className={`w-8 h-4 rounded-full relative transition-colors ${isAutoRefresh ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${isAutoRefresh ? 'left-4.5' : 'left-0.5'}`} style={{ left: isAutoRefresh ? '18px' : '2px' }}></div>
+                                </div>
                             </button>
-                        )}
+
+                            <button
+                                onClick={() => setMapType(prev => prev === 'DEFAULT' ? 'SATELLITE' : 'DEFAULT')}
+                                className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${mapType === 'SATELLITE' ? 'bg-[#1c2d4f] text-white border-primary-500/30' : 'bg-slate-50 border-slate-200'}`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Satellite size={14} className={mapType === 'SATELLITE' ? 'text-primary-400' : 'text-slate-400'} />
+                                    <span className={`text-[10px] font-black uppercase tracking-widest ${mapType === 'SATELLITE' ? 'text-white' : 'text-slate-500'}`}>Mapa Satélite</span>
+                                </div>
+                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${mapType === 'SATELLITE' ? 'bg-white/10 text-primary-300' : 'bg-slate-200 text-slate-400'}`}>
+                                    {mapType === 'SATELLITE' ? 'ON' : 'OFF'}
+                                </span>
+                            </button>
+
+                            {viewMode === 'TECHS' && (
+                                <button
+                                    onClick={() => setIsHistoryMode(!isHistoryMode)}
+                                    className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${isHistoryMode ? 'bg-primary-600 text-white border-primary-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <History size={14} className={isHistoryMode ? 'text-white' : 'text-slate-400'} />
+                                        <span className={`text-[10px] font-black uppercase tracking-widest ${isHistoryMode ? 'text-white' : 'text-slate-500'}`}>Modo Histórico</span>
+                                    </div>
+                                    <X size={14} className={isHistoryMode ? 'rotate-0' : 'rotate-45 opacity-0'} />
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -560,16 +577,27 @@ export const TechnicianMap: React.FC = () => {
 
             {/* Legend Overlay for OS */}
             {viewMode === 'ORDERS' && (
-                <div className="absolute bottom-6 mb-8 md:mb-0 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-2xl border border-white/20 pointer-events-auto max-w-[200px]">
-                    <h4 className="text-[9px] font-black text-slate-900 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Status da OS</h4>
-                    <div className="space-y-2">
-                        {Object.values(OrderStatus).map(status => (
-                            <div key={status} className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full border border-black/10" style={{ backgroundColor: getStatusColorHex(status) }}></div>
-                                <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter truncate">{status}</span>
+                <div className={`absolute bottom-6 mb-8 md:mb-0 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl border border-white/20 pointer-events-auto transition-all duration-300 ease-in-out ${showLegend ? 'p-4 w-48' : 'p-2 w-10 h-10 flex items-center justify-center overflow-hidden'}`}>
+                    <button
+                        onClick={() => setShowLegend(!showLegend)}
+                        className={`transition-all ${showLegend ? 'absolute top-3 right-3 text-slate-400 hover:text-slate-600' : 'text-primary-600'}`}
+                    >
+                        {showLegend ? <X size={12} /> : <Layers size={18} />}
+                    </button>
+
+                    {showLegend ? (
+                        <>
+                            <h4 className="text-[9px] font-black text-slate-900 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Status da OS</h4>
+                            <div className="space-y-2">
+                                {Object.values(OrderStatus).map(status => (
+                                    <div key={status} className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full border border-black/10" style={{ backgroundColor: getStatusColorHex(status) }}></div>
+                                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter truncate">{status}</span>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        </>
+                    ) : null}
                 </div>
             )}
 
