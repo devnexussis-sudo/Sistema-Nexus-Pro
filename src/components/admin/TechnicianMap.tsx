@@ -175,7 +175,7 @@ export const TechnicianMap: React.FC = () => {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 12000);
-            const techs = await DataService.getAllTechnicians();
+            const techs = await DataService.getAllTechnicians(null, null, true);
             clearTimeout(timeoutId);
             setTechnicians(techs);
         } catch (error: any) {
@@ -267,7 +267,11 @@ export const TechnicianMap: React.FC = () => {
 
     const isMovingTechsHistory = historyPath.length > 5; // Simulação de status de movimento para o resumo histórico
 
-    const activeTechs = technicians.filter(t => t.last_latitude && t.last_longitude && t.active !== false);
+    const activeTechs = technicians.filter(t =>
+        t.last_latitude !== undefined && t.last_latitude !== null &&
+        t.last_longitude !== undefined && t.last_longitude !== null &&
+        t.active !== false
+    );
     const movingTechs = activeTechs.filter(t => isTechMoving(t.last_seen));
     const stoppedTechs = activeTechs.filter(t => !isTechMoving(t.last_seen));
 
