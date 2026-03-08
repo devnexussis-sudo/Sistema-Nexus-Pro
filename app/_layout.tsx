@@ -6,7 +6,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { startBackgroundLocation } from '@/services/location-service';
 import { logger } from '@/services/logger';
-// Fixed duplicate import
+import { useEffect, useRef } from 'react';
 import { authService } from '@/services/auth-service';
 
 export const unstable_settings = {
@@ -18,7 +18,6 @@ import * as Location from 'expo-location';
 import { Alert, Platform } from 'react-native';
 import { NotificationService } from '@/services/notification-service';
 import { supabase } from '@/services/supabase';
-import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 
 export default function RootLayout() {
