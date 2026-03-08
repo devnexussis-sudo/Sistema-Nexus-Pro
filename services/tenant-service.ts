@@ -12,15 +12,21 @@ export class TenantService {
 
     /**
      * Busca as configurações globais do tenant do usuário logado
+     * @param forceRefresh Se true, ignora o cache e busca direto do banco
      */
-    static async getSettings(): Promise<TenantSettings> {
+    static async getSettings(forceRefresh = false): Promise<TenantSettings> {
         try {
             const userId = authService.getCurrentUserId();
-            if (!userId) return { showStockPrice: true };
+            if (!userId) {
+                console.log('[TenantService] No userId found, returning default settings');
+                return { showStockPrice: true };
+            }
 
-            if (this.settingsCache[userId]) {
+            if (!forceRefresh && this.settingsCache[userId]) {
                 return this.settingsCache[userId];
             }
+
+            console.log(`[TenantService] 🔄 Buscando configurações para o usuário: ${userId} (force: ${forceRefresh})`);
 
             // 1. Get tenant_id from user
             const { data: userData, error: userError } = await supabase
@@ -30,32 +36,42 @@ export class TenantService {
                 .single();
 
             if (userError || !userData?.tenant_id) {
+                console.warn('[TenantService] Error or no tenant_id for user:', userError?.message);
                 return { showStockPrice: true };
             }
 
             const tenantId = userData.tenant_id;
+            console.log(`[TenantService] 🏢 Tenant ID: ${tenantId}`);
 
             // 2. Get settings from tenants table
-            // Based on common "Nexus" admin panel structure, we assume show_stock_price
             const { data: tenantData, error: tenantError } = await supabase
                 .from('tenants')
-                .select('show_stock_price')
+                .select('*')
                 .eq('id', tenantId)
                 .single();
 
             if (tenantError) {
-                // If column doesn't exist, we'll try a different approach or default to true
+                console.error(`[TenantService] ❌ Erro ao buscar tenant: ${tenantError.message}`);
                 logger.log(`Tenant settings fetch error: ${tenantError.message}`, 'warn');
                 return { showStockPrice: true };
             }
 
+            console.log('[TenantService] 📦 Dados do tenant recebidos:', JSON.stringify(tenantData));
+
+            // Mapeamento flexível de colunas - Priorizando o que o painel salva (metadata.showItemPricesInApp)
             const settings = {
-                showStockPrice: tenantData?.show_stock_price ?? true
+                showStockPrice: tenantData?.metadata?.showItemPricesInApp ??
+                    tenantData?.show_stock_price ??
+                    tenantData?.settings?.show_stock_price ??
+                    true
             };
+
+            console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}`);
 
             this.settingsCache[userId] = settings;
             return settings;
         } catch (error) {
+            console.error('[TenantService] 💥 Exceção:', error);
             logger.log(`TenantService exception: ${error}`, 'error');
             return { showStockPrice: true };
         }

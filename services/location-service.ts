@@ -5,32 +5,80 @@ import { Alert, Platform, Linking } from 'react-native';
 import { supabase } from './supabase';
 import { logger } from './logger';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 export const LOCATION_TASK_NAME = 'background-location-task';
+const STORAGE_KEY_LAST_LOC = '@nexus:last_location';
+const STORAGE_KEY_LAST_HB = '@nexus:last_heartbeat';
+const MOVEMENT_THRESHOLD = 30; // metros
+const HEARTBEAT_INTERVAL = 15 * 60 * 1000; // 15 minutos
 
 let foregroundSubscription: Location.LocationSubscription | null = null;
+let lastSentLocation: { lat: number; lng: number } | null = null;
+let lastHeartbeatTime: number = 0;
+
+/**
+ * ✅ Calculate distance between two points in meters (Haversine Formula)
+ */
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3;
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
 
 // ✅ Reusable function to sync location to Supabase
 const sendLocationUpdate = async (location: Location.LocationObject) => {
     const { latitude, longitude, speed, heading, accuracy } = location.coords;
+    const now = Date.now();
+
+    // 1. CARREGAR ESTADOS (Se ainda não estiver em memória)
+    if (!lastSentLocation) {
+        try {
+            const [storedLoc, storedHB] = await Promise.all([
+                AsyncStorage.getItem(STORAGE_KEY_LAST_LOC),
+                AsyncStorage.getItem(STORAGE_KEY_LAST_HB)
+            ]);
+            if (storedLoc) lastSentLocation = JSON.parse(storedLoc);
+            if (storedHB) lastHeartbeatTime = parseInt(storedHB, 10);
+        } catch (e) { /* ignore */ }
+    }
+
+    // 2. FILTRO INTELIGENTE E HEARTBEAT
+    let distance = 0;
+    if (lastSentLocation) {
+        distance = calculateDistance(lastSentLocation.lat, lastSentLocation.lng, latitude, longitude);
+    }
+
+    const isMoving = !lastSentLocation || distance >= MOVEMENT_THRESHOLD;
+    const needsHeartbeat = (now - lastHeartbeatTime) >= HEARTBEAT_INTERVAL;
+
+    // Se estiver parado E não chegou a hora do heartbeat, ignora tudo.
+    if (!isMoving && !needsHeartbeat) {
+        return;
+    }
 
     // 🔋 Battery Fetch
     let batteryLevel = null;
     try {
         const level = await Battery.getBatteryLevelAsync();
-        if (level !== -1) {
-            batteryLevel = Math.round(level * 100);
-        }
-    } catch (e) {
-        // Battery api might fail on some simulators or conditions
-    }
-
-    logger.log(`[Location] Sending update: ${latitude.toFixed(5)}, ${longitude.toFixed(5)} (Speed: ${speed}) 🔋${batteryLevel}%`, 'info');
+        if (level !== -1) batteryLevel = Math.round(level * 100);
+    } catch (e) { }
 
     try {
         const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) return;
 
-        if (session?.user) {
-            // 1. First try RPC (Most efficient)
+        if (isMoving) {
+            // 🎯 MOVIMENTAÇÃO REAL (>30m): Update Full + Ping Log
+            logger.log(`[Location] 🚀 Movimentação detectada (${distance.toFixed(1)}m). Enviando telemetria...`, 'info');
             const { error: rpcError } = await supabase.rpc('update_tech_location_v2', {
                 p_lat: latitude,
                 p_lng: longitude,
@@ -40,30 +88,25 @@ const sendLocationUpdate = async (location: Location.LocationObject) => {
                 p_battery: batteryLevel
             });
 
-            if (rpcError) {
-                console.warn(`[Location] RPC Failed (${rpcError.message}) - Trying Direct Update`);
-
-                // 2. Fallback: Update Technicians Table Directly
-                const { error: techError } = await supabase.from('technicians').update({
-                    last_latitude: latitude,
-                    last_longitude: longitude,
-                    speed: speed || 0,
-                    heading: heading || 0,
-                    accuracy: accuracy || 0,
-                    battery_level: batteryLevel,
-                    last_seen: new Date().toISOString()
-                }).eq('id', session.user.id);
-
-                if (techError) {
-                    console.error('[Location] Technician Table Update Failed:', techError.message);
-                } else {
-                    console.log('[Location] ✅ Technician table updated directly');
-                }
-            } else {
-                console.log(`[Location] ✅ Database updated via RPC`);
+            if (!rpcError) {
+                lastSentLocation = { lat: latitude, lng: longitude };
+                lastHeartbeatTime = now;
+                await Promise.all([
+                    AsyncStorage.setItem(STORAGE_KEY_LAST_LOC, JSON.stringify(lastSentLocation)),
+                    AsyncStorage.setItem(STORAGE_KEY_LAST_HB, now.toString())
+                ]);
             }
-        } else {
-            console.warn(`[Location] ⚠️ No active session for update`);
+        } else if (needsHeartbeat) {
+            // 💓 HEARTBEAT (15 min): Apenas presença para o mapa do painel
+            logger.log(`[Location] 💓 Enviando Heartbeat de 15 min (Técnico parado mas Online)`, 'info');
+            const { error: hbError } = await supabase.rpc('tech_heartbeat', {
+                p_battery: batteryLevel
+            });
+
+            if (!hbError) {
+                lastHeartbeatTime = now;
+                await AsyncStorage.setItem(STORAGE_KEY_LAST_HB, now.toString());
+            }
         }
     } catch (err) {
         console.error(`[Location] Sync Error:`, err);
@@ -142,9 +185,9 @@ export const startBackgroundLocation = async () => {
         console.log('[Location] Starting Foreground Watcher (Expo Go safe)...');
         foregroundSubscription = await Location.watchPositionAsync(
             {
-                accuracy: Location.Accuracy.Balanced, // Saves battery
-                timeInterval: 120000, // 2 minutes (Production Standard)
-                distanceInterval: 50, // 50 meters (Avoids jitter)
+                accuracy: Location.Accuracy.High,
+                timeInterval: 15000,
+                distanceInterval: 5,
             },
             (location) => {
                 console.log('[Location] 📍 Foreground Update received');
@@ -154,25 +197,25 @@ export const startBackgroundLocation = async () => {
 
         // 5. Try Starting Background Updates
         try {
-            const isTaskDefined = await TaskManager.isTaskDefinedAsync(LOCATION_TASK_NAME);
+            const isTaskDefined = TaskManager.isTaskDefined(LOCATION_TASK_NAME);
             if (!isTaskDefined) {
                 console.log('[Location] Task not defined, skipping background start');
             } else {
                 await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-                    accuracy: Location.Accuracy.High, // ⬆️ Increased accuracy for background
-                    timeInterval: 60000, // Reduced to 1 min for testing (then can be 2)
-                    distanceInterval: 20, // Reduced to 20m for better sensitivity
+                    accuracy: Location.Accuracy.BestForNavigation, // ⬆️ Force Max Accuracy
+                    timeInterval: 30000, // Sync check every 30s
+                    distanceInterval: 10, // Wake up app every 10m
                     showsBackgroundLocationIndicator: true,
                     pausesUpdatesAutomatically: false,
                     activityType: Location.ActivityType.AutomotiveNavigation,
                     foregroundService: {
-                        notificationTitle: "Nexus Pro",
-                        notificationBody: "Rastreamento GPS Ativo", // Text explicitly saying GPS is active
+                        notificationTitle: "Nexus Pro - GPS Ativo",
+                        notificationBody: "O GPS está em modo 'Sempre Ativo' para auditoria.",
                         notificationColor: "#1c2d4f",
-                        killServiceOnDestroy: false // ⚠️ Ensure service persists
+                        killServiceOnDestroy: false
                     }
                 });
-                console.log('[Location] ✅ Background Service Registered with High Persistence');
+                console.log('[Location] ✅ Background Service Registered with MAX Persistence');
             }
         } catch (e: any) {
             console.warn('[Location] Background Start Error:', e);
@@ -187,9 +230,12 @@ export const startBackgroundLocation = async () => {
         }
 
         logger.log('Serviço de localização iniciado', 'info');
+        return true;
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Location] ❌ Fatal Error starting location:', error);
+        logger.log(`Erro ao iniciar GPS: ${error.message || error}`, 'error');
+        return false;
     }
 };
 

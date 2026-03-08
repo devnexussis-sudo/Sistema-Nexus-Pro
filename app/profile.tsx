@@ -8,6 +8,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { authService } from '@/services/auth-service';
 import { supabase } from '@/services/supabase';
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
+import { ImageService } from '@/services/image-service';
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -49,7 +52,9 @@ export default function ProfileScreen() {
                     id: session.user.id,
                     role: 'Técnico de Campo (Confirmado)'
                 });
-                if (techData.avatar_url) setProfileImage(techData.avatar_url);
+
+                const avatar = techData.avatar || techData.avatar_url;
+                if (avatar) setProfileImage(avatar);
             } else {
                 console.warn('[Profile] No technician record found for this ID:', session.user.id);
                 // Fallback to basic auth data
@@ -68,19 +73,92 @@ export default function ProfileScreen() {
         }
     };
 
-    const pickImage = async () => {
-        // No permissions request is necessary for launching the image library
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.5,
-        });
+    const handleAvatarUpload = async () => {
+        Alert.alert(
+            "Foto de Perfil",
+            "Escolha a origem da imagem:",
+            [
+                { text: "Câmera", onPress: async () => await takeOrPickImage(true) },
+                { text: "Galeria", onPress: async () => await takeOrPickImage(false) },
+                { text: "Cancelar", style: "cancel" }
+            ]
+        );
+    };
 
-        if (!result.canceled) {
-            const uri = result.assets[0].uri;
-            setProfileImage(uri);
-            // Optional: Upload to Supabase Storage here
+    const takeOrPickImage = async (isCamera: boolean) => {
+        try {
+            let result;
+            if (isCamera) {
+                const permission = await ImagePicker.requestCameraPermissionsAsync();
+                if (permission.status !== "granted") {
+                    Alert.alert("Permissão", "O aplicativo precisa de acesso à câmera.");
+                    return;
+                }
+                result = await ImagePicker.launchCameraAsync({
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 1, // Let ImageService compress it
+                });
+            } else {
+                result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 1,
+                });
+            }
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                setLoading(true);
+                const originalUri = result.assets[0].uri;
+
+                // Compress to WebP < 100KB
+                const compressedUri = await ImageService.compressAvatar(originalUri);
+                const fileUri = (compressedUri.startsWith('/') && !compressedUri.startsWith('file://')) ? `file://${compressedUri}` : compressedUri;
+                const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
+
+                if (!base64) throw new Error("Base64 string was empty");
+                const arrayBuffer = decode(base64);
+
+                // Using technicians/ folder which aligns with the web panel and avoids RLS lockouts
+                const fileName = `technicians/${user.id}/avatar_${Date.now()}.webp`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('nexus-files')
+                    .upload(fileName, arrayBuffer, {
+                        contentType: 'image/webp',
+                        upsert: true
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('nexus-files')
+                    .getPublicUrl(fileName);
+
+                // Appended timestamp to bust cache when updating
+                const finalUrl = `${publicUrl}?t=${Date.now()}`;
+
+                // The panel explicitly expects 'avatar'. The 'avatar_url' column doesn't exist.
+                const { error: updateError } = await supabase
+                    .from('technicians')
+                    .update({
+                        avatar: finalUrl
+                    })
+                    .eq('id', user.id);
+
+                if (updateError) throw updateError;
+
+                setProfileImage(finalUrl);
+                Alert.alert("Sucesso", "Foto de perfil atualizada!");
+            }
+        } catch (error: any) {
+            // Log with a simple string to avoid crashing native console if it's cyclic
+            const errorMsg = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            console.error("Avatar upload error details: " + errorMsg);
+            Alert.alert("Erro", `Não foi possível enviar a imagem:\n${errorMsg.slice(0, 150)}`);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -96,7 +174,7 @@ export default function ProfileScreen() {
     return (
         <ThemedView style={styles.container}>
             <View style={styles.header}>
-                <Pressable onPress={pickImage} style={styles.imageContainer}>
+                <Pressable onPress={handleAvatarUpload} style={styles.imageContainer}>
                     {profileImage ? (
                         <Image source={{ uri: profileImage }} style={styles.profileImage} />
                     ) : (
@@ -173,14 +251,17 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
+        borderWidth: 2,
+        borderColor: '#1c2d4f', // Adding border to stand out
+        backgroundColor: '#f0f4ff',
     },
     placeholderImage: {
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
+        backgroundColor: '#e2e8f0', // Darker gray/blue to contrast with the #f5f7fa background
+        borderWidth: 2,
+        borderColor: '#1c2d4f', // Adding border
         alignItems: 'center',
         justifyContent: 'center',
     },

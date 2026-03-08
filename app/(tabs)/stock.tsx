@@ -18,8 +18,8 @@ export default function StockScreen() {
     const fetchStock = async (isBackground = false) => {
         if (!isBackground) setIsLoading(true);
         try {
-            // First fetch settings
-            const settings = await TenantService.getSettings();
+            // First fetch settings (force refresh if user pulled to refresh)
+            const settings = await TenantService.getSettings(isBackground);
             setShowPrice(settings.showStockPrice);
 
             const data = await StockService.getMyStock();

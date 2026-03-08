@@ -46,7 +46,14 @@ class LoggerService {
             if (arg instanceof Error) {
                 return `${arg.name}: ${arg.message}\n${arg.stack}`;
             }
-            return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+            if (typeof arg === 'object' && arg !== null) {
+                try {
+                    return JSON.stringify(arg);
+                } catch (e) {
+                    return `[Object]`; // Fallback to avoid circular structure crash
+                }
+            }
+            return String(arg);
         }).join(' ');
     }
 
@@ -56,20 +63,23 @@ class LoggerService {
         this.isCapturing = true;
 
         console.log = (...args) => {
-            this.originalConsole.log(...args); // Print to terminal/device log
+            try { this.originalConsole.log(...args); }
+            catch { this.originalConsole.log(this.formatArgs(args)); }
             const message = this.formatArgs(args);
             // Store in memory without printing again
             this.log(message, 'info');
         };
 
         console.warn = (...args) => {
-            this.originalConsole.warn(...args);
+            try { this.originalConsole.warn(...args); }
+            catch { this.originalConsole.warn(this.formatArgs(args)); }
             const message = this.formatArgs(args);
             this.log(message, 'warn');
         };
 
         console.error = (...args) => {
-            this.originalConsole.error(...args);
+            try { this.originalConsole.error(...args); }
+            catch { this.originalConsole.error(this.formatArgs(args)); }
             const message = this.formatArgs(args);
             this.log(message, 'error');
         };

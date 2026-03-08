@@ -8,9 +8,50 @@ const MAX_WIDTH = 1024; // Reduce resolution to ensure size target easily
 const INITIAL_QUALITY = 0.6;
 
 export class ImageService {
+    static async compressAvatar(uri: string): Promise<string> {
+        try {
+            logger.log(`[ImageService] Compressing avatar: ${uri}`, 'info');
+            const MAX_AVATAR_SIZE = 100 * 1024; // 100KB limit
+            let width = 400; // Small resolution for avatars
+            let quality = 0.7;
+
+            let result = await ImageManipulator.manipulateAsync(
+                uri,
+                [{ resize: { width } }],
+                { compress: quality, format: ImageManipulator.SaveFormat.WEBP }
+            );
+
+            let fileInfo = await FileSystem.getInfoAsync(result.uri);
+            if (!fileInfo.exists) throw new Error('Compressed file not found');
+            let size = fileInfo.size;
+            let attempts = 0;
+
+            while (size > MAX_AVATAR_SIZE && attempts < 3) {
+                attempts++;
+                quality -= 0.2;
+                if (quality < 0.2) {
+                    quality = 0.5;
+                    width = Math.floor(width * 0.7);
+                }
+                result = await ImageManipulator.manipulateAsync(
+                    result.uri,
+                    [{ resize: { width } }],
+                    { compress: quality, format: ImageManipulator.SaveFormat.WEBP }
+                );
+                fileInfo = await FileSystem.getInfoAsync(result.uri);
+                if (fileInfo.exists) size = fileInfo.size;
+            }
+
+            logger.log(`[ImageService] Avatar final size: ${(size / 1024).toFixed(2)}KB`, 'info');
+            return result.uri;
+        } catch (error) {
+            logger.log(`Error compressing avatar: ${error}`, 'error');
+            return uri;
+        }
+    }
+
     static async compressImage(uri: string): Promise<string> {
         try {
-            logger.log(`Starting image compression for: ${uri}`, 'info');
 
             // 1. Initial manipulation: Resize & Convert to WebP (Very efficient)
             const MAX_SIZE_BYTES = 200 * 1024; // 200KB limit
