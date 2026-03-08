@@ -15,14 +15,35 @@ const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.V
 
 export const TechnicianService = {
 
-    getAllTechnicians: async (tenantIdOverride?: string | null, signal?: AbortSignal): Promise<any[]> => {
+    _mapTechFromDB: (d: any): any => {
+        if (!d) return null;
+        return {
+            id: d.id,
+            name: d.name,
+            email: d.email,
+            phone: d.phone,
+            avatar: d.avatar,
+            active: d.active,
+            tenantId: d.tenant_id,
+            last_latitude: d.last_latitude,
+            last_longitude: d.last_longitude,
+            last_seen: d.last_seen,
+            speed: d.speed,
+            battery_level: d.battery_level,
+            batteryLevel: d.battery_level // Alias for compatibility
+        };
+    },
+
+    getAllTechnicians: async (tenantIdOverride?: string | null, signal?: AbortSignal, skipCache = false): Promise<any[]> => {
         if (isCloudEnabled) {
             const tenantId = tenantIdOverride || getCurrentTenantId();
             if (!tenantId) return [];
 
             const cacheKey = `techs_${tenantId}`;
-            const cached = CacheManager.get<any[]>(cacheKey);
-            if (cached) return cached;
+            if (!skipCache) {
+                const cached = CacheManager.get<any[]>(cacheKey);
+                if (cached) return cached;
+            }
 
             // 🔄 Deduplication: Se já houver uma requisição em voo, espera por ela
             return CacheManager.deduplicate(cacheKey, async (currentSignal) => {
@@ -39,9 +60,9 @@ export const TechnicianService = {
                 const { data, error } = await query;
 
                 if (error) throw error;
-                const result = (data || []).map(d => ({ ...d, tenantId: d.tenant_id }));
+                const result = (data || []).map(d => TechnicianService._mapTechFromDB(d));
 
-                CacheManager.set(cacheKey, result, CacheManager.TTL.MEDIUM); // 5 min
+                CacheManager.set(cacheKey, result, CacheManager.TTL.SHORT); // Reduzido para 1 min (Standard Cloud)
                 return result;
             }, signal);
         }

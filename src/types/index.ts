@@ -140,6 +140,22 @@ export interface Tenant {
   enabled_modules?: Record<string, boolean>;
 }
 
+export interface Technician {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar?: string;
+  active: boolean;
+  tenantId?: string;
+  last_latitude?: number;
+  last_longitude?: number;
+  last_seen?: string;
+  speed?: number;
+  battery_level?: number;
+  batteryLevel?: number; // Alias
+}
+
 export interface User {
   id: string;
   tenantId?: string; // Multi-tenancy
