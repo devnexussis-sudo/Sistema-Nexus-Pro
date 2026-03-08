@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { StyleSheet, View, Text, FlatList, Pressable } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { ThemedView } from '@/components/themed-view';
@@ -21,23 +21,55 @@ LocaleConfig.locales['pt-br'] = {
 };
 LocaleConfig.defaultLocale = 'pt-br';
 
+import { OrderService } from '@/services/order-service';
+import { ExtendedServiceOrder } from '@/services/order-service';
+import { ActivityIndicator } from 'react-native';
+
 export default function CalendarScreen() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
+  const [orders, setOrders] = useState<ExtendedServiceOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Convert MOCK_ORDERS dates (DD/MM/YYYY) to YYYY-MM-DD for the calendar
+  React.useEffect(() => {
+    const fetchMonthOrders = async () => {
+      setIsLoading(true);
+      const data = await OrderService.getCalendarOrders(currentYear, currentMonth);
+      setOrders(data);
+      setIsLoading(false);
+    };
+    fetchMonthOrders();
+  }, [currentYear, currentMonth]);
+
+  // Convert real orders to markedDates
   const markedDates = useMemo(() => {
     const marks: any = {};
-    MOCK_ORDERS.forEach(order => {
-      const [day, month, year] = order.date.split('/');
-      const dateKey = `${year}-${month}-${day}`;
+    const countPerDay: Record<string, number> = {};
 
-      if (!marks[dateKey]) {
-        marks[dateKey] = {
-          marked: true,
-          dotColor: '#1c2d4f'
-        };
+    orders.forEach(order => {
+      if (order.scheduledDate) {
+        // Parse date. In DB, it's typically YYYY-MM-DD
+        const dateKey = order.scheduledDate.includes('T') ? order.scheduledDate.split('T')[0] : order.scheduledDate;
+        countPerDay[dateKey] = (countPerDay[dateKey] || 0) + 1;
       }
+    });
+
+    // Create marks with text/badges
+    Object.keys(countPerDay).forEach(date => {
+      marks[date] = {
+        marked: true,
+        // Since react-native-calendars default 'marked' just shows a dot,
+        // we can use a custom style or we can let it be a dot.
+        // But the user requested to see "quantas OS ele tem por dia" (how many OS per day).
+        // Let's use `customStyles` to show number if possible, or just standard text customization.
+        // Actually, react-native-calendars allows passing raw text or we can just use dots for visual.
+        // The most compatible way in basic RN Calendars is either 'dots' array or passing custom property if we customize the Day component.
+        // For simplicity with default Day component, we'll add `osCount` properties here and a subtitle, or multiple dots.
+        // We will make `dots` array.
+        dots: Array.from({ length: Math.min(countPerDay[date], 3) }).map(() => ({ color: '#1c2d4f' })),
+      };
     });
 
     // Highlight selected date
@@ -48,24 +80,28 @@ export default function CalendarScreen() {
     };
 
     return marks;
-  }, [selectedDate]);
+  }, [orders, selectedDate]);
 
   // Filter orders for the selected date
   const selectedDateOrders = useMemo(() => {
-    // selectedDate is YYYY-MM-DD
-    // order.date is DD/MM/YYYY
-    const [year, month, day] = selectedDate.split('-');
-    const formattedSelectedDate = `${day}/${month}/${year}`;
-
-    return MOCK_ORDERS.filter(order => order.date === formattedSelectedDate);
-  }, [selectedDate]);
+    return orders.filter(order => {
+      if (!order.scheduledDate) return false;
+      const dateKey = order.scheduledDate.includes('T') ? order.scheduledDate.split('T')[0] : order.scheduledDate;
+      return dateKey === selectedDate;
+    });
+  }, [orders, selectedDate]);
 
   return (
     <ThemedView style={styles.container}>
       <View style={styles.calendarContainer}>
         <Calendar
           onDayPress={(day: any) => setSelectedDate(day.dateString)}
+          onMonthChange={(month: any) => {
+            setCurrentYear(month.year);
+            setCurrentMonth(month.month);
+          }}
           markedDates={markedDates}
+          markingType={'multi-dot'}
           theme={{
             selectedDayBackgroundColor: '#1c2d4f',
             todayTextColor: '#1c2d4f',
@@ -73,6 +109,11 @@ export default function CalendarScreen() {
             textMonthFontWeight: 'bold',
           }}
         />
+        {isLoading && (
+          <View style={{ position: 'absolute', top: 10, right: 10 }}>
+            <ActivityIndicator size="small" color="#1c2d4f" />
+          </View>
+        )}
       </View>
 
       <View style={styles.listContainer}>
@@ -96,16 +137,15 @@ export default function CalendarScreen() {
               onPress={() => router.push(`/os/${item.id}`)}
             >
               <View style={styles.timeIndicator}>
-                <Text style={styles.timeText}>08:00</Text>
-                {/* Mock time since we don't have it in the Interface yet */}
+                <Text style={styles.timeText}>{item.scheduledTime?.substring(0, 5) || '12:00'}</Text>
               </View>
 
               <View style={styles.cardContent}>
                 <View style={styles.orderHeader}>
-                  <Text style={styles.orderId}>{item.id}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: STATUS_CONFIG[item.status].color + '20' }]}>
-                    <Text style={[styles.statusText, { color: STATUS_CONFIG[item.status].color }]}>
-                      {STATUS_CONFIG[item.status].label}
+                  <Text style={styles.orderId}>{item.displayId || item.id}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: STATUS_CONFIG[item.status as OrderStatus]?.color + '20' }]}>
+                    <Text style={[styles.statusText, { color: STATUS_CONFIG[item.status as OrderStatus]?.color }]}>
+                      {STATUS_CONFIG[item.status as OrderStatus]?.label}
                     </Text>
                   </View>
                 </View>

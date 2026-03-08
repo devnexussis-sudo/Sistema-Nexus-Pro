@@ -1,6 +1,8 @@
 
 export type OrderStatus = 'pending' | 'assigned' | 'traveling' | 'in_progress' | 'completed' | 'canceled' | 'blocked';
 
+export type OrderPriorityType = 'BAIXA' | 'MÉDIA' | 'ALTA' | 'CRÍTICA';
+
 export interface ServiceOrder {
     id: string;
     customer: string;
@@ -15,7 +17,16 @@ export interface ServiceOrder {
     longitude?: number;
     equipment?: string;
     serialNumber?: string;
+    priority?: OrderPriorityType;
+    displayId?: string; // Add displayId since it's used
 }
+
+export const PRIORITY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+    'BAIXA': { label: 'Baixa', color: '#059669', bg: '#d1fae5' },
+    'MÉDIA': { label: 'Média', color: '#d97706', bg: '#fef3c7' },
+    'ALTA': { label: 'Alta', color: '#ea580c', bg: '#ffedd5' },
+    'CRÍTICA': { label: 'Urgente', color: '#e11d48', bg: '#ffe4e6' },
+};
 
 const generateMockData = (): ServiceOrder[] => {
     const data: ServiceOrder[] = [];

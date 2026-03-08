@@ -24,6 +24,7 @@ const MAPPING = {
   'iphone': 'phone-iphone',
   'arrow.clockwise.icloud': 'sync',
   'xmark': 'close',
+  'cube.fill': 'inventory',
 } as Partial<Record<string, ComponentProps<typeof MaterialIcons>['name']>>;
 
 /**

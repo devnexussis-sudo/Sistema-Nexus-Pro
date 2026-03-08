@@ -1,43 +1,126 @@
 import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { StyleSheet, FlatList, Pressable, View, Text, Platform, RefreshControl, Share, Alert } from 'react-native';
+import { StyleSheet, FlatList, Pressable, View, Text, Platform, RefreshControl, Share, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
-import { OrderStatus, STATUS_CONFIG } from '@/constants/mock-data';
+import { OrderStatus, STATUS_CONFIG, PRIORITY_CONFIG } from '@/constants/mock-data';
 import { OrderService } from '@/services/order-service';
 import { authService } from '@/services/auth-service';
 import { supabase } from '@/services/supabase';
 import { NotificationService } from '@/services/notification-service';
-// import * as Notifications from 'expo-notifications';
 
 const ITEMS_PER_PAGE = 10;
 
+// Internal Order Card Component
+const OrderCard = ({ order, onShare, onPress }: { order: any; onShare: any; onPress: any }) => (
+  <Pressable style={styles.orderCard} onPress={onPress}>
+    <View style={styles.orderHeader}>
+      <Text style={styles.orderId}>{order.displayId || order.id}</Text>
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        {order.priority && PRIORITY_CONFIG[order.priority] && (
+          <View style={[styles.statusBadge, { backgroundColor: PRIORITY_CONFIG[order.priority].bg }]}>
+            <Text style={[styles.statusText, { color: PRIORITY_CONFIG[order.priority].color }]}>
+              {PRIORITY_CONFIG[order.priority].label}
+            </Text>
+          </View>
+        )}
+        <View style={[styles.statusBadge, { backgroundColor: STATUS_CONFIG[order.status as OrderStatus]?.color + '20' || '#f0f0f0' }]}>
+          <Text style={[styles.statusText, { color: STATUS_CONFIG[order.status as OrderStatus]?.color || '#666' }]}>
+            {STATUS_CONFIG[order.status as OrderStatus]?.label || order.status}
+          </Text>
+        </View>
+      </View>
+    </View>
+
+    <Text style={styles.customerName}>{order.customer}</Text>
+    <View style={styles.detailRow}>
+      <Ionicons name="location-outline" size={14} color="#666" />
+      <Text style={styles.addressText}>{order.address}</Text>
+    </View>
+
+    <View style={styles.cardFooter}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Ionicons name="calendar-outline" size={14} color="#999" />
+        <Text style={styles.dateText}>{order.date}</Text>
+      </View>
+
+      {order.status === 'completed' && order.publicToken ? (
+        <Pressable
+          style={styles.shareButton}
+          onPress={(e) => {
+            e.stopPropagation();
+            onShare(order.publicToken, order.displayId || order.id);
+          }}
+        >
+          <Ionicons name="share-social-outline" size={16} color="#10b981" />
+          <Text style={styles.shareButtonText}>Compartilhar</Text>
+        </Pressable>
+      ) : (
+        <Ionicons name="chevron-forward" size={20} color="#ccc" />
+      )}
+    </View>
+  </Pressable>
+);
 
 export default function HomeScreen() {
   const router = useRouter();
   const [orders, setOrders] = useState<any[]>([]);
-  const [selectedFilter, setSelectedFilter] = useState<OrderStatus | 'all'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<OrderStatus | 'all'>('pending');
   const [isLoading, setIsLoading] = useState(true);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [serverStats, setServerStats] = useState<Record<string, number>>({});
+  const [ordersCache, setOrdersCache] = useState<Record<string, { orders: any[], total: number, stats: any }>>({});
 
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(new Date());
+  const [endDate, setEndDate] = useState<Date | null>(new Date());
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchOrders = async () => {
-    setIsLoading(true);
-    try {
-      const result = await OrderService.getAllOrders();
-      setOrders(result || []);
+  const cacheKey = useMemo(() => {
+    return `${selectedFilter}-${startDate?.getTime() || 0}-${endDate?.getTime() || 0}-${currentPage}`;
+  }, [selectedFilter, startDate, endDate, currentPage]);
 
-      // 🚀 Agendar Lembretes de OS (30/60 min)
-      if (result && Array.isArray(result)) {
-        result.forEach(order => {
+  const fetchOrders = async (isBackground = false) => {
+    if (!isBackground && !ordersCache[cacheKey]) {
+      setOrders([]); // Remove dados velhos da tela imediatamente
+      setIsLoading(true); // Ativa o spinner na tela
+    }
+
+    // 🏎 Se tiver no cache, mostra imediatamente
+    if (ordersCache[cacheKey]) {
+      setOrders(ordersCache[cacheKey].orders);
+      setTotalOrders(ordersCache[cacheKey].total);
+      setServerStats(ordersCache[cacheKey].stats);
+      if (!isBackground) setIsLoading(false);
+    }
+
+    try {
+      const response = await OrderService.getAllOrders({
+        page: currentPage,
+        pageSize: ITEMS_PER_PAGE,
+        statusFilter: selectedFilter,
+        startDate,
+        endDate
+      });
+
+      const newResult = {
+        orders: response.orders || [],
+        total: response.total,
+        stats: response.stats
+      };
+
+      setOrdersCache(prev => ({ ...prev, [cacheKey]: newResult }));
+      setOrders(newResult.orders);
+      setTotalOrders(newResult.total);
+      setServerStats(newResult.stats);
+
+      // 🚀 Agendar Lembretes de OS
+      if (response.orders && Array.isArray(response.orders)) {
+        response.orders.forEach(order => {
           if ((order.status === 'pending' || order.status === 'assigned') && order.scheduledDate && order.scheduledTime) {
             NotificationService.scheduleOrderReminders(
               order.id,
@@ -58,158 +141,133 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchOrders();
-  }, []);
+    fetchOrders(true);
+  }, [cacheKey]);
 
-  // ✅ Auto-refresh on Notification & Initial Mount
+  // Realtime Listener for Instant Updates
   useEffect(() => {
-    console.log('[Index] Component Mounted - Fetching Orders');
-    const initializeLoad = async () => {
-      setIsLoading(true);
-      // Ensure auth is loaded first
+    let channel: any;
+
+    const setupRealtime = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        await fetchOrders();
-      } else {
-        setIsLoading(false);
-      }
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      console.log('[HomeScreen] 📡 Subscribing to OS Realtime Updates for:', userId);
+
+      channel = supabase
+        .channel('os-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen to INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'orders',
+            filter: `assigned_to=eq.${userId}`
+          },
+          (payload: any) => {
+            console.log('[HomeScreen] 🔄 OS Change Detected:', payload.eventType);
+
+            // 🔥 Automically refresh the data
+            fetchOrders(true);
+
+            // 🔔 If it's a NEW assignment, trigger a local notification
+            if (payload.eventType === 'INSERT') {
+              NotificationService.triggerLocalNotification(
+                "Nova OS Atribuída!",
+                `Você recebeu uma nova Ordem de Serviço: ${payload.new.display_id || 'S/N'}`,
+                { orderId: payload.new.id }
+              );
+            } else if (payload.eventType === 'UPDATE' && payload.old.status !== payload.new.status) {
+              // Notify on status changes if relevant
+            }
+          }
+        )
+        .subscribe();
     };
-    initializeLoad();
-  }, []);
 
-  // ✅ Refresh when returning to screen
-  useFocusEffect(
-    useCallback(() => {
-      console.log('[Index] Focus Triggered - Fetching Orders');
-      fetchOrders();
-    }, [])
-  );
+    setupRealtime();
 
-  // Filter Logic: Status + Dates
-  const filteredOrders = useMemo(() => {
-    let result = orders;
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [selectedFilter, startDate, endDate, currentPage]); // Re-subscribe if filter context changes if needed, but usually one subs is enough
 
-    // 1. Status Filter
-    if (selectedFilter !== 'all') {
-      result = result.filter((order) => order.status === selectedFilter);
-    }
+  useEffect(() => {
+    fetchOrders();
+  }, [cacheKey]);
 
-    // 2. Date Filter
-    if (startDate || endDate) {
-      result = result.filter((order) => {
-        // Handle both YYYY-MM-DD (from DB) and DD/MM/YYYY (from Mock) formats
-        let orderDate;
-        if (order.date.includes('-')) {
-          orderDate = new Date(order.date);
-        } else {
-          const parts = order.date.split('/');
-          orderDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-        }
-
-        if (startDate && orderDate < startDate) return false;
-
-        if (endDate) {
-          const endOfDay = new Date(endDate);
-          endOfDay.setHours(23, 59, 59, 999);
-          if (orderDate > endOfDay) return false;
-        }
-
-        return true;
-      });
-    }
-
-    return result;
-  }, [orders, selectedFilter, startDate, endDate]);
-
-  // Pagination Logic
-  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
-  const paginatedOrders = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredOrders.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [filteredOrders, currentPage]);
-
-  // Reset pagination when filters change
-  useMemo(() => {
+  useEffect(() => {
     setCurrentPage(1);
   }, [selectedFilter, startDate, endDate]);
 
+  const totalPages = Math.ceil(totalOrders / ITEMS_PER_PAGE);
+
   const onChangeStartDate = (event: any, selectedDate?: Date) => {
     setShowStartPicker(false);
-    if (selectedDate) {
-      setStartDate(selectedDate);
-    }
+    if (selectedDate) setStartDate(selectedDate);
   };
 
   const onChangeEndDate = (event: any, selectedDate?: Date) => {
     setShowEndPicker(false);
-    if (selectedDate) {
-      setEndDate(selectedDate);
-    }
+    if (selectedDate) setEndDate(selectedDate);
   };
 
   const dashboardStats = useMemo(() => {
-    const stats: Record<string, number> = {
-      all: orders.length,
-      pending: orders.filter((o) => o.status === 'pending').length,
-      in_progress: orders.filter((o) => o.status === 'in_progress').length,
-      completed: orders.filter((o) => o.status === 'completed').length,
-      canceled: orders.filter((o) => o.status === 'canceled').length,
+    return {
+      pending: { color: '#d97706', bg: '#fef3c7', label: 'Abertas' },
+      in_progress: { color: '#2563eb', bg: '#dbeafe', label: 'Execução' },
+      blocked: { color: '#e11d48', bg: '#ffe4e6', label: 'Impedidas' },
+      completed: { color: '#059669', bg: '#d1fae5', label: 'Finalizadas' },
     };
-    return stats;
-  }, [orders]);
-
-  const renderDashboardCard = (status: OrderStatus | 'all', label: string, count: number, color: string) => (
-    <Pressable
-      key={status}
-      style={[
-        styles.dashboardCard,
-        selectedFilter === status && { backgroundColor: color + '20', borderColor: color },
-      ]}
-      onPress={() => setSelectedFilter(status)}>
-      <View style={[styles.statusIndicator, { backgroundColor: color }]} />
-      <Text style={styles.dashboardCount}>{count}</Text>
-      <Text style={styles.dashboardLabel}>{label}</Text>
-    </Pressable>
-  );
+  }, []);
 
   const handleShareOS = async (publicToken: string, displayId: string) => {
     if (publicToken) {
       const url = `https://app.dunoup.com.br/#/order/view/${publicToken}`;
       try {
         await Share.share({
-          message: `📄 Resumo da Ordem de Serviço ${displayId}:\nPara acessar todos os detalhes, fotos e checklists, clique no link abaixo:\n\n${url}`,
+          message: `📄 Resumo da Ordem de Serviço ${displayId}:\nClique para acessar: ${url}`,
           url,
         });
       } catch (error) {
-        Alert.alert("Erro", "Não foi possível compartilhar a OS.");
+        Alert.alert("Erro", "Não foi possível compartilhar.");
       }
-    } else {
-      Alert.alert(
-        "Emissão Pendente",
-        "Esta OS ainda não possui um link de relatório público. Reabra a OS no painel de administração para forçar a geração."
-      );
     }
   };
 
+  const renderDashboardCard = (status: string, data: any) => (
+    <Pressable
+      key={status}
+      style={[
+        styles.dashboardCard,
+        { backgroundColor: data.bg, borderColor: data.color + '20' },
+        selectedFilter === status && { backgroundColor: data.color, borderColor: data.color },
+      ]}
+      onPress={() => setSelectedFilter(status as any)}>
+      <Text style={[
+        styles.dashboardLabel,
+        { color: data.color },
+        selectedFilter === status && { color: '#fff' }
+      ]}>
+        {data.label}
+      </Text>
+    </Pressable>
+  );
+
   return (
     <ThemedView style={styles.container}>
-      {/* Dashboard Section */}
       <View style={styles.dashboardContainer}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <View style={{ alignItems: 'center', marginBottom: 8 }}>
           <ThemedText style={styles.sectionTitle}>Visão Geral</ThemedText>
-          {isLoading && <Text style={{ fontSize: 10, color: '#666' }}>Atualizando...</Text>}
         </View>
 
         <View style={styles.dashboardGrid}>
-          {renderDashboardCard('all', 'Total', dashboardStats.all, '#1c2d4f')}
-          {renderDashboardCard('pending', 'Pendentes', dashboardStats.pending, STATUS_CONFIG.pending.color)}
-          {renderDashboardCard('in_progress', 'Em And.', dashboardStats.in_progress, STATUS_CONFIG.in_progress.color)}
-          {renderDashboardCard('completed', 'Concluídas', dashboardStats.completed, STATUS_CONFIG.completed.color)}
+          {Object.entries(dashboardStats).map(([key, value]) => renderDashboardCard(key, value))}
         </View>
       </View>
 
       <View style={styles.listContainer}>
-        {/* Date Filter Inputs */}
         <View style={styles.dateFilterContainer}>
           <Pressable style={styles.dateInput} onPress={() => setShowStartPicker(true)}>
             <Text style={startDate ? styles.dateTextActive : styles.dateTextPlaceholder}>
@@ -247,16 +305,13 @@ export default function HomeScreen() {
         )}
 
         <View style={styles.listHeader}>
-          <ThemedText style={styles.sectionTitle}>
-            Ordens de Serviço
-            {selectedFilter !== 'all' && ` (${STATUS_CONFIG[selectedFilter].label})`}
-          </ThemedText>
+          <ThemedText style={styles.sectionTitle}>Ordens de Serviço</ThemedText>
           <Pressable
             style={styles.filterButton}
             onPress={() => {
-              setSelectedFilter('all');
-              setStartDate(null);
-              setEndDate(null);
+              setSelectedFilter('pending');
+              setStartDate(new Date());
+              setEndDate(new Date());
             }}>
             <Ionicons name="filter" size={18} color="#1c2d4f" />
             <Text style={styles.filterButtonText}>Limpar</Text>
@@ -264,69 +319,34 @@ export default function HomeScreen() {
         </View>
 
         <FlatList
-          data={paginatedOrders}
+          data={orders}
           keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <OrderCard
+              order={item}
+              onShare={handleShareOS}
+              onPress={() => router.push(`/os/${item.id}`)}
+            />
+          )}
+          showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={5}
           removeClippedSubviews={Platform.OS === 'android'}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1c2d4f']} />
           }
-          renderItem={({ item }) => (
-            <Pressable
-              style={styles.orderCard}
-              onPress={() => router.push(`/os/${item.id}`)}
-            >
-              <View style={styles.orderHeader}>
-                <Text style={styles.orderId}>{item.displayId || item.id}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: STATUS_CONFIG[item.status].color + '20' }]}>
-                  <Text style={[styles.statusText, { color: STATUS_CONFIG[item.status].color }]}>
-                    {STATUS_CONFIG[item.status].label}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={styles.customerName}>{item.customer}</Text>
-              <View style={styles.detailRow}>
-                <Ionicons name="location-outline" size={14} color="#666" />
-                <Text style={styles.addressText}>{item.address}</Text>
-              </View>
-
-              <View style={styles.cardFooter}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Ionicons name="calendar-outline" size={14} color="#999" />
-                  <Text style={styles.dateText}>{item.date}</Text>
-                </View>
-
-                {item.status === 'completed' && item.publicToken ? (
-                  <Pressable
-                    style={styles.shareButton}
-                    onPress={(e) => {
-                      e.stopPropagation(); // Avoid triggering card navigation
-                      handleShareOS(item.publicToken, item.displayId || item.id);
-                    }}
-                  >
-                    <Ionicons name="share-social-outline" size={16} color="#10b981" />
-                    <Text style={styles.shareButtonText}>Compartilhar</Text>
-                  </Pressable>
-                ) : (
-                  <Ionicons name="chevron-forward" size={20} color="#ccc" />
-                )}
-              </View>
-            </Pressable>
-          )}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons name="documents-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>
-                {filteredOrders.length === 0 ? 'Nenhuma OS encontrada.' : ''}
-              </Text>
-            </View>
+            isLoading ? null : (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="documents-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>Nenhuma ordem encontrada</Text>
+              </View>
+            )
           }
           ListFooterComponent={
-            filteredOrders.length > 0 ? (
+            totalOrders > 0 ? (
               <View style={styles.paginationContainer}>
                 <Pressable
                   disabled={currentPage === 1}
@@ -336,9 +356,7 @@ export default function HomeScreen() {
                   <Ionicons name="chevron-back" size={20} color={currentPage === 1 ? "#ccc" : "#1c2d4f"} />
                 </Pressable>
 
-                <Text style={styles.pageText}>
-                  Página {currentPage} de {totalPages || 1}
-                </Text>
+                <Text style={styles.pageText}>Página {currentPage} de {totalPages || 1}</Text>
 
                 <Pressable
                   disabled={currentPage === totalPages}
@@ -351,222 +369,70 @@ export default function HomeScreen() {
             ) : null
           }
         />
+
+        {isLoading && (
+          <View style={styles.loaderOverlay}>
+            <ActivityIndicator size="large" color="#1c2d4f" />
+            <Text style={{ marginTop: 10, color: '#1c2d4f', fontWeight: '500' }}>Carregando dados...</Text>
+          </View>
+        )}
       </View>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f7fa',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#1c2d4f',
-  },
-  dashboardContainer: {
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ebebeb',
-  },
-  dashboardGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  container: { flex: 1, backgroundColor: '#f5f7fa' },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#1c2d4f' },
+  dashboardContainer: { paddingVertical: 12, paddingHorizontal: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#ebebeb' },
+  dashboardGrid: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
   dashboardCard: {
-    width: '23%',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statusIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginBottom: 8,
-  },
-  dashboardCount: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  dashboardLabel: {
-    fontSize: 10,
-    color: '#666',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  listContainer: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  dateFilterContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    gap: 10,
-  },
-  dateInput: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  dateTextPlaceholder: {
-    fontSize: 12,
-    color: '#999',
-  },
-  dateTextActive: {
-    fontSize: 12,
-    color: '#333',
-    fontWeight: '500',
-  },
-  listHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  filterButtonText: {
-    color: '#1c2d4f',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
-  orderCard: {
-    backgroundColor: '#fff',
+    height: 58,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#1c2d4f',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  orderId: {
-    fontWeight: 'bold',
-    fontSize: 16,
-    color: '#1c2d4f',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-  },
-  customerName: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 12,
-  },
-  addressText: {
-    fontSize: 12,
-    color: '#666',
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    paddingTop: 12,
-  },
-  dateText: {
-    fontSize: 12,
-    color: '#999',
-  },
-  shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ecfdf5',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#a7f3d0',
-    gap: 6,
-  },
-  shareButtonText: {
-    fontSize: 12,
-    color: '#10b981',
-    fontWeight: '700',
-  },
-  emptyState: {
+    borderWidth: 1.5,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
   },
-  emptyText: {
-    marginTop: 10,
-    color: '#999',
-    fontSize: 14,
-  },
-  paginationContainer: {
-    flexDirection: 'row',
+  dashboardLabel: { fontSize: 12, fontWeight: '900', textAlign: 'center' },
+  listContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  dateFilterContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, gap: 10 },
+  dateInput: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  dateTextPlaceholder: { fontSize: 12, color: '#999' },
+  dateTextActive: { fontSize: 12, color: '#333', fontWeight: '500' },
+  listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  filterButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  filterButtonText: { color: '#1c2d4f', fontSize: 12, fontWeight: '600' },
+  listContent: { paddingBottom: 20 },
+  orderCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: '#1c2d4f', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  loaderOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(245, 247, fa, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
-    gap: 20,
+    zIndex: 10,
   },
-  pageButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  pageText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '600',
-  },
+  orderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  orderId: { fontWeight: 'bold', fontSize: 16, color: '#1c2d4f' },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  statusText: { fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' },
+  customerName: { fontSize: 14, color: '#333', fontWeight: '600', marginBottom: 4 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
+  addressText: { fontSize: 12, color: '#666' },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#f0f0f0', paddingTop: 12 },
+  dateText: { fontSize: 12, color: '#999' },
+  shareButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ecfdf5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#a7f3d0', gap: 6 },
+  shareButtonText: { fontSize: 12, color: '#10b981', fontWeight: '700' },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 40 },
+  emptyText: { marginTop: 10, color: '#999', fontSize: 14 },
+  paginationContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10, gap: 20 },
+  pageButton: { padding: 8, borderRadius: 8, backgroundColor: '#f0f0f0' },
+  disabledButton: { opacity: 0.5 },
+  pageText: { fontSize: 14, color: '#333', fontWeight: '600' },
 });

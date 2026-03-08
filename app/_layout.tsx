@@ -95,8 +95,10 @@ export default function RootLayout() {
     });
 
     return () => {
-      Notifications.removeNotificationSubscription(notificationListener.current);
-      Notifications.removeNotificationSubscription(responseListener.current);
+      if (typeof Notifications.removeNotificationSubscription === 'function') {
+        if (notificationListener.current) Notifications.removeNotificationSubscription(notificationListener.current);
+        if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
+      }
       supabase.removeAllChannels();
     };
   }, []);

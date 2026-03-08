@@ -261,34 +261,17 @@ export default function OrderDetailsScreen() {
 
                 {/* Execution Details Display */}
                 {(order.executionDetails || (order.formData && Object.keys(order.formData).length > 0)) && (
-                    <View>
-                        <ThemedText type="title" style={{ marginBottom: 12, marginTop: 8 }}>Resumo da Execução</ThemedText>
+                    <View style={styles.card}>
+                        <ThemedText type="title" style={{ marginBottom: 20, fontSize: 20 }}>Resumo da Execução</ThemedText>
 
-                        {/* Relatório Técnico (se existir) */}
-                        {(order.executionDetails?.technicalReport || order.formData?.technical_report) && (
-                            <View style={styles.card}>
-                                <ThemedText type="subtitle">Relatório Técnico</ThemedText>
-                                <Text style={styles.infoText}>
-                                    {order.executionDetails?.technicalReport || order.formData?.technical_report}
-                                </Text>
-                            </View>
-                        )}
-
-                        {/* Peças Utilizadas (se existir) */}
-                        {(order.executionDetails?.partsUsed || order.formData?.parts_used) && (
-                            <View style={styles.card}>
-                                <ThemedText type="subtitle">Peças Utilizadas</ThemedText>
-                                <Text style={styles.infoText}>
-                                    {order.executionDetails?.partsUsed || order.formData?.parts_used}
-                                </Text>
-                            </View>
-                        )}
-
-                        {/* Checklist Completo e Dados do Formulário */}
+                        {/* 1. Checklist / Formulário (Now first) */}
                         {order.formData && Object.keys(order.formData).length > 0 && (
-                            <View style={styles.card}>
-                                <ThemedText type="subtitle">Checklist / Formulário</ThemedText>
-                                <View style={{ marginTop: 10 }}>
+                            <View style={styles.executionSection}>
+                                <View style={styles.sectionHeader}>
+                                    <Ionicons name="checkbox-outline" size={16} color="#475569" />
+                                    <Text style={styles.executionSectionLabel}>Checklist / Formulário</Text>
+                                </View>
+                                <View style={{ marginTop: 12 }}>
                                     {(() => {
                                         const SYSTEM_KEYS = [
                                             'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
@@ -306,38 +289,61 @@ export default function OrderDetailsScreen() {
 
                                         const formEntries = Object.entries(order.formData).filter(([key, val]) => {
                                             if (SYSTEM_KEYS.includes(key) || isSignatureKey(key)) return false;
-                                            if (Array.isArray(val)) return false;
-                                            if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) return false;
                                             if (val === null || val === undefined || val === '') return false;
+                                            // Images are now kept here to be rendered inline
                                             return true;
                                         });
 
                                         const groupedEntries = formEntries.reduce((acc, [key, val]) => {
                                             const match = key.match(/^\[(.*?)\]\s*(?:-|$)/);
-                                            const groupName = match ? match[1] : 'Formulário';
+                                            const groupName = match ? match[1] : 'Geral';
                                             if (!acc[groupName]) acc[groupName] = [];
                                             acc[groupName].push([key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' '), val]);
                                             return acc;
                                         }, {} as Record<string, [string, any][]>);
 
+                                        if (Object.keys(groupedEntries).length === 0) return null;
+
                                         return Object.entries(groupedEntries).map(([group, items], i) => (
-                                            <View key={group} style={{ marginBottom: i < Object.keys(groupedEntries).length - 1 ? 16 : 0 }}>
-                                                {group !== 'Formulário' && Object.keys(groupedEntries).length > 1 && (
-                                                    <View style={{ backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 8, borderWidth: 1, borderColor: '#e2e8f0' }}>
-                                                        <Text style={{ fontSize: 10, fontWeight: '900', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>{group}</Text>
+                                            <View key={group} style={{ marginBottom: i < Object.keys(groupedEntries).length - 1 ? 20 : 0 }}>
+                                                {group !== 'Geral' && (
+                                                    <View style={styles.groupBadge}>
+                                                        <Text style={styles.groupBadgeText}>{group}</Text>
                                                     </View>
                                                 )}
-                                                {items.map(([cleanKey, val]) => (
-                                                    <View key={cleanKey} style={styles.dynamicFieldRow}>
-                                                        <Text style={styles.dynamicFieldLabel}>{cleanKey}</Text>
-                                                        <Text style={[
-                                                            styles.dynamicFieldValue,
-                                                            (val === 'OK' || val === 'Sim') && { color: '#2e7d32', fontWeight: 'bold' }
-                                                        ]}>
-                                                            {String(val)}
-                                                        </Text>
-                                                    </View>
-                                                ))}
+                                                <View style={styles.checklistItemsContainer}>
+                                                    {items.map(([cleanKey, val]) => {
+                                                        const isImageUrl = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'));
+                                                        const isImageArray = Array.isArray(val) && val.every(v => isImageUrl(v));
+                                                        const isSingleImage = isImageUrl(val);
+
+                                                        return (
+                                                            <View key={cleanKey} style={styles.dynamicFieldRow}>
+                                                                <Text style={styles.dynamicFieldLabel}>{cleanKey}</Text>
+                                                                {isImageArray ? (
+                                                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                                                                        {val.map((uri: string, idx: number) => (
+                                                                            <Pressable key={idx} onPress={() => openImage(uri)}>
+                                                                                <Image source={{ uri }} style={styles.photoThumbnail} />
+                                                                            </Pressable>
+                                                                        ))}
+                                                                    </ScrollView>
+                                                                ) : isSingleImage ? (
+                                                                    <Pressable onPress={() => openImage(val)} style={{ marginTop: 8 }}>
+                                                                        <Image source={{ uri: val }} style={[styles.photoThumbnail, { width: '100%', height: 200 }]} resizeMode="cover" />
+                                                                    </Pressable>
+                                                                ) : (
+                                                                    <Text style={[
+                                                                        styles.dynamicFieldValue,
+                                                                        (val === 'OK' || val === 'Sim') && { color: '#16a34a' }
+                                                                    ]}>
+                                                                        {String(val)}
+                                                                    </Text>
+                                                                )}
+                                                            </View>
+                                                        );
+                                                    })}
+                                                </View>
                                             </View>
                                         ));
                                     })()}
@@ -345,57 +351,90 @@ export default function OrderDetailsScreen() {
                             </View>
                         )}
 
-                        {/* Galeria de Fotos Dinâmica (Formulário + Gerais) */}
+                        {/* 2. Relatório Técnico */}
+                        {(() => {
+                            const report = order.executionDetails?.technicalReport || order.formData?.technical_report;
+                            if (!report) return null;
+                            return (
+                                <View style={styles.executionSection}>
+                                    <View style={styles.sectionHeader}>
+                                        <Ionicons name="document-text-outline" size={16} color="#475569" />
+                                        <Text style={styles.executionSectionLabel}>Relatório Técnico</Text>
+                                    </View>
+                                    <View style={styles.reportContent}>
+                                        <Text style={styles.infoText}>{report}</Text>
+                                    </View>
+                                </View>
+                            );
+                        })()}
+
+                        {/* 3. Peças Utilizadas */}
+                        {(() => {
+                            const parts = order.executionDetails?.partsUsed || order.formData?.parts_used;
+                            if (!parts) return null;
+                            return (
+                                <View style={styles.executionSection}>
+                                    <View style={styles.sectionHeader}>
+                                        <Ionicons name="construct-outline" size={16} color="#475569" />
+                                        <Text style={styles.executionSectionLabel}>Peças Utilizadas</Text>
+                                    </View>
+                                    <View style={styles.reportContent}>
+                                        <Text style={styles.infoText}>{parts}</Text>
+                                    </View>
+                                </View>
+                            );
+                        })()}
+
+                        {/* 4. Anexos Fotográficos (Extras do Relatório) */}
                         {(() => {
                             const allPhotos: string[] = [];
+                            // Filters only extra photos that are not part of the dynamic form/checklist
                             if (order.executionDetails?.photos) allPhotos.push(...order.executionDetails.photos);
-
-                            // Buscar fotos dentro de arrays ou campos simples no formData
-                            if (order.formData) {
-                                Object.values(order.formData).forEach(val => {
-                                    if (Array.isArray(val)) {
-                                        val.forEach(item => {
-                                            if (typeof item === 'string' && (item.startsWith('http') || item.startsWith('data:'))) {
-                                                allPhotos.push(item);
-                                            }
-                                        });
-                                    } else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) {
-                                        // Evitar assinatura aqui
-                                        if (!val.includes('signature')) allPhotos.push(val);
-                                    }
-                                });
+                            if (order.formData?.extra_photos) {
+                                const extras = Array.isArray(order.formData.extra_photos) ? order.formData.extra_photos : [order.formData.extra_photos];
+                                allPhotos.push(...extras);
                             }
+                            
+                            const uniquePhotos = [...new Set(allPhotos)].filter(p => typeof p === 'string' && p.startsWith('http'));
+                            if (uniquePhotos.length === 0) return null;
 
-                            const uniquePhotos = [...new Set(allPhotos)];
-
-                            if (uniquePhotos.length > 0) {
-                                return (
-                                    <View style={styles.card}>
-                                        <ThemedText type="subtitle">Anexos Fotográficos</ThemedText>
-                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
-                                            {uniquePhotos.map((uri, index) => (
-                                                <Pressable key={index} onPress={() => openImage(uri)}>
-                                                    <Image source={{ uri }} style={styles.photoThumbnail} />
-                                                </Pressable>
-                                            ))}
-                                        </ScrollView>
+                            return (
+                                <View style={styles.executionSection}>
+                                    <View style={styles.sectionHeader}>
+                                        <Ionicons name="images-outline" size={16} color="#475569" />
+                                        <Text style={styles.executionSectionLabel}>Anexos do Relatório</Text>
                                     </View>
-                                );
-                            }
-                            return null;
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
+                                        {uniquePhotos.map((uri, index) => (
+                                            <Pressable key={index} onPress={() => openImage(uri)}>
+                                                <Image source={{ uri }} style={styles.photoThumbnail} />
+                                            </Pressable>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            );
                         })()}
 
                         {/* Assinatura */}
                         {(order.executionDetails?.signature || order.formData?.signature) && (
-                            <View style={styles.card}>
-                                <ThemedText type="subtitle">Assinatura do Cliente</ThemedText>
-                                <Pressable onPress={() => openImage(order.executionDetails?.signature || order.formData?.signature)}>
+                            <View style={[styles.executionSection, { borderBottomWidth: 0 }]}>
+                                <View style={styles.sectionHeader}>
+                                    <Ionicons name="pencil-outline" size={16} color="#475569" />
+                                    <Text style={styles.executionSectionLabel}>Assinatura do Cliente</Text>
+                                </View>
+                                <Pressable 
+                                    onPress={() => openImage(order.executionDetails?.signature || order.formData?.signature)}
+                                    style={styles.signatureCanvas}
+                                >
                                     <Image
                                         source={{ uri: order.executionDetails?.signature || order.formData?.signature }}
                                         style={styles.signatureImage}
                                         resizeMode="contain"
                                     />
                                 </Pressable>
+                                {order.formData?.clientName && (
+                                    <Text style={styles.clientNameText}>Responsável: {order.formData.clientName}</Text>
+                                )}
                             </View>
                         )}
                     </View>
@@ -603,12 +642,13 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         borderTopWidth: 1,
         borderTopColor: '#f1f5f9',
-        paddingBottom: Platform.OS === 'ios' ? 40 : 20, // Adjusted padding
+        // Increased padding to be safely above system gesture bars and fixed buttons
+        paddingBottom: Platform.OS === 'ios' ? 54 : 45,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: -10 },
-        shadowOpacity: 0.03,
-        shadowRadius: 15,
-        elevation: 10,
+        shadowOffset: { width: 0, height: -12 },
+        shadowOpacity: 0.1,
+        shadowRadius: 24,
+        elevation: 25,
     },
     actionButton: {
         flexDirection: 'row',
@@ -700,24 +740,81 @@ const styles = StyleSheet.create({
     },
     // New Styles for Dynamic Content
     dynamicFieldRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 10,
+        paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        borderBottomColor: '#f1f5f9',
     },
     dynamicFieldLabel: {
-        fontSize: 13,
-        color: '#666',
-        flex: 0.6,
-        textTransform: 'capitalize',
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#64748b',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 4,
     },
     dynamicFieldValue: {
-        fontSize: 13,
+        fontSize: 15,
+        color: '#0f172a',
         fontWeight: '600',
-        color: '#333',
-        flex: 0.4,
-        textAlign: 'right',
+        lineHeight: 20,
+    },
+    executionSection: {
+        marginTop: 16,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: '#f1f5f9',
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    executionSectionLabel: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: '#475569',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    reportContent: {
+        backgroundColor: '#f8fafc',
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#f1f5f9',
+    },
+    groupBadge: {
+        backgroundColor: '#e2e8f0',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        alignSelf: 'flex-start',
+        marginBottom: 8,
+    },
+    groupBadgeText: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: '#475569',
+        textTransform: 'uppercase',
+    },
+    checklistItemsContainer: {
+        backgroundColor: '#ffffff',
+    },
+    signatureCanvas: {
+        backgroundColor: '#f8fafc',
+        borderRadius: 12,
+        marginTop: 8,
+        borderWidth: 1,
+        borderColor: '#f1f5f9',
+        padding: 8,
+    },
+    clientNameText: {
+        fontSize: 13,
+        color: '#64748b',
+        marginTop: 8,
+        textAlign: 'center',
+        fontStyle: 'italic',
     },
 });
 

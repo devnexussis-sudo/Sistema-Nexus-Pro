@@ -47,6 +47,13 @@ export default function TabLayout() {
             tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
           }}
         />
+        <Tabs.Screen
+          name="stock"
+          options={{
+            title: 'Estoque',
+            tabBarIcon: ({ color }) => <IconSymbol size={28} name="cube.fill" color={color} />,
+          }}
+        />
       </Tabs>
 
       <MenuModal
