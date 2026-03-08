@@ -113,6 +113,7 @@ export const TechnicianMap: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isAutoRefresh, setIsAutoRefresh] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
     // 👷 Techs State
     const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -133,13 +134,16 @@ export const TechnicianMap: React.FC = () => {
     });
 
     useEffect(() => {
-        // Initial load for both
+        // Initial load
         loadTechnicians();
         loadOrders();
 
         let interval: any;
         if (isAutoRefresh) {
             console.log('[Map] Auto-refresh habilitado: Próxima atualização em 5 minutos');
+            // Refresh imediato ao ligar o modo Live
+            handleRefresh();
+
             interval = setInterval(() => {
                 handleRefresh();
             }, 5 * 60 * 1000); // 5 minutes
@@ -202,12 +206,12 @@ export const TechnicianMap: React.FC = () => {
                 CacheManager.invalidate(`customers_${tenantId}`);
             }
 
-            // Executa ambos em paralelo
             await Promise.all([
                 loadTechnicians(),
                 loadOrders()
             ]);
 
+            setLastUpdated(new Date());
             console.log('[Map] Dados atualizados com sucesso (OS & Técnicos)');
         } catch (error) {
             console.error('[Map] Erro ao atualizar:', error);
@@ -324,116 +328,144 @@ export const TechnicianMap: React.FC = () => {
 
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden">
-            {/* 🔮 NEXUS TOP BAR */}
-            <div className="absolute top-4 left-4 right-4 z-[1000] flex flex-wrap items-center gap-2">
+        <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden font-sans">
+            {/* 🔮 NEXUS SMART CONTROL PANEL (Glassmorphism) */}
+            <div className="absolute top-6 left-6 z-[1002] flex flex-col gap-4 w-80 pointer-events-none">
 
-                {/* Modos Principais */}
-                <div className="bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-white/20 flex overflow-hidden p-1">
-                    <button
-                        onClick={() => { setViewMode('ORDERS'); setIsHistoryMode(false); }}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${viewMode === 'ORDERS' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
-                    >
-                        <ClipboardList size={14} /> OS Georreferenciadas
-                    </button>
-                    <button
-                        onClick={() => setViewMode('TECHS')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${viewMode === 'TECHS' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}
-                    >
-                        <Users size={14} /> Técnicos
-                    </button>
-                </div>
-
-                {/* Map Type Toggle */}
-                <button
-                    onClick={() => setMapType(prev => prev === 'DEFAULT' ? 'SATELLITE' : 'DEFAULT')}
-                    className="bg-white/95 backdrop-blur-md rounded-full p-2 lg:px-4 lg:py-2.5 shadow-lg border border-white/20 hover:bg-slate-50 transition-all text-slate-700 flex items-center gap-2"
-                    title="Mudar Tipo de Mapa"
-                >
-                    <Layers size={14} className="text-primary-600" />
-                    <span className="hidden lg:inline text-[9px] font-black uppercase tracking-widest text-slate-600 border-l border-slate-200 pl-2">
-                        {mapType === 'DEFAULT' ? 'Padrão' : 'Satélite'}
-                    </span>
-                </button>
-
-                {viewMode === 'TECHS' && (
-                    <div className="bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg border border-white/20 flex items-center gap-2 shrink-0">
-                        <div className="p-1 bg-primary-600 rounded-lg shadow-lg shadow-primary-600/20"><Navigation size={12} className="text-white" /></div>
-                        <span className="text-[8px] font-black text-slate-900 uppercase tracking-wider hidden md:inline">Radar</span>
-                        <div className="w-px h-3 bg-slate-300 hidden md:inline"></div>
-                        <span className="text-[9px] font-black text-emerald-600">{movingTechs.length} <span className="text-[7px] text-slate-400">MOV.</span></span>
-                        <div className="w-px h-3 bg-slate-300"></div>
-                        <span className="text-[9px] font-black text-red-600">{stoppedTechs.length} <span className="text-[7px] text-slate-400">PARADOS</span></span>
+                {/* 🏷️ Info Header */}
+                <div className="bg-[#1c2d4f]/95 backdrop-blur-xl rounded-[2rem] p-6 shadow-2xl border border-white/10 pointer-events-auto transition-all hover:shadow-primary-900/20">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex flex-col">
+                            <h2 className="text-xl font-black text-white italic tracking-tighter">Nexus <span className="text-primary-400">Map</span></h2>
+                            <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] leading-none">Console de Operações</p>
+                        </div>
+                        <div className={`p-2 rounded-2xl ${isAutoRefresh ? 'bg-emerald-500/20 border border-emerald-500/50' : 'bg-white/5 border border-white/10'}`}>
+                            <Navigation size={18} className={isAutoRefresh ? 'text-emerald-400 animate-pulse' : 'text-white/40'} />
+                        </div>
                     </div>
-                )}
 
-                {viewMode === 'ORDERS' && (
-                    <div className="bg-white/90 backdrop-blur-md rounded-full px-4 py-2 shadow-lg border border-white/20 flex items-center gap-2 shrink-0">
-                        <div className="p-1 bg-primary-600 rounded-lg shadow-lg shadow-primary-600/20"><MapPin size={12} className="text-white" /></div>
-                        <span className="text-[8px] font-black text-slate-900 uppercase tracking-wider hidden md:inline flex-1">Visão de Campo</span>
-                        <div className="w-px h-3 bg-slate-300 hidden md:inline"></div>
-                        <span className="text-[9px] font-black text-primary-600">{mappedOrders.length} <span className="text-[7px] text-slate-400">LOCALIZADAS</span></span>
-                    </div>
-                )}
-
-                {/* Refresh Button */}
-                {!isHistoryMode && (
-                    <div className="flex items-center gap-2">
-                        <div className="bg-white/95 backdrop-blur-md rounded-full px-4 py-1.5 shadow-lg border border-white/20 flex items-center gap-3">
-                            <Calendar size={14} className="text-primary-600" />
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="date"
-                                    value={dateRange.start}
-                                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                                    className="bg-transparent text-[9px] font-black uppercase tracking-tighter text-slate-700 outline-none"
-                                />
-                                <span className="text-slate-300 text-[10px]">até</span>
-                                <input
-                                    type="date"
-                                    value={dateRange.end}
-                                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                                    className="bg-transparent text-[9px] font-black uppercase tracking-tighter text-slate-700 outline-none"
-                                />
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                        <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
+                            <p className="text-[8px] font-black text-white/30 uppercase mb-1">Técnicos Ativos</p>
+                            <div className="flex items-end gap-1">
+                                <span className="text-xl font-black text-white leading-none">{activeTechs.length}</span>
+                                <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-tighter pb-0.5">Online</span>
                             </div>
                         </div>
+                        <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
+                            <p className="text-[8px] font-black text-white/30 uppercase mb-1">OS Localizadas</p>
+                            <div className="flex items-end gap-1">
+                                <span className="text-xl font-black text-white leading-none">{mappedOrders.length}</span>
+                                <span className="text-[9px] font-bold text-primary-400 uppercase tracking-tighter pb-0.5">Map</span>
+                            </div>
+                        </div>
+                    </div>
 
+                    <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                        <div className="flex flex-col">
+                            <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Última Atualização</span>
+                            <span className="text-[10px] font-bold text-white/60">{format(lastUpdated, 'HH:mm:ss')}</span>
+                        </div>
                         <button
                             onClick={handleRefresh}
                             disabled={isRefreshing}
-                            className={`bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border transition-all disabled:opacity-50 flex items-center gap-2 ${isRefreshing ? 'border-primary-500 bg-primary-50' : 'border-white/20'}`}
-                            title="Atualizar Tudo Agora"
+                            className={`p-2.5 rounded-xl transition-all ${isRefreshing ? 'bg-primary-500 text-white animate-spin' : 'bg-white/10 text-white hover:bg-white/20'}`}
                         >
-                            <RefreshCw size={14} className={`text-primary-600 transition-transform ${isRefreshing ? 'animate-spin' : ''}`} />
+                            <RefreshCw size={14} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* 🎮 Map & Data Controls */}
+                <div className="bg-white/90 backdrop-blur-xl rounded-[2rem] p-6 shadow-2xl border border-white/50 pointer-events-auto space-y-5">
+
+                    {/* View Switcher */}
+                    <div className="flex bg-slate-100 p-1 rounded-2xl overflow-hidden">
+                        <button
+                            onClick={() => { setViewMode('ORDERS'); setIsHistoryMode(false); }}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${viewMode === 'ORDERS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
+                        >
+                            <ClipboardList size={14} /> Ordens
+                        </button>
+                        <button
+                            onClick={() => setViewMode('TECHS')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${viewMode === 'TECHS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
+                        >
+                            <Users size={14} /> Técnicos
+                        </button>
+                    </div>
+
+                    {/* Date Filters */}
+                    {!isHistoryMode && (
+                        <div className="space-y-2">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Período Selecionado</p>
+                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1 px-3 h-12">
+                                <Calendar size={14} className="text-primary-600" />
+                                <div className="flex items-center gap-1 flex-1">
+                                    <input
+                                        type="date"
+                                        value={dateRange.start}
+                                        onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                                        className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-full"
+                                    />
+                                    <div className="w-px h-3 bg-slate-200 mx-1"></div>
+                                    <input
+                                        type="date"
+                                        value={dateRange.end}
+                                        onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                                        className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-full"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Toggles */}
+                    <div className="grid grid-cols-1 gap-2">
+                        <button
+                            onClick={() => setIsAutoRefresh(!isAutoRefresh)}
+                            className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${isAutoRefresh ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`}></div>
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${isAutoRefresh ? 'text-emerald-700' : 'text-slate-500'}`}>Monitoramento Live</span>
+                            </div>
+                            <div className={`w-8 h-4 rounded-full relative transition-colors ${isAutoRefresh ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${isAutoRefresh ? 'left-4.5' : 'left-0.5'}`} style={{ left: isAutoRefresh ? '18px' : '2px' }}></div>
+                            </div>
                         </button>
 
                         <button
-                            onClick={() => setIsAutoRefresh(!isAutoRefresh)}
-                            className={`bg-white/95 backdrop-blur-md rounded-full px-3 py-2 shadow-lg border transition-all flex items-center gap-2 group ${isAutoRefresh ? 'border-emerald-500 bg-emerald-50' : 'border-white/20 hover:bg-slate-50'}`}
-                            title={isAutoRefresh ? "Auto-Refresh Ativo (5 min)" : "Ligar Auto-Refresh (5 min)"}
+                            onClick={() => setMapType(prev => prev === 'DEFAULT' ? 'SATELLITE' : 'DEFAULT')}
+                            className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${mapType === 'SATELLITE' ? 'bg-[#1c2d4f] text-white border-primary-500/30' : 'bg-slate-50 border-slate-200'}`}
                         >
-                            <div className={`w-2 h-2 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest ${isAutoRefresh ? 'text-emerald-700' : 'text-slate-500'}`}>
-                                {isAutoRefresh ? 'LIVE ON' : 'AUTO OFF'}
+                            <div className="flex items-center gap-2">
+                                <Satellite size={14} className={mapType === 'SATELLITE' ? 'text-primary-400' : 'text-slate-400'} />
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${mapType === 'SATELLITE' ? 'text-white' : 'text-slate-500'}`}>Mapa Satélite</span>
+                            </div>
+                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${mapType === 'SATELLITE' ? 'bg-white/10 text-primary-300' : 'bg-slate-200 text-slate-400'}`}>
+                                {mapType === 'SATELLITE' ? 'ON' : 'OFF'}
                             </span>
                         </button>
+
+                        {viewMode === 'TECHS' && (
+                            <button
+                                onClick={() => setIsHistoryMode(!isHistoryMode)}
+                                className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${isHistoryMode ? 'bg-primary-600 text-white border-primary-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <History size={14} className={isHistoryMode ? 'text-white' : 'text-slate-400'} />
+                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isHistoryMode ? 'text-white' : 'text-slate-500'}`}>Modo Histórico</span>
+                                </div>
+                                <X size={14} className={isHistoryMode ? 'rotate-0' : 'rotate-45 opacity-0'} />
+                            </button>
+                        )}
                     </div>
-                )}
-
-                {/* History Toggle Button for Techs */}
-                {viewMode === 'TECHS' && (
-                    <button
-                        onClick={() => setIsHistoryMode(!isHistoryMode)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border transition-all font-black text-[9px] uppercase tracking-widest ${isHistoryMode ? 'bg-primary-600 text-white border-primary-500' : 'bg-white/90 text-slate-600 border-white/20 hover:bg-slate-50'}`}
-                    >
-                        <History size={14} /> <span className="hidden lg:inline">{isHistoryMode ? 'Fechar Histórico' : 'Rastrear Histórico'}</span>
-                    </button>
-                )}
-
+                </div>
             </div>
 
             {/* 🕒 Side History Drawer (Big Tech Style) */}
-            <div className={`absolute top-0 right-0 bottom-0 z-[1001] w-full max-w-xs transition-all duration-500 transform ${isHistoryMode ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className={`absolute top-0 right-0 bottom-0 z-[1003] w-full max-w-sm transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] transform ${isHistoryMode ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="h-full bg-white/95 backdrop-blur-xl shadow-2xl border-l border-slate-200 flex flex-col pt-24 px-6 gap-6 relative">
                     <button
                         onClick={() => setIsHistoryMode(false)}
