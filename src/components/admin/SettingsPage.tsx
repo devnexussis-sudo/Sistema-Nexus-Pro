@@ -420,7 +420,7 @@ export const SettingsPage: React.FC = () => {
         <div className="flex-1 overflow-y-auto px-3 py-2 custom-scrollbar">
           <form id="settings-form" onSubmit={handleSave} className="max-w-7xl mx-auto space-y-3">
 
-            {activeTab === 'company' ? (
+            {activeTab === 'company' && (
               <div className="space-y-3 animate-fade-in">
                 {/* SEÇÃO PRINCIPAL - DENSIDADE BIG TECH */}
                 <section className="bg-white p-3 rounded-xl border border-gray-100 shadow-xl space-y-3">
@@ -636,7 +636,9 @@ export const SettingsPage: React.FC = () => {
                   </div>
                 </section>
               </div>
-            ) : (
+            )}
+
+            {activeTab === 'system' && (
               <div className="space-y-4 animate-fade-in">
                 <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
                   <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
@@ -732,47 +734,49 @@ export const SettingsPage: React.FC = () => {
                   </div>
                 </section>
               </div>
-            ) : activeTab === 'app' ? (
-            <div className="space-y-4 animate-fade-in">
-              <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
-                <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                  <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
-                    <Smartphone size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Configurações do Aplicativo Nexus Mobile</h2>
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Regras e visibilidade de dados para técnicos em campo.</p>
-                  </div>
-                </div>
+            )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-                    <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.showItemPricesInApp ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                      <CreditCard size={20} />
+            {activeTab === 'app' && (
+              <div className="space-y-4 animate-fade-in">
+                <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
+                  <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+                    <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
+                      <Smartphone size={20} />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-1">
-                        <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Ocultar/Exibir Preço de Peças</h4>
-                        <button
-                          type="button"
-                          onClick={() => setParams({ ...params, showItemPricesInApp: !params.showItemPricesInApp })}
-                          className={`w-10 h-5 rounded-full relative transition-colors ${params.showItemPricesInApp ? 'bg-emerald-600' : 'bg-gray-300'}`}
-                        >
-                          <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.showItemPricesInApp ? '22px' : '2px' }}></div>
-                        </button>
-                      </div>
-                      <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                        Se ativado, o técnico conseguirá ver o valor financeiro dos itens no estoque em seu app.
-                      </p>
+                    <div>
+                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Configurações do Aplicativo Nexus Mobile</h2>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Regras e visibilidade de dados para técnicos em campo.</p>
                     </div>
                   </div>
-                </div>
-              </section>
-            </div>
-            ) : null}
-          </form >
-        </div >
-      </div >
-    </div >
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.showItemPricesInApp ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <CreditCard size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Ocultar/Exibir Preço de Peças</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, showItemPricesInApp: !params.showItemPricesInApp })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.showItemPricesInApp ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.showItemPricesInApp ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Se ativado, o técnico conseguirá ver o valor financeiro dos itens no estoque em seu app.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            )}
+          </form>
+        </div>
+      </div>
+    </div>
   );
 };
