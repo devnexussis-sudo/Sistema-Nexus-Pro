@@ -269,8 +269,8 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
       name: `Master (@${tenant.id})`,
       email: tenant.admin_email || tenant.email || tenant.adminEmail,
       role: 'ADMIN',
-      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=master',
-      // 🔑 PERMISSÕES COMPLETAS DE SUPER ADMIN
+      avatar: '',
+      active: true, // 🔑 PERMISSÕES COMPLETAS DE SUPER ADMIN
       permissions: {
         orders: { create: true, read: true, update: true, delete: true },
         customers: { create: true, read: true, update: true, delete: true },

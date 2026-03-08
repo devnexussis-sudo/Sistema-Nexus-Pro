@@ -6,7 +6,7 @@ import {
   UserPlus, X, Save, Edit3, Trash2, Key,
   LayoutDashboard, ClipboardList, FileText,
   UserCheck, Box, Building2, Settings, ShieldAlert,
-  ArrowLeft, Filter, Calendar, RefreshCw, FolderTree,
+  ArrowLeft, Filter, Calendar, FolderTree,
   ChevronDown, Check, Package, Workflow, CalendarClock, ChevronLeft
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
@@ -123,7 +123,7 @@ export const UserManagement: React.FC = () => {
           ...formData,
           role: UserRole.ADMIN,
           permissions: userPermissions,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(formData.name || 'user')}&backgroundColor=4f46e5`,
+          avatar: '',
           tenantId: DataService.getCurrentTenantId()
         } as any;
         await TenantService.createUser(newUser);
@@ -190,18 +190,7 @@ export const UserManagement: React.FC = () => {
     }
   };
 
-  const handleRandomizeAvatar = async (user: User) => {
-    try {
-      const styles = ['avataaars', 'lorelei', 'personas', 'bottts-neutral', 'fun-emoji'];
-      const randomStyle = styles[Math.floor(Math.random() * styles.length)];
-      const randomSeed = `${user.name}-${Date.now()}`;
-      const newAvatar = `https://api.dicebear.com/7.x/${randomStyle}/svg?seed=${encodeURIComponent(randomSeed)}&backgroundColor=4f46e5`;
-      await TenantService.updateUser({ ...user, avatar: newAvatar });
-      await loadData();
-    } catch (error) {
-      console.error("Erro ao randomizar avatar:", error);
-    }
-  };
+
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -468,13 +457,7 @@ export const UserManagement: React.FC = () => {
                     <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0">
                       <div className="flex items-center gap-4">
                         <div className="relative group/avatar shrink-0">
-                          <img src={user.avatar} className="w-10 h-10 rounded-xl border-2 border-white shadow-xl bg-slate-50 grayscale group-hover:grayscale-0 transition-all group-hover/avatar:scale-105" alt="" />
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleRandomizeAvatar(user); }}
-                            className="absolute -bottom-1 -right-1 p-1 bg-primary-600 text-white rounded shadow-lg scale-75"
-                          >
-                            <RefreshCw size={10} />
-                          </button>
+                          <img src={user.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.name) + '&background=10b981&color=fff'} className="w-10 h-10 rounded-xl border-2 border-white shadow-xl bg-slate-50 grayscale group-hover:grayscale-0 transition-all group-hover/avatar:scale-105" alt="" />
                         </div>
                         <div className="truncate">
                           <p className="font-black text-slate-900 uppercase italic tracking-tighter text-xs truncate max-w-[150px]">{user.name}</p>
