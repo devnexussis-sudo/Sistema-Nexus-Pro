@@ -331,135 +331,118 @@ export const TechnicianMap: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden font-sans">
-            {/* 🔮 NEXUS SMART CONTROL PANEL (Glassmorphism) */}
-            <div className="absolute top-6 left-6 z-[1002] flex flex-col gap-4 w-80 pointer-events-none">
+            {/* 🔮 NEXUS SMART CONTROL PANEL (Compact & Glassmorphism) */}
+            <div className={`absolute top-4 left-4 z-[1002] flex flex-col gap-3 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isCollapsed ? 'w-14' : 'w-72'} pointer-events-none`}>
 
-                {/* 🏷️ Info Header */}
-                <div className="bg-[#1c2d4f]/95 backdrop-blur-xl rounded-[2rem] p-6 shadow-2xl border border-white/10 pointer-events-auto transition-all hover:shadow-primary-900/20">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex flex-col">
-                            <h2 className="text-xl font-black text-white italic tracking-tighter">Nexus <span className="text-primary-400">Map</span></h2>
-                            <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] leading-none">Console de Operações</p>
+                {/* 🏷️ Info Header & Main Controls */}
+                <div className="bg-[#1c2d4f]/95 backdrop-blur-xl rounded-[1.5rem] p-3 shadow-2xl border border-white/10 pointer-events-auto transition-all hover:shadow-primary-900/20">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className={`flex flex-col transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'flex-1'}`}>
+                            <h2 className="text-sm font-black text-white italic tracking-tighter leading-tight">Nexus <span className="text-primary-400">Map</span></h2>
+                            <p className="text-[7px] font-black text-white/40 uppercase tracking-[0.1em] leading-none">Console de Op.</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <div className={`p-2 rounded-2xl ${isAutoRefresh ? 'bg-emerald-500/20 border border-emerald-500/50' : 'bg-white/5 border border-white/10'}`}>
-                                <Navigation size={18} className={isAutoRefresh ? 'text-emerald-400 animate-pulse' : 'text-white/40'} />
-                            </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            {!isCollapsed && (
+                                <button
+                                    onClick={handleRefresh}
+                                    disabled={isRefreshing}
+                                    className={`p-1.5 rounded-lg transition-all ${isRefreshing ? 'bg-primary-500 text-white animate-spin' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+                                    title="Atualizar agora"
+                                >
+                                    <RefreshCw size={14} />
+                                </button>
+                            )}
                             <button
                                 onClick={() => setIsCollapsed(!isCollapsed)}
-                                className="p-2 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/20 transition-all pointer-events-auto shadow-lg"
-                                title={isCollapsed ? "Expandir Filtros" : "Recolher Filtros"}
+                                className="p-2 rounded-xl bg-white/10 border border-white/10 text-white hover:bg-white/20 transition-all shadow-lg"
+                                title={isCollapsed ? "Menu Principal" : "Recolher Menu"}
                             >
-                                {isCollapsed ? <Filter size={18} /> : <ChevronUp size={18} />}
+                                {isCollapsed ? <MapIcon size={18} /> : <ChevronUp size={18} />}
                             </button>
                         </div>
                     </div>
 
-                    <div className={`transition-all duration-500 overflow-hidden ${isCollapsed ? 'max-h-0 opacity-0 mb-0' : 'max-h-[200px] opacity-100 mb-6'}`}>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
-                                <p className="text-[8px] font-black text-white/30 uppercase mb-1">Técnicos Ativos</p>
-                                <div className="flex items-end gap-1">
-                                    <span className="text-xl font-black text-white leading-none">{activeTechs.length}</span>
-                                    <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-tighter pb-0.5">Online</span>
-                                </div>
+                    {/* Stats Summary (Visible when expanded) */}
+                    <div className={`transition-all duration-500 overflow-hidden ${isCollapsed ? 'max-h-0 opacity-0 mt-0' : 'max-h-[100px] opacity-100 mt-3 border-t border-white/5 pt-3'}`}>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                                <p className="text-[7px] font-black text-white/30 uppercase mb-0.5">Online</p>
+                                <span className="text-sm font-black text-white">{activeTechs.length}</span>
                             </div>
-                            <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
-                                <p className="text-[8px] font-black text-white/30 uppercase mb-1">OS Localizadas</p>
-                                <div className="flex items-end gap-1">
-                                    <span className="text-xl font-black text-white leading-none">{mappedOrders.length}</span>
-                                    <span className="text-[9px] font-bold text-primary-400 uppercase tracking-tighter pb-0.5">Map</span>
-                                </div>
+                            <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                                <p className="text-[7px] font-black text-white/30 uppercase mb-0.5">OS</p>
+                                <span className="text-sm font-black text-white">{mappedOrders.length}</span>
                             </div>
-                        </div>
-                    </div>
-
-                    <div className={`transition-all duration-500 overflow-hidden ${isCollapsed ? 'max-h-0 opacity-0' : 'max-h-[100px] opacity-100'}`}>
-                        <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                            <div className="flex flex-col">
-                                <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Última Atualização</span>
-                                <span className="text-[10px] font-bold text-white/60">{format(lastUpdated, 'HH:mm:ss')}</span>
-                            </div>
-                            <button
-                                onClick={handleRefresh}
-                                disabled={isRefreshing}
-                                className={`p-2.5 rounded-xl transition-all ${isRefreshing ? 'bg-primary-500 text-white animate-spin' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                            >
-                                <RefreshCw size={14} />
-                            </button>
                         </div>
                     </div>
                 </div>
 
-                {/* 🎮 Map & Data Controls */}
-                <div className={`bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-white/50 pointer-events-auto overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isCollapsed ? 'max-h-0 p-0 opacity-0 border-none' : 'max-h-[800px] p-6 opacity-100'}`}>
-                    <div className={`${isCollapsed ? 'hidden' : 'space-y-5'}`}>
-
+                {/* 🎮 Detailed Controls (Visible when expanded) */}
+                <div className={`bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-2xl border border-white/50 pointer-events-auto overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isCollapsed ? 'max-h-0 p-0 opacity-0 border-none' : 'max-h-[600px] p-4 opacity-100'}`}>
+                    <div className="space-y-4">
                         {/* View Switcher */}
-                        <div className="flex bg-slate-100 p-1 rounded-2xl overflow-hidden">
+                        <div className="flex bg-slate-100 p-1 rounded-xl">
                             <button
                                 onClick={() => { setViewMode('ORDERS'); setIsHistoryMode(false); }}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${viewMode === 'ORDERS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${viewMode === 'ORDERS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
                             >
-                                <ClipboardList size={14} /> Ordens
+                                <ClipboardList size={12} /> Ordens
                             </button>
                             <button
                                 onClick={() => setViewMode('TECHS')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${viewMode === 'TECHS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${viewMode === 'TECHS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
                             >
-                                <Users size={14} /> Técnicos
+                                <Users size={12} /> Técnicos
                             </button>
                         </div>
 
                         {/* Date Filters */}
                         {!isHistoryMode && (
-                            <div className="space-y-2">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">Período Selecionado</p>
-                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1 px-3 h-12">
-                                    <Calendar size={14} className="text-primary-600" />
-                                    <div className="flex items-center gap-1 flex-1">
-                                        <input
-                                            type="date"
-                                            value={dateRange.start}
-                                            onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                                            className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-full"
-                                        />
-                                        <div className="w-px h-3 bg-slate-200 mx-1"></div>
-                                        <input
-                                            type="date"
-                                            value={dateRange.end}
-                                            onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                                            className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-full"
-                                        />
-                                    </div>
+                            <div className="space-y-1.5">
+                                <p className="text-[8px] font-black text-slate-400 uppercase px-1">Período</p>
+                                <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 px-2">
+                                    <input
+                                        type="date"
+                                        value={dateRange.start}
+                                        onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                                        className="bg-transparent text-[9px] font-bold text-slate-700 outline-none w-full"
+                                    />
+                                    <span className="text-slate-300 text-[10px]">-</span>
+                                    <input
+                                        type="date"
+                                        value={dateRange.end}
+                                        onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                                        className="bg-transparent text-[9px] font-bold text-slate-700 outline-none w-full"
+                                    />
                                 </div>
                             </div>
                         )}
 
                         {/* Toggles */}
-                        <div className="grid grid-cols-1 gap-2">
+                        <div className="flex flex-col gap-1.5">
                             <button
                                 onClick={() => setIsAutoRefresh(!isAutoRefresh)}
-                                className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${isAutoRefresh ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}
+                                className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all ${isAutoRefresh ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}
                             >
                                 <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`}></div>
-                                    <span className={`text-[10px] font-black uppercase tracking-widest ${isAutoRefresh ? 'text-emerald-700' : 'text-slate-500'}`}>Monitoramento Live</span>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
+                                    <span className={`text-[9px] font-black uppercase ${isAutoRefresh ? 'text-emerald-700' : 'text-slate-500'}`}>Monitoramento Live</span>
                                 </div>
-                                <div className={`w-8 h-4 rounded-full relative transition-colors ${isAutoRefresh ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${isAutoRefresh ? 'left-4.5' : 'left-0.5'}`} style={{ left: isAutoRefresh ? '18px' : '2px' }}></div>
+                                <div className={`w-6 h-3 rounded-full relative transition-colors ${isAutoRefresh ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                                    <div className={`absolute top-0.5 w-2 h-2 bg-white rounded-full transition-all ${isAutoRefresh ? 'left-3.5' : 'left-0.5'}`}></div>
                                 </div>
                             </button>
 
                             <button
                                 onClick={() => setMapType(prev => prev === 'DEFAULT' ? 'SATELLITE' : 'DEFAULT')}
-                                className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${mapType === 'SATELLITE' ? 'bg-[#1c2d4f] text-white border-primary-500/30' : 'bg-slate-50 border-slate-200'}`}
+                                className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all ${mapType === 'SATELLITE' ? 'bg-[#1c2d4f] text-white border-primary-500/30' : 'bg-slate-50 border-slate-200'}`}
                             >
                                 <div className="flex items-center gap-2">
-                                    <Satellite size={14} className={mapType === 'SATELLITE' ? 'text-primary-400' : 'text-slate-400'} />
-                                    <span className={`text-[10px] font-black uppercase tracking-widest ${mapType === 'SATELLITE' ? 'text-white' : 'text-slate-500'}`}>Mapa Satélite</span>
+                                    <Satellite size={12} className={mapType === 'SATELLITE' ? 'text-primary-400' : 'text-slate-400'} />
+                                    <span className={`text-[9px] font-black uppercase ${mapType === 'SATELLITE' ? 'text-white' : 'text-slate-500'}`}>Satélite</span>
                                 </div>
-                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${mapType === 'SATELLITE' ? 'bg-white/10 text-primary-300' : 'bg-slate-200 text-slate-400'}`}>
+                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${mapType === 'SATELLITE' ? 'bg-white/10 text-primary-300' : 'bg-slate-200 text-slate-400'}`}>
                                     {mapType === 'SATELLITE' ? 'ON' : 'OFF'}
                                 </span>
                             </button>
@@ -467,13 +450,13 @@ export const TechnicianMap: React.FC = () => {
                             {viewMode === 'TECHS' && (
                                 <button
                                     onClick={() => setIsHistoryMode(!isHistoryMode)}
-                                    className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${isHistoryMode ? 'bg-primary-600 text-white border-primary-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                                    className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all ${isHistoryMode ? 'bg-primary-600 text-white border-primary-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
                                 >
                                     <div className="flex items-center gap-2">
-                                        <History size={14} className={isHistoryMode ? 'text-white' : 'text-slate-400'} />
-                                        <span className={`text-[10px] font-black uppercase tracking-widest ${isHistoryMode ? 'text-white' : 'text-slate-500'}`}>Modo Histórico</span>
+                                        <History size={12} className={isHistoryMode ? 'text-white' : 'text-slate-400'} />
+                                        <span className={`text-[9px] font-black uppercase ${isHistoryMode ? 'text-white' : 'text-slate-500'}`}>Histórico</span>
                                     </div>
-                                    <X size={14} className={isHistoryMode ? 'rotate-0' : 'rotate-45 opacity-0'} />
+                                    <ChevronDown size={12} className={isHistoryMode ? 'rotate-180' : 'rotate-0'} />
                                 </button>
                             )}
                         </div>
@@ -481,38 +464,37 @@ export const TechnicianMap: React.FC = () => {
                 </div>
             </div>
 
-            {/* 🕒 Side History Drawer (Big Tech Style) */}
-            <div className={`absolute top-0 right-0 bottom-0 z-[1003] w-full max-w-sm transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] transform ${isHistoryMode ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="h-full bg-white/95 backdrop-blur-xl shadow-2xl border-l border-slate-200 flex flex-col pt-24 px-6 gap-6 relative">
+            {/* 🕒 Side History Drawer (Compact Version) */}
+            <div className={`absolute top-0 right-0 bottom-0 z-[1003] w-80 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] transform ${isHistoryMode ? 'translate-x-0' : 'translate-x-full'}`}>
+                <div className="h-full bg-white/95 backdrop-blur-xl shadow-2xl border-l border-slate-200 flex flex-col pt-20 px-4 pb-4 gap-4 relative">
                     <button
                         onClick={() => setIsHistoryMode(false)}
-                        className="absolute top-6 left-6 p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-400 hover:text-slate-600 transition-all"
+                        className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
                     >
-                        <X size={20} />
+                        <X size={18} />
                     </button>
 
-                    <div className="flex flex-col gap-1 mt-4">
-                        <h2 className="text-2xl font-black text-[#1c2d4f] italic tracking-tighter">Histórico</h2>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Rastreamento de ativos e rotas</p>
+                    <div className="flex flex-col gap-1">
+                        <h2 className="text-xl font-black text-[#1c2d4f] italic tracking-tighter">Histórico</h2>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Rastreamento de ativos</p>
                     </div>
 
-                    <div className="space-y-6 flex-1 overflow-y-auto custom-scrollbar-thin pr-2">
+                    <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar-thin pr-1">
                         {/* Seletor de Técnico */}
-                        <div className="space-y-3">
-                            <label className="flex items-center gap-2 text-[10px] font-black text-primary-600 uppercase tracking-widest">
-                                <Users size={12} /> Selecionar Técnico
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-[8px] font-black text-primary-600 uppercase tracking-widest px-1">
+                                <Users size={10} /> Técnico
                             </label>
-                            <div className="grid grid-cols-1 gap-2">
+                            <div className="grid grid-cols-1 gap-1.5">
                                 {technicians.map(t => (
                                     <button
                                         key={t.id}
                                         onClick={() => setSelectedHistoryTech(t)}
-                                        className={`flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${selectedHistoryTech?.id === t.id ? 'bg-primary-50 border-primary-200 shadow-sm ring-1 ring-primary-100' : 'bg-white border-slate-100 hover:border-slate-300'}`}
+                                        className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all text-left ${selectedHistoryTech?.id === t.id ? 'bg-primary-50 border-primary-200 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-300'}`}
                                     >
-                                        <img src={t.avatar || `https://ui-avatars.com/api/?name=${t.name}&background=random`} className="w-8 h-8 rounded-full border border-white shadow-sm" alt="" />
+                                        <img src={t.avatar || `https://ui-avatars.com/api/?name=${t.name}&background=random`} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
                                         <div className="flex-1 min-w-0">
-                                            <p className={`text-[11px] font-black uppercase truncate ${selectedHistoryTech?.id === t.id ? 'text-primary-700' : 'text-slate-700'}`}>{t.name}</p>
-                                            <p className="text-[8px] text-slate-400 truncate tracking-tight">{t.email}</p>
+                                            <p className={`text-[10px] font-black uppercase truncate ${selectedHistoryTech?.id === t.id ? 'text-primary-700' : 'text-slate-700'}`}>{t.name}</p>
                                         </div>
                                     </button>
                                 ))}
@@ -520,79 +502,59 @@ export const TechnicianMap: React.FC = () => {
                         </div>
 
                         {/* Seletor de Data */}
-                        <div className="space-y-3">
-                            <label className="flex items-center gap-2 text-[10px] font-black text-primary-600 uppercase tracking-widest">
-                                <Calendar size={12} /> Período
+                        <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-[8px] font-black text-primary-600 uppercase tracking-widest px-1">
+                                <Calendar size={10} /> Data
                             </label>
-                            <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 italic">
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
                                 <input
                                     type="date"
                                     value={selectedHistoryDate}
                                     onChange={(e) => setSelectedHistoryDate(e.target.value)}
                                     max={new Date().toISOString().split('T')[0]}
-                                    className="w-full bg-transparent border-none text-sm font-black text-slate-700 outline-none"
+                                    className="w-full bg-transparent border-none text-[11px] font-black text-slate-700 outline-none"
                                 />
                             </div>
                         </div>
 
                         {/* Estatística do Percurso */}
                         {selectedHistoryTech && (
-                            <div className="bg-slate-900 rounded-[2rem] p-6 text-white overflow-hidden relative group">
-                                <div className="absolute -right-4 -top-4 p-8 opacity-10 group-hover:scale-110 transition-transform"><Navigation size={120} /></div>
-                                <p className="text-[10px] font-black text-primary-400 uppercase tracking-[0.2em] mb-4">Resumo do Percurso</p>
-
-                                <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-900 rounded-2xl p-4 text-white overflow-hidden relative group">
+                                <p className="text-[8px] font-black text-primary-400 uppercase tracking-widest mb-3">Resumo</p>
+                                <div className="grid grid-cols-2 gap-3">
                                     <div className="flex flex-col">
-                                        {isLoadingHistory ? (
-                                            <RefreshCw size={24} className="animate-spin text-white mb-2" />
-                                        ) : (
-                                            <span className="text-3xl font-black italic leading-none mb-1">{historyPath.length}</span>
-                                        )}
-                                        <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Registros</span>
+                                        <span className="text-xl font-black italic">{isLoadingHistory ? '...' : historyPath.length}</span>
+                                        <span className="text-[7px] font-black text-white/40 uppercase">Pontos</span>
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-3xl font-black italic leading-none mb-1">{isMovingTechsHistory ? 'ATIVO' : 'PARADO'}</span>
-                                        <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Status Médio</span>
+                                        <span className="text-xl font-black italic">{isMovingTechsHistory ? 'ATIVO' : 'PARADO'}</span>
+                                        <span className="text-[7px] font-black text-white/40 uppercase">Status</span>
                                     </div>
                                 </div>
-
-                                <div className="mt-6 pt-6 border-t border-white/10">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Rota Disponível</span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {!selectedHistoryTech && !technicians.length && (
-                            <div className="py-10 text-center flex flex-col items-center gap-4 opacity-30">
-                                <Search size={40} className="text-slate-300" />
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nenhum técnico encontrado</p>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* Legend Overlay for OS */}
+            {/* Legend Overlay (Integrated & Minimalist) */}
             {viewMode === 'ORDERS' && (
-                <div className={`absolute bottom-6 mb-8 md:mb-0 left-4 z-[1000] bg-white/95 backdrop-blur-md rounded-[1.5rem] shadow-2xl border border-white/20 pointer-events-auto transition-all duration-300 ease-in-out ${showLegend ? 'p-4 w-48' : 'p-2 w-10 h-10 flex items-center justify-center overflow-hidden'}`}>
+                <div className={`absolute bottom-6 left-6 z-[1001] bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-white/20 pointer-events-auto transition-all duration-300 ease-out ${showLegend ? 'p-3 w-40' : 'p-2 w-10 h-10 flex items-center justify-center overflow-hidden'}`}>
                     <button
                         onClick={() => setShowLegend(!showLegend)}
-                        className={`transition-all ${showLegend ? 'absolute top-3 right-3 text-slate-400 hover:text-slate-600' : 'text-primary-600'}`}
+                        className={`transition-all ${showLegend ? 'absolute top-2 right-2 text-slate-400 hover:text-slate-600' : 'text-primary-600'}`}
                     >
-                        {showLegend ? <X size={12} /> : <Layers size={18} />}
+                        {showLegend ? <X size={10} /> : <Layers size={16} />}
                     </button>
 
                     {showLegend ? (
                         <>
-                            <h4 className="text-[9px] font-black text-slate-900 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2">Status da OS</h4>
-                            <div className="space-y-2">
+                            <h4 className="text-[8px] font-black text-[#1c2d4f] uppercase tracking-widest mb-2 border-b border-slate-100 pb-1">Legenda OS</h4>
+                            <div className="grid grid-cols-1 gap-1.5">
                                 {Object.values(OrderStatus).map(status => (
                                     <div key={status} className="flex items-center gap-2">
-                                        <div className="w-3 h-3 rounded-full border border-black/10" style={{ backgroundColor: getStatusColorHex(status) }}></div>
-                                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter truncate">{status}</span>
+                                        <div className="w-2.5 h-2.5 rounded-full border border-black/5 shrink-0" style={{ backgroundColor: getStatusColorHex(status) }}></div>
+                                        <span className="text-[8px] font-bold text-slate-600 uppercase truncate">{status}</span>
                                     </div>
                                 ))}
                             </div>
