@@ -50,7 +50,7 @@ export default function ProfileScreen() {
                     name: techData.name || session.user.email?.split('@')[0] || 'Técnico',
                     email: session.user.email || '',
                     id: session.user.id,
-                    role: 'Técnico de Campo (Confirmado)'
+                    role: 'Técnico de Campo'
                 });
 
                 const avatar = techData.avatar || techData.avatar_url;
@@ -187,7 +187,6 @@ export default function ProfileScreen() {
                     </View>
                 </Pressable>
                 <ThemedText type="title">{user.name}</ThemedText>
-                <Text style={styles.idText} selectable>ID: {user.id}</Text>
             </View>
 
             <View style={styles.infoSection}>
@@ -199,13 +198,6 @@ export default function ProfileScreen() {
                 <View style={styles.infoRow}>
                     <Text style={styles.label}>Cargo / Status</Text>
                     <Text style={styles.value}>{user.role}</Text>
-                </View>
-                <View style={styles.separator} />
-                <View style={styles.infoRow}>
-                    <Text style={styles.label}>Status do GPS</Text>
-                    <Text style={styles.value} onPress={() => Alert.alert('ID para Debug', user.id)}>
-                        Ativo (Toque para ver ID)
-                    </Text>
                 </View>
             </View>
 

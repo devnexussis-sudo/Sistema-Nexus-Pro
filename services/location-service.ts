@@ -16,6 +16,7 @@ const HEARTBEAT_INTERVAL = 15 * 60 * 1000; // 15 minutos
 let foregroundSubscription: Location.LocationSubscription | null = null;
 let lastSentLocation: { lat: number; lng: number } | null = null;
 let lastHeartbeatTime: number = 0;
+let isProcessing = false;
 
 /**
  * ✅ Calculate distance between two points in meters (Haversine Formula)
@@ -36,45 +37,61 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 
 // ✅ Reusable function to sync location to Supabase
 const sendLocationUpdate = async (location: Location.LocationObject) => {
+    if (isProcessing) return;
+
     const { latitude, longitude, speed, heading, accuracy } = location.coords;
     const now = Date.now();
 
-    // 1. CARREGAR ESTADOS (Se ainda não estiver em memória)
-    if (!lastSentLocation) {
-        try {
-            const [storedLoc, storedHB] = await Promise.all([
-                AsyncStorage.getItem(STORAGE_KEY_LAST_LOC),
-                AsyncStorage.getItem(STORAGE_KEY_LAST_HB)
-            ]);
-            if (storedLoc) lastSentLocation = JSON.parse(storedLoc);
-            if (storedHB) lastHeartbeatTime = parseInt(storedHB, 10);
-        } catch (e) { /* ignore */ }
-    }
-
-    // 2. FILTRO INTELIGENTE E HEARTBEAT
-    let distance = 0;
-    if (lastSentLocation) {
-        distance = calculateDistance(lastSentLocation.lat, lastSentLocation.lng, latitude, longitude);
-    }
-
-    const isMoving = !lastSentLocation || distance >= MOVEMENT_THRESHOLD;
-    const needsHeartbeat = (now - lastHeartbeatTime) >= HEARTBEAT_INTERVAL;
-
-    // Se estiver parado E não chegou a hora do heartbeat, ignora tudo.
-    if (!isMoving && !needsHeartbeat) {
+    // 🛡️ FILTRO DE PRECISÃO (Evitar pings de jitter/ indoor drift)
+    // Se a precisão for pior que 100m, ignoramos para o log de histórico.
+    if (accuracy && accuracy > 100) {
+        // Apenas logamos internamente mas não subimos pro banco
+        console.log(`[Location] 🛰️ GPS Signal weak (accuracy: ${accuracy.toFixed(1)}m). Skipping update.`);
         return;
     }
 
-    // 🔋 Battery Fetch
-    let batteryLevel = null;
-    try {
-        const level = await Battery.getBatteryLevelAsync();
-        if (level !== -1) batteryLevel = Math.round(level * 100);
-    } catch (e) { }
+    isProcessing = true;
 
     try {
+        // 1. CARREGAR ESTADOS (Se ainda não estiver em memória)
+        if (!lastSentLocation) {
+            try {
+                const [storedLoc, storedHB] = await Promise.all([
+                    AsyncStorage.getItem(STORAGE_KEY_LAST_LOC),
+                    AsyncStorage.getItem(STORAGE_KEY_LAST_HB)
+                ]);
+                if (storedLoc) lastSentLocation = JSON.parse(storedLoc);
+                if (storedHB) lastHeartbeatTime = parseInt(storedHB, 10);
+            } catch (e) { /* ignore */ }
+        }
+
+        // 2. FILTRO INTELIGENTE E HEARTBEAT
+        let distance = 0;
+        if (lastSentLocation) {
+            distance = calculateDistance(lastSentLocation.lat, lastSentLocation.lng, latitude, longitude);
+        }
+
+        const isMoving = !lastSentLocation || distance >= MOVEMENT_THRESHOLD;
+        const needsHeartbeat = (now - lastHeartbeatTime) >= HEARTBEAT_INTERVAL;
+
+        // Se estiver parado E não chegou a hora do heartbeat, ignora tudo.
+        if (!isMoving && !needsHeartbeat) {
+            isProcessing = false;
+            return;
+        }
+
+        // 🔋 Battery Fetch
+        let batteryLevel = null;
+        try {
+            const level = await Battery.getBatteryLevelAsync();
+            if (level !== -1) batteryLevel = Math.round(level * 100);
+        } catch (e) { }
+
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) return;
+        if (!session?.user) {
+            isProcessing = false;
+            return;
+        }
 
         if (isMoving) {
             // 🎯 MOVIMENTAÇÃO REAL (>30m): Update Full + Ping Log
@@ -110,6 +127,8 @@ const sendLocationUpdate = async (location: Location.LocationObject) => {
         }
     } catch (err) {
         console.error(`[Location] Sync Error:`, err);
+    } finally {
+        isProcessing = false;
     }
 };
 
@@ -186,8 +205,8 @@ export const startBackgroundLocation = async () => {
         foregroundSubscription = await Location.watchPositionAsync(
             {
                 accuracy: Location.Accuracy.High,
-                timeInterval: 15000,
-                distanceInterval: 5,
+                timeInterval: 60000, // 1 minuto (reduzido de 15s)
+                distanceInterval: 15, // 15 metros
             },
             (location) => {
                 console.log('[Location] 📍 Foreground Update received');
@@ -202,9 +221,9 @@ export const startBackgroundLocation = async () => {
                 console.log('[Location] Task not defined, skipping background start');
             } else {
                 await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-                    accuracy: Location.Accuracy.BestForNavigation, // ⬆️ Force Max Accuracy
-                    timeInterval: 30000, // Sync check every 30s
-                    distanceInterval: 10, // Wake up app every 10m
+                    accuracy: Location.Accuracy.Balanced, // Reduzido de Best para Balanced para evitar jitter excessivo
+                    timeInterval: 60000, // Sync check a cada 1 min (acordar app)
+                    distanceInterval: 30, // Acordar app a cada 30m movidos
                     showsBackgroundLocationIndicator: true,
                     pausesUpdatesAutomatically: false,
                     activityType: Location.ActivityType.AutomotiveNavigation,

@@ -2,6 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import { Alert } from 'react-native';
+import { CacheService } from './cache-service';
+import { OrderService } from './order-service';
+import { StockService } from './stock-service';
 
 class SyncService {
     private isConnected: boolean = true;
@@ -31,26 +34,39 @@ class SyncService {
             return;
         }
 
-        if (this.isSyncing) {
-            Alert.alert('Sincronizando', 'Já existe uma sincronização em andamento.');
-            return;
-        }
+        if (this.isSyncing) return;
 
         this.isSyncing = true;
         try {
-            // Simulate API call delay
-            console.log('[SyncService] Starting forced sync...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log('[SyncService] 🚀 Iniciando carregamento forçado (Apenas Hoje)...');
 
-            // In a real app, we would:
-            // 1. POST pendingUploads to backend
-            // 2. GET new updates from backend
+            // 1. Limpar cache de hoje para forçar rede
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(today.getDate() + 1);
 
-            console.log('[SyncService] Sync completed successfully.');
-            Alert.alert('Sucesso', 'Dados sincronizados com sucesso!');
+            // Invalida padrões de cache que podem conter dados de hoje
+            await CacheService.invalidatePattern('orders_');
+            await CacheService.invalidatePattern('stock_');
+
+            // 2. Fetch Aggressivo (Paralelo) apenas para o dia vigente
+            const [ordersRes, stockRes] = await Promise.all([
+                OrderService.getAllOrders({
+                    page: 1,
+                    pageSize: 50,
+                    statusFilter: 'all',
+                    startDate: today,
+                    endDate: today // Somente Hoje conforme solicitado
+                }),
+                StockService.getMyStock() // Estoque é sempre atual
+            ]);
+
+            console.log(`[SyncService] ✅ Carregamento concluído: ${ordersRes.orders.length} OS, ${stockRes.length} itens.`);
+            Alert.alert('Sucesso', 'Informações de hoje atualizadas com sucesso!');
         } catch (error) {
             console.error('[SyncService] Sync failed:', error);
-            Alert.alert('Erro', 'Falha ao sincronizar dados.');
+            Alert.alert('Erro', 'Falha ao recarregar dados do dia.');
         } finally {
             this.isSyncing = false;
         }

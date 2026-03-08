@@ -5,6 +5,7 @@ import { supabase, BUCKET_NAME } from './supabase';
 import { authService } from './auth-service';
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
+import { CacheService } from './cache-service';
 
 // Polyfill for arrayBuffer if needed, or assume ArrayBuffer global exists.
 // Ideally we install base64-arraybuffer: npm install base64-arraybuffer
@@ -287,32 +288,26 @@ export class OrderService {
         const from = (page - 1) * pageSize;
         const to = from + pageSize - 1;
 
-        // Helper to format date as YYYY-MM-DD in local time
-        const formatLocalISO = (date: Date) => {
-            const y = date.getFullYear();
-            const m = String(date.getMonth() + 1).padStart(2, '0');
-            const d = String(date.getDate()).padStart(2, '0');
-            return `${y}-${m}-${d}`;
-        };
+        const cacheKey = `orders_${userId}_${statusFilter}_${startDate?.getTime() || 0}_${endDate?.getTime() || 0}_${page}`;
+        
+        const cached = await CacheService.get<any>(cacheKey);
+        if (cached) return cached;
 
-        const startDateStr = startDate ? formatLocalISO(startDate) : null;
-        const endDateStr = endDate ? formatLocalISO(endDate) : null;
+        return await CacheService.fetcher(cacheKey, async () => {
+            const formatLocalISO = (date: Date) => {
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            };
 
-        try {
+            const startDateStr = startDate ? formatLocalISO(startDate) : null;
+            const endDateStr = endDate ? formatLocalISO(endDate) : null;
+
             // 1. Get User Profile for Role Check
             const { data: userProfile } = await supabase.from('users').select('role').eq('id', userId).single();
             const isAdmin = userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER';
 
-            // 🎯 CORREÇÃO DEFINITIVA: O problema é que o caractere 'Í' em 'ATRIBUÍDO'
-            // no código TypeScript tem codificação Unicode (NFC/NFD) diferente do que
-            // está gravado no ENUM do PostgreSQL. Por isso .in('status', ['ATRIBUÍDO'])
-            // NUNCA encontra resultados, enquanto 'CONCLUÍDO' funciona.
-            //
-            // SOLUÇÃO: Para 'pending' (Abertas), buscamos TODAS as OS do técnico
-            // e filtramos no JavaScript usando .includes('ATRIBU'), que ignora
-            // completamente a diferença de codificação do acento.
-
-            // STATUS_GROUPS para filtros que FUNCIONAM no banco (sem problema de encoding)
             const STATUS_GROUPS_DB: Record<string, string[]> = {
                 in_progress: ['EM ANDAMENTO'],
                 traveling: ['EM DESLOCAMENTO'],
@@ -321,11 +316,7 @@ export class OrderService {
                 canceled: ['CANCELADO']
             };
 
-            // 2. Fetch Dashboard Stats
-            // Para 'pending', contamos no cliente. Para os demais, contamos no banco.
             const statsMap: Record<string, number> = { all: 0, pending: 0 };
-
-            // Stats para categorias que funcionam no banco
             const dbStatsPromises = Object.entries(STATUS_GROUPS_DB).map(async ([key, statuses]) => {
                 let q = supabase.from('orders').select('*', { count: 'exact', head: true });
                 if (!isAdmin) q = q.eq('assigned_to', userId);
@@ -336,7 +327,6 @@ export class OrderService {
                 return { [key]: count || 0 };
             });
 
-            // Stat para 'all'
             let allQuery = supabase.from('orders').select('*', { count: 'exact', head: true });
             if (!isAdmin) allQuery = allQuery.eq('assigned_to', userId);
             if (startDateStr) allQuery = allQuery.gte('scheduled_date', startDateStr);
@@ -350,7 +340,6 @@ export class OrderService {
             dbStatsResults.forEach(r => Object.assign(statsMap, r));
             statsMap.all = allResult.count || 0;
 
-            // Stat para 'pending': buscar TODOS do técnico e contar client-side
             let pendingCountQuery = supabase.from('orders').select('status');
             if (!isAdmin) pendingCountQuery = pendingCountQuery.eq('assigned_to', userId);
             const { data: allStatuses } = await pendingCountQuery;
@@ -360,16 +349,10 @@ export class OrderService {
                 ).length;
             }
 
-            // 3. Fetch Paginated Orders
             let query = supabase.from('orders').select('*', { count: 'exact' });
             if (!isAdmin) query = query.eq('assigned_to', userId);
 
-            if (statusFilter === 'pending') {
-                // 🔓 Para 'pending': NÃO aplicar filtro de status no banco.
-                // Buscar tudo e filtrar no cliente após receber os dados.
-                // Também não aplicar filtro de data para mostrar backlog completo.
-            } else {
-                // Para outros filtros, usar o banco normalmente
+            if (statusFilter !== 'pending') {
                 if (statusFilter !== 'all' && STATUS_GROUPS_DB[statusFilter]) {
                     query = query.in('status', STATUS_GROUPS_DB[statusFilter]);
                 }
@@ -377,7 +360,6 @@ export class OrderService {
                 if (endDateStr) query = query.lte('scheduled_date', endDateStr);
             }
 
-            // Smart Sorting
             if (statusFilter === 'pending') {
                 query = query.order('created_at', { ascending: false });
             } else {
@@ -387,47 +369,36 @@ export class OrderService {
                     .order('created_at', { ascending: false });
             }
 
-            // 🎯 OPTIMIZED RANGE: 
-            // Para 'pending', buscamos mais (200) pois filtramos no cliente.
-            // Para todos os outros, buscamos APENAS a página solicitada (from, to).
             const startRange = statusFilter === 'pending' ? 0 : from;
             const endRange = statusFilter === 'pending' ? 199 : to;
-
             const { data, error, count } = await query.range(startRange, endRange);
 
-            if (error) {
-                logger.log(`Error fetching orders: ${error.message}`, 'error');
-                console.log(`[OrderService] Error: ${error.message}`);
-                return { orders: [], total: 0, stats: statsMap };
-            }
+            if (error) throw error;
 
-            // 🎯 FILTRAGEM CLIENT-SIDE para 'pending'
             let filteredData = data || [];
             if (statusFilter === 'pending') {
                 filteredData = filteredData.filter((o: any) => {
                     const s = (o.status || '').toUpperCase();
                     return s.includes('ATRIBU') || s.includes('PENDENT') || s.includes('ABERT');
                 });
-                console.log(`[OrderService] Pending client-filter: ${data?.length} total → ${filteredData.length} matched`);
             }
 
-            // Paginar os resultados
             const finalData = statusFilter === 'pending'
-                ? filteredData.slice(from, from + pageSize) // Slice logic for client-side
-                : filteredData; // Already paginated via DB range
+                ? filteredData.slice(from, from + pageSize)
+                : filteredData;
             const finalTotal = statusFilter === 'pending'
                 ? filteredData.length
                 : (count || 0);
 
-            return {
+            const result = {
                 orders: finalData.map(o => this.mapDbOrderToApp(o)),
                 total: finalTotal,
                 stats: statsMap
             };
-        } catch (error) {
-            logger.log(`Fetch orders exception: ${error}`, 'error');
-            return { orders: [], total: 0, stats: {} };
-        }
+
+            await CacheService.set(cacheKey, result, CacheService.TTL.FAST);
+            return result;
+        });
     }
 
     static async getCalendarOrders(year: number, month: number): Promise<ExtendedServiceOrder[]> {
@@ -439,28 +410,31 @@ export class OrderService {
             const startDate = new Date(year, month - 1, 1).toLocaleDateString("en-CA");
             const endDate = new Date(year, month, 0).toLocaleDateString("en-CA");
 
-            let query = supabase.from('orders').select('*');
+            const cacheKey = `calendar_${userId}_${year}_${month}`;
+            const cached = await CacheService.get<ExtendedServiceOrder[]>(cacheKey);
+            if (cached) return cached;
 
-            const { data: userProfile } = await supabase.from('users').select('role').eq('id', userId).single();
-            const isAdmin = userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER';
+            return await CacheService.fetcher(cacheKey, async () => {
+                let query = supabase.from('orders').select('*');
+                const { data: userProfile } = await supabase.from('users').select('role').eq('id', userId).single();
+                const isAdmin = userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER';
 
-            if (!isAdmin) {
-                query = query.eq('assigned_to', userId);
-            }
+                if (!isAdmin) {
+                    query = query.eq('assigned_to', userId);
+                }
 
-            // Busca as ordens filtrando pela data de agendamento entre início e fim do mês
-            const { data, error } = await query
-                .gte('scheduled_date', startDate)
-                .lte('scheduled_date', endDate)
-                .order('scheduled_date', { ascending: true })
-                .order('scheduled_time', { ascending: true });
+                const { data, error } = await query
+                    .gte('scheduled_date', startDate)
+                    .lte('scheduled_date', endDate)
+                    .order('scheduled_date', { ascending: true })
+                    .order('scheduled_time', { ascending: true });
 
-            if (error) {
-                console.error('[OrderService] Error fetching calendar orders:', error.message);
-                return [];
-            }
+                if (error) throw error;
 
-            return (data || []).map((o: any) => this.mapDbOrderToApp(o));
+                const mapped = (data || []).map((o: any) => this.mapDbOrderToApp(o));
+                await CacheService.set(cacheKey, mapped, CacheService.TTL.APP);
+                return mapped;
+            });
         } catch (error) {
             console.error('[OrderService] Fetch calendar orders exception:', error);
             return [];

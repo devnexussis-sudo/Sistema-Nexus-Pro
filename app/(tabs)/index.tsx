@@ -71,7 +71,6 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [totalOrders, setTotalOrders] = useState(0);
   const [serverStats, setServerStats] = useState<Record<string, number>>({});
-  const [ordersCache, setOrdersCache] = useState<Record<string, { orders: any[], total: number, stats: any }>>({});
 
   const [startDate, setStartDate] = useState<Date | null>(new Date());
   const [endDate, setEndDate] = useState<Date | null>(new Date());
@@ -85,17 +84,8 @@ export default function HomeScreen() {
   }, [selectedFilter, startDate, endDate, currentPage]);
 
   const fetchOrders = async (isBackground = false) => {
-    if (!isBackground && !ordersCache[cacheKey]) {
-      setOrders([]); // Remove dados velhos da tela imediatamente
-      setIsLoading(true); // Ativa o spinner na tela
-    }
-
-    // 🏎 Se tiver no cache, mostra imediatamente
-    if (ordersCache[cacheKey]) {
-      setOrders(ordersCache[cacheKey].orders);
-      setTotalOrders(ordersCache[cacheKey].total);
-      setServerStats(ordersCache[cacheKey].stats);
-      if (!isBackground) setIsLoading(false);
+    if (!isBackground && orders.length === 0) {
+      setIsLoading(true);
     }
 
     try {
@@ -107,16 +97,9 @@ export default function HomeScreen() {
         endDate
       });
 
-      const newResult = {
-        orders: response.orders || [],
-        total: response.total,
-        stats: response.stats
-      };
-
-      setOrdersCache(prev => ({ ...prev, [cacheKey]: newResult }));
-      setOrders(newResult.orders);
-      setTotalOrders(newResult.total);
-      setServerStats(newResult.stats);
+      setOrders(response.orders || []);
+      setTotalOrders(response.total);
+      setServerStats(response.stats);
 
       // 🚀 Agendar Lembretes de OS
       if (response.orders && Array.isArray(response.orders)) {

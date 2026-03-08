@@ -25,6 +25,7 @@ const MAPPING = {
   'arrow.clockwise.icloud': 'sync',
   'xmark': 'close',
   'cube.fill': 'inventory',
+  'person.circle': 'account-circle',
 } as Partial<Record<string, ComponentProps<typeof MaterialIcons>['name']>>;
 
 /**

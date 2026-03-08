@@ -2,6 +2,7 @@
 import { supabase } from './supabase';
 import { logger } from './logger';
 import { authService } from './auth-service';
+import { CacheService } from './cache-service';
 
 export interface TechStockItem {
     id: string;
@@ -32,28 +33,37 @@ export const StockService = {
 
             // Precisamos do tenant_id para garantir isolamento via query se o RLS for estrito
             // Mas o RLS já deve cuidar disso se configurado com auth.uid()
-            const { data, error } = await supabase
-                .from('tech_stock')
-                .select('*, stock_items(*)')
-                .eq('user_id', userId);
+            const cacheKey = `stock_tech_${userId}`;
+            const cached = await CacheService.get<TechStockItem[]>(cacheKey);
+            if (cached) return cached;
 
-            if (error) {
-                logger.log(`Error fetching tech stock: ${error.message}`, 'error');
-                throw error;
-            }
+            return await CacheService.fetcher(cacheKey, async () => {
+                const { data, error } = await supabase
+                    .from('tech_stock')
+                    .select('*, stock_items(*)')
+                    .eq('user_id', userId);
 
-            return (data || []).map((ts: any) => ({
-                id: ts.id,
-                stockItemId: ts.stock_item_id,
-                quantity: Number(ts.quantity),
-                updatedAt: ts.updated_at,
-                item: ts.stock_items ? {
-                    description: ts.stock_items.description,
-                    code: ts.stock_items.code,
-                    sellPrice: Number(ts.stock_items.sell_price),
-                    unit: ts.stock_items.unit || 'UN'
-                } : null
-            }));
+                if (error) {
+                    logger.log(`Error fetching tech stock: ${error.message}`, 'error');
+                    throw error;
+                }
+
+                const mapped = (data || []).map((ts: any) => ({
+                    id: ts.id,
+                    stockItemId: ts.stock_item_id,
+                    quantity: Number(ts.quantity),
+                    updatedAt: ts.updated_at,
+                    item: ts.stock_items ? {
+                        description: ts.stock_items.description,
+                        code: ts.stock_items.code,
+                        sellPrice: Number(ts.stock_items.sell_price),
+                        unit: ts.stock_items.unit || 'UN'
+                    } : null
+                }));
+
+                await CacheService.set(cacheKey, mapped, CacheService.TTL.APP);
+                return mapped;
+            });
         } catch (error) {
             logger.log(`StockService exception: ${error}`, 'error');
             return [];

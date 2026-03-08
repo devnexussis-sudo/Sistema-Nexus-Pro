@@ -39,23 +39,8 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
 
     const menuItems = [
         {
-            title: 'Configurações',
-            icon: 'gear',
-            action: () => {
-                onClose();
-                router.push('/settings');
-            }
-        },
-        {
             title: 'Perfil',
-            icon: 'iphone', // Using 'iphone' as placeholder for profile icon if 'person' not available in mapping. 
-            // Actually mapping has 'iphone' mapped to 'phone-iphone'.
-            // User request was "definicoes do app" -> "perfil".
-            // I should probably map 'person.circle' or similar. 
-            // But I'll stick to 'iphone' or change to 'house.fill' temporarily or add 'person' to mapping.
-            // 'house.fill' -> 'home'.
-            // Let's use 'gear' for settings.
-            // I'll check my MAPPING in icon-symbol.tsx.
+            icon: 'person.circle',
             action: () => {
                 onClose();
                 router.push('/profile');
