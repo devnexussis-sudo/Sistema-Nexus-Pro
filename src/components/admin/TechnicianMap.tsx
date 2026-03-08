@@ -112,6 +112,7 @@ export const TechnicianMap: React.FC = () => {
     const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isAutoRefresh, setIsAutoRefresh] = useState(false);
 
     // 👷 Techs State
     const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -132,16 +133,17 @@ export const TechnicianMap: React.FC = () => {
     });
 
     useEffect(() => {
-        if (viewMode === 'TECHS') {
-            loadTechnicians();
-        } else {
-            loadOrders();
-        }
+        // Initial load for both
+        loadTechnicians();
+        loadOrders();
 
-        const interval = setInterval(() => {
-            if (viewMode === 'TECHS') loadTechnicians();
-            if (viewMode === 'ORDERS') loadOrders();
-        }, 30000); // Refresh every 30s
+        let interval: any;
+        if (isAutoRefresh) {
+            console.log('[Map] Auto-refresh habilitado: Próxima atualização em 5 minutos');
+            interval = setInterval(() => {
+                handleRefresh();
+            }, 5 * 60 * 1000); // 5 minutes
+        }
 
         const timer = setTimeout(() => {
             if (mapInstance) {
@@ -150,10 +152,10 @@ export const TechnicianMap: React.FC = () => {
         }, 500);
 
         return () => {
-            clearInterval(interval);
+            if (interval) clearInterval(interval);
             clearTimeout(timer);
         };
-    }, [mapInstance, viewMode]);
+    }, [mapInstance, isAutoRefresh]);
 
     const loadOrders = async () => {
         try {
@@ -194,14 +196,19 @@ export const TechnicianMap: React.FC = () => {
         try {
             const tenantId = DataService.getCurrentTenantId();
             if (tenantId) {
-                if (viewMode === 'TECHS') CacheManager.invalidate(`techs_${tenantId}`);
-                if (viewMode === 'ORDERS') {
-                    CacheManager.invalidate(`orders_${tenantId}`);
-                    CacheManager.invalidate(`customers_${tenantId}`);
-                }
+                // Invalida ambos os caches para garantir dados frescos no mapa global
+                CacheManager.invalidate(`techs_${tenantId}`);
+                CacheManager.invalidate(`orders_${tenantId}`);
+                CacheManager.invalidate(`customers_${tenantId}`);
             }
-            if (viewMode === 'TECHS') await loadTechnicians();
-            if (viewMode === 'ORDERS') await loadOrders();
+
+            // Executa ambos em paralelo
+            await Promise.all([
+                loadTechnicians(),
+                loadOrders()
+            ]);
+
+            console.log('[Map] Dados atualizados com sucesso (OS & Técnicos)');
         } catch (error) {
             console.error('[Map] Erro ao atualizar:', error);
         } finally {
@@ -394,10 +401,21 @@ export const TechnicianMap: React.FC = () => {
                         <button
                             onClick={handleRefresh}
                             disabled={isRefreshing}
-                            className="bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border border-white/20 hover:bg-primary-50 transition-all disabled:opacity-50"
-                            title="Atualizar"
+                            className={`bg-white/90 backdrop-blur-md rounded-full p-2.5 shadow-lg border transition-all disabled:opacity-50 flex items-center gap-2 ${isRefreshing ? 'border-primary-500 bg-primary-50' : 'border-white/20'}`}
+                            title="Atualizar Tudo Agora"
                         >
                             <RefreshCw size={14} className={`text-primary-600 transition-transform ${isRefreshing ? 'animate-spin' : ''}`} />
+                        </button>
+
+                        <button
+                            onClick={() => setIsAutoRefresh(!isAutoRefresh)}
+                            className={`bg-white/95 backdrop-blur-md rounded-full px-3 py-2 shadow-lg border transition-all flex items-center gap-2 group ${isAutoRefresh ? 'border-emerald-500 bg-emerald-50' : 'border-white/20 hover:bg-slate-50'}`}
+                            title={isAutoRefresh ? "Auto-Refresh Ativo (5 min)" : "Ligar Auto-Refresh (5 min)"}
+                        >
+                            <div className={`w-2 h-2 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
+                            <span className={`text-[9px] font-black uppercase tracking-widest ${isAutoRefresh ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                {isAutoRefresh ? 'LIVE ON' : 'AUTO OFF'}
+                            </span>
                         </button>
                     </div>
                 )}
