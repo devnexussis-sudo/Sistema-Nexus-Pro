@@ -331,182 +331,155 @@ export const TechnicianMap: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden font-sans">
-            {/* 🔮 NEXUS SMART CONTROL PANEL (Compact & Glassmorphism) */}
-            <div className={`absolute top-4 left-4 z-[1002] flex flex-col gap-3 transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isCollapsed ? 'w-14' : 'w-72'} pointer-events-none`}>
+            {/* 🗺️ PRO-GRADE TOP NAVIGATION (Big Tech Style) */}
+            <div className="absolute top-4 left-4 right-4 z-[1002] flex flex-row items-start justify-between pointer-events-none gap-4">
 
-                {/* 🏷️ Info Header & Main Controls */}
-                <div className="bg-[#1c2d4f]/95 backdrop-blur-xl rounded-[1.5rem] p-3 shadow-2xl border border-white/10 pointer-events-auto transition-all hover:shadow-primary-900/20">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className={`flex flex-col transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'flex-1'}`}>
-                            <h2 className="text-sm font-black text-white italic tracking-tighter leading-tight">Nexus <span className="text-primary-400">Map</span></h2>
-                            <p className="text-[7px] font-black text-white/40 uppercase tracking-[0.1em] leading-none">Console de Op.</p>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                            {!isCollapsed && (
-                                <button
-                                    onClick={handleRefresh}
-                                    disabled={isRefreshing}
-                                    className={`p-1.5 rounded-lg transition-all ${isRefreshing ? 'bg-primary-500 text-white animate-spin' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
-                                    title="Atualizar agora"
-                                >
-                                    <RefreshCw size={14} />
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setIsCollapsed(!isCollapsed)}
-                                className="p-2 rounded-xl bg-white/10 border border-white/10 text-white hover:bg-white/20 transition-all shadow-lg"
-                                title={isCollapsed ? "Menu Principal" : "Recolher Menu"}
-                            >
-                                {isCollapsed ? <MapIcon size={18} /> : <ChevronUp size={18} />}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Stats Summary (Visible when expanded) */}
-                    <div className={`transition-all duration-500 overflow-hidden ${isCollapsed ? 'max-h-0 opacity-0 mt-0' : 'max-h-[100px] opacity-100 mt-3 border-t border-white/5 pt-3'}`}>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div className="bg-white/5 rounded-xl p-2 border border-white/5">
-                                <p className="text-[7px] font-black text-white/30 uppercase mb-0.5">Online</p>
-                                <span className="text-sm font-black text-white">{activeTechs.length}</span>
-                            </div>
-                            <div className="bg-white/5 rounded-xl p-2 border border-white/5">
-                                <p className="text-[7px] font-black text-white/30 uppercase mb-0.5">OS</p>
-                                <span className="text-sm font-black text-white">{mappedOrders.length}</span>
+                {/* 🏷️ Left Side: Branding & View Switch */}
+                <div className="flex flex-col gap-2 pointer-events-auto shrink-0">
+                    <div className="bg-[#1c2d4f]/95 backdrop-blur-xl rounded-2xl p-2 px-3 shadow-2xl border border-white/10 flex items-center gap-3">
+                        <div className="flex flex-col">
+                            <h2 className="text-xs font-black text-white italic tracking-tighter leading-tight">Nexus<span className="text-primary-400">Map</span></h2>
+                            <div className="flex items-center gap-1">
+                                <div className={`w-1 h-1 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`}></div>
+                                <span className="text-[7px] font-black text-white/40 uppercase tracking-widest">{isAutoRefresh ? 'Live' : 'Standby'}</span>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                {/* 🎮 Detailed Controls (Visible when expanded) */}
-                <div className={`bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-2xl border border-white/50 pointer-events-auto overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${isCollapsed ? 'max-h-0 p-0 opacity-0 border-none' : 'max-h-[600px] p-4 opacity-100'}`}>
-                    <div className="space-y-4">
-                        {/* View Switcher */}
-                        <div className="flex bg-slate-100 p-1 rounded-xl">
+                        <div className="w-px h-6 bg-white/10 mx-1"></div>
+                        <div className="flex bg-white/5 p-1 rounded-xl">
                             <button
                                 onClick={() => { setViewMode('ORDERS'); setIsHistoryMode(false); }}
-                                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${viewMode === 'ORDERS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${viewMode === 'ORDERS' ? 'bg-primary-500 text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
                             >
                                 <ClipboardList size={12} /> Ordens
                             </button>
                             <button
                                 onClick={() => setViewMode('TECHS')}
-                                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${viewMode === 'TECHS' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400'}`}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${viewMode === 'TECHS' ? 'bg-primary-500 text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
                             >
                                 <Users size={12} /> Técnicos
                             </button>
                         </div>
+                    </div>
+                </div>
 
-                        {/* Date Filters */}
-                        {!isHistoryMode && (
-                            <div className="space-y-1.5">
-                                <p className="text-[8px] font-black text-slate-400 uppercase px-1">Período</p>
-                                <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 px-2">
-                                    <input
-                                        type="date"
-                                        value={dateRange.start}
-                                        onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                                        className="bg-transparent text-[9px] font-bold text-slate-700 outline-none w-full"
-                                    />
-                                    <span className="text-slate-300 text-[10px]">-</span>
-                                    <input
-                                        type="date"
-                                        value={dateRange.end}
-                                        onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                                        className="bg-transparent text-[9px] font-bold text-slate-700 outline-none w-full"
-                                    />
-                                </div>
+                {/* 📅 Center: Integrated Filters & Dates */}
+                <div className="hidden md:flex flex-col items-center gap-2 pointer-events-auto">
+                    <div className="bg-white/90 backdrop-blur-md rounded-2xl p-1.5 px-3 shadow-xl border border-slate-200/50 flex items-center gap-4">
+                        <div className="flex items-center gap-2 px-2">
+                            <Calendar size={13} className="text-primary-600" />
+                            <div className="flex items-center gap-1">
+                                <input
+                                    type="date"
+                                    value={dateRange.start}
+                                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                                    className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-24"
+                                />
+                                <span className="text-slate-300 text-[10px] font-bold">→</span>
+                                <input
+                                    type="date"
+                                    value={dateRange.end}
+                                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                                    className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-24"
+                                />
                             </div>
-                        )}
-
-                        {/* Toggles */}
-                        <div className="flex flex-col gap-1.5">
-                            <button
-                                onClick={() => setIsAutoRefresh(!isAutoRefresh)}
-                                className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all ${isAutoRefresh ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
-                                    <span className={`text-[9px] font-black uppercase ${isAutoRefresh ? 'text-emerald-700' : 'text-slate-500'}`}>Monitoramento Live</span>
-                                </div>
-                                <div className={`w-6 h-3 rounded-full relative transition-colors ${isAutoRefresh ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                                    <div className={`absolute top-0.5 w-2 h-2 bg-white rounded-full transition-all ${isAutoRefresh ? 'left-3.5' : 'left-0.5'}`}></div>
-                                </div>
-                            </button>
-
-                            <button
-                                onClick={() => setMapType(prev => prev === 'DEFAULT' ? 'SATELLITE' : 'DEFAULT')}
-                                className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all ${mapType === 'SATELLITE' ? 'bg-[#1c2d4f] text-white border-primary-500/30' : 'bg-slate-50 border-slate-200'}`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <Satellite size={12} className={mapType === 'SATELLITE' ? 'text-primary-400' : 'text-slate-400'} />
-                                    <span className={`text-[9px] font-black uppercase ${mapType === 'SATELLITE' ? 'text-white' : 'text-slate-500'}`}>Satélite</span>
-                                </div>
-                                <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-full ${mapType === 'SATELLITE' ? 'bg-white/10 text-primary-300' : 'bg-slate-200 text-slate-400'}`}>
-                                    {mapType === 'SATELLITE' ? 'ON' : 'OFF'}
-                                </span>
-                            </button>
-
-                            {viewMode === 'TECHS' && (
-                                <button
-                                    onClick={() => setIsHistoryMode(!isHistoryMode)}
-                                    className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all ${isHistoryMode ? 'bg-primary-600 text-white border-primary-500' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <History size={12} className={isHistoryMode ? 'text-white' : 'text-slate-400'} />
-                                        <span className={`text-[9px] font-black uppercase ${isHistoryMode ? 'text-white' : 'text-slate-500'}`}>Histórico</span>
-                                    </div>
-                                    <ChevronDown size={12} className={isHistoryMode ? 'rotate-180' : 'rotate-0'} />
-                                </button>
-                            )}
                         </div>
+
+                        <div className="w-px h-5 bg-slate-200"></div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="flex flex-col items-center">
+                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Ativos</span>
+                                <span className="text-[10px] font-black text-[#1c2d4f]">{activeTechs.length}</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">No Mapa</span>
+                                <span className="text-[10px] font-black text-[#1c2d4f]">{mappedOrders.length}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 🕹️ Right Side: System Status & Configs */}
+                <div className="flex items-center gap-2 pointer-events-auto shrink-0">
+                    <div className="bg-white/90 backdrop-blur-md rounded-2xl p-1.5 shadow-xl border border-slate-200/50 flex items-center gap-1">
+                        <button
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
+                            className={`p-2 rounded-xl transition-all ${isRefreshing ? 'bg-primary-50 text-primary-600 animate-spin' : 'text-slate-500 hover:bg-slate-100'}`}
+                            title="Atualizar dados"
+                        >
+                            <RefreshCw size={15} />
+                        </button>
+
+                        <div className="w-px h-5 bg-slate-100 mx-1"></div>
+
+                        <button
+                            onClick={() => setMapType(prev => prev === 'DEFAULT' ? 'SATELLITE' : 'DEFAULT')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${mapType === 'SATELLITE' ? 'bg-[#1c2d4f] text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                        >
+                            <Satellite size={13} />
+                            <span className="text-[9px] font-black uppercase tracking-tighter">Satélite</span>
+                        </button>
+
+                        <button
+                            onClick={() => setIsAutoRefresh(!isAutoRefresh)}
+                            className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 ${isAutoRefresh ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'text-slate-500 hover:bg-slate-100'}`}
+                        >
+                            <div className={`w-1.5 h-1.5 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
+                            <span className="text-[9px] font-black uppercase tracking-tighter">Live</span>
+                        </button>
+
+                        {viewMode === 'TECHS' && (
+                            <button
+                                onClick={() => setIsHistoryMode(!isHistoryMode)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${isHistoryMode ? 'bg-primary-600 text-white' : 'text-primary-600 bg-primary-50 hover:bg-primary-100'}`}
+                            >
+                                <History size={13} />
+                                <span className="text-[9px] font-black uppercase tracking-tighter">Histórico</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* 🕒 Side History Drawer (Compact Version) */}
+            {/* 🕒 Side History Drawer (Sleek Overlay) */}
             <div className={`absolute top-0 right-0 bottom-0 z-[1003] w-80 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] transform ${isHistoryMode ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="h-full bg-white/95 backdrop-blur-xl shadow-2xl border-l border-slate-200 flex flex-col pt-20 px-4 pb-4 gap-4 relative">
+                <div className="h-full bg-white/95 backdrop-blur-2xl shadow-[-20px_0_50px_rgba(0,0,0,0.1)] border-l border-slate-200 flex flex-col pt-20 px-4 pb-4 gap-4 relative">
                     <button
                         onClick={() => setIsHistoryMode(false)}
-                        className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
+                        className="absolute top-4 right-4 p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-400 hover:text-slate-600 transition-all"
                     >
                         <X size={18} />
                     </button>
 
                     <div className="flex flex-col gap-1">
-                        <h2 className="text-xl font-black text-[#1c2d4f] italic tracking-tighter">Histórico</h2>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Rastreamento de ativos</p>
+                        <h2 className="text-xl font-black text-[#1c2d4f] italic tracking-tighter leading-none">Histórico de Rota</h2>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Painel de telemetria</p>
                     </div>
 
-                    <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar-thin pr-1">
-                        {/* Seletor de Técnico */}
-                        <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-[8px] font-black text-primary-600 uppercase tracking-widest px-1">
-                                <Users size={10} /> Técnico
-                            </label>
+                    <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar-thin pr-1 mt-4">
+                        <section className="space-y-2">
+                            <label className="text-[8px] font-black text-primary-600 uppercase tracking-[0.2em] px-1">Selecione o Ativo</label>
                             <div className="grid grid-cols-1 gap-1.5">
                                 {technicians.map(t => (
                                     <button
                                         key={t.id}
                                         onClick={() => setSelectedHistoryTech(t)}
-                                        className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all text-left ${selectedHistoryTech?.id === t.id ? 'bg-primary-50 border-primary-200 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-300'}`}
+                                        className={`flex items-center gap-3 p-2 rounded-xl border transition-all text-left ${selectedHistoryTech?.id === t.id ? 'bg-primary-600 border-primary-600 text-white shadow-lg scale-[1.02]' : 'bg-white border-slate-100 hover:border-slate-300 text-slate-700'}`}
                                     >
-                                        <img src={t.avatar || `https://ui-avatars.com/api/?name=${t.name}&background=random`} className="w-6 h-6 rounded-full border border-white shadow-sm" alt="" />
+                                        <img src={t.avatar || `https://ui-avatars.com/api/?name=${t.name}&background=random`} className="w-8 h-8 rounded-full border-2 border-white/20 shadow-sm" alt="" />
                                         <div className="flex-1 min-w-0">
-                                            <p className={`text-[10px] font-black uppercase truncate ${selectedHistoryTech?.id === t.id ? 'text-primary-700' : 'text-slate-700'}`}>{t.name}</p>
+                                            <p className="text-[10px] font-black uppercase truncate leading-none mb-1">{t.name}</p>
+                                            <p className={`text-[7px] font-bold uppercase truncate ${selectedHistoryTech?.id === t.id ? 'text-white/60' : 'text-slate-400'}`}>{t.email}</p>
                                         </div>
                                     </button>
                                 ))}
                             </div>
-                        </div>
+                        </section>
 
-                        {/* Seletor de Data */}
-                        <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-[8px] font-black text-primary-600 uppercase tracking-widest px-1">
-                                <Calendar size={10} /> Data
-                            </label>
-                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        <section className="space-y-2">
+                            <label className="text-[8px] font-black text-primary-600 uppercase tracking-[0.2em] px-1">Período de Análise</label>
+                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
                                 <input
                                     type="date"
                                     value={selectedHistoryDate}
@@ -515,20 +488,20 @@ export const TechnicianMap: React.FC = () => {
                                     className="w-full bg-transparent border-none text-[11px] font-black text-slate-700 outline-none"
                                 />
                             </div>
-                        </div>
+                        </section>
 
-                        {/* Estatística do Percurso */}
                         {selectedHistoryTech && (
-                            <div className="bg-slate-900 rounded-2xl p-4 text-white overflow-hidden relative group">
-                                <p className="text-[8px] font-black text-primary-400 uppercase tracking-widest mb-3">Resumo</p>
-                                <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-[#1c2d4f] rounded-2xl p-5 text-white overflow-hidden relative shadow-2xl">
+                                <div className="absolute top-0 right-0 p-4 opacity-10"><Navigation size={60} /></div>
+                                <p className="text-[8px] font-black text-primary-400 uppercase tracking-[0.2em] mb-4">Métricas do Percurso</p>
+                                <div className="flex items-center gap-6">
                                     <div className="flex flex-col">
-                                        <span className="text-xl font-black italic">{isLoadingHistory ? '...' : historyPath.length}</span>
-                                        <span className="text-[7px] font-black text-white/40 uppercase">Pontos</span>
+                                        <span className="text-2xl font-black italic">{isLoadingHistory ? '...' : historyPath.length}</span>
+                                        <span className="text-[7px] font-black text-white/40 uppercase">Amostras</span>
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-xl font-black italic">{isMovingTechsHistory ? 'ATIVO' : 'PARADO'}</span>
-                                        <span className="text-[7px] font-black text-white/40 uppercase">Status</span>
+                                        <span className="text-2xl font-black italic">{isMovingTechsHistory ? 'ATIVO' : 'PARADO'}</span>
+                                        <span className="text-[7px] font-black text-white/40 uppercase">Status Global</span>
                                     </div>
                                 </div>
                             </div>
@@ -537,29 +510,31 @@ export const TechnicianMap: React.FC = () => {
                 </div>
             </div>
 
-            {/* Legend Overlay (Integrated & Minimalist) */}
+            {/* 📍 Integrated Legend Pill */}
             {viewMode === 'ORDERS' && (
-                <div className={`absolute bottom-6 left-6 z-[1001] bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-white/20 pointer-events-auto transition-all duration-300 ease-out ${showLegend ? 'p-3 w-40' : 'p-2 w-10 h-10 flex items-center justify-center overflow-hidden'}`}>
-                    <button
-                        onClick={() => setShowLegend(!showLegend)}
-                        className={`transition-all ${showLegend ? 'absolute top-2 right-2 text-slate-400 hover:text-slate-600' : 'text-primary-600'}`}
-                    >
-                        {showLegend ? <X size={10} /> : <Layers size={16} />}
-                    </button>
+                <div className="absolute bottom-6 left-6 z-[1001] pointer-events-none">
+                    <div className={`bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/50 pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] ${showLegend ? 'w-44 p-4' : 'w-10 h-10 p-0 flex items-center justify-center overflow-hidden'}`}>
+                        <button
+                            onClick={() => setShowLegend(!showLegend)}
+                            className={`transition-all ${showLegend ? 'absolute top-2.5 right-2.5 text-slate-400 hover:text-slate-600' : 'text-primary-600'}`}
+                        >
+                            {showLegend ? <X size={10} /> : <Layers size={18} />}
+                        </button>
 
-                    {showLegend ? (
-                        <>
-                            <h4 className="text-[8px] font-black text-[#1c2d4f] uppercase tracking-widest mb-2 border-b border-slate-100 pb-1">Legenda OS</h4>
-                            <div className="grid grid-cols-1 gap-1.5">
-                                {Object.values(OrderStatus).map(status => (
-                                    <div key={status} className="flex items-center gap-2">
-                                        <div className="w-2.5 h-2.5 rounded-full border border-black/5 shrink-0" style={{ backgroundColor: getStatusColorHex(status) }}></div>
-                                        <span className="text-[8px] font-bold text-slate-600 uppercase truncate">{status}</span>
-                                    </div>
-                                ))}
+                        {showLegend ? (
+                            <div className="space-y-3">
+                                <h4 className="text-[8px] font-black text-[#1c2d4f] uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Status Operacional</h4>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {Object.values(OrderStatus).map(status => (
+                                        <div key={status} className="flex items-center gap-2.5 group">
+                                            <div className="w-2 h-2 rounded-full border border-black/5 shrink-0 transition-transform group-hover:scale-125" style={{ backgroundColor: getStatusColorHex(status) }}></div>
+                                            <span className="text-[8px] font-black text-slate-600 uppercase tracking-tighter truncate">{status}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </>
-                    ) : null}
+                        ) : null}
+                    </div>
                 </div>
             )}
 
