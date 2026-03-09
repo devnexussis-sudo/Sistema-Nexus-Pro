@@ -13,6 +13,7 @@ export const ResetPassword: React.FC = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
+    const [isFromMobile, setIsFromMobile] = useState(false);
     const navigate = useNavigate();
 
     // ─── 1. Captura e Injeção do Token ─────────────────────────────
@@ -22,31 +23,53 @@ export const ResetPassword: React.FC = () => {
         const handleAuth = async () => {
             try {
                 const url = window.location.href;
-                const access = url.match(/access_token=([^&]*)/)?.[1];
-                const refresh = url.match(/refresh_token=([^&]*)/)?.[1];
+
+                // Detecta se vem do mobile para mudar o feedback no final
+                if (url.includes('source=mobile')) {
+                    setIsFromMobile(true);
+                }
+
+                const access = url.match(/access_token=([^&#]*)/)?.[1];
+                const refresh = url.match(/refresh_token=([^&#]*)/)?.[1];
 
                 if (access) {
                     logger.info('[ResetPassword] Injetando tokens de recuperação...');
-                    await supabase.auth.setSession({
+                    const { error: setError } = await supabase.auth.setSession({
                         access_token: access,
                         refresh_token: refresh || '',
                     });
 
-                    // Limpa URL para estética e segurança BigTech
+                    if (setError) {
+                        console.error('[ResetPassword] Erro ao injetar sessão:', setError);
+                    }
+
+                    // Limpa URL para estética e segurança BigTech, preservando source se necessário
                     const cleanUrl = window.location.origin + window.location.pathname + '#/reset-password';
                     window.history.replaceState(null, '', cleanUrl);
                 }
 
                 // Verifica se temos uma sessão ativa (seja automática ou injetada)
                 const { data: { session } } = await supabase.auth.getSession();
+
                 if (!session && mounted) {
-                    setError('O link de recuperação parece inválido ou expirado. Por favor, solicite um novo e-mail.');
+                    // Se não temos sessão e NÃO tínhamos token na URL, aí sim é erro de expiração
+                    if (!access) {
+                        setError('O link de recuperação parece inválido ou expirado. Por favor, solicite um novo e-mail.');
+                    } else {
+                        // Se tinha token mas getSession falhou, tentamos um refresh forçado ou logamos o erro
+                        console.warn('[ResetPassword] Token presente mas sessão não estabelecida.');
+                    }
                 }
             } catch (err: any) {
                 console.error('[ResetPassword] Erro de inicialização:', err);
                 if (mounted) setError('Erro ao validar credenciais de recuperação.');
             } finally {
-                if (mounted) setIsChecking(false);
+                if (mounted) {
+                    // Pequeno delay para garantir que o Supabase processou a sessão
+                    setTimeout(() => {
+                        if (mounted) setIsChecking(false);
+                    }, 800);
+                }
             }
         };
 
@@ -82,8 +105,10 @@ export const ResetPassword: React.FC = () => {
             // Limpa qualquer sessão residual e força logout
             await supabase.auth.signOut().catch(() => { });
 
-            // Redireciona para o login após mostrar a mensagem de sucesso
-            setTimeout(() => navigate('/login'), 2500);
+            // Redireciona para o login após mostrar a mensagem de sucesso (Apenas se NÃO for mobile)
+            if (!isFromMobile) {
+                setTimeout(() => navigate('/login'), 3500);
+            }
 
         } catch (err: any) {
             console.error('[ResetPassword] Erro no comando:', err);
@@ -96,7 +121,7 @@ export const ResetPassword: React.FC = () => {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
                 <div className="w-12 h-12 rounded-full border-4 border-slate-200 border-t-primary-600 animate-spin mb-4"></div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Autenticando acesso...</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Validando credenciais...</p>
             </div>
         );
     }
@@ -110,9 +135,16 @@ export const ResetPassword: React.FC = () => {
                     </div>
                     <div className="space-y-2">
                         <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter italic">Senha Alterada!</h2>
-                        <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
-                            Sua nova senha foi salva com sucesso. <br /> Redirecionando para o login...
-                        </p>
+                        {isFromMobile ? (
+                            <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
+                                Sua nova senha foi salva! <br />
+                                <span className="text-primary-600 block mt-2 text-xs">FECHE ESTA ABA E VOLTE PARA O APLICATIVO PARA ENTRAR.</span>
+                            </p>
+                        ) : (
+                            <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
+                                Sua nova senha foi salva com sucesso. <br /> Redirecionando para o login...
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>

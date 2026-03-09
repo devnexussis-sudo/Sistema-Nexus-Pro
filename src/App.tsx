@@ -42,6 +42,19 @@ const AppRoutes: React.FC = () => {
     }
   }, [auth.isAuthenticated, auth.user, isSuperMode]);
 
+  // 🛡️ RECOVERY INTERCEPTOR: Se cair no root com token de recovery, redireciona preservando o hash
+  const navigate = useNavigate();
+  useEffect(() => {
+    const hash = window.location.hash;
+    // Se o hash contém tokens de recovery mas não estamos na rota certa
+    if (hash.includes('type=recovery') && !hash.includes('reset-password')) {
+      console.log('[RecoveryInterceptor] Detectado lander de recuperação. Redirecionando para /reset-password...');
+      // Nós recriamos a URL do hash para o router entender
+      const newHash = '#/reset-password' + hash.replace('#', '&');
+      window.location.hash = newHash;
+    }
+  }, []);
+
   // Rendeiza logo a UI, confiando no splashscreen do index.html para cobrir o carregamento inicial
 
   return (
@@ -78,8 +91,9 @@ const AppRoutes: React.FC = () => {
           <AdminLogin onLogin={login} onToggleMaster={() => { }} />
       } />
 
-      {/* RESET PASSWORD */}
+      {/* RESET PASSWORD - Suporte flexível para landers do Supabase com HashRouter */}
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/reset-password/*" element={<ResetPassword />} />
 
       {/* ROOT REDIRECT */}
       <Route path="/" element={<Navigate to={auth.isAuthenticated ? "/admin" : "/login"} replace />} />
