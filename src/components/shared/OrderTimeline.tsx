@@ -1,0 +1,225 @@
+import React, { useEffect, useState } from 'react';
+import { OrderTimelineEvent } from '../../types';
+import { OrderService } from '../../services/orderService';
+import { Clock, Play, Pause, CheckCircle2, AlertCircle, Edit3, CalendarCheck, MessageSquare, UserCheck, CalendarDays, FileText } from 'lucide-react';
+
+interface OrderTimelineProps {
+    orderId: string;
+}
+
+export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
+    const [events, setEvents] = useState<OrderTimelineEvent[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [expandedForms, setExpandedForms] = useState<Record<string, boolean>>({});
+
+    const toggleForm = (id: string) => {
+        setExpandedForms(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    useEffect(() => {
+        if (!orderId) return;
+        const loadTimeline = async () => {
+            setLoading(true);
+            try {
+                const data = await OrderService.getOrderTimeline(orderId);
+                setEvents(data);
+            } catch (error) {
+                console.error('Failed to load timeline:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadTimeline();
+    }, [orderId]);
+
+    if (loading) {
+        return (
+            <div className="flex justify-center p-8 animate-pulse text-slate-400">
+                <Clock className="w-6 h-6 animate-spin mr-2" />
+                <span className="text-sm font-medium">Carregando cronologia...</span>
+            </div>
+        );
+    }
+
+    if (events.length === 0) {
+        return (
+            <div className="text-center p-8 border border-dashed border-slate-200 rounded-xl bg-slate-50">
+                <CalendarCheck className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                <p className="text-sm font-semibold text-slate-500">Nenhum evento registrado nesta OS ainda.</p>
+            </div>
+        );
+    }
+
+    const getIcon = (type: string) => {
+        if (type === 'ORDER_CREATED') return <CheckCircle2 size={16} className="text-emerald-500" />;
+        if (type === 'VISIT_PENDING') return <CalendarDays size={16} className="text-indigo-500" />;
+        if (type.startsWith('VISIT_ONGOING')) return <Play size={16} className="text-blue-500" />;
+        if (type.startsWith('VISIT_PAUSED')) return <Pause size={16} className="text-amber-500" />;
+        if (type.startsWith('VISIT_COMPLETED')) return <CheckCircle2 size={16} className="text-emerald-500" />;
+        if (type === 'STATUS_CHANGED') return <Edit3 size={16} className="text-[#1c2d4f]" />;
+        if (type === 'TECH_ASSIGNED') return <UserCheck size={16} className="text-indigo-500" />;
+        if (type === 'SCHEDULE_CHANGED') return <CalendarDays size={16} className="text-rose-500" />;
+        return <AlertCircle size={16} className="text-slate-400" />;
+    };
+
+    const getLabel = (type: string, details: any) => {
+        if (type === 'ORDER_CREATED') return `OS Criada (${details.status})`;
+        if (type === 'VISIT_PENDING') return `Visita Agendada`;
+        if (type === 'VISIT_ONGOING') return `Visita em Andamento`;
+        if (type === 'VISIT_PAUSED') return `Visita Pausada`;
+        if (type === 'VISIT_COMPLETED') return `Visita Concluída`;
+        if (type === 'STATUS_CHANGED') return `Status Alterado para ${details.new_status}`;
+        if (type === 'TECH_ASSIGNED') return `Atribuição de Técnico`;
+        if (type === 'SCHEDULE_CHANGED') return `Agendamento Modificado`;
+        return type;
+    };
+
+    const formatEventDate = (dateStr: string) => {
+        if (!dateStr || dateStr.trim() === '' || dateStr === 'null') return '--/--/----';
+        const parts = dateStr.split('-');
+        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        return dateStr;
+    };
+
+    return (
+        <div className="space-y-6">
+            <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">Linha do Tempo (Big Tech Audit)</h3>
+
+            <div className="relative border-l-2 border-slate-100 ml-4 space-y-8 pb-4">
+                {events.map((event, index) => (
+                    <div key={event.eventId || index} className="relative pl-6 animate-in fade-in slide-in-from-bottom-2">
+                        {/* Bullet Marker */}
+                        <div className="absolute -left-[11px] top-1 w-5 h-5 bg-white border-2 border-slate-100 rounded-full flex items-center justify-center">
+                            {getIcon(event.eventType)}
+                        </div>
+
+                        {/* Content */}
+                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-800">
+                                        {getLabel(event.eventType, event.details)}
+                                    </h4>
+                                    <p className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                        Por: {event.userName || 'Sistema'}
+                                    </p>
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md">
+                                    {new Date(event.eventDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                                </span>
+                            </div>
+
+                            {/* Detalhes Específicos do Evento */}
+                            {event.eventType === 'VISIT_PAUSED' && event.details.pause_reason && (
+                                <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg font-medium flex gap-2">
+                                    <AlertCircle size={14} className="shrink-0" />
+                                    <span>Motivo: {event.details.pause_reason}</span>
+                                </div>
+                            )}
+
+                            {event.eventType === 'STATUS_CHANGED' && (
+                                <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-2">
+                                    De: <span className="font-bold text-slate-400 line-through">{event.details.old_status}</span>
+                                    Para: <span className="font-bold text-[#1c2d4f]">{event.details.new_status}</span>
+                                </div>
+                            )}
+
+                            {event.eventType === 'TECH_ASSIGNED' && (
+                                <div className="mt-2 text-[11px] text-slate-500 flex items-center gap-2">
+                                    <span className="font-bold text-[#1c2d4f]">Técnico Atribuído / Alterado</span>
+                                </div>
+                            )}
+
+                            {event.eventType === 'SCHEDULE_CHANGED' && (
+                                <div className="mt-2 text-[11px] text-slate-500 flex flex-col gap-1.5 p-3 bg-slate-50 border border-slate-100 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-slate-400 w-8">De:</span>
+                                        <span className="font-bold text-slate-400 line-through">
+                                            {formatEventDate(event.details.old_date)} {event.details.old_time ? `às ${event.details.old_time}` : ''}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-indigo-400 w-8">Para:</span>
+                                        <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                            {formatEventDate(event.details.new_date)} {event.details.new_time ? `às ${event.details.new_time}` : ''}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {event.eventType === 'VISIT_PENDING' && (
+                                <div className="mt-2 text-[11px] text-slate-500 bg-slate-50 border border-slate-100 p-3 rounded-lg font-medium flex gap-2 flex-col">
+                                    <div className="flex items-center gap-2">
+                                        <CalendarDays size={14} className="text-indigo-400 shrink-0" />
+                                        <span>
+                                            Agendada para:{' '}
+                                            <strong className="text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                                {formatEventDate(event.details.scheduled_date)} {event.details.scheduled_time ? `às ${event.details.scheduled_time}` : ''}
+                                            </strong>
+                                        </span>
+                                    </div>
+                                    {event.details.assigned_tech && (
+                                        <div className="flex items-center gap-2">
+                                            <UserCheck size={14} className="text-indigo-400 shrink-0" />
+                                            <span>Técnico: <strong className="text-[#1c2d4f]">{event.details.assigned_tech}</strong></span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {event.eventType === 'VISIT_COMPLETED' && event.details.form_data && Object.keys(event.details.form_data).length > 0 && (
+                                <div className="mt-3">
+                                    <button
+                                        onClick={() => toggleForm(event.eventId)}
+                                        className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-md transition-colors w-full justify-between"
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <FileText size={14} />
+                                            {expandedForms[event.eventId] ? "Ocultar Formulário Técnico" : "Ler Formulário Técnico"}
+                                        </div>
+                                    </button>
+
+                                    {expandedForms[event.eventId] && (
+                                        <div className="mt-2 p-3 bg-slate-50 border border-slate-100 rounded-lg space-y-2 text-[11px]">
+                                            {Object.entries(event.details.form_data).map(([key, val]: any) => {
+                                                if (key === 'signature' || key === 'signatureName' || key.includes('signature')) return null;
+                                                return (
+                                                    <div key={key} className="flex flex-col">
+                                                        <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px] mb-0.5">{key.replace(/_/g, ' ')}</span>
+                                                        {typeof val === 'string' && val.startsWith('http') ? (
+                                                            <a href={val} target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">Ver Imagem Anexada</a>
+                                                        ) : typeof val === 'object' ? (
+                                                            <span className="text-slate-800 font-medium">Anexo/Tabela Múltipla</span>
+                                                        ) : (
+                                                            <span className="text-slate-800 font-medium whitespace-pre-wrap">{String(val)}</span>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                            {event.details.form_data.signatureName && (
+                                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                                    <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px] mb-1 block">Assinatura do Cliente</span>
+                                                    <span className="text-slate-800 font-bold">{event.details.form_data.signatureName}</span>
+                                                    {event.details.form_data.signature && typeof event.details.form_data.signature === 'string' && event.details.form_data.signature.startsWith('http') && (
+                                                        <img src={event.details.form_data.signature} className="h-10 object-contain mt-1 mix-blend-multiply" />
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {event.details.notes && (
+                                <div className="mt-2 text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg font-medium flex gap-2">
+                                    <MessageSquare size={14} className="text-slate-400 shrink-0" />
+                                    <span>{event.details.notes}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};

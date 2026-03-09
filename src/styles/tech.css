@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/* ============================================= */
+/* TECH APP - Estilos Globais Refinados */
+/* ============================================= */
+
+@theme {
+    /* Define tokens customizados se necessário */
+    --font-sans: 'Inter', sans-serif;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    -webkit-tap-highlight-color: transparent;
+    /* Remove highlight azul no mobile */
+}
+
+body {
+    background-color: #f8fafc;
+    /* Slate-50 - Base clara e limpa */
+    color: #0f172a;
+    /* Slate-900 - Contraste alto */
+    font-family: var(--font-sans);
+}
+
+#root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Scrollbar Clean Invisível/Sutil */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Animações de Entrada Suaves */
+@keyframes slide-up-fade {
+    0% {
+        transform: translateY(10px);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.animate-in {
+    animation: slide-up-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Safe Area Defaults */
+@supports (padding-top: env(safe-area-inset-top)) {
+    body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+    }
+}
+
+/* 🛡️ NEXUS GLOBAL SELECTION FORCE */
+*::selection {
+    background-color: #1c2d4f !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+*::-moz-selection {
+    background-color: #1c2d4f !important;
+    color: #ffffff !important;
+}
+
+/* Specific target for inputs to bypass browser defaults */
+input::selection,
+textarea::selection,
+[contenteditable="true"]::selection {
+    background-color: #1c2d4f !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}

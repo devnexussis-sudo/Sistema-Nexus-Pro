@@ -1,0 +1,201 @@
+
+import { supabase, adminSupabase } from '../lib/supabase';
+import { User, UserRole, UserWithPassword } from '../types';
+import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
+import { logger } from '../lib/logger';
+
+const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+const MOCK_USERS_POOL = []; // Removing mock data dependency for clean separation, assuming cloud first
+
+export const AuthService = {
+
+    // Retrieve current tenant ID from storage
+    getCurrentTenantId: (): string | undefined => {
+        try {
+            const techSession = localStorage.getItem('nexus_tech_session_v2') || localStorage.getItem('nexus_tech_session');
+            if (techSession) {
+                const user = JSON.parse(techSession);
+                const tid = user.tenantId || user.tenant_id;
+                if (tid) return tid;
+            }
+            const userStr = SessionStorage.get('user') || GlobalStorage.get('persistent_user');
+            if (userStr) {
+                const user = typeof userStr === 'string' ? JSON.parse(userStr) : userStr;
+                const tid = user.tenantId || user.tenant_id;
+                if (tid) return tid;
+            }
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlTid = urlParams.get('tid') || SessionStorage.get('current_tenant');
+            if (urlTid) return urlTid;
+            return undefined;
+        } catch (e) {
+            return undefined;
+        }
+    },
+
+    getCurrentUser: async (): Promise<User | undefined> => {
+        if (isCloudEnabled) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return undefined;
+
+            const user = session.user;
+
+            // Tenta recuperar do storage primeiro para velocidade
+            const stored = SessionStorage.get('user');
+            if (stored) {
+                if (typeof stored === 'string') return JSON.parse(stored);
+                return stored;
+            }
+
+            // Se não tiver local, busca full do banco
+            return await AuthService._fetchFullUser(user.id, user.email || '', user.user_metadata);
+        }
+        const stored = SessionStorage.get('user');
+        return stored ? (typeof stored === 'string' ? JSON.parse(stored) : stored) : undefined;
+    },
+
+    login: async (email: string, password?: string): Promise<User | undefined> => {
+        if (isCloudEnabled) {
+            logger.info('authenticating_user', { email });
+
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email.toLowerCase(),
+                password: password || ''
+            });
+
+            if (error) {
+                console.error("❌ Erro no Login Supabase:", error.message);
+                throw new Error(error.message === 'Invalid login credentials' ? 'Credenciais inválidas' : error.message);
+            }
+
+            if (data.user) {
+                logger.info('auth_success_loading_profile');
+                const fullUser = await AuthService._fetchFullUser(data.user.id, email, data.user.user_metadata);
+
+                if (!fullUser) throw new Error("Usuário autenticado mas sem registro na tabela users.");
+                if (fullUser.active === false) throw new Error("Sua conta foi desativada. Contate o administrador.");
+
+                // Persistência
+                SessionStorage.set('user', fullUser);
+                GlobalStorage.set('persistent_user', fullUser);
+
+                // Define current tenant na sessão
+                if (fullUser.tenantId) {
+                    SessionStorage.set('current_tenant', fullUser.tenantId);
+                }
+
+                return fullUser;
+            }
+        }
+        return undefined;
+    },
+
+    logout: async (): Promise<void> => {
+        if (isCloudEnabled) {
+            await supabase.auth.signOut();
+        }
+        SessionStorage.clear();
+        GlobalStorage.remove('persistent_user');
+        localStorage.removeItem('nexus_tech_session_v2');
+        localStorage.removeItem('nexus_tech_cache_v2');
+        // Force reload to clear memory states
+        window.location.href = '/login';
+    },
+
+    checkEmailExists: async (email: string): Promise<{ exists: boolean, tenantName?: string }> => {
+        if (!isCloudEnabled) return { exists: false };
+        try {
+            const { data: authData } = await adminSupabase.auth.admin.listUsers();
+            const existingUser = (authData.users || []).find(u => u.email?.toLowerCase() === email.toLowerCase());
+
+            if (existingUser) {
+                const tenantId = existingUser.user_metadata?.tenantId;
+                if (tenantId) {
+                    const { data: tenant } = await adminSupabase
+                        .from('tenants')
+                        .select('name')
+                        .eq('id', tenantId)
+                        .single();
+
+                    return { exists: true, tenantName: tenant?.name || 'outra empresa' };
+                }
+                return { exists: true, tenantName: 'outra empresa' };
+            }
+
+            return { exists: false };
+        } catch (error) {
+            console.error('[Email Check] Erro:', error);
+            return { exists: false };
+        }
+    },
+
+    // Busca dados enriquecidos do usuário (Role, Permissions, Tenant)
+    _fetchFullUser: async (authId: string, email: string, metadata: any): Promise<User | undefined> => {
+        // 1. Tenta buscar na tabela 'users'
+        const { data: dbUser, error } = await adminSupabase
+            .from('users')
+            .select('*')
+            .eq('id', authId)
+            .single();
+
+        if (!dbUser) {
+            console.warn("⚠️ Usuário não encontrado na tabela 'users'. Tentando reconstruir via metadata...");
+            // Fallback: Usa metadados do Auth se tabela falhar (ex: usuario novo nao syncado)
+            if (metadata && metadata.role) {
+                return {
+                    id: authId,
+                    name: metadata.name || 'Usuário',
+                    email: email,
+                    role: metadata.role as UserRole,
+                    tenantId: metadata.tenantId,
+                    avatar: metadata.avatar,
+                    active: true
+                };
+            }
+            return undefined;
+        }
+
+        // 2. Se tiver grupo, busca as permissões do grupo
+        let permissions = dbUser.permissions || {};
+        let groupName = '';
+
+        if (dbUser.group_id) {
+            const { data: group } = await adminSupabase
+                .from('user_groups')
+                .select('permissions, name')
+                .eq('id', dbUser.group_id)
+                .single();
+
+            if (group) {
+                permissions = { ...group.permissions, ...permissions }; // Permissões diretas sobrescrevem grupo? Ou merge? Geralmente merge.
+                groupName = group.name;
+            }
+        }
+
+        return {
+            id: dbUser.id,
+            name: dbUser.name,
+            email: dbUser.email,
+            role: dbUser.role as UserRole,
+            tenantId: dbUser.tenant_id,
+            avatar: dbUser.avatar,
+            active: dbUser.active,
+            groupId: dbUser.group_id,
+            groupName: groupName,
+            permissions: permissions
+        };
+    },
+
+    refreshUser: async (): Promise<User | undefined> => {
+        const currentUser = await AuthService.getCurrentUser();
+        if (currentUser) {
+            const fresh = await AuthService._fetchFullUser(currentUser.id, currentUser.email, {});
+            if (fresh) {
+                SessionStorage.set('user', fresh);
+                GlobalStorage.set('persistent_user', fresh);
+                return fresh;
+            }
+        }
+        return undefined;
+    }
+};

@@ -1,0 +1,2421 @@
+
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { OrderStatus, OrderPriority, type ServiceOrder, type ServiceVisit, type ServiceOrderEquipment, type User, type Customer, VisitStatusEnum } from '../../types';
+import { Button } from '../ui/Button';
+import { StatusBadge, PriorityBadge } from '../ui/StatusBadge';
+import {
+  Plus, Printer, X, FileText, CheckCircle2, ShieldCheck,
+  Edit3, Save, ExternalLink, Search, Filter, Calendar, Share2,
+  Users, UserCheck, Clock, FileSpreadsheet, Download, Camera, ClipboardList, Ban, MapPin, Box,
+  DollarSign, Eye, EyeOff, LayoutDashboard, User as UserIcon, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
+  Loader2, CalendarPlus, History, Trash2, PlusCircle, PackageSearch
+} from 'lucide-react';
+import { Pagination } from '../ui/Pagination';
+import { CreateOrderModal } from './CreateOrderModal';
+import { PublicOrderView } from '../public/PublicOrderView';
+import { OrderTimeline } from '../shared/OrderTimeline';
+import { VisitHistoryTab } from './VisitHistoryTab';
+import { VisitService } from '../../services/visitService';
+import { EquipmentService } from '../../services/equipmentService';
+import { FormService } from '../../services/formService';
+import { createPortal } from 'react-dom';
+import { DataService } from '../../services/dataService';
+import { useOrderExport } from '../../hooks/useOrderExport';
+import { usePagedOrders } from '../../hooks/nexusHooks';
+import { useAuth } from '../../contexts/AuthContext';
+
+// NOTA DE ARQUITETURA:
+// orders NÃO vem mais via prop — este componente busca seus próprios dados
+// via usePagedOrders (server-side pagination com .range() no Supabase).
+// techs e customers ainda vêm via prop pois são dados de referência pequenos.
+interface AdminDashboardProps {
+  techs: User[];
+  customers: Customer[];
+  startDate: string;
+  endDate: string;
+  onDateChange: (start: string, end: string) => void;
+  onUpdateOrders: () => Promise<void>;
+  onEditOrder: (order: ServiceOrder) => Promise<void>;
+  onCreateOrder: (order: Partial<ServiceOrder>) => Promise<any>;
+}
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({
+  techs, customers, startDate, endDate, onDateChange, onUpdateOrders, onEditOrder, onCreateOrder
+}) => {
+
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [orderToEdit, setOrderToEdit] = useState<ServiceOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [isBatchPrinting, setIsBatchPrinting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [orderVisits, setOrderVisits] = useState<any[]>([]);
+
+  // ── Edição Inline ──────────────────────────────────────────────
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState<Partial<ServiceOrder>>({});
+  const [editLoading, setEditLoading] = useState(false);
+
+  // ── Aba Visitas ────────────────────────────────────────────────
+  const [visits, setVisits] = useState<ServiceVisit[]>([]);
+  const [visitsLoading, setVisitsLoading] = useState(false);
+  const [showNewVisitForm, setShowNewVisitForm] = useState(false);
+  const [newVisitDraft, setNewVisitDraft] = useState({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' });
+  const [savingVisit, setSavingVisit] = useState(false);
+
+  // ── Aba Equipamentos (do catálogo, vinculados via campos da OS) ────
+  const [osEquipments, setOsEquipments] = useState<any[]>([]);
+  const [equipments, setEquipments] = useState<any[]>([]); // ServiceOrderEquipment[] — keep compat
+  const [allEquipmentsCatalog, setAllEquipmentsCatalog] = useState<any[]>([]);
+  const [equipmentsLoading, setEquipmentsLoading] = useState(false);
+
+
+  // ── Aba Formulários ──────────────────────────────────────────
+  const [activationRules, setActivationRules] = useState<any[]>([]);
+  const [formTemplatesAll, setFormTemplatesAll] = useState<any[]>([]);
+  const [formsTabLoading, setFormsTabLoading] = useState(false);
+
+  // ── Edição de Agendamento de Visita ────────────────────────────
+  const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
+  const [visitScheduleDraft, setVisitScheduleDraft] = useState<{
+    scheduledDate: string; scheduledTime: string; technicianId: string;
+  }>({ scheduledDate: '', scheduledTime: '', technicianId: '' });
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  // Sort: campo e direção — passados para o servidor
+  const [sortConfig, setSortConfig] = useState<{ key: string | null, direction: 'asc' | 'desc' }>({ key: 'created_at', direction: 'desc' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
+
+  // ── Estoque para Peças ─
+  const [allStockItems, setAllStockItems] = useState<any[]>([]);
+  const [isStockPickerOpen, setIsStockPickerOpen] = useState(false);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockSearch, setStockSearch] = useState('');
+
+  // ── Server-Side Pagination ─────────────────────────────────────────
+  const { session, isAuthLoading } = useAuth();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [serviceTypes, setServiceTypes] = useState<any[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('scheduled');
+  // techFilter armazena o techId (UUID), não o nome — enviado direto para o servidor
+  const [techFilter, setTechFilter] = useState<string>('ALL');
+  const [customerFilter, setCustomerFilter] = useState<string>('ALL');
+
+  // Filtros memorizados para evitar re-renders desnecessários
+  const serverFilters = useMemo(() => ({
+    status: statusFilter !== 'ALL' ? statusFilter : undefined,
+    technicianId: techFilter !== 'ALL' ? techFilter : undefined,
+    search: [
+      searchTerm.trim() || undefined,
+      customerFilter !== 'ALL' ? customerFilter : undefined
+    ].filter(Boolean).join(' ') || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    dateType: dateTypeFilter,
+  }), [statusFilter, techFilter, searchTerm, customerFilter, startDate, endDate, dateTypeFilter]);
+
+  const {
+    data: pageResult,
+    isLoading: ordersLoading,
+    refetch: ordersRefetch,
+  } = usePagedOrders(currentPage, serverFilters, !isAuthLoading && !!session);
+
+  const pagedOrders: ServiceOrder[] = pageResult?.data ?? [];
+  const totalOrders = pageResult?.total ?? 0;
+  const totalPages = pageResult?.lastPage ?? 1;
+
+
+  const requestSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key !== key) return <ArrowUpDown size={12} className="ml-2 text-slate-300 opacity-0 group-hover:opacity-100 transition-all" />;
+    return sortConfig.direction === 'asc'
+      ? <ChevronUp size={14} className="ml-2 text-primary-600 animate-in fade-in zoom-in-50 duration-300" />
+      : <ChevronDown size={14} className="ml-2 text-primary-600 animate-in fade-in zoom-in-50 duration-300" />;
+  };
+
+  // Hook de Exportação (Refatorado - Big Tech Standard)
+  const { handleExportExcel: exportToExcel } = useOrderExport();
+
+  const handleExportExcel = () => {
+    // Exporta os itens da página atual (ou apenas os selecionados)
+    const base = pagedOrders;
+    exportToExcel({
+      orders: base,
+      filteredOrders: selectedOrderIds.length > 0
+        ? pagedOrders.filter(o => selectedOrderIds.includes(o.id))
+        : pagedOrders,
+      selectedOrderIds,
+      techs
+    });
+  };
+
+  const handleBatchPrint = () => {
+    setIsBatchPrinting(true);
+    document.body.classList.add('is-printing');
+    // Tempo maior para garantir renderização de imagens e componentes
+    setTimeout(() => {
+      window.print();
+      // Em alguns browsers o print é non-blocking, então usamos listener para garantir
+      const cleanup = () => {
+        setIsBatchPrinting(false);
+        document.body.classList.remove('is-printing');
+        window.removeEventListener('afterprint', cleanup);
+      };
+
+      // Se for blocking (Chrome/Firefox), isso roda depois do dialog fechar
+      // Se for non-blocking (Safari), precisamos do listener
+      window.addEventListener('afterprint', cleanup);
+
+      // Fallback para browsers que não disparam afterprint corretamente ou se user cancelar rápido
+      setTimeout(cleanup, 5000);
+    }, 1500);
+  };
+
+  const handlePrintOrder = (orderId: string) => {
+    setSelectedOrderIds([orderId]);
+    setIsBatchPrinting(true);
+    document.body.classList.add('is-printing');
+    setTimeout(() => {
+      window.print();
+      const cleanup = () => {
+        setIsBatchPrinting(false);
+        document.body.classList.remove('is-printing');
+        window.removeEventListener('afterprint', cleanup);
+      };
+      window.addEventListener('afterprint', cleanup);
+      setTimeout(cleanup, 5000);
+    }, 1500);
+  };
+
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+
+  useEffect(() => {
+    if (selectedOrder) {
+      // Reset estados de edição ao abrir nova OS
+      setIsEditing(false);
+      setEditDraft({});
+      setActiveTab('overview');
+      setShowNewVisitForm(false);
+      setEditingVisitId(null);
+      setEquipments([]);
+
+      // Busca o técnicos da OS via RPC secundário (não bloqueante)
+      import('../../services/orderService').then(mod => {
+        mod.OrderService.getOrderVisits(selectedOrder.id).then(v => {
+          setOrderVisits(v);
+        });
+      });
+
+      // Busca o template para mapear IDs para Labels no checklist
+      if (selectedOrder.formId) {
+        import('../../services/formService').then(mod => {
+          mod.FormService.getFormTemplates().then(templates => {
+            const template = templates.find(t => t.id === selectedOrder.formId);
+            setSelectedTemplate(template || null);
+          });
+        });
+      } else {
+        setSelectedTemplate(null);
+      }
+    } else {
+      setOrderVisits([]);
+      setSelectedTemplate(null);
+      setIsEditing(false);
+      setEditDraft({});
+      setEditingVisitId(null);
+      setEquipments([]);
+    }
+  }, [selectedOrder]);
+
+  // Lazy load: quando abre aba equipamentos — service_order_equipments é fonte principal
+  useEffect(() => {
+    if (activeTab === 'equipments' && selectedOrder) {
+      setEquipmentsLoading(true);
+      Promise.all([
+        VisitService.getOrderEquipments(selectedOrder.id),
+        EquipmentService.getEquipments(),
+      ]).then(([soeList, catalog]) => {
+        setAllEquipmentsCatalog(catalog);
+        // Fonte primária: service_order_equipments (suporta múltiplos)
+        let list: any[] = soeList.map(s => {
+          const found = catalog.find(c => c.serialNumber === s.equipmentSerial || c.model === s.equipmentModel);
+          return { ...s, equipmentFamily: s.equipmentFamily || found?.familyName || '' };
+        });
+
+        // Fallback legacy: campos diretos da OS se tabela vazia
+        if (list.length === 0 && selectedOrder.equipmentName) {
+          const found = catalog.find(c => c.serialNumber === selectedOrder.equipmentSerial || c.model === selectedOrder.equipmentModel);
+          list = [{
+            id: selectedOrder.id + '_eq',
+            orderId: selectedOrder.id,
+            equipmentName: selectedOrder.equipmentName,
+            equipmentModel: selectedOrder.equipmentModel,
+            equipmentSerial: selectedOrder.equipmentSerial,
+            equipmentFamily: found?.familyName || '',
+            status: selectedOrder.status === 'CONCLUÍDO' ? 'COMPLETED' : 'PENDING',
+            formData: selectedOrder.formData || {},
+            formId: selectedOrder.formId,
+            sortOrder: 0,
+            createdAt: selectedOrder.createdAt,
+          }];
+        }
+        setEquipments(list);
+        setOsEquipments(list);
+      }).finally(() => setEquipmentsLoading(false));
+    }
+  }, [activeTab, selectedOrder]);
+
+  // Lazy load: aba formulários — busca regras, templates e equipamentos (caso não carregados)
+  useEffect(() => {
+    if (activeTab === 'forms' && selectedOrder) {
+      setFormsTabLoading(true);
+      Promise.all([
+        FormService.getActivationRules(),
+        FormService.getFormTemplates(),
+        osEquipments.length === 0 ? VisitService.getOrderEquipments(selectedOrder.id) : Promise.resolve(osEquipments),
+        osEquipments.length === 0 ? EquipmentService.getEquipments() : Promise.resolve([] as any[]),
+      ]).then(([rules, templates, soeList, catalog]) => {
+        setActivationRules(rules);
+        setFormTemplatesAll(templates);
+        // Enriquece equipamentos se ainda não estavam carregados
+        if (osEquipments.length === 0) {
+          let list: any[] = (soeList as any[]).map((s: any) => {
+            const found = (catalog as any[]).find((c: any) => c.serialNumber === s.equipmentSerial || c.model === s.equipmentModel);
+            return { ...s, equipmentFamily: s.equipmentFamily || found?.familyName || '' };
+          });
+          if (list.length === 0 && selectedOrder.equipmentName) {
+            const found = (catalog as any[]).find((c: any) => c.serialNumber === selectedOrder.equipmentSerial || c.model === selectedOrder.equipmentModel);
+            list = [{
+              id: selectedOrder.id + '_eq',
+              orderId: selectedOrder.id,
+              equipmentName: selectedOrder.equipmentName,
+              equipmentModel: selectedOrder.equipmentModel,
+              equipmentSerial: selectedOrder.equipmentSerial,
+              equipmentFamily: found?.familyName || '',
+              status: 'PENDING',
+              formData: selectedOrder.formData || {},
+              formId: selectedOrder.formId,
+              sortOrder: 0,
+              createdAt: selectedOrder.createdAt,
+            }];
+          }
+          setOsEquipments(list);
+        }
+      }).finally(() => setFormsTabLoading(false));
+    }
+  }, [activeTab, selectedOrder]);
+
+  const handleUpdateItem = (id: string, field: string, value: any) => {
+    setEditDraft(prev => {
+      const items = [...(prev.items || selectedOrder?.items || [])];
+      const idx = items.findIndex(i => i.id === id);
+      if (idx !== -1) {
+        const updated = { ...items[idx], [field]: value };
+        if (field === 'quantity' || field === 'unitPrice') {
+          updated.total = Number(updated.quantity || 0) * Number(updated.unitPrice || 0);
+        }
+        items[idx] = updated;
+      }
+      return { ...prev, items };
+    });
+  };
+
+  const handleAddItem = () => {
+    setEditDraft(prev => ({
+      ...prev,
+      items: [...(prev.items || selectedOrder?.items || []), {
+        id: 'new-' + Math.random().toString(36).substr(2, 9),
+        description: '',
+        quantity: 1,
+        unitPrice: 0,
+        total: 0,
+        fromStock: false
+      }]
+    }));
+  };
+
+  const handleRemoveItem = (id: string) => {
+    setEditDraft(prev => ({
+      ...prev,
+      items: (prev.items || selectedOrder?.items || []).filter(i => i.id !== id)
+    }));
+  };
+
+  const fetchStockForPicker = async () => {
+    setStockLoading(true);
+    try {
+      const items = await DataService.getStockItems();
+      setAllStockItems(items);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setStockLoading(false);
+    }
+  };
+
+  const handleAddStockItem = (item: any) => {
+    const newItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      description: item.description,
+      quantity: 1,
+      unitPrice: item.sellPrice || 0,
+      total: item.sellPrice || 0,
+      fromStock: true,
+      stockItemId: item.id
+    };
+
+    setEditDraft(prev => ({
+      ...prev,
+      items: [...(prev.items || selectedOrder?.items || []), newItem]
+    }));
+    setIsStockPickerOpen(false);
+  };
+
+  const handleManualAdd = () => {
+    setEditDraft(prev => ({
+      ...prev,
+      items: [...(prev.items || selectedOrder?.items || []), {
+        id: Math.random().toString(36).substr(2, 9),
+        description: '',
+        quantity: 1,
+        unitPrice: 0,
+        total: 0,
+        fromStock: false
+      }]
+    }));
+    setIsStockPickerOpen(false);
+  };
+
+  // Refresh de visitas quando a aba é aberta
+  useEffect(() => {
+    if (activeTab === 'visits' && selectedOrder) {
+      setVisitsLoading(true);
+      VisitService.getVisitsByOrderId(selectedOrder.id)
+        .then(setVisits)
+        .finally(() => setVisitsLoading(false));
+    }
+  }, [activeTab, selectedOrder]);
+
+  const handleStartEdit = () => {
+    if (!selectedOrder) return;
+    // Pre-fetch stock if needed
+    if (allStockItems.length === 0) fetchStockForPicker();
+
+    // Buscar Service Types dinamicamente do banco para popular o select de Modalidade
+    if (serviceTypes.length === 0) {
+      DataService.getServiceTypes().then(st => setServiceTypes(st || []));
+    }
+
+    setEditDraft({
+      title: selectedOrder.title,
+      description: selectedOrder.description,
+      customerName: selectedOrder.customerName,
+      customerAddress: selectedOrder.customerAddress,
+      scheduledDate: selectedOrder.scheduledDate,
+      scheduledTime: selectedOrder.scheduledTime,
+      notes: selectedOrder.notes,
+      priority: selectedOrder.priority,
+      operationType: selectedOrder.operationType,
+      items: selectedOrder.items || [],
+    });
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditDraft({});
+  };
+
+  const handleAddEquipment = async (eqId: string) => {
+    const eq = allEquipmentsCatalog.find(e => e.id === eqId);
+    if (!eq || !selectedOrder) return;
+
+    setEquipmentsLoading(true);
+    try {
+      const newEq = await VisitService.addEquipmentToOrder({
+        orderId: selectedOrder.id,
+        equipmentId: eq.id,
+        equipmentName: eq.model,
+        equipmentModel: eq.model,
+        equipmentSerial: eq.serialNumber,
+        equipmentFamily: eq.familyName || '',
+        formId: undefined
+      });
+
+      let newFormId = null;
+      const rules = activationRules.length > 0 ? activationRules : await FormService.getActivationRules();
+      const templates = formTemplatesAll.length > 0 ? formTemplatesAll : await FormService.getFormTemplates();
+      const types = serviceTypes.length > 0 ? serviceTypes : await DataService.getServiceTypes();
+
+      const matchedService = types.find((s: any) => s.name === selectedOrder.operationType);
+      const serviceTypeId = matchedService?.id || selectedOrder.operationType;
+
+      const rule = rules.find(r =>
+        (r.serviceTypeId === serviceTypeId || r.service_type_id === serviceTypeId) &&
+        (!r.equipmentFamily || r.equipmentFamily === 'Todos' || r.equipmentFamily === eq.familyName)
+      );
+
+      newFormId = rule?.formId || rule?.form_id || null;
+      if (!newFormId) {
+        const fallbackForm = templates.find((f: any) =>
+          (f.title || '').toLowerCase().includes((selectedOrder.operationType || '').toLowerCase()) ||
+          (f.serviceTypes || []).includes(selectedOrder.operationType || '')
+        );
+        newFormId = fallbackForm?.id || null;
+      }
+
+      if (newFormId) {
+        await VisitService.updateEquipmentFormId(newEq.id, newFormId);
+        newEq.formId = newFormId;
+      }
+
+      const newList = [...equipments, newEq];
+      setEquipments(newList);
+      setOsEquipments(newList);
+      ordersRefetch();
+    } catch (e: any) {
+      alert("Erro ao vincular equipamento: " + e.message);
+    } finally {
+      setEquipmentsLoading(false);
+    }
+  };
+
+  const handleRemoveEquipment = async (eqEntryId: string, isLast: boolean) => {
+    if (isLast) {
+      alert("Não é possível remover todos os ativos. Deixe ao menos um ativo ou cancele a OS.");
+      return;
+    }
+    if (!confirm("Tem certeza que deseja remover este equipamento desta OS? Formulários e checklists atrelados podem ser afetados.")) return;
+
+    setEquipmentsLoading(true);
+    try {
+      await VisitService.removeEquipmentFromOrder(eqEntryId);
+      const newList = equipments.filter(e => e.id !== eqEntryId);
+      setEquipments(newList);
+      setOsEquipments(newList);
+      ordersRefetch();
+    } catch (e: any) {
+      alert("Erro ao remover equipamento: " + e.message);
+    } finally {
+      setEquipmentsLoading(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedOrder) return;
+    setEditLoading(true);
+    try {
+      const updated = { ...selectedOrder, ...editDraft } as ServiceOrder;
+
+      // Se a modalidade (operationType) foi alterada, recalcular os templates dos equipamentos
+      if (editDraft.operationType && editDraft.operationType !== selectedOrder.operationType) {
+        try {
+          const rules = activationRules.length > 0 ? activationRules : await FormService.getActivationRules();
+          const templates = formTemplatesAll.length > 0 ? formTemplatesAll : await FormService.getFormTemplates();
+          const types = serviceTypes.length > 0 ? serviceTypes : await DataService.getServiceTypes();
+
+          const matchedService = types.find(s => s.name === updated.operationType);
+          const serviceTypeId = matchedService?.id || updated.operationType;
+
+          if (osEquipments.length > 0) {
+            for (const eq of osEquipments) {
+              const rule = rules.find(r =>
+                (r.serviceTypeId === serviceTypeId || r.service_type_id === serviceTypeId) &&
+                (!r.equipmentFamily || r.equipmentFamily === 'Todos' || r.equipmentFamily === eq.equipmentFamily)
+              );
+
+              let newFormId = rule?.formId || rule?.form_id || null;
+
+              if (!newFormId) {
+                const fallbackForm = templates.find(f =>
+                  (f.title || '').toLowerCase().includes((updated.operationType || '').toLowerCase()) ||
+                  (f.serviceTypes || []).includes(updated.operationType || '')
+                );
+                newFormId = fallbackForm?.id || null;
+              }
+
+              // Atualiza o formId da ordem (espelho do eq primário)
+              if (osEquipments.indexOf(eq) === 0) {
+                updated.formId = newFormId || undefined;
+              }
+
+              if (newFormId !== eq.formId) {
+                // Atualiza o ID do form no equipamento no bando de dados (se for eq real)
+                if (eq.id && typeof eq.id === 'string' && !eq.id.includes('_eq')) {
+                  await VisitService.updateEquipmentFormId(eq.id, newFormId);
+                }
+              }
+            }
+          } else {
+            // Caso não tenha equipment configurado na aba (OS muito antigas ou erro)
+            const fallbackForm = templates.find(f =>
+              (f.title || '').toLowerCase().includes((updated.operationType || '').toLowerCase()) ||
+              (f.serviceTypes || []).includes(updated.operationType || '')
+            );
+            updated.formId = fallbackForm?.id || undefined;
+          }
+        } catch (error) {
+          console.error('Erro ao re-vincular formulários na edição:', error);
+        }
+      }
+
+      await onEditOrder(updated);
+
+      // Re-fetch os equipamentos localmente para a UI atualizar as abas
+      if (editDraft.operationType && editDraft.operationType !== selectedOrder.operationType) {
+        const [soeList, catalog] = await Promise.all([
+          VisitService.getOrderEquipments(updated.id),
+          EquipmentService.getEquipments(),
+        ]);
+        const list = soeList.map((s: any) => {
+          const found = catalog.find(c => c.serialNumber === s.equipmentSerial || c.model === s.equipmentModel);
+          return { ...s, equipmentFamily: s.equipmentFamily || found?.familyName || '', formId: s.formId };
+        });
+        setOsEquipments(list);
+        setEquipments(list);
+      }
+
+      setSelectedOrder(updated);
+      setIsEditing(false);
+      setEditDraft({});
+      ordersRefetch();
+    } catch (e: any) {
+      alert(`Erro ao salvar: ${e.message}`);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleCreateVisit = async () => {
+    if (!selectedOrder || !newVisitDraft.technicianId || !newVisitDraft.scheduledDate) {
+      alert('Selecione o técnico e a data.');
+      return;
+    }
+    setSavingVisit(true);
+    try {
+      await VisitService.createNewVisit({
+        orderId: selectedOrder.id,
+        orderStatus: selectedOrder.status,
+        technicianId: newVisitDraft.technicianId,
+        scheduledDate: newVisitDraft.scheduledDate,
+        scheduledTime: newVisitDraft.scheduledTime,
+        notes: newVisitDraft.notes,
+      });
+      setShowNewVisitForm(false);
+      setNewVisitDraft({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' });
+      // Refresh visitas
+      const updatedVisits = await VisitService.getVisitsByOrderId(selectedOrder.id);
+      setVisits(updatedVisits);
+      // Sincroniza a OS via onEditOrder (caminho comprovado)
+      const updatedOrder: ServiceOrder = {
+        ...selectedOrder,
+        scheduledDate: newVisitDraft.scheduledDate,
+        scheduledTime: newVisitDraft.scheduledTime || selectedOrder.scheduledTime,
+        assignedTo: newVisitDraft.technicianId || selectedOrder.assignedTo,
+      };
+      await onEditOrder(updatedOrder);
+      setSelectedOrder(updatedOrder);
+      ordersRefetch();
+    } catch (e: any) {
+      const msg = (e.message || '').startsWith('INVALID_') ? e.message.split(': ')[1] : e.message;
+      alert(msg || 'Erro ao criar visita.');
+    } finally {
+      setSavingVisit(false);
+    }
+  };
+
+  const handleSaveVisitSchedule = async (visit: ServiceVisit) => {
+    if (!visitScheduleDraft.scheduledDate) {
+      alert('Informe a data do agendamento.');
+      return;
+    }
+    if (!selectedOrder) return;
+    setSavingSchedule(true);
+    try {
+      // ─── 1. Atualiza a visita via RPC ──────────────────────────────
+      const updatedVisit = await VisitService.updateVisitSchedule({
+        visitId: visit.id,
+        orderId: visit.orderId,
+        scheduledDate: visitScheduleDraft.scheduledDate,
+        scheduledTime: visitScheduleDraft.scheduledTime || undefined,
+        technicianId: visitScheduleDraft.technicianId || undefined,
+      });
+      setVisits(prev => prev.map(v => v.id === updatedVisit.id ? updatedVisit : v));
+
+      // ─── 2. Atualiza a OS via onEditOrder (CAMINHO COMPROVADO) ─────
+      // Mesmo fluxo que handleSaveEdit usa para salvar datas na aba Dados Gerais
+      const updatedOrder: ServiceOrder = {
+        ...selectedOrder,
+        scheduledDate: visitScheduleDraft.scheduledDate,
+        scheduledTime: visitScheduleDraft.scheduledTime || selectedOrder.scheduledTime,
+        assignedTo: visitScheduleDraft.technicianId || selectedOrder.assignedTo,
+      };
+      await onEditOrder(updatedOrder);
+
+      // ─── 3. Atualiza UI local imediatamente ───────────────────────
+      setSelectedOrder(updatedOrder);
+      setEditingVisitId(null);
+      ordersRefetch();
+    } catch (e: any) {
+      const msg = (e.message || '').replace(/^[A-Z_]+: /, '');
+      alert(msg || 'Erro ao salvar reagendamento.');
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+
+  const mapIdToLabel = (id: string): string => {
+    if (!selectedTemplate) return id;
+    const field = selectedTemplate.fields?.find((f: any) => f.id === id || f.label === id);
+    return field ? field.label : id;
+  };
+
+
+  const handleOpenPublicView = (order: ServiceOrder, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const publicUrl = `${window.location.origin}/#/order/view/${order.publicToken || order.id}`;
+    console.log('[AdminDashboard] Abrindo viewer público:', publicUrl);
+    window.open(publicUrl, '_blank');
+  };
+
+  const handleCancelOrder = async (order: ServiceOrder, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (order.status === OrderStatus.CANCELED) return;
+    if (!confirm('Tem certeza que deseja cancelar esta Ordem de Serviço? Esta ação bloqueará edições futuras.')) return;
+
+    await onEditOrder({ ...order, status: OrderStatus.CANCELED });
+  };
+
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '---';
+    const date = new Date(dateStr + 'T12:00:00');
+    return date.toLocaleDateString('pt-BR');
+  };
+
+  // Client-side sort da página atual (20 items — rápido e sem custo)
+  const sortedPageOrders = useMemo(() => {
+    if (!sortConfig.key) return pagedOrders;
+    return [...pagedOrders].sort((a, b) => {
+      let aValue: any = (a as any)[sortConfig.key!];
+      let bValue: any = (b as any)[sortConfig.key!];
+
+      if (sortConfig.key === 'assignedTo') {
+        aValue = techs.find(t => t.id === a.assignedTo)?.name || '';
+        bValue = techs.find(t => t.id === b.assignedTo)?.name || '';
+      }
+
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [pagedOrders, sortConfig, techs]);
+
+  // Select-all: seleciona apenas os itens da página atual (padrão Big Tech)
+  const toggleSelectAll = useCallback(() => {
+    const pageIds = sortedPageOrders.map(o => o.id);
+    const allSelected = pageIds.every(id => selectedOrderIds.includes(id));
+    if (allSelected) {
+      setSelectedOrderIds(prev => prev.filter(id => !pageIds.includes(id)));
+    } else {
+      setSelectedOrderIds(prev => Array.from(new Set([...prev, ...pageIds])));
+    }
+  }, [sortedPageOrders, selectedOrderIds]);
+
+  const handleFastFilter = (type: 'today' | 'week' | 'month') => {
+    const now = new Date();
+    const getLocalISO = (date: Date) => {
+      const offset = date.getTimezoneOffset() * 60000;
+      return new Date(date.getTime() - offset).toISOString().split('T')[0];
+    };
+    const today = getLocalISO(now);
+    if (type === 'today') onDateChange(today, today);
+    else if (type === 'week') {
+      const date = new Date(now); date.setDate(now.getDate() - 7);
+      onDateChange(getLocalISO(date), today);
+    } else if (type === 'month') {
+      const date = new Date(now); date.setMonth(now.getMonth() - 1);
+      onDateChange(getLocalISO(date), today);
+    }
+  };
+
+  return (
+    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50 overflow-hidden">
+      {/* Search & Filter Toolbar */}
+      <div className="mb-6 space-y-4">
+        {/* Row 1: Search & Date Filters */}
+        <div className="flex flex-col xl:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder="Pesquisar por protocolo, cliente ou descrição..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-11 bg-white border border-slate-200 rounded-xl pl-10 pr-4 text-sm font-medium text-slate-700 placeholder-slate-400 outline-none focus:ring-4 focus:ring-primary-500/5 focus:border-primary-500 transition-all shadow-sm"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-md shadow-sm">
+            <div className="flex items-center px-3 py-1.5 border-r border-slate-100">
+              <select
+                value={dateTypeFilter}
+                onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
+                className="bg-transparent text-xs font-semibold text-slate-600 outline-none cursor-pointer"
+              >
+                <option value="scheduled">Agendamento</option>
+                <option value="created">Abertura</option>
+                <option value="completed">Conclusão</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 px-2">
+              <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent border-none text-xs font-medium text-slate-600 outline-none focus:text-slate-900" />
+              <span className="text-xs text-slate-300 font-medium">até</span>
+              <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent border-none text-xs font-medium text-slate-600 outline-none focus:text-slate-900" />
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Secondary Filters & Actions */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center bg-white border border-slate-200 rounded-md pl-3 pr-1 h-10 min-w-[160px] shadow-sm">
+            <Filter size={14} className="text-slate-400 mr-2" />
+            <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="ALL">Status: Todos</option>
+              {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center bg-white border border-slate-200 rounded-md pl-3 pr-1 h-10 min-w-[160px] shadow-sm">
+            <UserCheck size={14} className="text-slate-400 mr-2" />
+            <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
+              <option value="ALL">Técnico: Todos</option>
+              {/* value = techId — filtros server-side usam o UUID diretamente */}
+              {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
+              onDateChange('', '');
+              setSelectedOrderIds([]);
+            }}
+            className="h-10 px-4 text-xs font-bold text-slate-500 hover:text-slate-700"
+          >
+            Limpar Filtros
+          </Button>
+
+          <div className="flex items-center gap-3 ml-auto">
+            {/* Exportação Geral (Baseada em Filtros) */}
+            {selectedOrderIds.length === 0 && (
+              <div className="flex items-center gap-2 mr-2">
+                <button
+                  onClick={handleExportExcel}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100/50"
+                  title="Exportar Filtrados para Excel"
+                >
+                  <FileSpreadsheet size={14} /> Exportar Excel
+                </button>
+              </div>
+            )}
+
+            {/* Ações em Lote (Seleção) */}
+            {selectedOrderIds.length > 0 && (
+              <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-900 rounded-[1.5rem] shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100">
+                <div className="flex flex-col pr-3 border-r border-slate-700">
+                  <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Selecionados</span>
+                  <span className="text-xs font-black text-white leading-none">{selectedOrderIds.length}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportExcel}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                    title="Exportar Seleção para Excel"
+                  >
+                    <FileSpreadsheet size={14} /> Excel
+                  </button>
+
+                  <button
+                    onClick={handleBatchPrint}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-slate-500/20 active:scale-95"
+                    title="Gerar PDF / Imprimir Seleção"
+                  >
+                    <FileText size={14} /> Exportar PDF
+                  </button>
+
+                  <div className="w-px h-6 bg-slate-700 mx-1" />
+
+                  <button
+                    onClick={() => setSelectedOrderIds([])}
+                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
+                    title="Limpar Seleção"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <Button
+              variant="primary"
+              className="h-10 px-6 gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
+              onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
+            >
+              <Plus size={16} /> Novo Atendimento
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Table Container - Premium Look */}
+      <div className="bg-white border border-slate-200/60 rounded-xl shadow-sm flex flex-col overflow-hidden flex-1 ring-1 ring-slate-100">
+        <div className="flex-1 overflow-auto custom-scrollbar">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 shadow-sm">
+              <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-left">
+                <th className="px-3 py-2 w-12 text-center text-slate-400">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                    checked={sortedPageOrders.length > 0 && sortedPageOrders.every(o => selectedOrderIds.includes(o.id))}
+                    onChange={toggleSelectAll}
+                    title="Selecionar página atual"
+                  />
+                </th>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
+                  <div className="flex items-center gap-1">Protocolo {getSortIcon('displayId')}</div>
+                </th>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
+                  <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
+                </th>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
+                  <div className="flex items-center gap-1">Abertura {getSortIcon('createdAt')}</div>
+                </th>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
+                  <div className="flex items-center gap-1">Cliente {getSortIcon('customerName')}</div>
+                </th>
+                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('assignedTo')}>
+                  <div className="flex items-center justify-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
+                </th>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
+                  <div className="flex items-center gap-1">Modalidade {getSortIcon('operationType')}</div>
+                </th>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('endDate')}>
+                  <div className="flex items-center gap-1">Conclusão {getSortIcon('endDate')}</div>
+                </th>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
+                  <div className="flex items-center gap-1">Status {getSortIcon('status')}</div>
+                </th>
+                <th className="px-3 py-2 text-right pr-4">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {ordersLoading ? (
+                <tr>
+                  <td colSpan={10} className="py-24 text-center">
+                    <div className="flex flex-col items-center gap-3 text-slate-400">
+                      <Loader2 size={28} className="animate-spin text-primary-400" />
+                      <p className="text-xs font-bold uppercase tracking-widest">Carregando ordens...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : sortedPageOrders.length > 0 ? sortedPageOrders.map(order => {
+                const isSelected = selectedOrderIds.includes(order.id);
+                const assignedTech = techs.find(t => t.id === order.assignedTo);
+                return (
+                  <tr
+                    key={order.id}
+                    className={`transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer ${isSelected ? 'bg-indigo-50/40' : 'bg-white hover:bg-slate-50'}`}
+                    onClick={() => setSelectedOrder(order)}
+                  >
+                    <td className="px-3 py-2 text-center shrink-0 w-12" onClick={(e) => { e.stopPropagation(); setSelectedOrderIds(prev => prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]); }}>
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                        checked={isSelected}
+                        readOnly
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="font-bold text-slate-700 text-[11px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 group-hover:bg-white group-hover:border-slate-300 transition-colors">
+                        {order.displayId || order.id}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-[11px] font-semibold text-slate-700 whitespace-nowrap">
+                      {formatDateDisplay(order.scheduledDate)}
+                    </td>
+                    <td className="px-3 py-2 text-[11px] text-slate-500 font-medium uppercase tracking-wide whitespace-nowrap">
+                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
+                    </td>
+                    <td className="px-3 py-2 font-bold text-xs text-slate-800 tracking-tight truncate max-w-[160px]">
+                      {order.customerName}
+                    </td>
+
+                    <td className="px-3 py-2">
+                      <div className="flex justify-center">
+                        {assignedTech ? (
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-sm transition-all shrink-0">
+                            <img src={assignedTech.avatar} className="w-4 h-4 rounded-full object-cover shadow-sm" />
+                            <span className="text-[9px] font-black text-slate-600 uppercase truncate max-w-[60px]">{assignedTech?.name?.split(' ')[0]}</span>
+                          </div>
+                        ) : <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">-</span>}
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                      {order.operationType || '---'}
+                    </td>
+                    <td className="px-3 py-2 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                      {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
+                    </td>
+
+                    <td className="px-3 py-2 whitespace-nowrap"><StatusBadge status={order.status} /></td>
+                    <td className="px-3 py-2 text-right pr-4">
+                      <div className="flex items-center justify-end gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
+                        <button
+                          onClick={(e) => handleOpenPublicView(order, e)}
+                          className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 hover:border-primary-600 transition-all shadow-sm"
+                          title="Compartilhar Link Público"
+                        >
+                          <Share2 size={16} />
+                        </button>
+                        <button
+                          onClick={(e) => handleCancelOrder(order, e)}
+                          disabled={order.status === OrderStatus.CANCELED || order.status === OrderStatus.COMPLETED}
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all disabled:opacity-0"
+                          title="Cancelar"
+                        >
+                          <Ban size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }) : (
+                <tr>
+                  <td colSpan={10} className="py-32 text-center bg-slate-50/30">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
+                      <Search size={24} className="text-slate-300" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Nenhuma atividade localizada</p>
+                    <p className="text-xs text-slate-400 font-medium mt-1">Ajuste os filtros para encontrar o que procura</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalOrders}
+          itemsPerPage={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+        />
+      </div>
+
+      {isCreateModalOpen && (
+        <CreateOrderModal
+          onClose={() => setIsCreateModalOpen(false)}
+          initialData={orderToEdit || undefined}
+          onSubmit={async (data) => {
+            if (orderToEdit) {
+              await onEditOrder({ ...orderToEdit, ...data } as ServiceOrder);
+              return orderToEdit;
+            } else {
+              const created = await onCreateOrder(data);
+              return created;
+            }
+          }}
+        />
+      )}
+
+      {selectedOrder && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+
+            {/* HEADER */}
+            <div className={`px-6 py-5 border-b border-slate-100 flex justify-between items-center shrink-0 transition-colors ${isEditing ? 'bg-blue-50' : 'bg-white'}`}>
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-colors ${isEditing ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                  {isEditing ? <Edit3 size={18} /> : <FileText size={20} />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-base font-bold text-slate-900">Ordem de Serviço #{selectedOrder.displayId || selectedOrder.id}</h2>
+                    <StatusBadge status={selectedOrder.status} />
+                    {isEditing && (
+                      <span className="text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
+                        Modo Edição
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    {isEditing ? (editDraft.customerName || selectedOrder.customerName) : selectedOrder.customerName} • {isEditing ? (editDraft.customerAddress || selectedOrder.customerAddress) : selectedOrder.customerAddress}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Botões de salvamento — aparecem automaticamente se em modo de edição */}
+
+                {isEditing && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelEdit}
+                      disabled={editLoading}
+                      className="h-9 px-4 gap-2 text-slate-500"
+                    >
+                      <X size={14} /> Cancelar
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleSaveEdit}
+                      disabled={editLoading}
+                      className="h-9 px-5 gap-2 bg-primary-600 hover:bg-primary-700 shadow-md shadow-primary-500/20"
+                    >
+                      {editLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      Salvar
+                    </Button>
+                  </>
+                )}
+
+                {!isEditing && (
+                  <>
+                    {/* Botão de Edição Explícito */}
+                    {selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleStartEdit}
+                        className="h-9 px-4 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                      >
+                        <Edit3 size={14} /> Editar OS
+                      </Button>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handlePrintOrder(selectedOrder.id)}
+                      className="h-9 px-4 gap-2"
+                    >
+                      <Printer size={14} /> Imprimir PDF
+                    </Button>
+                  </>
+                )}
+                <div className="h-6 w-px bg-slate-200 mx-2"></div>
+                <button onClick={() => { setSelectedOrder(null); setIsEditing(false); }} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* TABS */}
+            <div className="px-6 border-b border-slate-100 bg-white flex gap-6 shrink-0 overflow-x-auto">
+              {[
+                { id: 'overview', label: 'Dados Gerais', icon: LayoutDashboard },
+                { id: 'equipments', label: `Equipamentos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
+                { id: 'forms', label: 'Formulários', icon: ClipboardList },
+                { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
+                { id: 'history', label: `Histórico${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: History },
+                { id: 'media', label: 'Galeria', icon: Camera },
+                { id: 'costs', label: 'Peças e Custos', icon: DollarSign },
+                { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-2 py-4 text-xs font-semibold border-b-2 transition-all whitespace-nowrap
+                    ${activeTab === tab.id ? 'border-primary-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                >
+                  <tab.icon size={15} /> {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* CONTENT AREA */}
+            <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 custom-scrollbar">
+
+              {/* TAB: VISÃO GERAL */}
+              {activeTab === 'overview' && (
+                <div className="grid grid-cols-12 gap-8">
+                  {/* Left Column: Details */}
+                  <div className="col-span-12 lg:col-span-8 space-y-6">
+                    {/* Info Card Grid */}
+                    <div className={`bg-white p-6 rounded-lg border shadow-sm transition-all ${isEditing ? 'border-blue-200 ring-2 ring-blue-100' : 'border-slate-200'}`}>
+                      <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                        <UserIcon size={18} className="text-slate-400" /> Informações do Cliente
+                        {isEditing && <span className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-widest ml-auto">🔒 Não editável</span>}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cliente / Razão Social</label>
+                          {/* Cliente é estruturalmente fixo — não pode ser alterado */}
+                          <div className="text-sm font-semibold text-slate-900">{selectedOrder.customerName}</div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Endereço de Atendimento</label>
+                          {isEditing
+                            ? <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
+                            : <div className="text-sm text-slate-600 font-medium leading-relaxed">{selectedOrder.customerAddress || 'Não informado'}</div>
+                          }
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Agendamento (Visita)</label>
+                          <div className="text-sm text-slate-400 font-medium italic flex items-center gap-2">
+                            <Clock size={14} /> Gerenciado na aba Visitas
+                          </div>
+                        </div>
+                        <div className="space-y-1.5 opacity-50">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cronograma Atual</label>
+                          <div className="text-sm text-slate-600 font-bold">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Modalidade do Atendimento</label>
+                          {isEditing
+                            ? (
+                              <select
+                                className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all cursor-pointer"
+                                value={editDraft.operationType || ''}
+                                onChange={e => setEditDraft(d => ({ ...d, operationType: e.target.value }))}
+                              >
+                                {serviceTypes.length > 0 ? (
+                                  serviceTypes.map(type => (
+                                    <option key={type.id || type.name} value={type.name}>{type.name}</option>
+                                  ))
+                                ) : (
+                                  <option value={selectedOrder.operationType}>{selectedOrder.operationType || 'Carregando opções...'}</option>
+                                )}
+                              </select>
+                            )
+                            : <div className="text-sm text-slate-600 font-medium leading-relaxed">{selectedOrder.operationType || 'Não informada'}</div>
+                          }
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={`bg-white p-6 rounded-lg border shadow-sm transition-all ${isEditing ? 'border-blue-200 ring-2 ring-blue-100' : 'border-slate-200'}`}>
+                      <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                        <FileText size={18} className="text-slate-400" /> Relatório de Atendimento
+                      </h3>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Descrição das Atividades</label>
+                          {isEditing
+                            ? <textarea rows={5} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
+                            : <div className="p-4 bg-slate-50/50 rounded-md border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[120px] font-medium">{selectedOrder.description || "Nenhuma observação técnica registrada."}</div>
+                          }
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Notas Internas</label>
+                          {isEditing
+                            ? <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" placeholder="Notas opcionais..." value={editDraft.notes ?? ''} onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))} />
+                            : selectedOrder.notes && (
+                              <div className="p-4 bg-primary-50 border border-primary-100 rounded-md">
+                                <label className="text-[11px] font-bold text-[#1c2d4f] uppercase tracking-wider flex items-center gap-2 mb-2">
+                                  <ShieldCheck size={14} /> Notas de Encerramento
+                                </label>
+                                <p className="text-sm font-medium text-slate-700 leading-relaxed">{selectedOrder.notes}</p>
+                              </div>
+                            )
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Metadata */}
+                  <div className="col-span-12 lg:col-span-4 space-y-6">
+                    {/* Dates Card */}
+                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><Clock size={16} className="text-slate-400" /> Cronograma</h3>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                          <span className="text-xs font-semibold text-slate-400">Abertura</span>
+                          <span className="text-xs font-bold text-slate-700">{new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                          <span className="text-xs font-semibold text-slate-400">Agendamento</span>
+                          <span className="text-xs font-bold text-[#1c2d4f]">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</span>
+                        </div>
+                        <div className="p-3 bg-emerald-50 rounded-md border border-emerald-100">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-[10px] font-bold text-emerald-600 uppercase">Execução</span>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[11px] font-medium text-emerald-800">
+                              <span>Início</span>
+                              <span>{selectedOrder.startDate ? new Date(selectedOrder.startDate).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '--/--'}</span>
+                            </div>
+                            <div className="flex justify-between text-[11px] font-medium text-emerald-800">
+                              <span>Término</span>
+                              <span>{selectedOrder.endDate ? new Date(selectedOrder.endDate).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '--/--'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tech Card */}
+                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><UserCheck size={16} className="text-slate-400" /> Recursos</h3>
+                      {(() => {
+                        const tech = techs.find(t => t.id === selectedOrder.assignedTo);
+                        return tech ? (
+                          <div className="flex items-center gap-4">
+                            <img src={tech.avatar} className="w-12 h-12 rounded-full border border-slate-100 object-cover" />
+                            <div>
+                              <div className="text-sm font-bold text-slate-900">{tech.name}</div>
+                              <div className="text-xs font-medium text-slate-500">Técnico de Campo</div>
+                            </div>
+                          </div>
+                        ) : <span className="text-xs text-slate-400 font-medium">Nenhum técnico atribuído</span>;
+                      })()}
+                    </div>
+
+                    {/* Equipamentos agora exibidos na aba dedicada — removido daqui */}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: EQUIPAMENTOS VINCULADOS */}
+              {activeTab === 'equipments' && (() => {
+                // Fonte: campos da OS + catálogo de equipamentos
+                const eqList = equipments;
+                const hasAny = eqList.length > 0;
+
+                return (
+                  <div className="max-w-4xl mx-auto space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">
+                          {equipmentsLoading
+                            ? 'Carregando...'
+                            : hasAny
+                              ? `${eqList.length} equipamento${eqList.length !== 1 ? 's' : ''} vinculado${eqList.length !== 1 ? 's' : ''}`
+                              : 'Nenhum equipamento vinculado'}
+                        </h3>
+                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">Ativos associados a esta OS</p>
+                      </div>
+
+                      {isEditing && (
+                        <div className="flex gap-2">
+                          <select
+                            className="text-xs font-semibold bg-white border border-slate-200 text-slate-600 rounded-lg px-3 py-2 outline-none max-w-[280px] shadow-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-300 transition-all cursor-pointer"
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleAddEquipment(e.target.value);
+                                e.target.value = '';
+                              }
+                            }}
+                          >
+                            <option value="">+ Adicionar Equipamento</option>
+                            {allEquipmentsCatalog
+                              .filter((e: any) => e.customerId === customers.find(c => c.name === selectedOrder.customerName)?.id && !eqList.some((osEq: any) => osEq.equipmentId === e.id))
+                              .map((e: any) => (
+                                <option key={e.id} value={e.id}>{e.model} ({e.serialNumber || 'Sem Série'})</option>
+                              ))
+                            }
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {equipmentsLoading ? (
+                      <div className="flex items-center justify-center py-16 gap-3">
+                        <Loader2 size={22} className="animate-spin text-primary-400" />
+                        <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Buscando equipamentos...</span>
+                      </div>
+                    ) : !hasAny ? (
+                      <div className="bg-white border border-dashed border-slate-200 rounded-xl py-16 text-center">
+                        <Box size={40} className="mx-auto text-slate-200 mb-4" />
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum equipamento cadastrado nesta OS</p>
+                        <p className="text-[11px] text-slate-300 font-medium mt-1">O equipamento é vinculado durante a criação da OS</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {eqList.map((eq: any, idx: number) => {
+                          const eqPrefix = `[${eq.equipmentModel || eq.equipmentName || 'Equipamento'}`;
+                          const hasFormData = Object.keys(selectedOrder.formData || {}).some(k => k.startsWith(eqPrefix)) || !!(eq.formData && Object.keys(eq.formData).length > 0);
+                          const isActive = selectedOrder.status !== 'CONCLUÍDO' && selectedOrder.status !== 'CANCELADO';
+                          return (
+                            <div key={eq.id || idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-primary-200 transition-all">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="w-10 h-10 bg-primary-50 border border-primary-100 rounded-lg flex items-center justify-center shrink-0">
+                                  <Box size={18} className="text-primary-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold text-slate-900 truncate">{eq.equipmentName}</p>
+                                  {eq.equipmentModel && eq.equipmentModel !== eq.equipmentName && (
+                                    <p className="text-[11px] text-slate-500 font-medium">{eq.equipmentModel}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isActive ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                    {isActive ? 'Ativo' : 'Concluído'}
+                                  </span>
+                                  {isEditing && (
+                                    <button
+                                      onClick={() => handleRemoveEquipment(eq.id, eqList.length <= 1)}
+                                      className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                      title="Remover ativo da OS"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                                {eq.equipmentSerial && eq.equipmentSerial !== '-' && (
+                                  <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Série / Patrimônio</p>
+                                    <p className="text-xs font-bold text-slate-700 font-mono mt-0.5">{eq.equipmentSerial}</p>
+                                  </div>
+                                )}
+                                {eq.equipmentFamily && (
+                                  <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Família</p>
+                                    <p className="text-xs font-bold text-slate-700 mt-0.5">{eq.equipmentFamily}</p>
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Formulário respondido</p>
+                                  <p className={`text-xs font-bold mt-0.5 ${hasFormData ? 'text-emerald-600' : 'text-amber-500'}`}>
+                                    {hasFormData ? '✓ Sim' : '○ Pendente'}
+                                  </p>
+                                </div>
+                                {eq.formId && (
+                                  <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Template</p>
+                                    <p className="text-xs font-bold text-slate-700 font-mono mt-0.5">{String(eq.formId).slice(0, 8)}…</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* TAB: FORMULÁRIOS — 1 bloco por equipamento */}
+              {activeTab === 'forms' && (() => {
+                const opType = selectedOrder.operationType || '';
+                const allFormData: Record<string, any> = {
+                  ...(selectedOrder.formData || {}),
+                  ...orderVisits.reduce((acc: any, v: any) => ({ ...acc, ...(v.formData || {}) }), {}),
+                };
+
+                // Resolve o template correto para um dado equipamento
+                const resolveTemplate = (eqFamily: string) => {
+                  const rules = activationRules.filter(r => {
+                    const typeMatch = !r.serviceTypeId || r.serviceTypeId === opType;
+                    const famMatch = !r.equipmentFamily || r.equipmentFamily === 'Todos' || r.equipmentFamily === eqFamily;
+                    return typeMatch && famMatch;
+                  });
+                  const ids = [...new Set(rules.map((r: any) => r.formId).filter(Boolean))];
+                  let matchedTemplates = formTemplatesAll.filter((t: any) => ids.includes(t.id));
+
+                  // ── REPLICA O FALLBACK DO APP MOBILE ── 
+                  // Se não encontrou template via regras explícitas, tenta pelo titulo ou serviceType (como o execute.tsx faz)
+                  if (matchedTemplates.length === 0 && opType) {
+                    const fallback = formTemplatesAll.find((t: any) =>
+                      t.title.toLowerCase().includes(opType.toLowerCase()) ||
+                      (t.serviceTypes && t.serviceTypes.includes(opType))
+                    );
+                    if (fallback) matchedTemplates = [fallback];
+                  }
+
+                  return matchedTemplates;
+                };
+
+                // Garante que formId direto da OS apareça quando não há regras
+                const osFallbackTemplate = selectedOrder.formId
+                  ? formTemplatesAll.filter((t: any) => t.id === selectedOrder.formId)
+                  : [];
+
+                const renderFields = (fields: any[]) =>
+                  fields.length === 0 ? (
+                    <div className="px-6 py-8 text-center">
+                      <p className="text-[11px] text-slate-400 font-medium">Formulário sem perguntas configuradas</p>
+                    </div>
+                  ) : fields.map((field: any) => {
+                    const answer = allFormData[field.id];
+                    const hasAnswer = answer !== undefined && answer !== null && answer !== '';
+                    const isImage = typeof answer === 'string' && (answer.startsWith('http') || answer.startsWith('data:image'));
+                    const isImageArray = Array.isArray(answer) && answer.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image')));
+                    const isOk = String(answer).toLowerCase() === 'ok' || String(answer).toLowerCase() === 'sim';
+                    return (
+                      <div key={field.id} className={`px-6 py-3.5 flex justify-between gap-6 items-center transition-colors ${!hasAnswer ? 'bg-blue-50/30' : 'hover:bg-slate-50/50'}`}>
+                        <div className="flex-1">
+                          <p className="text-[13px] font-medium text-slate-700">{field.label || field.id}</p>
+                          {field.type && <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">{field.type}</p>}
+                        </div>
+                        {isImage ? (
+                          <img src={answer} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(answer)} alt="foto" />
+                        ) : isImageArray ? (
+                          <div className="flex gap-2">
+                            {(answer as string[]).map((img, i) => (
+                              <img key={i} src={img} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(img)} alt="foto" />
+                            ))}
+                          </div>
+                        ) : hasAnswer ? (
+                          <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{String(answer)}</div>
+                        ) : (
+                          <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest px-2.5 py-1 border border-dashed border-blue-200 rounded-md min-w-[60px] text-center">Pendente</div>
+                        )}
+                      </div>
+                    );
+                  });
+
+                const renderTemplateBlock = (template: any, eq?: any) => {
+                  const fields: any[] = template.fields || [];
+                  const isFinalized = ['CONCLUÍDO', 'CANCELADO'].includes(selectedOrder.status);
+
+                  // ── OS FINALIZADA: exibe respostas gravadas sem depender do template atual ──
+                  // Garante imutabilidade: qualquer alteração no template NÃO afeta OSs concluídas.
+                  if (isFinalized) {
+                    const SYSTEM_KEYS = new Set([
+                      'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+                      'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+                      'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+                      'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+                      'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
+                      'clientName', 'customerName', 'customerAddress', 'tenantId',
+                      'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+                      'extra_photos', 'photos', 'equipment_ids'
+                    ]);
+                    const isSignatureKey = (k: string) =>
+                      k.toLowerCase().includes('assinatura') ||
+                      k.toLowerCase().includes('signature') ||
+                      k.toLowerCase().includes('cpf') ||
+                      k.toLowerCase().includes('nascimento');
+
+                    const validFieldLabels = template.fields
+                      .filter((f: any) => f.type !== 'LOGIC' && f.type !== 'CONDITIONAL' && !f.id?.toLowerCase().includes('logic'))
+                      .map((f: any) => f.label.toLowerCase().trim());
+
+                    const savedEntries = Object.entries(allFormData)
+                      .filter(([k]) => !SYSTEM_KEYS.has(k) && !isSignatureKey(k))
+                      .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true))
+                      .filter(([k]) => {
+                        const cleanKey = k.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ').toLowerCase().trim();
+                        return validFieldLabels.includes(cleanKey);
+                      });
+
+                    const isOk = (v: any) => String(v).toLowerCase() === 'ok' || String(v).toLowerCase() === 'sim';
+                    const isImg = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'));
+                    const isImgArray = (v: any) => Array.isArray(v) && v.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image')));
+
+                    return (
+                      <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-emerald-50">
+                          <div className="w-8 h-8 bg-white border border-emerald-200 rounded-lg flex items-center justify-center">
+                            <ClipboardList size={14} className="text-emerald-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{template.title}</p>
+                            {eq && (
+                              <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                {eq.equipmentName}{eq.equipmentFamily ? ` · ${eq.equipmentFamily}` : ''}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border bg-emerald-50 text-emerald-600 border-emerald-100">
+                            🔒 Concluído — dados preservados
+                          </span>
+                        </div>
+                        <div className="divide-y divide-slate-50">
+                          {savedEntries.length === 0 ? (
+                            <div className="px-6 py-8 text-center">
+                              <p className="text-[11px] text-slate-400 font-medium">Nenhuma resposta registrada</p>
+                            </div>
+                          ) : savedEntries.map(([key, val]) => (
+                            <div key={key} className="px-6 py-3.5 flex justify-between gap-6 items-center hover:bg-slate-50/50">
+                              <p className="text-[13px] font-medium text-slate-700 flex-1">
+                                {!isNaN(Number(key)) ? `Pergunta ${key}` : key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ')}
+                              </p>
+                              {isImg(val) ? (
+                                <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(String(val))} alt="foto" />
+                              ) : isImgArray(val) ? (
+                                <div className="flex gap-2">
+                                  {(val as string[]).map((img, i) => (
+                                    <img key={i} src={img} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(img)} alt="foto" />
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk(val) ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'
+                                  }`}>{Array.isArray(val) ? String(val).replace(/,/g, ', ') : String(val)}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // ── OS em andamento: usa template atual normalmente ──
+                  const answered = fields.filter(f => allFormData[f.id] !== undefined && allFormData[f.id] !== '').length;
+                  const isComplete = answered === fields.length && fields.length > 0;
+                  const isPending = answered === 0;
+                  return (
+                    <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                      <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50">
+                        <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
+                          <ClipboardList size={14} className="text-slate-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{template.title}</p>
+                          {eq && (
+                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                              {eq.equipmentName}{eq.equipmentFamily ? ` · ${eq.equipmentFamily}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[9px] font-black text-slate-400 uppercase">{answered}/{fields.length} resp.</span>
+                          <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isComplete ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                            : isPending ? 'bg-blue-50 text-blue-600 border-amber-100'
+                              : 'bg-blue-50 text-blue-600 border-blue-100'
+                            }`}>
+                            {isComplete ? '✓ Concluído' : isPending ? '○ Pendente' : '◑ Parcial'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-slate-50">{renderFields(fields)}</div>
+                    </div>
+                  );
+                };
+
+                return (
+                  <div className="max-w-4xl mx-auto space-y-8">
+                    {/* Alerta de impedimento */}
+                    {selectedOrder.status === 'IMPEDIDO' && (
+                      <div className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
+                        <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
+                        <div>
+                          <h4 className="text-sm font-bold text-rose-900">Serviço Impedido</h4>
+                          <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.'}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {formsTabLoading ? (
+                      <div className="flex items-center justify-center py-16 gap-3">
+                        <Loader2 size={22} className="animate-spin text-primary-400" />
+                        <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando formulários...</span>
+                      </div>
+                    ) : osEquipments.length > 0 ? (
+                      /* ── Modo multi-equipamento: 1 seção por equipamento ── */
+                      osEquipments.map((eq: any, eqIdx: number) => {
+                        const templates = resolveTemplate(eq.equipmentFamily || '');
+                        const effectiveTemplates = templates.length > 0 ? templates : osFallbackTemplate;
+                        return (
+                          <div key={eq.id || eqIdx} className="space-y-4">
+                            {/* Cabeçalho do equipamento */}
+                            <div className="flex items-center gap-3">
+                              <div className="w-7 h-7 bg-primary-50 border border-primary-100 rounded-md flex items-center justify-center">
+                                <Box size={13} className="text-primary-400" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{eq.equipmentName}</p>
+                                {eq.equipmentFamily && <p className="text-[10px] text-slate-400 font-medium">{eq.equipmentFamily}</p>}
+                              </div>
+                              <span className="ml-auto text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                {effectiveTemplates.length} formulário{effectiveTemplates.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+
+                            {effectiveTemplates.length > 0
+                              ? effectiveTemplates.map((t: any) => renderTemplateBlock(t, eq))
+                              : (
+                                <div className="bg-white border border-dashed border-slate-200 rounded-xl py-10 text-center">
+                                  <ClipboardList size={28} className="mx-auto text-slate-200 mb-3" />
+                                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Sem formulário vinculado</p>
+                                  <p className="text-[10px] text-slate-300 mt-1">Tipo: {opType || '—'} · Família: {eq.equipmentFamily || '—'}</p>
+                                </div>
+                              )
+                            }
+                          </div>
+                        );
+                      })
+                    ) : (
+                      /* ── Fallback: sem equipamentos carregados ── */
+                      osFallbackTemplate.length > 0
+                        ? osFallbackTemplate.map((t: any) => renderTemplateBlock(t))
+                        : (
+                          <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm">
+                            <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento</p>
+                            <p className="text-[11px] text-slate-300 mt-1 font-medium">Nenhuma regra configurada para &quot;{opType}&quot;</p>
+                          </div>
+                        )
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* TAB: EXECUÇÃO (CHECKLIST) — mantido para backward compat */}
+              {activeTab === 'execution' && (
+                <div className="max-w-4xl mx-auto space-y-6">
+                  {selectedOrder.status === 'IMPEDIDO' && (
+                    <div className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
+                      <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0">
+                        <AlertTriangle size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-rose-900">Serviço Impedido</h4>
+                        <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado pelo técnico.'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Agrupar e Renderizar os Checklists de Todas as Visitas */}
+                  {(() => {
+                    const validVisits = orderVisits
+                      .filter(v => ['completed', 'paused'].includes(v.status) && v.formData && Object.keys(v.formData).length > 0)
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+                    const osFormData = selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0 ? selectedOrder.formData : null;
+
+                    if (validVisits.length === 0 && !osFormData) {
+                      return (
+                        <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden mb-6">
+                          <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento do checklist</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-6">
+                        {/* 1. VISITAS REGISTRADAS */}
+                        {validVisits.map((visit, index) => {
+                          const vFormData = visit.formData || {};
+                          return (
+                            <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                              <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                                <div>
+                                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                    Visita concluída em {new Date(visit.updatedAt || visit.createdAt).toLocaleString()}
+                                  </h3>
+                                  <p className="text-[10px] text-slate-500 font-medium">Status da Visita: {visit.status}</p>
+                                </div>
+                                <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
+                                  {Object.keys(vFormData).length} Itens
+                                </span>
+                              </div>
+                              <div className="divide-y divide-slate-50">
+                                {Object.entries(vFormData).filter(([key, val]) => {
+                                  if (Array.isArray(val)) return false;
+                                  if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) return false;
+                                  if (key.includes('Assinatura') || key.includes('impediment')) return false;
+                                  if (['signature', 'signatureName', 'signatureDoc', 'finishedAt'].includes(key)) return false;
+                                  return true;
+                                }).map(([key, val]) => (
+                                  <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
+                                    <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
+                                    <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                      {String(val)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* 2. DADOS DO FORMULÁRIO MASTER (SE NÃO ESTIVEREM NAS VISITAS) */}
+                        {osFormData && (
+                          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Dados Globais do Formulário (OS)</h3>
+                              <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
+                                {Object.keys(osFormData).length} Itens
+                              </span>
+                            </div>
+                            <div className="divide-y divide-slate-50">
+                              {Object.entries(osFormData).filter(([key, val]) => {
+                                if (Array.isArray(val)) return false;
+                                if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image'))) return false;
+                                if (key.includes('Assinatura') || key.includes('impediment')) return false;
+                                if (['signature', 'signatureName', 'signatureDoc', 'finishedAt', 'technical_report', 'parts_used'].includes(key)) return false;
+                                return true;
+                              }).map(([key, val]) => (
+                                <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
+                                  <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
+                                  <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                    {String(val)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* TAB: MÍDIAS */}
+              {activeTab === 'media' && (
+                <div className="space-y-8">
+                  {/* Combina fotos da OS e das visitas concluídas/pausadas */}
+                  {(() => {
+                    const allForms: any[] = [];
+                    if (selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) {
+                      allForms.push(selectedOrder.formData);
+                    }
+                    orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
+
+                    const extractedPhotos: { key: string, url: string }[] = [];
+                    allForms.forEach(form => {
+                      Object.entries(form).forEach(([key, val]) => {
+                        if (Array.isArray(val)) val.forEach(url => { if (typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:image'))) extractedPhotos.push({ key, url }) });
+                        else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image')) && !key.toLowerCase().includes('assinat') && !key.toLowerCase().includes('sign')) {
+                          extractedPhotos.push({ key, url: val });
+                        }
+                      });
+                    });
+
+                    const groupedPhotos = extractedPhotos.reduce((acc, curr) => {
+                      const displayKey = mapIdToLabel(curr.key);
+                      if (!acc[displayKey]) acc[displayKey] = [];
+                      // Evitar duplicatas exatas de URL no mesmo grupo
+                      if (!acc[displayKey].includes(curr.url)) {
+                        acc[displayKey].push(curr.url);
+                      }
+                      return acc;
+                    }, {} as Record<string, string[]>);
+
+                    const groupKeys = Object.keys(groupedPhotos);
+
+                    if (groupKeys.length === 0) {
+                      return (
+                        <div className="py-20 text-center bg-white border border-slate-200 rounded-lg">
+                          <Camera className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Nenhuma evidência fotográfica registrada</p>
+                        </div>
+                      );
+                    }
+
+                    return groupKeys.map(key => (
+                      <div key={key} className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
+                          <Camera size={16} className="text-slate-400" /> {key}
+                        </h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                          {groupedPhotos[key].map((p, i) => (
+                            <div key={i} className="flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm group hover:border-[#1c2d4f] transition-all">
+                              <div
+                                className="aspect-[4/3] bg-slate-50 cursor-zoom-in relative"
+                                onClick={() => setFullscreenImage(p)}
+                              >
+                                <img src={p} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors" />
+                              </div>
+                              <div className="p-3 bg-slate-50/50 border-t border-slate-100 flex-1 flex flex-col justify-between">
+                                <p className="text-[10px] leading-snug font-bold text-slate-700 uppercase tracking-tight line-clamp-2" title={key}>{key}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2 bg-slate-100 self-start px-2 py-0.5 rounded">Foto #{i + 1}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+
+              {/* TAB: CUSTOS */}
+              {activeTab === 'costs' && (
+                <div className="max-w-5xl mx-auto space-y-6">
+                  <div className="flex justify-between items-center bg-[#1c2d4f] p-8 rounded-lg shadow-lg text-white">
+                    <div>
+                      <h3 className="text-base font-bold text-white mb-1">Mão de Obra e Peças</h3>
+                      <p className="text-xs text-white/60 font-medium">Consolidação financeira de insumos e atividades</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Total Consolidado</div>
+                      <div className="text-3xl font-bold font-mono">
+                        R$ {(selectedOrder.items?.reduce((acc, i) => acc + i.total, 0) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                        <tr>
+                          <th className="px-6 py-3">Item / Serviço</th>
+                          <th className="px-4 py-3 text-center">Quant.</th>
+                          <th className="px-4 py-3 text-right">Unitário</th>
+                          <th className="px-6 py-3 text-right">Subtotal</th>
+                          {isEditing && <th className="px-4 py-3 text-center w-10"></th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 text-sm">
+                        {(editDraft.items || selectedOrder.items || [])?.map((item, idx) => (
+                          <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="px-6 py-2">
+                              {isEditing ? (
+                                <input
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-bold text-slate-800"
+                                  value={item.description}
+                                  onChange={e => handleUpdateItem(item.id, 'description', e.target.value)}
+                                  placeholder="Descrição do item..."
+                                />
+                              ) : <span className="font-semibold text-slate-800">{item.description}</span>}
+                            </td>
+                            <td className="px-4 py-2 text-center">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs font-bold text-center"
+                                  value={item.quantity}
+                                  onChange={e => handleUpdateItem(item.id, 'quantity', Number(e.target.value))}
+                                />
+                              ) : <span className="text-slate-600 font-medium">{item.quantity}</span>}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {isEditing ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className="text-[10px] text-slate-400 font-bold">R$</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-24 bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-bold text-right"
+                                    value={item.unitPrice}
+                                    onChange={e => handleUpdateItem(item.id, 'unitPrice', Number(e.target.value))}
+                                  />
+                                </div>
+                              ) : <span className="font-mono text-slate-500 text-xs">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                            </td>
+                            <td className="px-6 py-2 text-right font-mono font-bold text-slate-900">
+                              R$ {(item.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </td>
+                            {isEditing && (
+                              <td className="px-4 py-2 text-center">
+                                <button
+                                  onClick={() => handleRemoveItem(item.id)}
+                                  className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors"
+                                  title="Remover Item"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                        {isEditing && (
+                          <tr>
+                            <td colSpan={5} className="px-6 py-4">
+                              <button
+                                onClick={() => setIsStockPickerOpen(true)}
+                                className="flex items-center gap-2 text-[10px] font-black text-primary-600 hover:text-primary-700 uppercase tracking-widest transition-all"
+                              >
+                                <PlusCircle size={14} /> Adicionar Item / Peça (Estoque)
+                              </button>
+                            </td>
+                          </tr>
+                        )}
+                        {(!editDraft.items && (!selectedOrder.items || selectedOrder.items.length === 0)) && (
+                          <tr><td colSpan={5} className="py-20 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">Nenhum custo registrado para esta O.S.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: AUDITORIA */}
+              {activeTab === 'audit' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="bg-white p-10 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center text-center">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100 mb-6 group hover:border-[#1c2d4f] transition-all">
+                      <ShieldCheck size={32} className="text-slate-300 group-hover:text-[#1c2d4f]" />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Validação Técnica</h3>
+                    <p className="text-xs text-slate-500 mt-2 mb-8 font-medium">Revisado e assinado eletronicamente pelo responsável de campo</p>
+                    <div className="w-full pt-8 border-t border-slate-100">
+                      <div className="text-base font-bold text-slate-800">{techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Técnico Não Identificado'}</div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-2 break-all bg-slate-50 p-2 rounded border border-slate-100 select-all">
+                        {selectedOrder.displayId || selectedOrder.id}-VALID-{new Date(selectedOrder.createdAt).getTime()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-10 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center text-center">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100 mb-6">
+                      <UserCheck size={32} className="text-slate-300" />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Aceite do Cliente</h3>
+                    <p className="text-xs text-slate-500 mt-2 mb-8 font-medium">Protocolo de recebimento e satisfação de serviço</p>
+
+                    {(() => {
+                      // Consolidação de todos os forms (OS e Visitas)
+                      const allForms: any[] = [];
+                      if (selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) {
+                        allForms.push(selectedOrder.formData);
+                      }
+                      orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
+
+                      let signatureUrl: string | null = selectedOrder.signature || null;
+                      let signatureRefName: string | null = selectedOrder.signatureName || null;
+                      let signatureDoc: string | null = selectedOrder.signatureDoc || null;
+
+                      // Se não achar na base oficial, procura dentro do formData como fallback
+                      if (!signatureUrl || !signatureDoc || !signatureRefName) {
+                        [...allForms].reverse().forEach(data => {
+                          if (!signatureUrl) {
+                            signatureUrl = data.signature || data['Assinatura do Cliente'] || Object.entries(data).find(([k, v]) => k.toLowerCase().includes('assinat') && typeof v === 'string' && (v.startsWith('data:') || v.startsWith('http')))?.[1];
+                          }
+                          if (!signatureRefName) {
+                            signatureRefName = data.signatureName || data.clientName || data.client_signature_name || data['Assinatura do Cliente - Nome'] || null;
+                          }
+                          if (!signatureDoc) {
+                            signatureDoc = data.signatureDoc || data.clientDoc || data['assinaturaDoc'] || data['CPF'] || Object.entries(data).find(([k]) => k.toLowerCase() === 'cpf')?.[1] || null;
+                          }
+                        });
+                      }
+
+                      const name = signatureRefName || selectedOrder.customerName || selectedOrder.customer?.name;
+
+                      return signatureUrl ? (
+                        <div className="w-full">
+                          <img src={signatureUrl} className="h-28 mx-auto object-contain mix-blend-multiply mb-6" alt="Assinatura" />
+                          <div className="pt-6 border-t border-slate-100">
+                            <div className="text-base font-bold text-slate-900 uppercase text-center">{name}</div>
+                            {signatureDoc && <div className="text-xs font-semibold text-slate-500 font-mono text-center mt-1">CPF/Doc: {signatureDoc}</div>}
+                            <div className="text-center">
+                              <div className="text-[10px] text-emerald-600 font-bold uppercase mt-2 inline-block px-2 py-1 bg-emerald-50 rounded-md">✓ Assinado Digitalmente no App</div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-8 w-full border-t border-slate-100 text-center">
+                          <p className="text-xs text-slate-400 font-bold uppercase bg-slate-50 py-4 rounded-md border border-dashed border-slate-200 tracking-widest">Assinatura Pendente</p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: VISITAS — Gestão ativa */}
+              {activeTab === 'visits' && (
+                <div className="max-w-4xl mx-auto space-y-6">
+
+                  {/* Cabeçalho da aba */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        {visits.length} {visits.length === 1 ? 'visita registrada' : 'visitas registradas'}
+                        {visits.length > 0 && visits[0].scheduledDate && (
+                          <span className="text-primary-500 ml-1">
+                            (Último agendamento: {new Date(visits[visits.length - 1].scheduledDate).toLocaleDateString()})
+                          </span>
+                        )}
+                      </span>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">Agendamento e gestão de visitas técnicas desta OS</p>
+                    </div>
+
+                    {/* Botão Nova Visita — Design System Primário */}
+                    {selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => setShowNewVisitForm(v => !v)}
+                        disabled={!(
+                          visits.length === 0 ||
+                          visits[visits.length - 1]?.status === VisitStatusEnum.PAUSED ||
+                          visits[visits.length - 1]?.status === VisitStatusEnum.BLOCKED
+                        )}
+                        title={visits.length > 0 && visits[visits.length - 1]?.status !== VisitStatusEnum.PAUSED && visits[visits.length - 1]?.status !== VisitStatusEnum.BLOCKED
+                          ? 'A última visita deve estar pausada ou impedida para criar uma nova.'
+                          : 'Agendar nova visita'
+                        }
+                        className="h-9 px-5 gap-2 bg-primary-600 hover:bg-primary-700 shadow-md shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                      >
+                        <Plus size={15} /> Nova Visita
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Formulário de nova visita (inline) */}
+                  {showNewVisitForm && (
+                    <div className="bg-white border border-primary-200 rounded-xl shadow-sm p-6 space-y-4 animate-in fade-in slide-in-from-top-2">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-primary-700">Agendar Nova Visita</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase">Técnico Responsável *</label>
+                          <select
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all bg-white"
+                            value={newVisitDraft.technicianId}
+                            onChange={e => setNewVisitDraft(d => ({ ...d, technicianId: e.target.value }))}
+                          >
+                            <option value="">Selecionar técnico...</option>
+                            {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase">Data de Agendamento *</label>
+                          <input
+                            type="date"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                            value={newVisitDraft.scheduledDate}
+                            onChange={e => setNewVisitDraft(d => ({ ...d, scheduledDate: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase">Horário (opcional)</label>
+                          <input
+                            type="time"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                            value={newVisitDraft.scheduledTime}
+                            onChange={e => setNewVisitDraft(d => ({ ...d, scheduledTime: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase">Observações (opcional)</label>
+                          <input
+                            type="text"
+                            placeholder="Instruções para o técnico..."
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                            value={newVisitDraft.notes}
+                            onChange={e => setNewVisitDraft(d => ({ ...d, notes: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button variant="ghost" size="sm" onClick={() => setShowNewVisitForm(false)} className="text-slate-500">
+                          Cancelar
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={handleCreateVisit}
+                          disabled={savingVisit}
+                          className="gap-2 bg-primary-600 hover:bg-primary-700 px-6"
+                        >
+                          {savingVisit ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                          Confirmar Agendamento
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lista de visitas */}
+                  {visitsLoading ? (
+                    <div className="flex items-center justify-center py-16 gap-3">
+                      <Loader2 size={22} className="animate-spin text-primary-400" />
+                      <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando visitas...</span>
+                    </div>
+                  ) : visits.length === 0 ? (
+                    <div className="bg-white border border-dashed border-slate-200 rounded-xl py-16 text-center">
+                      <CalendarPlus size={40} className="mx-auto text-slate-200 mb-4" />
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhuma visita agendada</p>
+                      <p className="text-[11px] text-slate-300 font-medium mt-1">Clique em "Nova Visita" para agendar a primeira.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {visits.map((visit, idx) => {
+                        const isLast = idx === visits.length - 1;
+                        const rawStatus = visit.status;
+                        const effectiveStatus = (rawStatus === 'pending' || rawStatus === 'ongoing') && selectedOrder.status === 'CONCLUÍDO' ? 'completed' : rawStatus;
+
+                        const canEdit = effectiveStatus !== VisitStatusEnum.COMPLETED && !visit.isLocked;
+                        const isEditingThis = editingVisitId === visit.id;
+                        const statusColors: Record<string, string> = {
+                          pending: 'bg-slate-100 text-slate-600 border-slate-200',
+                          ongoing: 'bg-blue-50 text-blue-700 border-blue-200',
+                          paused: 'bg-blue-50 text-blue-700 border-blue-200',
+                          blocked: 'bg-rose-50 text-rose-700 border-rose-200',
+                          completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                        };
+                        const statusLabel: Record<string, string> = {
+                          pending: 'Agendado', ongoing: 'Em andamento',
+                          paused: 'Pausado', blocked: 'Impedido', completed: 'Concluído',
+                        };
+                        const techName = techs.find(t => t.id === visit.technicianId)?.name || visit.technicianName || '—';
+                        return (
+                          <div
+                            key={visit.id}
+                            className={`bg-white border rounded-xl transition-all ${isEditingThis ? 'border-amber-300 ring-2 ring-blue-100 shadow-md' :
+                              isLast ? 'border-primary-200 ring-2 ring-primary-50 shadow-sm' : 'border-slate-200'
+                              }`}
+                          >
+                            {/* Card header */}
+                            <div className="p-5 flex items-center gap-5">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0 border-2 ${isLast ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-slate-200 bg-white text-slate-500'
+                                }`}>
+                                {visit.visitNumber ?? idx + 1}
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${statusColors[effectiveStatus] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                    {statusLabel[effectiveStatus] || effectiveStatus}
+                                  </span>
+                                  {isLast && <span className="text-[9px] font-black text-primary-500 bg-primary-50 px-2 py-0.5 rounded-full uppercase">Atual</span>}
+                                  {visit.isLocked && <span className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase">🔒 Concluída</span>}
+                                </div>
+                                <p className="text-sm font-bold text-slate-800 mt-1 truncate">{techName}</p>
+                                <p className="text-[11px] text-slate-400 font-medium">
+                                  {visit.scheduledDate ? formatDateDisplay(visit.scheduledDate) : '—'}
+                                  {visit.scheduledTime ? ` às ${visit.scheduledTime}` : ''}
+                                </p>
+                              </div>
+
+                              {canEdit && !isEditingThis && (
+                                <button
+                                  onClick={() => {
+                                    setEditingVisitId(visit.id);
+                                    setVisitScheduleDraft({
+                                      scheduledDate: visit.scheduledDate || '',
+                                      scheduledTime: visit.scheduledTime || '',
+                                      technicianId: visit.technicianId || '',
+                                    });
+                                  }}
+                                  className="p-2 text-amber-500 hover:bg-blue-50 rounded-lg border border-blue-200 transition-all shrink-0"
+                                  title="Editar agendamento"
+                                >
+                                  <Edit3 size={14} />
+                                </button>
+                              )}
+
+                              {visit.arrivalTime && !isEditingThis && (
+                                <div className="text-right shrink-0">
+                                  <p className="text-[10px] font-black text-slate-400 uppercase">Chegada</p>
+                                  <p className="text-xs font-bold text-slate-700">
+                                    {new Date(visit.arrivalTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Formulário de edição de agendamento — expandido inline */}
+                            {isEditingThis && (
+                              <div className="border-t border-amber-100 bg-blue-50/40 px-5 py-4 space-y-3">
+                                <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Editar Agendamento</p>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase">Data</label>
+                                    <input type="date" className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
+                                      value={visitScheduleDraft.scheduledDate}
+                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledDate: e.target.value }))} />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase">Início</label>
+                                    <input type="time" className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
+                                      value={visitScheduleDraft.scheduledTime}
+                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, scheduledTime: e.target.value }))} />
+                                  </div>
+                                  <div className="space-y-1">
+
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase">Técnico</label>
+                                    <select className="w-full border border-blue-200 bg-white rounded-lg px-2.5 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all"
+                                      value={visitScheduleDraft.technicianId}
+                                      onChange={e => setVisitScheduleDraft(d => ({ ...d, technicianId: e.target.value }))}>
+                                      <option value="">Manter atual</option>
+                                      {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <button onClick={() => setEditingVisitId(null)} className="px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:text-slate-700 transition-colors">
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    onClick={() => handleSaveVisitSchedule(visit)}
+                                    disabled={savingSchedule}
+                                    className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-black rounded-lg transition-all shadow-md disabled:opacity-50"
+                                  >
+                                    {savingSchedule ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+                                    Salvar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB: HISTÓRICO — Audit trail imutável */}
+              {activeTab === 'history' && (
+                <div className="max-w-4xl mx-auto space-y-8">
+                  <div className="bg-white p-8 rounded-lg border border-slate-200">
+                    <OrderTimeline orderId={selectedOrder.id} />
+                  </div>
+                  {/* Histórico detalhado de visitas */}
+                  <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Histórico de Visitas</h3>
+                    </div>
+                    <VisitHistoryTab orderId={selectedOrder.id} isActive={activeTab === 'history'} />
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )
+      }
+
+      {/* Batch Print Container — usa os dados da página atual */}
+      {
+        isBatchPrinting && createPortal(
+          <div id="batch-print-root" className="bg-white">
+            {pagedOrders
+              .filter(o => selectedOrderIds.includes(o.id))
+              .map((order) => (
+                <div key={order.id} className="print:break-after-page last:print:break-after-auto w-full">
+                  <PublicOrderView order={order} techs={techs} isPrint={true} />
+                </div>
+              ))}
+          </div>,
+          document.body
+        )
+      }
+
+      {/* Lightbox Viewer */}
+      {
+        fullscreenImage && (
+          <div
+            className="fixed inset-0 z-[1000] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-8 animate-in fade-in"
+            onClick={() => setFullscreenImage(null)}
+          >
+            <div className="relative max-w-5xl w-full h-full flex items-center justify-center">
+              <img
+                src={fullscreenImage}
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95"
+                alt="Visualização"
+              />
+              <button className="absolute top-0 right-0 p-4 text-white hover:text-slate-300 transition-colors">
+                <X size={32} />
+              </button>
+            </div>
+          </div>
+        )
+      }
+
+      {/* 📦 Stock Picker Modal */}
+      {isStockPickerOpen && (
+        <div className="fixed inset-0 z-[1000] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center text-primary-600">
+                  <PackageSearch size={18} />
+                </div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Selecionar Item do Estoque</h3>
+              </div>
+              <button onClick={() => setIsStockPickerOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 flex-1 flex flex-col min-h-0">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Pesquisar por descrição ou código..."
+                  className="w-full bg-slate-100 border-none rounded-xl pl-12 pr-4 py-3 text-sm font-bold text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                  value={stockSearch}
+                  onChange={e => setStockSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
+                {stockLoading ? (
+                  <div className="py-20 text-center flex flex-col items-center gap-3">
+                    <Loader2 size={32} className="animate-spin text-primary-400" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carregando estoque...</p>
+                  </div>
+                ) : allStockItems.filter(i =>
+                  i.description.toLowerCase().includes(stockSearch.toLowerCase()) ||
+                  i.code.toLowerCase().includes(stockSearch.toLowerCase())
+                ).length > 0 ? (
+                  allStockItems
+                    .filter(i =>
+                      i.description.toLowerCase().includes(stockSearch.toLowerCase()) ||
+                      i.code.toLowerCase().includes(stockSearch.toLowerCase())
+                    )
+                    .map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => handleAddStockItem(item)}
+                        className="w-full p-4 rounded-xl border border-slate-100 bg-white hover:bg-slate-50 hover:border-primary-200 hover:shadow-sm transition-all text-left flex items-center justify-between group"
+                      >
+                        <div>
+                          <p className="font-bold text-slate-800 text-sm group-hover:text-primary-700 transition-colors uppercase">{item.description}</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <p className="text-[10px] font-black text-slate-400 uppercase">Cód: {item.code}</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase">Salvo em: {item.location || 'Geral'}</p>
+                            <p className={`text-[10px] font-black uppercase ${item.quantity > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              Estoque: {item.quantity} {item.unit}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-black text-slate-900 font-mono">R$ {Number(item.sellPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Unitário</p>
+                        </div>
+                      </button>
+                    ))
+                ) : (
+                  <div className="py-20 text-center flex flex-col items-center gap-3">
+                    <PackageSearch size={32} className="text-slate-200" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nenhum item encontrado</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
+              <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2">
+                <Box size={12} /> {allStockItems.length} Itens no catálogo
+              </p>
+              <button
+                onClick={handleManualAdd}
+                className="flex items-center gap-2 px-4 py-2 text-[10px] font-black text-slate-500 hover:text-slate-900 uppercase tracking-widest transition-all"
+              >
+                <Plus size={14} /> Item fora do catálogo (Manual)
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+      }
+    </div >
+  );
+};
+
