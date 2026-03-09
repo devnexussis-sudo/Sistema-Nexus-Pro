@@ -1,43 +1,55 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
-node_modules/
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
+node_modules
+dist
+dist-ssr
+*.local
+APP Nexus/
 
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
-*.pem
+._*
+._.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# local env files
-.env*.local
+# Environment variables
+.env
+.env.local
+.env.production
+.env.*.local
 
-# typescript
-*.tsbuildinfo
+# Supabase
+.supabase
 
-app-example
+# Build output
+build/
+.vercel
+.netlify
 
-# generated native folders
-/ios
-/android
+# Testing
+coverage/
+*.test.ts.snap
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Agent specific
+.agent
+.gemini
+_agent_scratchpad.md
