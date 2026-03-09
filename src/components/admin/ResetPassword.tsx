@@ -31,6 +31,7 @@ export const ResetPassword: React.FC = () => {
 
                 const access = url.match(/access_token=([^&#]*)/)?.[1];
                 const refresh = url.match(/refresh_token=([^&#]*)/)?.[1];
+                const code = url.match(/[?&]code=([^&#]*)/)?.[1];
 
                 if (access) {
                     logger.info('[ResetPassword] Injetando tokens de recuperação...');
@@ -42,8 +43,16 @@ export const ResetPassword: React.FC = () => {
                     if (sessionUpdateError) {
                         console.error('[ResetPassword] Erro ao injetar sessão:', sessionUpdateError);
                     }
+                } else if (code) {
+                    logger.info('[ResetPassword] Trocando código por sessão (PKCE)...');
+                    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+                    if (exchangeError) {
+                        console.error('[ResetPassword] Erro na troca do código:', exchangeError);
+                    }
+                }
 
-                    // Limpa URL para estética e segurança BigTech
+                // Limpa URL para estética e segurança BigTech
+                if (access || code) {
                     const cleanUrl = window.location.origin + window.location.pathname + '#/reset-password';
                     window.history.replaceState(null, '', cleanUrl);
                 }
@@ -52,10 +61,8 @@ export const ResetPassword: React.FC = () => {
                 const { data: { session } } = await supabase.auth.getSession();
 
                 if (!session && mounted) {
-                    // Se NÃO tínhamos token na URL e NÃO temos sessão, link expirou.
-                    // Se TÍNHAMOS token mas getSession deu null, pode ser lag do Supabase, 
-                    // não mostramos erro pois o updateUser ainda pode funcionar.
-                    if (!access) {
+                    // Só mostra erro se não tinha token/code e nem sessão prévia
+                    if (!access && !code) {
                         setError('O link de recuperação parece inválido ou expirado. Por favor, solicite um novo e-mail.');
                     }
                 }
