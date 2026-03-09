@@ -24,8 +24,10 @@ export const ResetPassword: React.FC = () => {
             try {
                 const url = window.location.href;
 
+                const isMobileSource = url.includes('source=mobile');
+
                 // Detecta se vem do mobile para mudar o feedback no final
-                if (url.includes('source=mobile')) {
+                if (isMobileSource) {
                     setIsFromMobile(true);
                 }
 
@@ -51,9 +53,10 @@ export const ResetPassword: React.FC = () => {
                     }
                 }
 
-                // Limpa URL para estética e segurança BigTech
+                // Limpa URL para estética preservando o source para redirecionamento mobile
                 if (access || code) {
-                    const cleanUrl = window.location.origin + window.location.pathname + '#/reset-password';
+                    const params = isMobileSource ? '?source=mobile' : '';
+                    const cleanUrl = window.location.origin + window.location.pathname + params + '#/reset-password';
                     window.history.replaceState(null, '', cleanUrl);
                 }
 
@@ -106,7 +109,9 @@ export const ResetPassword: React.FC = () => {
         setLoading(true);
 
         try {
-            logger.info('[ResetPassword] Executando comando de atualização de senha...');
+            logger.info('[ResetPassword] Verificando identidade do usuário...');
+            const { data: { user } } = await supabase.auth.getUser();
+            logger.info(`[ResetPassword] Atualizando senha para: ${user?.email || 'Usuário desconhecido'}`);
 
             // ✅ Comando direto sem interferência do AuthContext global
             const { error: updateError } = await supabase.auth.updateUser({
@@ -187,7 +192,10 @@ export const ResetPassword: React.FC = () => {
                                 type="password"
                                 required
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={(e) => {
+                                    setPassword(e.target.value);
+                                    if (error) setError('');
+                                }}
                                 placeholder="Mínimo 8 caracteres, A-Z e 0-9"
                                 className="bg-slate-50 border-slate-200 text-slate-900 rounded-2xl py-4 font-bold focus:ring-4 focus:ring-primary-100 transition-all placeholder:text-slate-300"
                                 icon={<Lock size={18} className="text-slate-300" />}
@@ -200,7 +208,10 @@ export const ResetPassword: React.FC = () => {
                                 type="password"
                                 required
                                 value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                onChange={(e) => {
+                                    setConfirmPassword(e.target.value);
+                                    if (error) setError('');
+                                }}
                                 placeholder="Repita a senha"
                                 className="bg-slate-50 border-slate-200 text-slate-900 rounded-2xl py-4 font-bold focus:ring-4 focus:ring-primary-100 transition-all placeholder:text-slate-300"
                                 icon={<ShieldCheck size={18} className="text-slate-300" />}
@@ -216,7 +227,7 @@ export const ResetPassword: React.FC = () => {
 
                         <Button
                             type="submit"
-                            disabled={loading || !!error}
+                            disabled={loading}
                             className={`w-full text-white rounded-2xl py-6 font-black uppercase tracking-[0.25em] shadow-xl transition-all active:scale-[0.98] text-[11px] ${loading ? 'bg-slate-400 cursor-wait' : 'bg-[#1c2d4f] hover:bg-[#253a66] shadow-[#1c2d4f]/20'
                                 }`}
                         >
