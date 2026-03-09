@@ -14,14 +14,26 @@ class AuthService {
             const { data: { session } } = await supabase.auth.getSession();
 
             if (session) {
+                // 🛡️ CONTINUOUS SECURITY CHECK (MIT/Harvard Principle)
+                // We must verify that this authenticated user STILL has "App Permission" (exists in technicians and is active)
+                const { data: techData, error: techError } = await supabase
+                    .from('technicians')
+                    .select('id, active')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (techError || !techData || techData.active === false) {
+                    logger.log(`Session terminalized: User ${session.user.email} lost App Access rights.`, 'warn');
+                    await this.logout();
+                    return false;
+                }
+
                 this.isAuthenticated = true;
                 this.userId = session.user.id;
-                logger.log(`Auth check successful: ${session.user.email}`, 'info');
+                logger.log(`Auth check successful: ${session.user.email} (Active Technician Verified)`, 'info');
                 return true;
             }
 
-            // Check if we have a persisted session but it expired or just check local logic
-            // Supabase client handles persistence automatically with AsyncStorage if provided
             this.isAuthenticated = false;
             this.userId = null;
             return false;
@@ -39,7 +51,7 @@ class AuthService {
     async loginWithPassword(email: string, password: string): Promise<boolean> {
         try {
             const { data, error } = await supabase.auth.signInWithPassword({
-                email,
+                email: email.toLowerCase().trim(),
                 password,
             });
 
@@ -49,22 +61,28 @@ class AuthService {
             }
 
             if (data.session) {
-                // 🛑 Security Check: Verify if user is a registered Technician
+                // 🛑 ACCESS GATEWAY: Only users in the 'technicians' table with 'active' status can enter the mobile environment.
                 const { data: techData, error: techError } = await supabase
                     .from('technicians')
-                    .select('id')
+                    .select('id, active')
                     .eq('id', data.user.id)
                     .single();
 
                 if (techError || !techData) {
-                    logger.log(`Login denied: User ${data.user.email} is not a registered technician.`, 'warn');
-                    await this.logout(); // Force logout
+                    logger.log(`Login denied: E-mail ${data.user.email} not registered in Technicians tab.`, 'warn');
+                    await this.logout();
+                    return false;
+                }
+
+                if (techData.active === false) {
+                    logger.log(`Login denied: Technician account is suspended.`, 'warn');
+                    await this.logout();
                     return false;
                 }
 
                 this.isAuthenticated = true;
                 this.userId = data.user.id;
-                logger.log('Login successful via Supabase (Technician Verified)', 'info');
+                logger.log('Login successful: Technician Verified & Active', 'info');
                 return true;
             }
 
