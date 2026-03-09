@@ -34,16 +34,16 @@ export const ResetPassword: React.FC = () => {
 
                 if (access) {
                     logger.info('[ResetPassword] Injetando tokens de recuperação...');
-                    const { error: setError } = await supabase.auth.setSession({
+                    const { error: sessionUpdateError } = await supabase.auth.setSession({
                         access_token: access,
                         refresh_token: refresh || '',
                     });
 
-                    if (setError) {
-                        console.error('[ResetPassword] Erro ao injetar sessão:', setError);
+                    if (sessionUpdateError) {
+                        console.error('[ResetPassword] Erro ao injetar sessão:', sessionUpdateError);
                     }
 
-                    // Limpa URL para estética e segurança BigTech, preservando source se necessário
+                    // Limpa URL para estética e segurança BigTech
                     const cleanUrl = window.location.origin + window.location.pathname + '#/reset-password';
                     window.history.replaceState(null, '', cleanUrl);
                 }
@@ -52,12 +52,11 @@ export const ResetPassword: React.FC = () => {
                 const { data: { session } } = await supabase.auth.getSession();
 
                 if (!session && mounted) {
-                    // Se não temos sessão e NÃO tínhamos token na URL, aí sim é erro de expiração
+                    // Se NÃO tínhamos token na URL e NÃO temos sessão, link expirou.
+                    // Se TÍNHAMOS token mas getSession deu null, pode ser lag do Supabase, 
+                    // não mostramos erro pois o updateUser ainda pode funcionar.
                     if (!access) {
                         setError('O link de recuperação parece inválido ou expirado. Por favor, solicite um novo e-mail.');
-                    } else {
-                        // Se tinha token mas getSession falhou, tentamos um refresh forçado ou logamos o erro
-                        console.warn('[ResetPassword] Token presente mas sessão não estabelecida.');
                     }
                 }
             } catch (err: any) {
@@ -68,7 +67,7 @@ export const ResetPassword: React.FC = () => {
                     // Pequeno delay para garantir que o Supabase processou a sessão
                     setTimeout(() => {
                         if (mounted) setIsChecking(false);
-                    }, 800);
+                    }, 1000);
                 }
             }
         };
