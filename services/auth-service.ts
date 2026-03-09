@@ -87,6 +87,27 @@ class AuthService {
         }
     }
 
+    async resetPassword(email: string): Promise<boolean> {
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase(), {
+                // O Supabase enviará o e-mail com este link de retorno para o portal web
+                // que o usuário já confirmou que está funcionando.
+                // Adicionamos ?source=mobile para o painel web saber que deve mostrar instruções de "voltar para o app"
+                redirectTo: 'https://app.dunoup.com.br/?source=mobile#/reset-password',
+            });
+
+            if (error) {
+                logger.log(`Reset password error: ${error.message}`, 'error');
+                return false;
+            }
+
+            return true;
+        } catch (error) {
+            logger.log(`Reset password exception: ${error}`, 'error');
+            return false;
+        }
+    }
+
     isLoggedIn() {
         return this.isAuthenticated;
     }
