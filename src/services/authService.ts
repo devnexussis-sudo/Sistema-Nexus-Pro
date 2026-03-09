@@ -1,9 +1,9 @@
 
-import { supabase, adminAuthProxy } from '../lib/supabase';
-import { User, UserRole, UserWithPassword } from '../types';
-import { SessionStorage, GlobalStorage } from '../lib/sessionStorage';
 import { logger } from '../lib/logger';
+import { GlobalStorage, SessionStorage } from '../lib/sessionStorage';
+import { adminAuthProxy, supabase } from '../lib/supabase';
 import { getCurrentTenantId as _getTenantId } from '../lib/tenantContext';
+import { User, UserRole } from '../types';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const MOCK_USERS_POOL = []; // Removing mock data dependency for clean separation, assuming cloud first
@@ -127,9 +127,12 @@ export const AuthService = {
         }
     },
 
-    // Busca dados enriquecidos do usuário (Role, Permissions, Tenant)
+    // 🛡️ GATEKEEPER: Busca dados enriquecidos do usuário (Role, Permissions, Tenant)
+    // Implementa a lógica de permissão MIT/Harvard: Acesso ao PAINEL restrito a registros na tabela 'users'.
     _fetchFullUser: async (authId: string, email: string, metadata: any): Promise<User | undefined> => {
-        // 1. Busca na tabela 'users' — RLS garante que só retorna dados do próprio usuário
+
+        // 1. Verificação de Identidade na Camada de Gestão (Tabela 'users')
+        // Se o usuário não existir nesta tabela, ele pode ser um Técnico, mas NÃO tem acesso ao portal administrativo.
         const { data: dbUser, error } = await supabase
             .from('users')
             .select('*')
@@ -137,21 +140,31 @@ export const AuthService = {
             .single();
 
         if (error) {
-            // PGRST116 is the standard PostgREST code for single() returning exactly 0 rows.
             if (error.code === 'PGRST116') {
-                logger.warn('Acesso Negado: Usuário autenticado mas não autorizado (sem registro na tabela users).', { authId, email });
+                // Usuário existe no Auth mas não na 'users' -> Provável Técnico tentando acessar o Painel.
+                logger.warn('🔥 Acesso Bloqueado: Usuário autenticado mas sem privilégios de Painel Administrativo.', { authId, email });
                 return undefined;
             }
-            // If it's a network error or 5xx, we MUST throw. 
-            // Returning undefined would cause AuthContext to forcefully signOut() the user!
-            throw new Error(`Falha transitória ao buscar usuário: ${error.message}`);
+
+            // Erros críticos de persistência não devem resultar em logout silencioso, mas sim em erro explícito.
+            throw new Error(`Falha na verificação de privilégios (Security Layer): ${error.message}`);
         }
 
         if (!dbUser) {
             return undefined;
         }
 
-        // 2. Se tiver grupo, busca as permissões do grupo
+        // 2. Validação Exclusiva de Acesso ao Painel (MIT/Harvard Principle)
+        // Somente ADMIN e SUPER_ADMIN podem acessar o Portal Administrativo.
+        // Usuários com papel exclusivo de TECHNICIAN devem ser barrados aqui.
+        const isAuthorizedRole = dbUser.role === UserRole.ADMIN || dbUser.role === 'SUPER_ADMIN' as any;
+
+        if (!isAuthorizedRole) {
+            logger.warn('🚫 Acesso Negado: Usuário autenticado como Técnico, mas sem cargo administrativo.', { email: dbUser.email, role: dbUser.role });
+            return undefined;
+        }
+
+        // 3. Se tiver grupo, busca as permissões do grupo
         let permissions = dbUser.permissions || {};
         let groupName = '';
 
