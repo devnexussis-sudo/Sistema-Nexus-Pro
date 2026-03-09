@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ThemedText } from '@/components/themed-text';
 import { Ionicons } from '@expo/vector-icons';
 import { authService } from '@/services/auth-service';
+import { startBackgroundLocation } from '@/services/location-service';
 import Checkbox from 'expo-checkbox';
 
 export default function LoginScreen() {
@@ -29,6 +30,11 @@ export default function LoginScreen() {
         setIsLoading(false);
 
         if (success) {
+            // ✅ Trigger GPS start immediately on login success
+            startBackgroundLocation()
+                .then(() => console.log('[Login] GPS Auto-Started'))
+                .catch(err => console.warn('[Login] GPS Start Error:', err));
+
             router.replace('/(tabs)');
         } else {
             alert('Falha no login. Verifique suas credenciais.');

@@ -36,7 +36,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 };
 
 // ✅ Reusable function to sync location to Supabase
-const sendLocationUpdate = async (location: Location.LocationObject) => {
+const sendLocationUpdate = async (location: Location.LocationObject, options = { force: false }) => {
     if (isProcessing) return;
 
     const { latitude, longitude, speed, heading, accuracy } = location.coords;
@@ -74,8 +74,8 @@ const sendLocationUpdate = async (location: Location.LocationObject) => {
         const isMoving = !lastSentLocation || distance >= MOVEMENT_THRESHOLD;
         const needsHeartbeat = (now - lastHeartbeatTime) >= HEARTBEAT_INTERVAL;
 
-        // Se estiver parado E não chegou a hora do heartbeat, ignora tudo.
-        if (!isMoving && !needsHeartbeat) {
+        // Se estiver parado E não chegou a hora do heartbeat, ignora tudo. (A menos que seja FORCE)
+        if (!isMoving && !needsHeartbeat && !options.force) {
             isProcessing = false;
             return;
         }
@@ -210,7 +210,9 @@ export const startBackgroundLocation = async () => {
             },
             (location) => {
                 console.log('[Location] 📍 Foreground Update received');
-                sendLocationUpdate(location);
+                // O primeiro ping após o login ou reinício será forçado para aparecer no mapa
+                const isFirstPing = !lastSentLocation;
+                sendLocationUpdate(location, { force: isFirstPing });
             }
         );
 

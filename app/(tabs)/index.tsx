@@ -10,6 +10,7 @@ import { OrderService } from '@/services/order-service';
 import { authService } from '@/services/auth-service';
 import { supabase } from '@/services/supabase';
 import { NotificationService } from '@/services/notification-service';
+import { startBackgroundLocation } from '@/services/location-service';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -189,6 +190,13 @@ export default function HomeScreen() {
 
   useEffect(() => {
     fetchOrders();
+
+    // ✅ Fallback: Ensure GPS is running when entering Home
+    const timer = setTimeout(() => {
+      startBackgroundLocation().catch(e => console.error('[Home] GPS Error:', e));
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, [cacheKey]);
 
   useEffect(() => {
