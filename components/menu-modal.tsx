@@ -47,6 +47,14 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
             }
         },
         {
+            title: 'Configurações',
+            icon: 'gear',
+            action: () => {
+                onClose();
+                router.push('/settings');
+            }
+        },
+        {
             title: 'Forçar Carregamento',
             icon: 'arrow.clockwise.icloud',
             action: handleForceSync

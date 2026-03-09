@@ -35,6 +35,23 @@ export default function LoginScreen() {
         }
     };
 
+    const handleForgotPassword = async () => {
+        if (!email) {
+            alert('Por favor, digite seu e-mail no campo acima primeiro.');
+            return;
+        }
+
+        setIsLoading(true);
+        const success = await authService.resetPassword(email);
+        setIsLoading(false);
+
+        if (success) {
+            alert('E-mail de recuperação enviado! Verifique sua caixa de entrada.');
+        } else {
+            alert('Erro ao solicitar recuperação. Verifique o e-mail e tente novamente.');
+        }
+    };
+
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -109,7 +126,7 @@ export default function LoginScreen() {
                             </Pressable>
                         </View>
 
-                        <Pressable style={styles.forgotButton}>
+                        <Pressable style={styles.forgotButton} onPress={handleForgotPassword}>
                             <Text style={styles.forgotText}>Esqueceu a senha?</Text>
                         </Pressable>
                     </View>

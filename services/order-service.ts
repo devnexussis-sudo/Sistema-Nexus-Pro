@@ -75,6 +75,8 @@ export interface ExtendedServiceOrder extends ServiceOrder {
     scheduledTime?: string;
     equipments?: any[];
     publicToken?: string;
+    startedDate?: string;
+    completedDate?: string;
 }
 
 export class OrderService {
@@ -190,37 +192,32 @@ export class OrderService {
         if (dbOrder.display_id || dbOrder.sequence_number) {
             const prefix = dbOrder.display_id ? String(dbOrder.display_id) : '';
             const seq = dbOrder.sequence_number ? String(dbOrder.sequence_number) : '';
-
-            // Smart concatenation to avoid duplication (e.g. prefix="OS-1002", seq="1002")
-            if (seq && prefix.includes(seq)) {
-                displayId = prefix;
-            } else {
-                displayId = `${prefix}${seq}`;
-            }
+            if (seq && prefix.includes(seq)) displayId = prefix;
+            else displayId = `${prefix}${seq}`;
         }
-        // Priority 2: Fallback for raw UUIDs
         else if (dbOrder.id && dbOrder.id.length > 20) {
             displayId = `OS-${dbOrder.id.substring(0, 8).toUpperCase()}`;
         }
 
+        // Map functional dates
+        const completedDate = dbOrder.end_date;
+        const startedDate = dbOrder.start_date;
+        const blockedDate = status === 'blocked' ? dbOrder.updated_at : undefined;
+
+        // Choose which date to display as the main "date" in UI based on status
+        let displayDateRaw = dbOrder.scheduled_date;
+        if (status === 'completed' && completedDate) displayDateRaw = completedDate;
+        else if (status === 'in_progress' && startedDate) displayDateRaw = startedDate;
+        else if (status === 'blocked' && blockedDate) displayDateRaw = blockedDate;
+
+        const dateFormatted = displayDateRaw ? new Date(displayDateRaw).toLocaleDateString('pt-BR') : 'Data n/d';
+
         return {
-            id: dbOrder.id, // Keep original ID for API calls
+            id: dbOrder.id,
             tenantId: dbOrder.tenant_id,
-            // PROBLEM: We cannot change the ID if we use it for lookups.
-            // SOLUTION: Add a `displayId` field to ExtendedServiceOrder and update UI to use it.
-            // ALTERNATIVE: Use the real ID for logic, but format it in the UI. 
-            // But the user asked to fix it "no lugar do numero... apareceu o numero enorme".
-            // I'll update the ServiceOrder interface to include `displayId`.
-
-            // Actually, let's just make the 'id' the UUID, and I'll modify the UI to format it if it looks like a UUID.
-            // OR, I can add `displayId` here.
-
-            // Let's add displayId to the object. I need to update the Interface first.
-            // I'll just append it to the return object and cast it/add to interface.
-
             customer: dbOrder.customer_name || 'Cliente Desconhecido',
             address: dbOrder.customer_address || 'Endereço não informado',
-            date: dbOrder.scheduled_date ? new Date(dbOrder.scheduled_date).toLocaleDateString('pt-BR') : 'Data n/d',
+            date: dateFormatted,
             status: status,
             description: dbOrder.title + (dbOrder.description ? `\n${dbOrder.description}` : ''),
             equipment: dbOrder.equipment_name || dbOrder.equipment_model || 'Não informado',
@@ -239,7 +236,8 @@ export class OrderService {
             formData: dbOrder.form_data,
             scheduledDate: dbOrder.scheduled_date,
             scheduledTime: dbOrder.scheduled_time,
-            // 🏷️ DEBUG: Store raw status to identify the "missing" OS status
+            startedDate: startedDate,
+            completedDate: completedDate,
             rawStatus: dbOrder.status
         };
     }
@@ -289,7 +287,7 @@ export class OrderService {
         const to = from + pageSize - 1;
 
         const cacheKey = `orders_${userId}_${statusFilter}_${startDate?.getTime() || 0}_${endDate?.getTime() || 0}_${page}`;
-        
+
         const cached = await CacheService.get<any>(cacheKey);
         if (cached) return cached;
 
@@ -304,6 +302,17 @@ export class OrderService {
             const startDateStr = startDate ? formatLocalISO(startDate) : null;
             const endDateStr = endDate ? formatLocalISO(endDate) : null;
 
+            // Helper to get which date column to filter by based on status
+            const getDateCol = (statusFilterKey: string) => {
+                switch (statusFilterKey) {
+                    case 'completed': return 'end_date';
+                    case 'in_progress': return 'start_date';
+                    case 'traveling': return 'start_date';
+                    case 'blocked': return 'updated_at';
+                    default: return 'scheduled_date';
+                }
+            };
+
             // 1. Get User Profile for Role Check
             const { data: userProfile } = await supabase.from('users').select('role').eq('id', userId).single();
             const isAdmin = userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER';
@@ -317,16 +326,20 @@ export class OrderService {
             };
 
             const statsMap: Record<string, number> = { all: 0, pending: 0 };
+
+            // Stats counting with dynamic date columns
             const dbStatsPromises = Object.entries(STATUS_GROUPS_DB).map(async ([key, statuses]) => {
                 let q = supabase.from('orders').select('*', { count: 'exact', head: true });
                 if (!isAdmin) q = q.eq('assigned_to', userId);
                 q = q.in('status', statuses);
-                if (startDateStr) q = q.gte('scheduled_date', startDateStr);
-                if (endDateStr) q = q.lte('scheduled_date', endDateStr);
+                const dateCol = getDateCol(key);
+                if (startDateStr) q = q.gte(dateCol, startDateStr);
+                if (endDateStr) q = q.lte(dateCol, endDateStr);
                 const { count } = await q;
                 return { [key]: count || 0 };
             });
 
+            // "All" Stat always uses scheduled_date as base index
             let allQuery = supabase.from('orders').select('*', { count: 'exact', head: true });
             if (!isAdmin) allQuery = allQuery.eq('assigned_to', userId);
             if (startDateStr) allQuery = allQuery.gte('scheduled_date', startDateStr);
@@ -340,31 +353,46 @@ export class OrderService {
             dbStatsResults.forEach(r => Object.assign(statsMap, r));
             statsMap.all = allResult.count || 0;
 
+            // "Pending" Stat uses scheduled_date
             let pendingCountQuery = supabase.from('orders').select('status');
             if (!isAdmin) pendingCountQuery = pendingCountQuery.eq('assigned_to', userId);
+            if (startDateStr) pendingCountQuery = pendingCountQuery.gte('scheduled_date', startDateStr);
+            if (endDateStr) pendingCountQuery = pendingCountQuery.lte('scheduled_date', endDateStr);
+
             const { data: allStatuses } = await pendingCountQuery;
             if (allStatuses) {
                 statsMap.pending = allStatuses.filter(
-                    (o: any) => o.status && (o.status.toUpperCase().includes('ATRIBU') || o.status.toUpperCase().includes('PENDENT'))
+                    (o: any) => o.status && (
+                        o.status.toUpperCase().includes('ATRIBU') ||
+                        o.status.toUpperCase().includes('PENDENT') ||
+                        o.status.toUpperCase().includes('ABERTA')
+                    )
                 ).length;
             }
 
+            // 🛠️ Main Data Query
             let query = supabase.from('orders').select('*', { count: 'exact' });
             if (!isAdmin) query = query.eq('assigned_to', userId);
+
+            const activeDateCol = getDateCol(statusFilter);
 
             if (statusFilter !== 'pending') {
                 if (statusFilter !== 'all' && STATUS_GROUPS_DB[statusFilter]) {
                     query = query.in('status', STATUS_GROUPS_DB[statusFilter]);
                 }
+                if (startDateStr) query = query.gte(activeDateCol, startDateStr);
+                if (endDateStr) query = query.lte(activeDateCol, endDateStr);
+            } else {
+                // Pending filter in DB (if possible) or at least date filter
                 if (startDateStr) query = query.gte('scheduled_date', startDateStr);
                 if (endDateStr) query = query.lte('scheduled_date', endDateStr);
+                // We keep the memory filter for pending statuses since they are varied
+                query = query.order('created_at', { ascending: false });
             }
 
-            if (statusFilter === 'pending') {
-                query = query.order('created_at', { ascending: false });
-            } else {
+            if (statusFilter !== 'pending') {
                 query = query
-                    .order('scheduled_date', { ascending: true })
+                    .order(activeDateCol, { ascending: statusFilter === 'completed' ? false : true })
                     .order('scheduled_time', { ascending: true })
                     .order('created_at', { ascending: false });
             }
@@ -379,7 +407,7 @@ export class OrderService {
             if (statusFilter === 'pending') {
                 filteredData = filteredData.filter((o: any) => {
                     const s = (o.status || '').toUpperCase();
-                    return s.includes('ATRIBU') || s.includes('PENDENT') || s.includes('ABERT');
+                    return s.includes('ATRIBU') || s.includes('PENDENT') || s.includes('ABERTA');
                 });
             }
 

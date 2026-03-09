@@ -84,9 +84,13 @@ export default function HomeScreen() {
   }, [selectedFilter, startDate, endDate, currentPage]);
 
   const fetchOrders = async (isBackground = false) => {
-    if (!isBackground && orders.length === 0) {
+    // Para dar fluidez e UX premium, sempre mostramos o loader em trocas de aba/filtro
+    if (!isBackground) {
       setIsLoading(true);
+      setOrders([]); // Limpa a lista para garantir a transição visual
     }
+
+    const startTime = Date.now();
 
     try {
       const response = await OrderService.getAllOrders({
@@ -96,6 +100,13 @@ export default function HomeScreen() {
         startDate,
         endDate
       });
+
+      // Se foi muito rápido (cache), esperamos um mínimo para não dar flicker
+      const elapsed = Date.now() - startTime;
+      const minDelay = 400; // 400ms de transição "bonita"
+      if (!isBackground && elapsed < minDelay) {
+        await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
+      }
 
       setOrders(response.orders || []);
       setTotalOrders(response.total);
