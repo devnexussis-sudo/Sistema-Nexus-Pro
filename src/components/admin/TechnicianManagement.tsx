@@ -21,7 +21,7 @@ export const TechnicianManagement: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<any>({
-    name: '', email: '', password: 'password', avatar: '', active: true, phone: ''
+    name: '', email: '', password: '', avatar: '', active: true, phone: ''
   });
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -72,21 +72,30 @@ export const TechnicianManagement: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const trimmedPassword = formData.password.trim();
+
+    // 🛡️ Validação de Padrão (8+ char, 1 UpCase, 1 Num)
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+
+    if (!passwordRegex.test(trimmedPassword)) {
+      return window.alert("❌ SENHA INVÁLIDA\n\nA senha deve ter pelo menos 8 caracteres, incluindo uma letra maiúscula e um número.");
+    }
+
     try {
       setLoading(true);
       console.log("=== INICIANDO SALVAMENTO DE TÉCNICO ===");
       console.log("Dados do Form:", formData);
 
       if (editingId) {
-        await DataService.updateTechnician({ ...formData, id: editingId });
+        await DataService.updateTechnician({ ...formData, id: editingId, password: trimmedPassword });
       } else {
-        await DataService.createTechnician(formData);
+        await DataService.createTechnician({ ...formData, password: trimmedPassword });
       }
 
       await loadTechs();
       setIsModalOpen(false);
       setEditingId(null);
-      setFormData({ name: '', email: '', password: 'password', active: true, phone: '' });
+      setFormData({ name: '', email: '', password: '', active: true, phone: '' });
       alert("✅ Técnico registrado e vinculado com sucesso!");
     } catch (error: any) {
       console.error("❌ ERRO FATAL AO SALVAR TÉCNICO:", error);
@@ -202,7 +211,7 @@ export const TechnicianManagement: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', password: 'password', active: true, phone: '' }); }}
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', password: '', active: true, phone: '' }); }}
                   className="p-3 bg-white text-slate-300 hover:text-slate-900 rounded-xl shadow-sm border border-slate-100 transition-all"
                 >
                   <X size={24} />
@@ -252,7 +261,7 @@ export const TechnicianManagement: React.FC = () => {
                       <Input
                         required
                         type="password"
-                        placeholder="******"
+                        placeholder="Mínimo 8 caracteres, A-Z e 0-9"
                         value={formData.password}
                         onChange={e => setFormData({ ...formData, password: e.target.value })}
                         className="rounded-2xl py-4 font-bold border-slate-200 focus:ring-emerald-50"

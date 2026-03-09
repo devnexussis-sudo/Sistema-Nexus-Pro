@@ -81,8 +81,19 @@ export const ResetPassword: React.FC = () => {
         e.preventDefault();
         if (loading) return;
 
-        if (password.length < 6) return setError('A senha deve ter pelo menos 6 caracteres.');
-        if (password !== confirmPassword) return setError('As senhas digitadas não coincidem.');
+        const trimmedPassword = password.trim();
+        const trimmedConfirm = confirmPassword.trim();
+
+        // 🛡️ Validação de Padrão (8+ char, 1 UpCase, 1 Num)
+        const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+
+        if (!passwordRegex.test(trimmedPassword)) {
+            return setError('A senha deve ter pelo menos 8 caracteres, incluindo uma letra maiúscula e um número.');
+        }
+
+        if (trimmedPassword !== trimmedConfirm) {
+            return setError('As senhas digitadas não coincidem. Verifique e tente novamente.');
+        }
 
         setError('');
         setLoading(true);
@@ -90,9 +101,9 @@ export const ResetPassword: React.FC = () => {
         try {
             logger.info('[ResetPassword] Executando comando de atualização de senha...');
 
-            // ✅ Comando direto sem interferência do AuthContext global (que está em modo ignorar)
+            // ✅ Comando direto sem interferência do AuthContext global
             const { error: updateError } = await supabase.auth.updateUser({
-                password: password
+                password: trimmedPassword
             });
 
             if (updateError) throw updateError;
@@ -170,7 +181,7 @@ export const ResetPassword: React.FC = () => {
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Mínimo 6 caracteres"
+                                placeholder="Mínimo 8 caracteres, A-Z e 0-9"
                                 className="bg-slate-50 border-slate-200 text-slate-900 rounded-2xl py-4 font-bold focus:ring-4 focus:ring-primary-100 transition-all placeholder:text-slate-300"
                                 icon={<Lock size={18} className="text-slate-300" />}
                             />
