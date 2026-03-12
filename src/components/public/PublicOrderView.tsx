@@ -914,7 +914,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                         <tr key={item.id || i} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-5 py-3.5">
                             <span className="text-[11px] font-bold text-slate-800 uppercase">{item.description}</span>
-                            {item.fromStock && <span className="ml-2 text-[8px] font-bold text-emerald-600 uppercase">✦ Estoque</span>}
+                            {item.equipmentName && (
+                              <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase mt-1">
+                                <Box size={10} className="text-slate-300" /> {item.equipmentName}
+                              </div>
+                            )}
+                            {item.fromStock && <span className="text-[8px] font-bold text-emerald-600 uppercase mt-1 block">✦ Estoque Técnico</span>}
                           </td>
                           <td className="px-5 py-3.5 text-center text-[11px] text-slate-500 font-bold">{item.quantity}</td>
                           <td className="px-5 py-3.5 text-right text-[11px] font-mono text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>

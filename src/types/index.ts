@@ -182,6 +182,8 @@ export interface OrderItem {
   total: number;
   fromStock?: boolean;
   stockItemId?: string;
+  equipmentId?: string;
+  equipmentName?: string;
 }
 
 export interface ServiceOrder {
