@@ -1,14 +1,13 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Package, Search, Plus, Edit3, Trash2, X, Save, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Scale, Box, Barcode, Filter, Wand2, Layers, Tag, LayoutGrid, List, RefreshCw, ChevronLeft } from 'lucide-react';
-import { Pagination } from '../ui/Pagination';
-import { StockItem, Category } from '../../types';
+import { AlertTriangle, Barcode, Box, DollarSign, Edit3, Filter, Layers, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Wand2, X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import { DataService } from '../../services/dataService';
 import { TenantService } from '../../services/tenantService';
-import { Input } from '../ui/Input';
+import { Category, StockItem } from '../../types';
 import { Button } from '../ui/Button';
-import { useAuth } from '../../contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Input } from '../ui/Input';
+import { Pagination } from '../ui/Pagination';
 
 export const StockManagement: React.FC = () => {
     const { isAuthLoading, session } = useAuth();
@@ -784,22 +783,39 @@ export const StockManagement: React.FC = () => {
                                                 <th className="px-6 py-1.5 text-center">Tipo</th>
                                                 <th className="px-6 py-1.5">Item</th>
                                                 <th className="px-6 py-1.5 text-center">Qtd.</th>
+                                                <th className="px-6 py-1.5">Técnico / Admin</th>
+                                                <th className="px-6 py-1.5">Referência (OS/ORC)</th>
                                                 <th className="px-6 py-1.5 text-center">Fluxo</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {movements.map(m => (
-                                                <tr key={m.id} className="text-[11px]">
-                                                    <td className="px-6 py-1.5 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString()}</td>
+                                                <tr key={m.id} className="text-[11px] hover:bg-slate-50/50">
+                                                    <td className="px-6 py-1.5 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
                                                     <td className="px-6 py-1.5 text-center">
-                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                                            {m.type === 'TRANSFER' ? 'Transferência' : 'Consumo'}
+                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' :
+                                                                m.type === 'CONSUMPTION' ? 'bg-amber-100 text-amber-700' :
+                                                                    'bg-emerald-50 text-emerald-600'
+                                                            }`}>
+                                                            {m.type === 'TRANSFER' ? 'Transferência' : m.type === 'CONSUMPTION' ? 'Consumo' : 'Entrada'}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-1.5">
                                                         <p className="font-black text-slate-800 uppercase ">{m.stock_items?.description}</p>
+                                                        <p className="text-[9px] text-slate-400">Cód: {m.stock_items?.code}</p>
                                                     </td>
                                                     <td className="px-6 py-1.5 text-center font-bold text-slate-900">{m.quantity}</td>
+                                                    <td className="px-6 py-1.5">
+                                                        <div className="flex flex-col">
+                                                            <span className="font-bold text-slate-700 uppercase truncate max-w-[120px]">{m.technician?.name || m.executor?.name || '-'}</span>
+                                                            {m.executor?.name && m.executor.name !== m.technician?.name && (
+                                                                <span className="text-[9px] text-slate-400 italic">Por: {m.executor.name}</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-1.5">
+                                                        <span className="font-black text-primary-600 text-[10px]">{m.reference_id || '-'}</span>
+                                                    </td>
                                                     <td className="px-6 py-1.5 text-center text-[10px] font-bold text-slate-400 ">
                                                         {m.source} → {m.destination}
                                                     </td>
