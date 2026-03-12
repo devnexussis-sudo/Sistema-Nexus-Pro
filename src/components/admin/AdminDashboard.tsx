@@ -1745,6 +1745,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 )}
                               </div>
                             )}
+                            {(() => {
+                              const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
+                              const photos = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
+                              const validPhotos = photos.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
+
+                              if (validPhotos.length === 0) return null;
+
+                              return (
+                                <div className="px-6 py-4">
+                                  <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3">Anexos de Conclusão (Evidências)</p>
+                                  <div className="flex flex-wrap gap-3">
+                                    {validPhotos.map((url: string, i: number) => (
+                                      <div
+                                        key={i}
+                                        className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
+                                        onClick={() => setFullscreenImage(url)}
+                                      >
+                                        <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       );
