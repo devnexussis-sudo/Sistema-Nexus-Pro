@@ -7,66 +7,70 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'rea
 export function HeaderRightToggle() {
     const [isOfflineMode, setIsOfflineMode] = useState(syncService.isOfflineModeEnabled());
     const [isConnected, setIsConnected] = useState(true);
-    const [isBusy, setIsBusy] = useState(false);
-    const [busyLabel, setBusyLabel] = useState('');
+    const [isSyncing, setIsSyncing] = useState(syncService.getSyncingState());
+    const [isLoading, setIsLoading] = useState(false);
+    const [label, setLabel] = useState('');
 
     useEffect(() => {
-        const unsubscribeNet = NetInfo.addEventListener(state => {
-            setIsConnected(!!state.isConnected);
-        });
-        const unsubscribeSync = syncService.subscribe(() => {
+        const unNet = NetInfo.addEventListener(s => setIsConnected(!!s.isConnected));
+        // Monitora mudança de fila (para atualizar isOfflineMode)
+        const unQueue = syncService.subscribe(() => {
             setIsOfflineMode(syncService.isOfflineModeEnabled());
         });
-        return () => { unsubscribeNet(); unsubscribeSync(); };
+        // Monitora isSyncing diretamente
+        const unSync = syncService.subscribeSyncing((syncing) => {
+            setIsSyncing(syncing);
+            if (syncing) {
+                setLabel('Sincronizando...');
+            } else {
+                setLabel('');
+            }
+        });
+        return () => { unNet(); unQueue(); unSync(); };
     }, []);
+
+    const isBusy = isLoading || isSyncing;
+    const busyLabel = isSyncing ? 'Sincronizando...' : label;
 
     const handleToggle = async () => {
         if (isBusy) return;
-        const newVal = !isOfflineMode;
+        const goingOffline = !isOfflineMode;
 
-        if (newVal) {
-            // Ativando offline: pré-carregar OS do dia
+        if (goingOffline) {
             if (!isConnected) {
                 await syncService.toggleOfflineMode(true);
                 setIsOfflineMode(true);
                 Alert.alert('Modo Offline', 'Sem conexão — usando dados em cache.');
                 return;
             }
-            setIsBusy(true);
-            setBusyLabel('Carregando...');
+            setIsLoading(true);
+            setLabel('Carregando...');
             try {
                 await syncService.toggleOfflineMode(true);
                 setIsOfflineMode(true);
-                const count = await syncService.prefetchTodayOrders((c, t) => setBusyLabel(`${c}/${t} OS`));
-                Alert.alert('📶 Modo Offline', count > 0 ? `${count} OS carregadas para uso offline.` : 'Nenhuma OS aberta para hoje.');
+                const count = await syncService.prefetchTodayOrders();
+                Alert.alert('📶 Modo Offline', count > 0 ? `${count} OS carregadas.` : 'Nenhuma OS aberta hoje.');
             } catch (_) {
                 Alert.alert('Aviso', 'Erro ao carregar OS.');
             } finally {
-                setIsBusy(false);
-                setBusyLabel('');
+                setIsLoading(false);
+                setLabel('');
             }
         } else {
-            // Voltando online: sincronizar
-            setIsBusy(true);
-            setBusyLabel('Sincronizando...');
-            try {
-                await syncService.toggleOfflineMode(false);
-                setIsOfflineMode(false);
-                Alert.alert('✅ Online', 'Dados sincronizados com sucesso!');
-            } catch (_) {
-                Alert.alert('Aviso', 'Erro na sincronização. Tente novamente.');
-            } finally {
-                setIsBusy(false);
-                setBusyLabel('');
-            }
+            // Volta online: toggleOfflineMode chama triggerSync internamente
+            // O spinner aparece via subscribeSyncing — não precisa de estado local
+            setIsOfflineMode(false);
+            await syncService.toggleOfflineMode(false);
+            Alert.alert('✅ Online', 'Conectado. Dados sincronizados!');
         }
     };
 
     const isEffectivelyOffline = isOfflineMode || !isConnected;
+    const color = isBusy ? '#f59e0b' : isEffectivelyOffline ? '#ef4444' : '#10b981';
 
     return (
         <Pressable style={styles.container} onPress={handleToggle} disabled={isBusy}>
-            <View style={[styles.badge, { backgroundColor: isBusy ? '#f59e0b' : isEffectivelyOffline ? '#ef4444' : '#10b981' }]}>
+            <View style={[styles.badge, { backgroundColor: color }]}>
                 {isBusy ? (
                     <>
                         <ActivityIndicator size="small" color="#fff" />
@@ -74,7 +78,7 @@ export function HeaderRightToggle() {
                     </>
                 ) : (
                     <>
-                        <Ionicons name={isEffectivelyOffline ? "cloud-offline" : "cloud-done"} size={14} color="#fff" />
+                        <Ionicons name={isEffectivelyOffline ? 'cloud-offline' : 'cloud-done'} size={14} color="#fff" />
                         <Text style={styles.text}>{isEffectivelyOffline ? 'Offline' : 'Online'}</Text>
                     </>
                 )}

@@ -24,6 +24,7 @@ const APP_OFFLINE_MODE_KEY = '@nexus_offline_mode_enabled';
 class SyncService {
     private isSyncing = false;
     private subscribers: ((queue: SyncTask[]) => void)[] = [];
+    private syncingSubscribers: ((syncing: boolean) => void)[] = [];
     private unsubscribeNetInfo: (() => void) | null = null;
     private offlineModeEnabled = false;
 
@@ -47,8 +48,11 @@ class SyncService {
             this.startListening();
         } else {
             this.stopListening();
-            // Ao voltar online, dispara sync imediatamente e aguarda
             await this.triggerSync(true);
+            // Garantir que a UI atualize mesmo se a fila já estava vazia
+            this.notifySyncingSubscribers(false);
+            const queue = await this.getQueue();
+            this.notifySubscribers(queue);
         }
     }
 
@@ -143,6 +147,7 @@ class SyncService {
         if (pendingTasks.length === 0) return;
 
         this.isSyncing = true;
+        this.notifySyncingSubscribers(true);
         console.log(`[Sync] Iniciando sincronização de ${pendingTasks.length} itens...`);
 
         for (const task of pendingTasks) {
@@ -160,6 +165,7 @@ class SyncService {
         }
 
         this.isSyncing = false;
+        this.notifySyncingSubscribers(false);
         console.log('[Sync] Sincronização concluída.');
     }
 
@@ -265,8 +271,22 @@ class SyncService {
         };
     }
 
+    /** Escuta mudanças no estado de sincronização (isSyncing true/false) */
+    subscribeSyncing(callback: (syncing: boolean) => void) {
+        this.syncingSubscribers.push(callback);
+        return () => {
+            this.syncingSubscribers = this.syncingSubscribers.filter(cb => cb !== callback);
+        };
+    }
+
+    getSyncingState() { return this.isSyncing; }
+
     private notifySubscribers(queue: SyncTask[]) {
         this.subscribers.forEach(cb => cb(queue));
+    }
+
+    private notifySyncingSubscribers(syncing: boolean) {
+        this.syncingSubscribers.forEach(cb => cb(syncing));
     }
 
     private startListening() {

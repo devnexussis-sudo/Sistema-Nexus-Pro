@@ -9,7 +9,7 @@ import { syncService } from '@/services/sync-service';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View } from 'react-native';
 
 const ITEMS_PER_PAGE = 10;
@@ -82,21 +82,28 @@ export default function HomeScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Ref para sempre ter a versão mais atual de fetchOrders (evita closure stale)
+  const fetchOrdersRef = useRef<((force?: boolean) => void) | null>(null);
+
   // Offline Sync State
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
   useEffect(() => {
-    let prevCount = 0;
-    const unsub = syncService.subscribe((queue) => {
-      const count = queue.filter(q => q.status !== 'syncing').length;
-      // Se fila ficou vazia (sync concluiu), dar refresh automático
-      if (prevCount > 0 && count === 0) {
-        fetchOrders(true);
-      }
-      prevCount = count;
-      setPendingSyncCount(count);
+    fetchOrdersRef.current = fetchOrders;
+  });
+
+  useEffect(() => {
+    // Subscribe na fila para contagem
+    const unQueue = syncService.subscribe((queue) => {
+      setPendingSyncCount(queue.filter(q => q.status === 'pending').length);
     });
-    return unsub;
+    // Subscribe no estado de sync: quando termina (false), faz refresh
+    const unSync = syncService.subscribeSyncing((syncing) => {
+      if (!syncing && fetchOrdersRef.current) {
+        fetchOrdersRef.current(true);
+      }
+    });
+    return () => { unQueue(); unSync(); };
   }, []);
 
   const cacheKey = useMemo(() => {
