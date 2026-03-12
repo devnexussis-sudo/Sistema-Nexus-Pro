@@ -2001,7 +2001,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   onChange={e => handleUpdateItem(item.id, 'description', e.target.value)}
                                   placeholder="Descrição do item..."
                                 />
-                              ) : <span className="font-semibold text-slate-800">{item.description}</span>}
+                              ) : (
+                                <div>
+                                  <span className="font-semibold text-slate-800">{item.description}</span>
+                                  {item.equipmentName && (
+                                    <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase mt-1">
+                                      <Box size={10} /> {item.equipmentName}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-2 text-center">
                               {isEditing ? (
