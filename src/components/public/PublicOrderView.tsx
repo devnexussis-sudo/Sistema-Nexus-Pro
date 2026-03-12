@@ -1,14 +1,28 @@
-import React, { useState } from 'react';
-import { ServiceOrder, User } from '../../types';
 import {
-  Calendar, MapPin, Printer, Hexagon, Box, User as UserIcon, Tag,
-  CheckCircle2, FileText, ShieldAlert, Mail, Phone, DollarSign,
-  ChevronDown, ChevronUp, Clock, Wrench, Package, ClipboardList
+  Box,
+  Calendar,
+  CheckCircle2,
+  ChevronDown, ChevronUp,
+  ClipboardList,
+  Clock,
+  DollarSign,
+  FileText,
+  Hexagon,
+  Mail,
+  MapPin,
+  Package,
+  Phone,
+  Printer,
+  ShieldAlert,
+  Tag,
+  User as UserIcon,
+  Wrench
 } from 'lucide-react';
-import { StatusBadge } from '../ui/StatusBadge';
-import { DataService } from '../../services/dataService';
-import { NexusBranding } from '../ui/NexusBranding';
+import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { DataService } from '../../services/dataService';
+import { ServiceOrder, User } from '../../types';
+import { NexusBranding } from '../ui/NexusBranding';
 
 interface PublicOrderViewProps {
   order: ServiceOrder | null;
@@ -961,6 +975,59 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               onImageClick={setFullscreenImage}
             />
           ) : null}
+
+          {/* ── CARD DE CONCLUSÃO ── */}
+          {(() => {
+            const fd: Record<string, any> = typeof order.formData === 'string'
+              ? (() => { try { return JSON.parse(order.formData); } catch { return {}; } })()
+              : (order.formData || {});
+            const techReport = fd.technicalReport || fd.technical_report || '';
+            const partsUsed = fd.partsUsed || fd.parts_used || '';
+            const cName = fd.clientName || '';
+            const cDoc = fd.clientDoc || '';
+            const completedAt = fd.completedAt || order.endDate || '';
+            if (!techReport && !partsUsed && !cName && !completedAt) return null;
+            return (
+              <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-6 sm:px-8 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                      <CheckCircle2 size={16} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-indigo-800 uppercase tracking-widest">Dados de Conclusão</p>
+                      <p className="text-[9px] text-indigo-400 font-medium mt-0.5">Informações registradas na finalização</p>
+                    </div>
+                  </div>
+                  {completedAt && (
+                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-wide px-2.5 py-1 rounded-full border bg-white border-indigo-200 flex items-center gap-1.5">
+                      <Clock size={10} /> {new Date(completedAt).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <div className="px-6 sm:px-8 py-6 space-y-5">
+                  {techReport && (
+                    <div>
+                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2">Relatório Técnico</p>
+                      <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{techReport}</p>
+                    </div>
+                  )}
+                  {partsUsed && (
+                    <div>
+                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2">Peças Utilizadas</p>
+                      <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{partsUsed}</p>
+                    </div>
+                  )}
+                  {(cName || cDoc) && (
+                    <div className="flex gap-8 pt-2 border-t border-indigo-100">
+                      {cName && <InfoPill label="Responsável" value={cName} />}
+                      {cDoc && <InfoPill label="CPF" value={cDoc} mono />}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── ASSINATURAS (sempre visível no final) ── */}
           {(() => {
