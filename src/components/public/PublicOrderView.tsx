@@ -1018,10 +1018,23 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{partsUsed}</p>
                     </div>
                   )}
-                  {(cName || cDoc) && (
-                    <div className="flex gap-8 pt-2 border-t border-indigo-100">
-                      {cName && <InfoPill label="Responsável" value={cName} />}
-                      {cDoc && <InfoPill label="CPF" value={cDoc} mono />}
+                  {(cName || cDoc || fd.signature) && (
+                    <div className="flex flex-col sm:flex-row gap-6 pt-4 border-t border-indigo-100">
+                      <div className="flex gap-8 flex-1">
+                        {cName && <InfoPill label="Responsável" value={cName} />}
+                        {cDoc && <InfoPill label="CPF" value={cDoc} mono />}
+                      </div>
+                      {fd.signature && (
+                        <div className="flex flex-col gap-1.5 shrink-0">
+                          <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Assinatura Digital</span>
+                          <div
+                            className="h-10 w-28 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1 cursor-zoom-in hover:border-indigo-300 transition-all"
+                            onClick={() => onImageClick(fd.signature)}
+                          >
+                            <img src={fd.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {(() => {
@@ -1079,12 +1092,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             // Nunca usar customerName como fallback (seria o nome cadastrado, não quem assinou)
             const clientName = (order as any).signatureName ||
               fd.signatureName ||
+              fd.clientName ||
               findFd('assinaturadoclientenome') ||
               findFd('responsavelpelorecebi') ||
               findFd('responsavel');
 
             const clientDoc = (order as any).signatureDoc ||
               fd.signatureDoc ||
+              fd.clientDoc ||
               findFd('assinaturadoclientecpf') ||
               findFd('cpf');
 

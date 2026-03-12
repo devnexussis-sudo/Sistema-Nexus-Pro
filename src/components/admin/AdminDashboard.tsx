@@ -1729,18 +1729,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-indigo-100">{partsUsed}</p>
                               </div>
                             )}
-                            {(clientName || clientDoc) && (
-                              <div className="px-6 py-4 flex gap-8">
-                                {clientName && (
-                                  <div>
-                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Nome do Responsável</p>
-                                    <p className="text-sm font-bold text-slate-800 mt-1">{clientName}</p>
-                                  </div>
-                                )}
-                                {clientDoc && (
-                                  <div>
-                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Documento (CPF)</p>
-                                    <p className="text-sm font-bold text-slate-800 mt-1 font-mono">{clientDoc}</p>
+                            {(clientName || clientDoc || fd.signature) && (
+                              <div className="px-6 py-4 flex flex-col md:flex-row gap-8 items-start">
+                                <div className="flex gap-8">
+                                  {clientName && (
+                                    <div>
+                                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Nome do Responsável</p>
+                                      <p className="text-sm font-bold text-slate-800 mt-1">{clientName}</p>
+                                    </div>
+                                  )}
+                                  {clientDoc && (
+                                    <div>
+                                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Documento (CPF)</p>
+                                      <p className="text-sm font-bold text-slate-800 mt-1 font-mono">{clientDoc}</p>
+                                    </div>
+                                  )}
+                                </div>
+                                {fd.signature && (
+                                  <div className="flex flex-col gap-1.5 ml-auto">
+                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Assinatura Coletada</p>
+                                    <div
+                                      className="h-12 w-32 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1 cursor-zoom-in hover:shadow-sm transition-all"
+                                      onClick={() => setFullscreenImage(fd.signature)}
+                                    >
+                                      <img src={fd.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                                    </div>
                                   </div>
                                 )}
                               </div>
