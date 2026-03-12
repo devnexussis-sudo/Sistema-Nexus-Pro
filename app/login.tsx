@@ -1,13 +1,13 @@
 
-import React, { useState } from 'react';
-import { StyleSheet, View, TextInput, Pressable, Text, Image, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { ThemedText } from '@/components/themed-text';
-import { Ionicons } from '@expo/vector-icons';
 import { authService } from '@/services/auth-service';
 import { startBackgroundLocation } from '@/services/location-service';
+import { Ionicons } from '@expo/vector-icons';
 import Checkbox from 'expo-checkbox';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useState } from 'react';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -35,7 +35,7 @@ export default function LoginScreen() {
                 .then(() => console.log('[Login] GPS Auto-Started'))
                 .catch(err => console.warn('[Login] GPS Start Error:', err));
 
-            router.replace('/(tabs)');
+            router.replace('/');
         } else {
             alert('Falha no login. Verifique suas credenciais.');
         }

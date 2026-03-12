@@ -1,18 +1,21 @@
 
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Switch, FlatList, Pressable, Alert } from 'react-native';
-import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
-import { Ionicons } from '@expo/vector-icons';
-import { startBackgroundLocation, stopBackgroundLocation, LOCATION_TASK_NAME } from '@/services/location-service';
-import * as Location from 'expo-location';
+import { ThemedView } from '@/components/themed-view';
+import { LOCATION_TASK_NAME, startBackgroundLocation, stopBackgroundLocation } from '@/services/location-service';
 import { logger } from '@/services/logger';
+import { syncService } from '@/services/sync-service';
+import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 export default function SettingsScreen() {
     const [isGpsEnabled, setIsGpsEnabled] = useState(false);
+    const [isOfflineEnabled, setIsOfflineEnabled] = useState(false);
 
     useEffect(() => {
         checkGpsStatus();
+        setIsOfflineEnabled(syncService.isOfflineModeEnabled());
     }, []);
 
     const checkGpsStatus = async () => {
@@ -44,6 +47,11 @@ export default function SettingsScreen() {
         }
     };
 
+    const toggleOffline = async (val: boolean) => {
+        setIsOfflineEnabled(val);
+        await syncService.toggleOfflineMode(val);
+    };
+
     return (
         <ThemedView style={styles.container}>
 
@@ -65,6 +73,33 @@ export default function SettingsScreen() {
                         value={isGpsEnabled}
                     />
                 </View>
+
+                <View style={[styles.settingRow, { marginTop: 20 }]}>
+                    <View style={styles.settingInfo}>
+                        <Text style={styles.settingLabel}>Modo Offline-First (Mídia)</Text>
+                        <Text style={styles.settingDescription}>
+                            Sincroniza fotos e ordens pendentes em fila, ideal para áreas sem sinal.
+                        </Text>
+                    </View>
+                    <Switch
+                        trackColor={{ false: '#767577', true: '#1c2d4f' }}
+                        thumbColor={isOfflineEnabled ? '#fff' : '#f4f3f4'}
+                        onValueChange={toggleOffline}
+                        value={isOfflineEnabled}
+                    />
+                </View>
+            </View>
+
+            <View style={styles.section}>
+                <ThemedText type="subtitle" style={styles.sectionHeader}>Diagnóstico</ThemedText>
+
+                <Pressable style={styles.logButton} onPress={() => logger.shareLogs()}>
+                    <Ionicons name="bug-outline" size={20} color="#fff" />
+                    <Text style={styles.logButtonText}>Compartilhar Logs do App</Text>
+                </Pressable>
+                <Text style={styles.logDescription}>
+                    Envie o histórico interno de erros via WhatsApp ou E-mail para facilitar o suporte em caso de falhas.
+                </Text>
             </View>
 
         </ThemedView>
@@ -110,5 +145,26 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#666',
         marginTop: 4,
+    },
+    logButton: {
+        backgroundColor: '#1c2d4f',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 14,
+        borderRadius: 10,
+        marginTop: 5,
+        gap: 8
+    },
+    logButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold'
+    },
+    logDescription: {
+        color: '#64748b',
+        fontSize: 12,
+        marginTop: 8,
+        textAlign: 'center'
     },
 });

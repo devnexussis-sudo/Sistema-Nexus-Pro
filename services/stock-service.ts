@@ -1,8 +1,8 @@
 
-import { supabase } from './supabase';
-import { logger } from './logger';
 import { authService } from './auth-service';
 import { CacheService } from './cache-service';
+import { logger } from './logger';
+import { supabase } from './supabase';
 
 export interface TechStockItem {
     id: string;
@@ -21,7 +21,7 @@ export const StockService = {
     /**
      * Busca o estoque do técnico logado
      */
-    async getMyStock(): Promise<TechStockItem[]> {
+    async getMyStock(forceRefresh = false): Promise<TechStockItem[]> {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const userId = session?.user?.id || authService.getCurrentUserId();
@@ -35,7 +35,7 @@ export const StockService = {
             // Mas o RLS já deve cuidar disso se configurado com auth.uid()
             const cacheKey = `stock_tech_${userId}`;
             const cached = await CacheService.get<TechStockItem[]>(cacheKey);
-            if (cached) return cached;
+            if (cached && !forceRefresh) return cached;
 
             return await CacheService.fetcher(cacheKey, async () => {
                 const { data, error } = await supabase

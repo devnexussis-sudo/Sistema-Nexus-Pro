@@ -1,13 +1,13 @@
 
 import { Tabs } from 'expo-router';
-import React, { useState } from 'react';
-import { Platform, Pressable } from 'react-native';
+import { useState } from 'react';
+import { Pressable } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { MenuModal } from '@/components/menu-modal';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -32,6 +32,7 @@ export default function TabLayout() {
               <IconSymbol name="line.3.horizontal" size={28} color="#fff" />
             </Pressable>
           ),
+          headerRight: () => <HeaderRightToggle />
         }}>
         <Tabs.Screen
           name="index"

@@ -1,19 +1,25 @@
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { supabase } from './supabase';
+import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import { supabase } from './supabase';
 
-// Configuração Global de Handler
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true
-    }),
-});
+// No SDK 55, o pacote expo-notifications causa crash imediato no Android se rodar via Expo Go.
+// Usamos require condicional para evitar que a importação estática quebre o registro de rotas.
+const isExpoGoAndroid = Platform.OS === 'android' && Constants.appOwnership === 'expo';
+const Notifications = isExpoGoAndroid ? null : require('expo-notifications');
+
+// Configuração Global de Handler - Apenas se não for Expo Go Android
+if (Notifications && Notifications.setNotificationHandler) {
+    Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+            shouldShowBanner: true,
+            shouldShowList: true
+        }),
+    });
+}
 
 export const NotificationService = {
 
@@ -21,46 +27,49 @@ export const NotificationService = {
      * Registra o dispositivo para receber Push Notifications e salva o token no Supabase.
      */
     async registerForPushNotificationsAsync() {
-        let token;
-
-        if (Platform.OS === 'android') {
-            await Notifications.setNotificationChannelAsync('default', {
-                name: 'default',
-                importance: Notifications.AndroidImportance.MAX,
-                vibrationPattern: [0, 250, 250, 250],
-                lightColor: '#FF231F7C',
-            });
+        if (isExpoGoAndroid || !Notifications) {
+            console.log('Skipping push notification registration on Android Expo Go.');
+            return null;
         }
 
-        if (Device.isDevice) {
-            const { status: existingStatus } = await Notifications.getPermissionsAsync();
-            let finalStatus = existingStatus;
+        let token;
 
-            if (existingStatus !== 'granted') {
-                const { status } = await Notifications.requestPermissionsAsync();
-                finalStatus = status;
+        try {
+            if (Platform.OS === 'android') {
+                await Notifications.setNotificationChannelAsync('default', {
+                    name: 'default',
+                    importance: Notifications.AndroidImportance?.MAX,
+                    vibrationPattern: [0, 250, 250, 250],
+                    lightColor: '#FF231F7C',
+                });
             }
 
-            if (finalStatus !== 'granted') {
-                console.log('Permissão de notificações negada!');
-                return null;
-            }
+            if (Device.isDevice) {
+                const { status: existingStatus } = await Notifications.getPermissionsAsync();
+                let finalStatus = existingStatus;
 
-            // Obtém o token do Expo
-            const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+                if (existingStatus !== 'granted') {
+                    const { status } = await Notifications.requestPermissionsAsync();
+                    finalStatus = status;
+                }
 
-            if (!projectId) {
-                console.log('Push notifications (Expo) desativadas: projectId não encontrado. Isso é normal no Expo Go.');
-                return null;
-            }
+                if (finalStatus !== 'granted') {
+                    console.log('Permissão de notificações negada!');
+                    return null;
+                }
 
-            try {
+                const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+
+                if (!projectId) {
+                    console.log('Push notifications (Expo) desativadas: projectId não encontrado.');
+                    return null;
+                }
+
                 token = (await Notifications.getExpoPushTokenAsync({
                     projectId: projectId
                 })).data;
                 console.log('Expo Push Token:', token);
 
-                // Salvar Token no Supabase se houver usuário logado
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user && token) {
                     const { error } = await supabase.from('user_push_tokens').upsert({
@@ -72,11 +81,9 @@ export const NotificationService = {
 
                     if (error) console.log("Erro ao salvar token de push:", error);
                 }
-            } catch (e) {
-                console.log("Aviso: Erro ao obter push token (verifique doc do Expo):", e);
             }
-        } else {
-            console.log('Must use physical device for Push Notifications');
+        } catch (e) {
+            console.log("Aviso: Erro ao gerenciar push notifications:", e);
         }
 
         return token;
@@ -86,20 +93,16 @@ export const NotificationService = {
      * Agenda lembretes locais para uma Ordem de Serviço (30min e 60min antes)
      */
     async scheduleOrderReminders(orderId: string, scheduledDate: string, scheduledTime: string, displayId: string) {
-        if (!scheduledDate || !scheduledTime) return;
+        if (isExpoGoAndroid || !Notifications || !scheduledDate || !scheduledTime) return;
 
         try {
-            // Concatena data e hora corretamente considerando timezone local ou UTC
-            // Assumindo input 'YYYY-MM-DD' e 'HH:MM'
             const dateStr = `${scheduledDate}T${scheduledTime}:00`;
             const scheduledDateTime = new Date(dateStr);
-
-            // Verifica se data é válida
             if (isNaN(scheduledDateTime.getTime())) return;
 
             const now = new Date();
 
-            // Lembrete 60 min (1h) antes
+            // Lembrete 60 min
             const time60 = new Date(scheduledDateTime.getTime() - 60 * 60 * 1000);
             if (time60 > now) {
                 await Notifications.scheduleNotificationAsync({
@@ -109,12 +112,12 @@ export const NotificationService = {
                         data: { orderId, type: 'REMINDER_60' },
                         sound: true
                     },
-                    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: time60 } as Notifications.DateTriggerInput,
+                    trigger: { type: Notifications.SchedulableTriggerInputTypes?.DATE, date: time60 },
                     identifier: `reminder-60-${orderId}`
                 });
             }
 
-            // Lembrete 30 min antes
+            // Lembrete 30 min
             const time30 = new Date(scheduledDateTime.getTime() - 30 * 60 * 1000);
             if (time30 > now) {
                 await Notifications.scheduleNotificationAsync({
@@ -124,7 +127,7 @@ export const NotificationService = {
                         data: { orderId, type: 'REMINDER_30' },
                         sound: true
                     },
-                    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: time30 } as Notifications.DateTriggerInput,
+                    trigger: { type: Notifications.SchedulableTriggerInputTypes?.DATE, date: time30 },
                     identifier: `reminder-30-${orderId}`
                 });
             }
@@ -133,26 +136,21 @@ export const NotificationService = {
         }
     },
 
-    /**
-     * Cancela lembretes agendados para uma OS (útil se cancelada ou reagendada)
-     */
     async cancelOrderReminders(orderId: string) {
+        if (isExpoGoAndroid || !Notifications) return;
         await Notifications.cancelScheduledNotificationAsync(`reminder-60-${orderId}`);
         await Notifications.cancelScheduledNotificationAsync(`reminder-30-${orderId}`);
     },
 
-    /**
-     * Agenda notificação de nova OS (chamada quando recebe evento realtime)
-     */
     async triggerLocalNotification(title: string, body: string, data: any = {}) {
-        await Notifications.scheduleNotificationAsync({
-            content: {
-                title,
-                body,
-                data,
-                sound: true
-            },
-            trigger: null, // Imediato
-        });
+        if (isExpoGoAndroid || !Notifications) return;
+        try {
+            await Notifications.scheduleNotificationAsync({
+                content: { title, body, data, sound: true },
+                trigger: null,
+            });
+        } catch (e) {
+            console.error("Erro ao disparar notificação local:", e);
+        }
     }
 };

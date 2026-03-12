@@ -1,13 +1,15 @@
 
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import React, { useState, useCallback } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, Linking, Platform, Alert, TextInput, Modal, Image, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { ThemedView } from '@/components/themed-view';
+import { HeaderRightToggle } from '@/components/header-right-toggle';
+import { ImageViewerModal } from '@/components/image-viewer-modal';
 import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { STATUS_CONFIG } from '@/constants/mock-data';
 import { OrderService } from '@/services/order-service';
-import { ImageViewerModal } from '@/components/image-viewer-modal';
+import { syncService } from '@/services/sync-service';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function OrderDetailsScreen() {
     const { id } = useLocalSearchParams();
@@ -25,17 +27,41 @@ export default function OrderDetailsScreen() {
     useFocusEffect(
         useCallback(() => {
             let isActive = true;
+
             const fetchOrder = async () => {
-                setLoading(true);
                 try {
-                    const updatedOrder = await OrderService.getOrderById(id as string);
-                    if (isActive) setOrder(updatedOrder || null);
+                    // MODO OFFLINE: tentar cache local primeiro
+                    if (syncService.isOfflineModeEnabled()) {
+                        const raw = await syncService.getOrderDetail(id as string);
+                        if (isActive && raw) {
+                            const mapped = OrderService.mapDbOrderToApp(raw);
+                            mapped.equipments = raw.equipments || [];
+                            setOrder(mapped);
+                            return; // Dado encontrado no cache — não vai para rede
+                        }
+                        // Sem cache local: cai no fluxo normal de rede abaixo
+                    }
+
+                    // 1. Fetch from Cache (Fast Load)
+                    const cachedOrder = await OrderService.getOrderById(id as string, false);
+                    if (isActive && cachedOrder) {
+                        setOrder(cachedOrder);
+                        setLoading(false);
+                    }
+
+                    // 2. Background network refresh
+                    const freshOrder = await OrderService.getOrderById(id as string, true);
+                    if (isActive && freshOrder) {
+                        setOrder(freshOrder);
+                    }
                 } catch (e) {
                     console.error(e);
                 } finally {
                     if (isActive) setLoading(false);
                 }
             };
+
+            if (loading) setLoading(true); // Ensure primary loader shows if no cache
             fetchOrder();
             return () => { isActive = false; };
         }, [id])
@@ -72,6 +98,12 @@ export default function OrderDetailsScreen() {
     };
 
     const handleExecute = () => {
+        // MODO OFFLINE: ir direto para execução sem mudar status no servidor
+        if (syncService.isOfflineModeEnabled()) {
+            router.push({ pathname: '/os/execute', params: { id: id as string } });
+            return;
+        }
+
         if (order.status === 'assigned') {
             Alert.alert(
                 'Iniciar OS',
@@ -147,6 +179,10 @@ export default function OrderDetailsScreen() {
     };
 
     const handleBlock = () => {
+        if (syncService.isOfflineModeEnabled()) {
+            Alert.alert('Modo Offline', 'Impedimento de OS não disponível offline. Reative o modo online para registrar.');
+            return;
+        }
         setModalVisible(true);
     };
 
@@ -177,6 +213,7 @@ export default function OrderDetailsScreen() {
 
     return (
         <ThemedView style={styles.container}>
+            <Stack.Screen options={{ title: 'Detalhes da OS', headerRight: () => <HeaderRightToggle /> }} />
             <ScrollView contentContainerStyle={[styles.content, !isEditable && { paddingBottom: 20 }]}>
 
                 {/* Header Status */}
@@ -394,7 +431,7 @@ export default function OrderDetailsScreen() {
                                 const extras = Array.isArray(order.formData.extra_photos) ? order.formData.extra_photos : [order.formData.extra_photos];
                                 allPhotos.push(...extras);
                             }
-                            
+
                             const uniquePhotos = [...new Set(allPhotos)].filter(p => typeof p === 'string' && p.startsWith('http'));
                             if (uniquePhotos.length === 0) return null;
 
@@ -422,7 +459,7 @@ export default function OrderDetailsScreen() {
                                     <Ionicons name="pencil-outline" size={16} color="#475569" />
                                     <Text style={styles.executionSectionLabel}>Assinatura do Cliente</Text>
                                 </View>
-                                <Pressable 
+                                <Pressable
                                     onPress={() => openImage(order.executionDetails?.signature || order.formData?.signature)}
                                     style={styles.signatureCanvas}
                                 >
