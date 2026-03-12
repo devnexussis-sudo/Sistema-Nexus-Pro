@@ -1,28 +1,53 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { OrderStatus, OrderPriority, type ServiceOrder, type ServiceVisit, type ServiceOrderEquipment, type User, type Customer, VisitStatusEnum } from '../../types';
-import { Button } from '../ui/Button';
-import { StatusBadge, PriorityBadge } from '../ui/StatusBadge';
 import {
-  Plus, Printer, X, FileText, CheckCircle2, ShieldCheck,
-  Edit3, Save, ExternalLink, Search, Filter, Calendar, Share2,
-  Users, UserCheck, Clock, FileSpreadsheet, Download, Camera, ClipboardList, Ban, MapPin, Box,
-  DollarSign, Eye, EyeOff, LayoutDashboard, User as UserIcon, AlertTriangle, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  Loader2, CalendarPlus, History, Trash2, PlusCircle, PackageSearch
+  AlertTriangle, ArrowUpDown,
+  Ban,
+  Box,
+  CalendarPlus,
+  Camera,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  ClipboardList,
+  Clock,
+  DollarSign,
+  Edit3,
+  FileSpreadsheet,
+  FileText,
+  Filter,
+  History,
+  LayoutDashboard,
+  Loader2,
+  PackageSearch,
+  Plus,
+  PlusCircle,
+  Printer,
+  Save,
+  Search,
+  Share2,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  User as UserIcon,
+  X
 } from 'lucide-react';
-import { Pagination } from '../ui/Pagination';
-import { CreateOrderModal } from './CreateOrderModal';
-import { PublicOrderView } from '../public/PublicOrderView';
-import { OrderTimeline } from '../shared/OrderTimeline';
-import { VisitHistoryTab } from './VisitHistoryTab';
-import { VisitService } from '../../services/visitService';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { usePagedOrders } from '../../hooks/nexusHooks';
+import { useOrderExport } from '../../hooks/useOrderExport';
+import { DataService } from '../../services/dataService';
 import { EquipmentService } from '../../services/equipmentService';
 import { FormService } from '../../services/formService';
-import { createPortal } from 'react-dom';
-import { DataService } from '../../services/dataService';
-import { useOrderExport } from '../../hooks/useOrderExport';
-import { usePagedOrders } from '../../hooks/nexusHooks';
-import { useAuth } from '../../contexts/AuthContext';
+import { VisitService } from '../../services/visitService';
+import { type Customer, OrderStatus, type ServiceOrder, type ServiceVisit, type User, VisitStatusEnum } from '../../types';
+import { PublicOrderView } from '../public/PublicOrderView';
+import { OrderTimeline } from '../shared/OrderTimeline';
+import { Button } from '../ui/Button';
+import { Pagination } from '../ui/Pagination';
+import { StatusBadge } from '../ui/StatusBadge';
+import { CreateOrderModal } from './CreateOrderModal';
+import { VisitHistoryTab } from './VisitHistoryTab';
 
 // NOTA DE ARQUITETURA:
 // orders NÃO vem mais via prop — este componente busca seus próprios dados
@@ -1509,17 +1534,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       k.toLowerCase().includes('cpf') ||
                       k.toLowerCase().includes('nascimento');
 
-                    const validFieldLabels = template.fields
-                      .filter((f: any) => f.type !== 'LOGIC' && f.type !== 'CONDITIONAL' && !f.id?.toLowerCase().includes('logic'))
-                      .map((f: any) => f.label.toLowerCase().trim());
 
                     const savedEntries = Object.entries(allFormData)
                       .filter(([k]) => !SYSTEM_KEYS.has(k) && !isSignatureKey(k))
-                      .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true))
-                      .filter(([k]) => {
-                        const cleanKey = k.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ').toLowerCase().trim();
-                        return validFieldLabels.includes(cleanKey);
-                      });
+                      .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true));
 
                     const isOk = (v: any) => String(v).toLowerCase() === 'ok' || String(v).toLowerCase() === 'sim';
                     const isImg = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'));
