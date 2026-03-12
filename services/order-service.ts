@@ -57,7 +57,20 @@ export interface ActivationRule {
     active: boolean;
 }
 
+export interface OrderItem {
+    id?: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+    fromStock?: boolean;
+    stockItemId?: string;
+    equipmentId?: string;
+    equipmentName?: string;
+}
+
 export interface ExtendedServiceOrder extends ServiceOrder {
+    items?: OrderItem[];
     executionDetails?: {
         technicalReport: string;
         partsUsed: string;
@@ -242,6 +255,7 @@ export class OrderService {
             blockReason: ((status === 'canceled' || status === 'blocked') && (dbOrder.block_reason || details.blockReason)) ? (dbOrder.block_reason || details.blockReason) : undefined,
             type: dbOrder.operation_type || dbOrder.type,
             operationType: dbOrder.operation_type,
+            items: (dbOrder.items || []) as OrderItem[],
             priority: dbOrder.priority,
             displayId: displayId,
             publicToken: dbOrder.public_token,
@@ -505,6 +519,7 @@ export class OrderService {
         clientName?: string;
         clientDoc?: string;
         tenantId?: string;
+        items?: OrderItem[];
     }): Promise<void> {
         try {
             // 1. Upload Photos (Standard ones)
@@ -533,7 +548,32 @@ export class OrderService {
             const { data: currentOrder } = await supabase.from('orders').select('form_data').eq('id', id).single();
             const currentFormData = currentOrder?.form_data || {};
 
-            // 3. Update DB
+            // 3. Process Stock Consumption (only if online and items provided)
+            if (details.items && details.items.length > 0) {
+                const { data: userData } = await supabase.auth.getUser();
+                const uid = userData?.user?.id;
+                
+                if (uid) {
+                    for (const item of details.items) {
+                        if (item.fromStock && item.stockItemId) {
+                            try {
+                                await supabase.rpc('consume_tech_stock', {
+                                    p_tech_id: uid,
+                                    p_item_id: item.stockItemId,
+                                    p_quantity: item.quantity,
+                                    p_order_id: id,
+                                    p_created_by: uid
+                                });
+                            } catch (e) {
+                                logger.log(`Error consuming stock for ${item.description}: ${e}`, 'error');
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Update DB
+            const itemsValue = details.items?.reduce((acc, i) => acc + (i.total || 0), 0) ?? 0;
             const updateData: any = {
                 status: 'CONCLUÍDO',
                 end_date: new Date().toISOString(),
@@ -543,16 +583,14 @@ export class OrderService {
                     partsUsed: details.partsUsed,
                     photos: uploadedPhotos,
                     completedAt: new Date().toISOString(),
-                    clientName: details.clientName, // Save Client Name
-                    clientDoc: details.clientDoc,   // Save Client Doc (CPF)
-                    ...(details.formData || {}) // Include dynamic form data
+                    clientName: details.clientName,
+                    clientDoc: details.clientDoc,
+                    ...(details.formData || {})
                 },
-                signature_url: signatureUrl
-                // signature_doc column does not exist on orders yet, only client_signature_name
+                items: details.items || [], // Save items structured list
+                signature_url: signatureUrl,
+                billing_status: itemsValue > 0 ? 'PENDING' : undefined
             };
-
-            // If the schema supports client_signature_name, we can save it directly too
-            // updateData.client_signature_name = details.clientName; 
 
             const { error } = await supabase
                 .from('orders')
@@ -561,7 +599,7 @@ export class OrderService {
 
             if (error) throw error;
 
-            // Update service_visits
+            // 5. Update service_visits
             try {
                 const { data: userData } = await supabase.auth.getUser();
                 if (userData?.user?.id) {

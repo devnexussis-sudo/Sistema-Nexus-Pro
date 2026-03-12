@@ -3,7 +3,8 @@ import { ImageViewerModal } from '@/components/image-viewer-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ImageService } from '@/services/image-service';
-import { OrderService } from '@/services/order-service';
+import { OrderItem, OrderService } from '@/services/order-service';
+import { StockService, TechStockItem } from '@/services/stock-service';
 import { syncService } from '@/services/sync-service';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -38,15 +39,19 @@ export default function ExecuteOSScreen() {
 
     // Global fields
     const [technicalReport, setTechnicalReport] = useState('');
-    const [partsUsed, setPartsUsed] = useState('');
+    const [partsUsed, setPartsUsed] = useState(''); // Text notes
+    const [usedItems, setUsedItems] = useState<OrderItem[]>([]); // Structured parts
     const [extraPhotos, setExtraPhotos] = useState<string[]>([]);
     const [isUploadingExtra, setIsUploadingExtra] = useState(false);
 
+    const [selectedPart, setSelectedPart] = useState<TechStockItem | null>(null);
     const [signature, setSignature] = useState<string | null>(null);
     const [clientName, setClientName] = useState('');
     const [clientDoc, setClientDoc] = useState(''); // CPF/Document
 
     const [isSignatureModalVisible, setSignatureModalVisible] = useState(false);
+    const [isPartPickerVisible, setIsPartPickerVisible] = useState(false);
+    const [myStock, setMyStock] = useState<TechStockItem[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [viewerVisible, setViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -223,10 +228,13 @@ export default function ExecuteOSScreen() {
                             if (cache) {
                                 if (cache.technicalReport) setTechnicalReport(cache.technicalReport);
                                 if (cache.partsUsed) setPartsUsed(cache.partsUsed);
+                                if (cache.usedItems) setUsedItems(cache.usedItems);
                                 if (cache.extraPhotos) setExtraPhotos(cache.extraPhotos);
                                 if (cache.signature) setSignature(cache.signature);
                                 if (cache.clientName) setClientName(cache.clientName);
                                 if (cache.clientDoc) setClientDoc(cache.clientDoc);
+                            } else {
+                                if (mapped.items) setUsedItems(mapped.items);
                             }
 
                             // Carregar formulários offline
@@ -283,20 +291,22 @@ export default function ExecuteOSScreen() {
                         if (cache) {
                             if (cache.technicalReport) setTechnicalReport(cache.technicalReport);
                             if (cache.partsUsed) setPartsUsed(cache.partsUsed);
+                            if (cache.usedItems) setUsedItems(cache.usedItems);
                             if (cache.extraPhotos) setExtraPhotos(cache.extraPhotos);
                             if (cache.signature) setSignature(cache.signature);
                             if (cache.clientName) setClientName(cache.clientName);
                             if (cache.clientDoc) setClientDoc(cache.clientDoc);
                         } else {
+                            if (orderData.items) setUsedItems(orderData.items);
                             setTechnicalReport(orderData.formData?.technical_report || orderData.executionDetails?.technicalReport || '');
                             setPartsUsed(orderData.formData?.parts_used || orderData.executionDetails?.partsUsed || '');
-
-                            let loadedExtraPhotos = orderData.formData?.extra_photos || orderData.executionDetails?.photos || [];
-                            if (!Array.isArray(loadedExtraPhotos)) {
-                                loadedExtraPhotos = [loadedExtraPhotos];
-                            }
-                            setExtraPhotos(loadedExtraPhotos.filter((p: any) => typeof p === 'string'));
                         }
+
+                        let loadedExtraPhotos = orderData.formData?.extra_photos || orderData.executionDetails?.photos || [];
+                        if (!Array.isArray(loadedExtraPhotos)) {
+                            loadedExtraPhotos = [loadedExtraPhotos];
+                        }
+                        setExtraPhotos(loadedExtraPhotos.filter((p: any) => typeof p === 'string'));
 
                         const [rules, serviceTypes, allTemplates] = await Promise.all([
                             OrderService.getActivationRules(),
@@ -343,6 +353,14 @@ export default function ExecuteOSScreen() {
                         if (isActive) {
                             setFormsConfig(newFormsConfig);
                         }
+
+                        // Carregar estoque do técnico
+                        try {
+                            const stock = await StockService.getMyStock();
+                            if (isActive) setMyStock(stock);
+                        } catch (sErr) {
+                            console.error("[ExecuteOS] Error loading tech stock:", sErr);
+                        }
                     }
                 } catch (error) {
                     console.error("[ExecuteOS] Error loading data:", error);
@@ -381,6 +399,7 @@ export default function ExecuteOSScreen() {
                     }, {} as any),
                     technicalReport,
                     partsUsed,
+                    usedItems,
                     extraPhotos,
                     signature,
                     clientName,
@@ -396,7 +415,26 @@ export default function ExecuteOSScreen() {
 
         const timeout = setTimeout(saveToCache, 1000); // Debounce save
         return () => clearTimeout(timeout);
-    }, [id, formsConfig, technicalReport, partsUsed, extraPhotos, signature, clientName, clientDoc, isLoading, order]);
+    }, [id, formsConfig, technicalReport, partsUsed, usedItems, extraPhotos, signature, clientName, clientDoc, isLoading, order]);
+
+    const addUsedItem = (stockItem: TechStockItem, equipmentId?: string, equipmentName?: string) => {
+        const newItem: OrderItem = {
+            description: stockItem.item?.description || 'Item sem descrição',
+            quantity: 1,
+            unitPrice: stockItem.item?.sellPrice || 0,
+            total: stockItem.item?.sellPrice || 0,
+            fromStock: true,
+            stockItemId: stockItem.stockItemId,
+            equipmentId: equipmentId,
+            equipmentName: equipmentName
+        };
+        setUsedItems(prev => [...prev, newItem]);
+        setIsPartPickerVisible(false);
+    };
+
+    const removeUsedItem = (index: number) => {
+        setUsedItems(prev => prev.filter((_, i) => i !== index));
+    };
 
     const handleSignature = (signatureData: string) => {
         setSignature(signatureData);
@@ -614,6 +652,7 @@ export default function ExecuteOSScreen() {
                         extraPhotos,
                         signature,
                         execution_forms: formsConfig,
+                        usedItems,
                         clientName,
                         clientDoc,
                         tenantId: order?.tenantId,
@@ -638,7 +677,8 @@ export default function ExecuteOSScreen() {
                     formData: finalFormData,
                     clientName,
                     clientDoc,
-                    tenantId: order?.tenantId
+                    tenantId: order?.tenantId,
+                    items: usedItems
                 });
 
                 // Clear cache on success
@@ -832,13 +872,54 @@ export default function ExecuteOSScreen() {
                         />
 
                         <View style={{ marginTop: 24 }}>
-                            <ThemedText type="subtitle">Peças e Materiais Utilizados</ThemedText>
-                            <TextInput
-                                style={[styles.input]}
-                                placeholder="Anotações sobre materiais (opcional)"
-                                value={partsUsed}
-                                onChangeText={setPartsUsed}
-                            />
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                <ThemedText type="subtitle">Peças e Materiais (Estoque)</ThemedText>
+                                <Pressable
+                                    style={styles.addPartButton}
+                                    onPress={() => setIsPartPickerVisible(true)}
+                                >
+                                    <Ionicons name="add-circle-outline" size={18} color="#fff" />
+                                    <Text style={styles.addPartButtonText}>Incluir Item</Text>
+                                </Pressable>
+                            </View>
+
+                            {usedItems.length > 0 ? (
+                                <View style={styles.usedItemsList}>
+                                    {usedItems.map((item, index) => (
+                                        <View key={index} style={styles.usedItemCard}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.usedItemDescription}>{item.description}</Text>
+                                                {item.equipmentName && (
+                                                    <View style={styles.itemEquipmentBadge}>
+                                                        <Ionicons name="hardware-chip-outline" size={10} color="#64748b" />
+                                                        <Text style={styles.itemEquipmentText}>{item.equipmentName}</Text>
+                                                    </View>
+                                                )}
+                                                <Text style={styles.usedItemDetails}>
+                                                    Qtd: {item.quantity} • Unit: R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </Text>
+                                            </View>
+                                            <Pressable onPress={() => removeUsedItem(index)} style={styles.removePartButton}>
+                                                <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                                            </Pressable>
+                                        </View>
+                                    ))}
+                                </View>
+                            ) : (
+                                <View style={styles.emptyItemsBox}>
+                                    <Text style={styles.emptyItemsText}>Nenhuma peça de estoque adicionada.</Text>
+                                </View>
+                            )}
+
+                            <View style={{ marginTop: 16 }}>
+                                <ThemedText type="subtitle">Observações de Materiais</ThemedText>
+                                <TextInput
+                                    style={[styles.input]}
+                                    placeholder="Dutos, conectores, parafusos ou anotações extras..."
+                                    value={partsUsed}
+                                    onChangeText={setPartsUsed}
+                                />
+                            </View>
                         </View>
 
                         <View style={{ marginTop: 24 }}>
@@ -907,6 +988,98 @@ export default function ExecuteOSScreen() {
             </Modal>
 
             <ImageViewerModal visible={viewerVisible} imageUri={selectedImage} onClose={() => setViewerVisible(false)} />
+
+            {/* MODAL: SELEÇÃO DE PEÇAS DO ESTOQUE */}
+            <Modal
+                visible={isPartPickerVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setIsPartPickerVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.bottomSheet}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Meu Estoque</Text>
+                            <Pressable onPress={() => setIsPartPickerVisible(false)}>
+                                <Ionicons name="close" size={24} color="#666" />
+                            </Pressable>
+                        </View>
+
+                        <FlatList
+                            data={myStock}
+                            keyExtractor={(item) => item.id}
+                            contentContainerStyle={{ padding: 20 }}
+                            ListEmptyComponent={
+                                <View style={{ alignItems: 'center', padding: 40 }}>
+                                    <Ionicons name="cube-outline" size={48} color="#cbd5e1" />
+                                    <Text style={{ color: '#94a3b8', marginTop: 12, textAlign: 'center' }}>
+                                        Nenhum item disponível no seu estoque.
+                                    </Text>
+                                </View>
+                            }
+                            renderItem={({ item }) => (
+                                <Pressable
+                                    style={styles.stockPickerItem}
+                                    onPress={() => {
+                                        const equipments = order?.equipments || [];
+                                        if (equipments.length > 1) {
+                                            setSelectedPart(item);
+                                        } else {
+                                            const eq = equipments[0];
+                                            addUsedItem(item, eq?.id, eq?.equipment_model || eq?.equipment_name || order?.equipment);
+                                        }
+                                    }}
+                                >
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.stockItemName}>{item.item?.description}</Text>
+                                        <Text style={styles.stockItemCode}>{item.item?.code} • Saldo: {item.quantity}</Text>
+                                    </View>
+                                    <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+                                </Pressable>
+                            )}
+                        />
+                    </View>
+                </View>
+            </Modal>
+
+            {/* MODAL: SELECIONAR EQUIPAMENTO PARA A PEÇA (Caso tenha vários) */}
+            <Modal
+                visible={!!selectedPart}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setSelectedPart(null)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.bottomSheet, { maxHeight: '60%' }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Vincular a qual equipamento?</Text>
+                            <Pressable onPress={() => setSelectedPart(null)}>
+                                <Ionicons name="close" size={24} color="#666" />
+                            </Pressable>
+                        </View>
+
+                        <ScrollView style={{ padding: 20 }}>
+                            {order?.equipments?.map((eq: any, idx: number) => (
+                                <Pressable
+                                    key={eq.id || idx}
+                                    style={styles.eqSelectorItem}
+                                    onPress={() => {
+                                        if (selectedPart) {
+                                            addUsedItem(selectedPart, eq.id, eq.equipment_model || eq.equipment_name);
+                                            setSelectedPart(null);
+                                        }
+                                    }}
+                                >
+                                    <Ionicons name="hardware-chip-outline" size={20} color="#1c2d4f" />
+                                    <Text style={styles.eqSelectorText}>
+                                        {eq.equipment_model || eq.equipment_name || `Equipamento ${idx + 1}`}
+                                    </Text>
+                                </Pressable>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
         </ThemedView>
     );
 }
@@ -975,5 +1148,132 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '700',
         color: '#1c2d4f',
+    },
+    addPartButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#0f172a',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        gap: 6,
+    },
+    addPartButtonText: {
+        color: '#ffffff',
+        fontSize: 13,
+        fontWeight: 'bold',
+    },
+    usedItemsList: {
+        marginTop: 8,
+        gap: 12,
+    },
+    usedItemCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        backgroundColor: '#f8fafc',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    usedItemDescription: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1e293b',
+    },
+    itemEquipmentBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f1f5f9',
+        alignSelf: 'flex-start',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 4,
+        marginTop: 4,
+        gap: 4,
+    },
+    itemEquipmentText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#64748b',
+    },
+    usedItemDetails: {
+        fontSize: 12,
+        color: '#64748b',
+        marginTop: 4,
+    },
+    removePartButton: {
+        padding: 8,
+    },
+    emptyItemsBox: {
+        padding: 20,
+        backgroundColor: '#f8fafc',
+        borderRadius: 12,
+        borderStyle: 'dashed',
+        borderWidth: 1,
+        borderColor: '#cbd5e1',
+        alignItems: 'center',
+    },
+    emptyItemsText: {
+        color: '#94a3b8',
+        fontSize: 13,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    bottomSheet: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        maxHeight: '80%',
+        paddingBottom: 40,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#1c2d4f',
+    },
+    stockPickerItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    stockItemName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#1e293b',
+        marginBottom: 4,
+    },
+    stockItemCode: {
+        fontSize: 13,
+        color: '#64748b',
+    },
+    eqSelectorItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        backgroundColor: '#f8fafc',
+        borderRadius: 12,
+        marginBottom: 10,
+        gap: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    eqSelectorText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#1e293b',
     },
 });
