@@ -1,10 +1,9 @@
 
 import { supabase } from '../lib/supabase';
-import { CacheManager } from '../lib/cache';
-import { StockItem, Category, TechStockItem } from '../types';
+import { getCurrentTenantId } from '../lib/tenantContext';
+import { Category, StockItem } from '../types';
 import type { DbStockItem } from '../types/database';
 import { AuthService } from './authService';
-import { getCurrentTenantId } from '../lib/tenantContext';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 const STORAGE_KEYS = { STOCK: 'nexus_stock_v2', CATEGORIES: 'nexus_categories_v2' };
@@ -382,17 +381,28 @@ export const StockService = {
         }
     },
 
-    getMovements: async (limit = 50): Promise<any[]> => {
+    getMovements: async (limit = 100): Promise<any[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
+            // Arquitetura Big Tech: Joins preventivos para auditoria completa
+            // executor -> quem fez a ação (created_by)
+            // technician -> técnico vinculado (user_id)
             const { data, error } = await supabase
                 .from('stock_movements')
-                .select('*, stock_items(description, code)')
+                .select(`
+                    *, 
+                    stock_items(description, code),
+                    executor:created_by(name),
+                    technician:user_id(name)
+                `)
                 .eq('tenant_id', tenantId)
                 .order('created_at', { ascending: false })
                 .limit(limit);
 
-            if (error) throw error;
+            if (error) {
+                console.error("❌ [StockService] Erro ao buscar movimentações:", error.message);
+                throw error;
+            }
             return data || [];
         }
         return [];
