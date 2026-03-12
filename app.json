@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "nexusmobile",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nexus.mobile",
@@ -16,16 +15,13 @@
           "location",
           "fetch"
         ],
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow Nexus Mobile to use your location to track service routes even when the app is backgrounded."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow Nexus Mobile to use your location to track service routes even when the app is backgrounded.",
+        "NSMicrophoneUsageDescription": "Permitir acesso ao microfone para transcrição do relatório.",
+        "NSSpeechRecognitionUsageDescription": "Permitir reconhecimento de voz para transcrever o relatório técnico."
       }
     },
     "android": {
       "package": "com.nexus.mobile",
-      "statusBar": {
-        "backgroundColor": "#ffffff",
-        "barStyle": "dark-content",
-        "translucent": false
-      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -36,10 +32,9 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
+        "RECORD_AUDIO",
         "FOREGROUND_SERVICE"
-      ],
-      "edgeToEdgeEnabled": false,
-      "predictiveBackGestureEnabled": false
+      ]
     },
     "web": {
       "output": "static",
@@ -59,7 +54,6 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker",
       [
         "expo-location",
         {
@@ -67,11 +61,18 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Permitir acesso ao microfone para transcrição do relatório.",
+          "speechRecognitionPermission": "Permitir reconhecimento de voz para transcrever o relatório técnico."
+        }
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     }
   }
 }

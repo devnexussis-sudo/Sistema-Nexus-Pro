@@ -1,18 +1,26 @@
-import React, { useRef, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, Alert, Image, Modal, Platform } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { ThemedView } from '@/components/themed-view';
+import { HeaderRightToggle } from '@/components/header-right-toggle';
+import { ImageViewerModal } from '@/components/image-viewer-modal';
 import { ThemedText } from '@/components/themed-text';
-import SignatureScreen from 'react-native-signature-canvas';
-import * as ImagePicker from 'expo-image-picker';
+import { ThemedView } from '@/components/themed-view';
 import { ImageService } from '@/services/image-service';
 import { OrderService } from '@/services/order-service';
-import { ImageViewerModal } from '@/components/image-viewer-modal';
+import { syncService } from '@/services/sync-service';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
+import Voice, { SpeechErrorEvent, SpeechResultsEvent } from '@react-native-voice/voice';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import SignatureScreen from 'react-native-signature-canvas';
 
 export default function ExecuteOSScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
 
     const [order, setOrder] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -43,7 +51,114 @@ export default function ExecuteOSScreen() {
     const [viewerVisible, setViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isUploadingPhoto, setIsUploadingPhoto] = useState<string | null>(null);
+    const [isRecording, setIsRecording] = useState(false);
     const signatureRef = useRef<any>(null);
+
+    // 🎤 Configuração do Reconhecimento de Voz Gratuito (Nativo) - Refatorado para SDK 55
+    useEffect(() => {
+        const onSpeechStart = () => setIsRecording(true);
+        const onSpeechEnd = () => setIsRecording(false);
+        const onSpeechError = (e: SpeechErrorEvent) => {
+            console.error('[Voice] Erro:', e);
+            setIsRecording(false);
+            if (e.error?.message?.includes('auth') || e.error?.message?.includes('perm')) {
+                Alert.alert('Permissão', 'Acesso ao microfone negado ou não autorizado.');
+            }
+        };
+        const onSpeechResults = (e: SpeechResultsEvent) => {
+            if (e.value && e.value.length > 0) {
+                const transcribed = e.value[0];
+                const corrected = autoCorrectText(transcribed);
+                setTechnicalReport(prev => {
+                    const separator = prev ? '\n' : '';
+                    return `${prev}${separator}${corrected}`;
+                });
+            }
+        };
+
+        Voice.onSpeechStart = onSpeechStart;
+        Voice.onSpeechEnd = onSpeechEnd;
+        Voice.onSpeechError = onSpeechError;
+        Voice.onSpeechResults = onSpeechResults;
+
+        return () => {
+            Voice.destroy().then(Voice.removeAllListeners);
+        };
+    }, []);
+
+    const autoCorrectText = (text: string) => {
+        if (!text) return '';
+        let cleaned = text.trim();
+        cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+        if (!cleaned.endsWith('.') && !cleaned.endsWith('!') && !cleaned.endsWith('?')) {
+            cleaned += '.';
+        }
+        return cleaned;
+    };
+
+    const handleVoiceStart = async () => {
+        try {
+            // 🎙️ No Android, pedimos permissão usando o PermissionsAndroid nativo do RN
+            if (Platform.OS === 'android') {
+                const { PermissionsAndroid } = require('react-native');
+                const granted = await PermissionsAndroid.request(
+                    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+                    {
+                        title: 'Permissão de Microfone',
+                        message: 'Precisamos do microfone para transcrever seu relatório.',
+                        buttonPositive: 'OK',
+                    }
+                );
+                if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+                    Alert.alert('Permissão Negada', 'Habilite o microfone nas configurações do seu Android para usar esta função.');
+                    return;
+                }
+            }
+
+            // No iOS, o Voice.start() dispara o pedido nativo.
+            setIsRecording(true);
+
+            if (!Voice || typeof Voice.start !== 'function') {
+                throw new Error('voice_module_not_found');
+            }
+
+            await Voice.start('pt-BR');
+        } catch (e: any) {
+            setIsRecording(false);
+
+            // Prevents Red Screen (Console Error) for known missing native module errors in Expo Go
+            if (e.message?.includes('startSpeech') || e.message === 'voice_module_not_found') {
+                console.log('[Voice] Módulo nativo ausente (normal no Expo Go). Erro original retirado para evitar tela vermelha.');
+                Alert.alert(
+                    'Função Limitada',
+                    'O Reconhecimento de Voz nativo não está disponível. Isso ocorre ao usar o Expo Go porque exige bibliotecas nativas profundas. Para testar o microfone, instale a versão APK.'
+                );
+                return;
+            }
+
+            console.error('[Voice] Erro ao iniciar:', e);
+
+            if (e.code === 'not_available') {
+                Alert.alert('Recurso Indisponível', 'O serviço de voz do sistema não respondeu. Verifique se o Google (Android) ou Siri (iOS) estão ativos.');
+            } else {
+                Alert.alert(
+                    'Permissão Necessária',
+                    'O microfone está bloqueado. Por favor, verifique as permissões do aplicativo nas configurações do seu celular.',
+                    [{ text: 'OK' }]
+                );
+            }
+        }
+    };
+
+    const handleVoiceStop = async () => {
+        try {
+            await Voice.stop();
+            setIsRecording(false);
+        } catch (e) {
+            console.error('[Voice] Erro ao parar:', e);
+            setIsRecording(false);
+        }
+    };
 
     const fetchTemplateForEquipment = async (orderData: any, eq: any, rules: any[], serviceTypes: any[], allTemplates: any[]) => {
         let template: any = null;
@@ -89,30 +204,105 @@ export default function ExecuteOSScreen() {
             let isActive = true;
             setIsLoading(true);
 
-            const loadData = async () => {
+            const loadData = async (isBackground = false) => {
                 try {
-                    const orderData = await OrderService.getOrderById(id as string);
+                    if (!isBackground) setIsLoading(true);
+
+                    // MODO OFFLINE: tentar cache local primeiro
+                    if (syncService.isOfflineModeEnabled()) {
+                        const raw = await syncService.getOrderDetail(id as string);
+                        if (isActive && raw) {
+                            const mapped = OrderService.mapDbOrderToApp(raw);
+                            mapped.equipments = raw.equipments || [];
+                            setOrder(mapped);
+
+                            // Carregar cache de preenchimento do usuário
+                            const cacheKey = `os_cache_${id}`;
+                            const cachedStr = await AsyncStorage.getItem(cacheKey);
+                            const cache = cachedStr ? JSON.parse(cachedStr) : null;
+                            if (cache) {
+                                if (cache.technicalReport) setTechnicalReport(cache.technicalReport);
+                                if (cache.partsUsed) setPartsUsed(cache.partsUsed);
+                                if (cache.extraPhotos) setExtraPhotos(cache.extraPhotos);
+                                if (cache.signature) setSignature(cache.signature);
+                                if (cache.clientName) setClientName(cache.clientName);
+                                if (cache.clientDoc) setClientDoc(cache.clientDoc);
+                            }
+
+                            // Carregar formulários offline
+                            const equipmentsList = (mapped.equipments && mapped.equipments.length > 0)
+                                ? mapped.equipments
+                                : [{ id: 'single', equipment_model: mapped.equipment, equipment_serial: mapped.serialNumber, form_id: mapped.formId }];
+
+                            const [rules, serviceTypes, allTemplates] = await Promise.all([
+                                OrderService.getActivationRules(),
+                                OrderService.getServiceTypes(),
+                                OrderService.getFormTemplates(),
+                            ]);
+
+                            const newFormsConfig: Record<string, any> = {};
+                            for (let i = 0; i < equipmentsList.length; i++) {
+                                const eq = equipmentsList[i];
+                                const eqKey = eq.id || `eq_${i}`;
+                                const eqName = eq.equipment_model || eq.equipment_name || 'Equipamento';
+                                const template = await fetchTemplateForEquipment(mapped, eq, rules, serviceTypes, allTemplates);
+                                const initialData: any = {};
+                                if (template) {
+                                    template.fields.forEach((field: any) => {
+                                        const prefix = `[${eqName}${eq.equipment_serial ? ` S/N: ${eq.equipment_serial}` : ''}] - `;
+                                        if (cache?.formsData?.[eqKey]?.[field.id] !== undefined) initialData[field.id] = cache.formsData[eqKey][field.id];
+                                        else if (mapped.formData?.[`${prefix}${field.label}`] !== undefined) initialData[field.id] = mapped.formData[`${prefix}${field.label}`];
+                                        else initialData[field.id] = '';
+                                    });
+                                }
+                                newFormsConfig[eqKey] = { equipamento: eq, template, data: initialData };
+                            }
+                            if (isActive) setFormsConfig(newFormsConfig);
+                            if (isActive) setIsLoading(false);
+                            return; // Dado encontrado — não vai para rede
+                        }
+                        // Sem cache local: cai no fluxo de rede abaixo
+                    }
+
+                    // 1. Fetch from Cache (Fast Load)
+
+                    const orderData = await OrderService.getOrderById(id as string, false);
                     if (isActive && orderData) {
                         setOrder(orderData);
+                        if (!isBackground) setIsLoading(false); // Remove loading spinner ASAP
 
-                        setTechnicalReport(orderData.formData?.technical_report || orderData.executionDetails?.technicalReport || '');
-                        setPartsUsed(orderData.formData?.parts_used || orderData.executionDetails?.partsUsed || '');
+                        const equipmentsList = (orderData.equipments && orderData.equipments.length > 0)
+                            ? orderData.equipments
+                            : [{ id: 'single', equipment_model: orderData.equipment, equipment_serial: orderData.serialNumber, form_id: orderData.formId }];
 
-                        let loadedExtraPhotos = orderData.formData?.extra_photos || orderData.executionDetails?.photos || [];
-                        if (!Array.isArray(loadedExtraPhotos)) {
-                            loadedExtraPhotos = [loadedExtraPhotos];
+                        // Load offline user-input cache
+                        const cacheKey = `os_cache_${id}`;
+                        const cachedStr = await AsyncStorage.getItem(cacheKey);
+                        const cache = cachedStr ? JSON.parse(cachedStr) : null;
+
+                        if (cache) {
+                            if (cache.technicalReport) setTechnicalReport(cache.technicalReport);
+                            if (cache.partsUsed) setPartsUsed(cache.partsUsed);
+                            if (cache.extraPhotos) setExtraPhotos(cache.extraPhotos);
+                            if (cache.signature) setSignature(cache.signature);
+                            if (cache.clientName) setClientName(cache.clientName);
+                            if (cache.clientDoc) setClientDoc(cache.clientDoc);
+                        } else {
+                            setTechnicalReport(orderData.formData?.technical_report || orderData.executionDetails?.technicalReport || '');
+                            setPartsUsed(orderData.formData?.parts_used || orderData.executionDetails?.partsUsed || '');
+
+                            let loadedExtraPhotos = orderData.formData?.extra_photos || orderData.executionDetails?.photos || [];
+                            if (!Array.isArray(loadedExtraPhotos)) {
+                                loadedExtraPhotos = [loadedExtraPhotos];
+                            }
+                            setExtraPhotos(loadedExtraPhotos.filter((p: any) => typeof p === 'string'));
                         }
-                        setExtraPhotos(loadedExtraPhotos.filter((p: any) => typeof p === 'string'));
 
                         const [rules, serviceTypes, allTemplates] = await Promise.all([
                             OrderService.getActivationRules(),
                             OrderService.getServiceTypes(),
                             OrderService.getFormTemplates()
                         ]);
-
-                        const equipmentsList = (orderData.equipments && orderData.equipments.length > 0)
-                            ? orderData.equipments
-                            : [{ id: 'single', equipment_model: orderData.equipment, equipment_serial: orderData.serialNumber, form_id: orderData.formId }];
 
                         const newFormsConfig: Record<string, any> = {};
 
@@ -127,7 +317,13 @@ export default function ExecuteOSScreen() {
                             if (template) {
                                 template.fields.forEach((field: any) => {
                                     const prefix = `[${eqName}${eq.equipment_serial ? ` S/N: ${eq.equipment_serial}` : ''}] - `;
-                                    if (orderData.formData && orderData.formData[`${prefix}${field.label}`] !== undefined) {
+
+                                    // 1. Check local cache first
+                                    if (cache?.formsData?.[eqKey]?.[field.id] !== undefined) {
+                                        initialData[field.id] = cache.formsData[eqKey][field.id];
+                                    }
+                                    // 2. Fallback to existing form data in DB
+                                    else if (orderData.formData && orderData.formData[`${prefix}${field.label}`] !== undefined) {
                                         initialData[field.id] = orderData.formData[`${prefix}${field.label}`];
                                     } else if (orderData.formData && orderData.formData[field.id] !== undefined) {
                                         initialData[field.id] = orderData.formData[field.id];
@@ -155,76 +351,165 @@ export default function ExecuteOSScreen() {
                 }
             };
 
-            loadData();
+            loadData().then(() => {
+                if (isActive) {
+                    // 2. Fetch from Network implicitly (SWR Background Update)
+                    // We only update Order data, NOT form data to prevent overwriting user input!
+                    OrderService.getOrderById(id as string, true).then(freshData => {
+                        if (isActive && freshData) {
+                            setOrder(freshData);
+                        }
+                    });
+                }
+            });
+
             return () => { isActive = false; };
         }, [id])
     );
+
+    // Auto-save to cache effect
+    React.useEffect(() => {
+        const saveToCache = async () => {
+            // Avoid saving during initial load to not overwrite cache with empty state
+            if (!id || isLoading || !order) return;
+
+            try {
+                const cacheData = {
+                    formsData: Object.keys(formsConfig).reduce((acc, key) => {
+                        acc[key] = formsConfig[key].data;
+                        return acc;
+                    }, {} as any),
+                    technicalReport,
+                    partsUsed,
+                    extraPhotos,
+                    signature,
+                    clientName,
+                    clientDoc,
+                    timestamp: new Date().getTime()
+                };
+
+                await AsyncStorage.setItem(`os_cache_${id}`, JSON.stringify(cacheData));
+            } catch (e) {
+                console.error("[ExecuteOS] Error saving to cache:", e);
+            }
+        };
+
+        const timeout = setTimeout(saveToCache, 1000); // Debounce save
+        return () => clearTimeout(timeout);
+    }, [id, formsConfig, technicalReport, partsUsed, extraPhotos, signature, clientName, clientDoc, isLoading, order]);
 
     const handleSignature = (signatureData: string) => {
         setSignature(signatureData);
         setSignatureModalVisible(false);
     };
 
-    const handleTakeExtraPhoto = async () => {
+    const processPhotoChoice = async (source: 'camera' | 'library', callback: (uri: string) => void) => {
         try {
-            const result = await ImagePicker.launchCameraAsync({
+            const options: ImagePicker.ImagePickerOptions = {
                 mediaTypes: ['images'],
                 quality: 0.8,
-            });
+            };
 
-            if (!result.canceled && result.assets.length > 0) {
-                setIsUploadingExtra(true);
-                try {
-                    const compressedUri = await ImageService.compressImage(result.assets[0].uri);
-                    const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/extra_photos`, order?.tenantId);
+            const result = source === 'camera'
+                ? await ImagePicker.launchCameraAsync(options)
+                : await ImagePicker.launchImageLibraryAsync({ ...options, selectionLimit: 1 });
 
-                    if (publicUrl) {
-                        setExtraPhotos(prev => [...prev, publicUrl]);
-                    } else {
-                        Alert.alert('Erro', 'Não foi possível fazer o upload da foto extra.');
-                    }
-                } finally {
-                    setIsUploadingExtra(false);
-                }
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                callback(result.assets[0].uri);
             }
         } catch (e) {
-            Alert.alert('Erro', 'Não foi possível tirar a foto.');
+            Alert.alert('Erro', 'Não foi possível acessar a mídia.');
         }
     };
 
-    const handleTakeFieldPhoto = async (eqKey: string, fieldId: string) => {
+    const handleTakeExtraPhoto = async () => {
+        Alert.alert(
+            'Adicionar Anexo',
+            'Escolha a origem da imagem:',
+            [
+                { text: 'Câmera', onPress: () => processPhotoChoice('camera', uploadExtraPhoto) },
+                { text: 'Galeria', onPress: () => processPhotoChoice('library', uploadExtraPhoto) },
+                { text: 'Cancelar', style: 'cancel' }
+            ]
+        );
+    };
+
+    const uploadExtraPhoto = async (uri: string) => {
+        setIsUploadingExtra(true);
         try {
-            const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ['images'],
-                quality: 0.8,
-            });
+            const compressedUri = await ImageService.compressImage(uri);
+            const netInfo = await NetInfo.fetch();
+            let finalUri = compressedUri;
 
-            if (!result.canceled && result.assets && result.assets.length > 0) {
-                setIsUploadingPhoto(`${eqKey}_${fieldId}`);
-                try {
-                    const compressedUri = await ImageService.compressImage(result.assets[0].uri);
-                    const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/form_photos`, order?.tenantId);
-
-                    if (publicUrl) {
-                        setFormsConfig(prev => {
-                            const newConfig = { ...prev };
-                            const currentPhotos = Array.isArray(newConfig[eqKey].data[fieldId]) ? newConfig[eqKey].data[fieldId] : [];
-                            if (currentPhotos.length >= 3) {
-                                Alert.alert('Limite', 'Máximo 3 fotos.');
-                                return prev;
-                            }
-                            newConfig[eqKey].data = { ...newConfig[eqKey].data, [fieldId]: [...currentPhotos, publicUrl] };
-                            return newConfig;
-                        });
-                    } else {
-                        Alert.alert('Erro', 'Erro ao enviar imagem.');
-                    }
-                } finally {
-                    setIsUploadingPhoto(null);
+            if (netInfo.isConnected && !syncService.isOfflineModeEnabled()) {
+                const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/extra_photos`, order?.tenantId);
+                if (publicUrl) {
+                    finalUri = publicUrl;
+                } else {
+                    Alert.alert('Erro', 'Não foi possível fazer o upload da foto extra.');
+                    return;
                 }
+            } else {
+                // OFFLINE: copiar para documentDirectory (armazenamento permanente)
+                const fileName = `offline_extra_${id}_${Date.now()}.jpg`;
+                const destPath = `${FileSystem.documentDirectory}${fileName}`;
+                await FileSystem.copyAsync({ from: compressedUri, to: destPath });
+                finalUri = destPath;
             }
-        } catch (error) {
-            Alert.alert('Erro', 'Erro ao abrir câmera.');
+
+            setExtraPhotos(prev => [...prev, finalUri]);
+        } finally {
+            setIsUploadingExtra(false);
+        }
+    };
+
+    const handleTakeFieldPhoto = (eqKey: string, fieldId: string) => {
+        Alert.alert(
+            'Adicionar Foto',
+            'Escolha a origem da imagem:',
+            [
+                { text: 'Câmera', onPress: () => processPhotoChoice('camera', (uri) => uploadFieldPhoto(uri, eqKey, fieldId)) },
+                { text: 'Galeria', onPress: () => processPhotoChoice('library', (uri) => uploadFieldPhoto(uri, eqKey, fieldId)) },
+                { text: 'Cancelar', style: 'cancel' }
+            ]
+        );
+    };
+
+    const uploadFieldPhoto = async (uri: string, eqKey: string, fieldId: string) => {
+        setIsUploadingPhoto(`${eqKey}_${fieldId}`);
+        try {
+            const compressedUri = await ImageService.compressImage(uri);
+            const netInfo = await NetInfo.fetch();
+            let finalUri = compressedUri;
+
+            if (netInfo.isConnected && !syncService.isOfflineModeEnabled()) {
+                const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/form_photos`, order?.tenantId);
+                if (publicUrl) {
+                    finalUri = publicUrl;
+                } else {
+                    Alert.alert('Erro', 'Erro ao enviar imagem.');
+                    return;
+                }
+            } else {
+                // OFFLINE: copiar para documentDirectory (armazenamento permanente)
+                const fileName = `offline_form_${id}_${eqKey}_${fieldId}_${Date.now()}.jpg`;
+                const destPath = `${FileSystem.documentDirectory}${fileName}`;
+                await FileSystem.copyAsync({ from: compressedUri, to: destPath });
+                finalUri = destPath;
+            }
+
+            setFormsConfig(prev => {
+                const newConfig = { ...prev };
+                const currentPhotos = Array.isArray(newConfig[eqKey].data[fieldId]) ? newConfig[eqKey].data[fieldId] : [];
+                if (currentPhotos.length >= 3) {
+                    Alert.alert('Limite', 'Máximo 3 fotos.');
+                    return prev;
+                }
+                newConfig[eqKey].data = { ...newConfig[eqKey].data, [fieldId]: [...currentPhotos, finalUri] };
+                return newConfig;
+            });
+        } finally {
+            setIsUploadingPhoto(null);
         }
     };
 
@@ -266,8 +551,11 @@ export default function ExecuteOSScreen() {
 
         try {
             setIsSubmitting(true);
+            const netInfo = await NetInfo.fetch();
+            const isOffline = !netInfo.isConnected || syncService.isOfflineModeEnabled();
 
             const finalFormData: Record<string, any> = {};
+            let localPhotosToSync: string[] = [];
 
             for (const key in formsConfig) {
                 const config = formsConfig[key];
@@ -283,16 +571,25 @@ export default function ExecuteOSScreen() {
                             const uploadedUrls = [];
                             for (const item of value) {
                                 if (typeof item === 'string' && (item.startsWith('file://') || item.startsWith('content://') || item.startsWith('/'))) {
-                                    const url = await OrderService.uploadFile(item, `orders/${id}/form_photos`, order?.tenantId);
-                                    if (url) uploadedUrls.push(url);
+                                    if (isOffline) {
+                                        localPhotosToSync.push(item);
+                                        uploadedUrls.push(item);
+                                    } else {
+                                        const url = await OrderService.uploadFile(item, `orders/${id}/form_photos`, order?.tenantId);
+                                        if (url) uploadedUrls.push(url);
+                                    }
                                 } else {
                                     uploadedUrls.push(item);
                                 }
                             }
                             value = uploadedUrls;
                         } else if (typeof value === 'string' && (value.startsWith('file://') || value.startsWith('content://') || value.startsWith('/'))) {
-                            const url = await OrderService.uploadFile(value, `orders/${id}/form_photos`, order?.tenantId);
-                            if (url) value = url;
+                            if (isOffline) {
+                                localPhotosToSync.push(value);
+                            } else {
+                                const url = await OrderService.uploadFile(value, `orders/${id}/form_photos`, order?.tenantId);
+                                if (url) value = url;
+                            }
                         }
 
                         if (value !== undefined && value !== '') {
@@ -302,25 +599,56 @@ export default function ExecuteOSScreen() {
                 }
             }
 
-            finalFormData['technical_report'] = technicalReport;
-            finalFormData['parts_used'] = partsUsed;
-            finalFormData['extra_photos'] = extraPhotos;
+            if (isOffline) {
+                for (const photo of extraPhotos) {
+                    if (photo.startsWith('file://')) localPhotosToSync.push(photo);
+                }
+                if (signature) localPhotosToSync.push(signature);
 
-            await OrderService.completeOrder(id as string, {
-                technicalReport,
-                partsUsed,
-                photos: extraPhotos,
-                signature,
-                formData: finalFormData,
-                clientName,
-                clientDoc,
-                tenantId: order?.tenantId
-            });
+                await syncService.addToQueue({
+                    type: 'complete_os',
+                    orderId: id as string,
+                    payload: {
+                        technical_report: technicalReport,
+                        parts_used: partsUsed,
+                        extraPhotos,
+                        signature,
+                        execution_forms: formsConfig,
+                        clientName,
+                        clientDoc,
+                        tenantId: order?.tenantId,
+                    },
+                    localPhotos: localPhotosToSync
+                });
 
-            Alert.alert(
-                'Sucesso', 'OS finalizada com sucesso!', [
-                { text: 'OK', onPress: () => router.replace('/(tabs)') }
-            ]);
+                await AsyncStorage.removeItem(`os_cache_${id}`);
+                Alert.alert('Salvo Offline', 'A OS foi salva e será sincronizada assim que a conexão retornar.', [
+                    { text: 'OK', onPress: () => router.replace('/') }
+                ]);
+            } else {
+                finalFormData['technical_report'] = technicalReport;
+                finalFormData['parts_used'] = partsUsed;
+                finalFormData['extra_photos'] = extraPhotos;
+
+                await OrderService.completeOrder(id as string, {
+                    technicalReport,
+                    partsUsed,
+                    photos: extraPhotos,
+                    signature,
+                    formData: finalFormData,
+                    clientName,
+                    clientDoc,
+                    tenantId: order?.tenantId
+                });
+
+                // Clear cache on success
+                await AsyncStorage.removeItem(`os_cache_${id}`);
+
+                Alert.alert(
+                    'Sucesso', 'OS finalizada com sucesso!', [
+                    { text: 'OK', onPress: () => router.replace('/') }
+                ]);
+            }
         } catch (error) {
             console.error(error);
             Alert.alert('Erro', 'Falha ao finalizar OS.');
@@ -399,7 +727,7 @@ export default function ExecuteOSScreen() {
 
     return (
         <ThemedView style={styles.container}>
-            <Stack.Screen options={{ title: `Executando OS` }} />
+            <Stack.Screen options={{ title: `Executando OS`, headerRight: () => <HeaderRightToggle /> }} />
 
             <ScrollView contentContainerStyle={styles.content}>
 
@@ -473,10 +801,30 @@ export default function ExecuteOSScreen() {
                     </View>
 
                     <View style={[styles.section, { borderTopWidth: 0, marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
-                        <ThemedText type="subtitle">Relatório Técnico</ThemedText>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <ThemedText type="subtitle">Relatório Técnico</ThemedText>
+
+                            <Pressable
+                                style={[
+                                    styles.voiceButton,
+                                    isRecording && styles.voiceButtonActive
+                                ]}
+                                onPress={isRecording ? handleVoiceStop : handleVoiceStart}
+                            >
+                                <Ionicons
+                                    name={isRecording ? "stop-circle" : "mic"}
+                                    size={20}
+                                    color={isRecording ? "#ef4444" : "#1c2d4f"}
+                                />
+                                <Text style={[styles.voiceButtonText, isRecording && { color: '#ef4444' }]}>
+                                    {isRecording ? 'Ouvindo... (Parar)' : 'Falar Relatório'}
+                                </Text>
+                            </Pressable>
+                        </View>
+
                         <TextInput
-                            style={[styles.input, styles.textArea]}
-                            placeholder="Descreva o serviço realizado, diagnósticos e considerações finais..."
+                            style={[styles.input, styles.textArea, isRecording && { opacity: 0.6 }]}
+                            placeholder={isRecording ? "Dite seu relatório agora..." : "Descreva o serviço realizado, diagnósticos e considerações finais..."}
                             multiline
                             numberOfLines={4}
                             value={technicalReport}
@@ -539,7 +887,7 @@ export default function ExecuteOSScreen() {
                 </View>
             </ScrollView>
 
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}>
                 <Pressable style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]} onPress={handleSubmit} disabled={isSubmitting}>
                     <Text style={styles.submitButtonText}>{isSubmitting ? 'Finalizando...' : 'Finalizar OS'}</Text>
                 </Pressable>
@@ -581,7 +929,7 @@ const styles = StyleSheet.create({
     signaturePreviewContainer: { alignItems: 'center', marginTop: 12 },
     signaturePreview: { width: '100%', height: 150, backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
     clearSignatureText: { color: '#e11d48', fontWeight: '700', marginTop: 10 },
-    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingBottom: Platform.OS === 'ios' ? 40 : 20, shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.03, shadowRadius: 15, elevation: 10 },
+    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.03, shadowRadius: 15, elevation: 10 },
     submitButton: { backgroundColor: '#10b981', paddingVertical: 18, borderRadius: 14, alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
     submitButtonText: { color: '#ffffff', fontSize: 18, fontWeight: '900', letterSpacing: 0.5 },
     signatureModalContainer: { flex: 1, backgroundColor: '#ffffff', paddingTop: 40 },
@@ -603,5 +951,29 @@ const styles = StyleSheet.create({
     equipmentTitle: { color: '#ffffff', fontWeight: '800', fontSize: 15, flex: 1, letterSpacing: -0.2 },
     equipmentFormsContainer: { padding: 8, backgroundColor: '#f8fafc' },
     globalConclusionSection: { marginBottom: 24, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff' },
-    conclusionHeader: { backgroundColor: '#f1f5f9', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }
+    conclusionHeader: { backgroundColor: '#f1f5f9', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+    voiceButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f1f5f9',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        gap: 6,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    voiceButtonActive: {
+        backgroundColor: '#fee2e2',
+        borderColor: '#fecaca',
+    },
+    voiceButtonDisabled: {
+        opacity: 0.7,
+        backgroundColor: '#f8fafc',
+    },
+    voiceButtonText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#1c2d4f',
+    },
 });

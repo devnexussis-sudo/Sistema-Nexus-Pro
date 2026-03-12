@@ -1,12 +1,12 @@
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { StockService, TechStockItem } from '@/services/stock-service';
 import { TenantService } from '@/services/tenant-service';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function StockScreen() {
     const [stock, setStock] = useState<TechStockItem[]>([]);
@@ -18,12 +18,24 @@ export default function StockScreen() {
     const fetchStock = async (isBackground = false) => {
         if (!isBackground) setIsLoading(true);
         try {
-            // First fetch settings (force refresh if user pulled to refresh)
+            // 1. Fetch settings (we don't show double UI update for settings to avoid flicker, just get cache first if available)
             const settings = await TenantService.getSettings(isBackground);
             setShowPrice(settings.showStockPrice);
 
-            const data = await StockService.getMyStock();
-            setStock(data);
+            // 2. Fetch from Cache first
+            let cachedData = null;
+            if (!isBackground) {
+                cachedData = await StockService.getMyStock(false);
+                if (cachedData && cachedData.length > 0) {
+                    setStock(cachedData);
+                    setIsLoading(false); // Cache was fast, remove loader!
+                }
+            }
+
+            // 3. Fetch from Network implicitly (Background update / SWR pattern)
+            const freshData = await StockService.getMyStock(true);
+            setStock(freshData);
+
         } catch (error) {
             console.error(error);
         } finally {

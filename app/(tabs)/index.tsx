@@ -1,16 +1,16 @@
-import { useRouter, useFocusEffect } from 'expo-router';
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { StyleSheet, FlatList, Pressable, View, Text, Platform, RefreshControl, Share, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { OrderStatus, PRIORITY_CONFIG, STATUS_CONFIG } from '@/constants/mock-data';
+import { startBackgroundLocation } from '@/services/location-service';
+import { NotificationService } from '@/services/notification-service';
+import { OrderService } from '@/services/order-service';
+import { supabase } from '@/services/supabase';
+import { syncService } from '@/services/sync-service';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
-import { OrderStatus, STATUS_CONFIG, PRIORITY_CONFIG } from '@/constants/mock-data';
-import { OrderService } from '@/services/order-service';
-import { authService } from '@/services/auth-service';
-import { supabase } from '@/services/supabase';
-import { NotificationService } from '@/services/notification-service';
-import { startBackgroundLocation } from '@/services/location-service';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View } from 'react-native';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -43,8 +43,10 @@ const OrderCard = ({ order, onShare, onPress }: { order: any; onShare: any; onPr
 
     <View style={styles.cardFooter}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-        <Ionicons name="calendar-outline" size={14} color="#999" />
-        <Text style={styles.dateText}>{order.date}</Text>
+        <Ionicons name={order.status === 'completed' ? "checkmark-circle-outline" : "calendar-outline"} size={14} color={order.status === 'completed' ? '#10b981' : "#999"} />
+        <Text style={[styles.dateText, order.status === 'completed' && { color: '#059669', fontWeight: 'bold' }]}>
+          {order.status === 'completed' ? `Concluída em: ${order.date}` : order.date}
+        </Text>
       </View>
 
       {order.status === 'completed' && order.publicToken ? (
@@ -80,42 +82,96 @@ export default function HomeScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Offline Sync State
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+  useEffect(() => {
+    let prevCount = 0;
+    const unsub = syncService.subscribe((queue) => {
+      const count = queue.filter(q => q.status !== 'syncing').length;
+      // Se fila ficou vazia (sync concluiu), dar refresh automático
+      if (prevCount > 0 && count === 0) {
+        fetchOrders(true);
+      }
+      prevCount = count;
+      setPendingSyncCount(count);
+    });
+    return unsub;
+  }, []);
+
   const cacheKey = useMemo(() => {
     return `${selectedFilter}-${startDate?.getTime() || 0}-${endDate?.getTime() || 0}-${currentPage}`;
   }, [selectedFilter, startDate, endDate, currentPage]);
 
   const fetchOrders = async (isBackground = false) => {
-    // Para dar fluidez e UX premium, sempre mostramos o loader em trocas de aba/filtro
-    if (!isBackground) {
-      setIsLoading(true);
-      setOrders([]); // Limpa a lista para garantir a transição visual
-    }
+    if (!isBackground) setIsLoading(true);
 
-    const startTime = Date.now();
+    // ── MODO OFFLINE: ler do cache local ──────────────────────────────
+    if (syncService.isOfflineModeEnabled()) {
+      try {
+        const raw = await syncService.getTodayOrders();
+        const mapped = raw.map((o: any) => OrderService.mapDbOrderToApp(o));
+
+        // Filtrar pelo status selecionado
+        const filtered = selectedFilter === 'all'
+          ? mapped
+          : mapped.filter((o: any) => {
+            if (selectedFilter === 'pending') return ['pending', 'assigned'].includes(o.status);
+            return o.status === selectedFilter;
+          });
+
+        setOrders(filtered);
+        setTotalOrders(filtered.length);
+        const stats: Record<string, number> = { all: mapped.length, pending: 0, in_progress: 0, blocked: 0, completed: 0 };
+        mapped.forEach((o: any) => { if (stats[o.status] !== undefined) stats[o.status]++; if (o.status === 'assigned') stats.pending++; });
+        setServerStats(stats);
+      } finally {
+        setIsLoading(false);
+        setRefreshing(false);
+      }
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────
 
     try {
-      const response = await OrderService.getAllOrders({
+      // 1. Fetch from Cache first (fast load)
+      let cachedResponse = null;
+      if (!isBackground) {
+        cachedResponse = await OrderService.getAllOrders({
+          page: currentPage,
+          pageSize: ITEMS_PER_PAGE,
+          statusFilter: selectedFilter,
+          startDate,
+          endDate,
+          forceRefresh: false
+        });
+
+        if (cachedResponse?.orders?.length) {
+          setOrders(cachedResponse.orders);
+          setTotalOrders(cachedResponse.total);
+          setServerStats(cachedResponse.stats);
+          setIsLoading(false); // Cache was fast, remove loader!
+        }
+      }
+
+      // 2. Fetch from Network implicitly (Background update / SWR pattern)
+      const freshResponse = await OrderService.getAllOrders({
         page: currentPage,
         pageSize: ITEMS_PER_PAGE,
         statusFilter: selectedFilter,
         startDate,
-        endDate
+        endDate,
+        forceRefresh: true // Bypass cache
       });
 
-      // Se foi muito rápido (cache), esperamos um mínimo para não dar flicker
-      const elapsed = Date.now() - startTime;
-      const minDelay = 400; // 400ms de transição "bonita"
-      if (!isBackground && elapsed < minDelay) {
-        await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
-      }
+      // 3. Update state with fresh data
+      setOrders(freshResponse.orders || []);
+      setTotalOrders(freshResponse.total);
+      setServerStats(freshResponse.stats);
 
-      setOrders(response.orders || []);
-      setTotalOrders(response.total);
-      setServerStats(response.stats);
-
-      // 🚀 Agendar Lembretes de OS
-      if (response.orders && Array.isArray(response.orders)) {
-        response.orders.forEach(order => {
+      // 🚀 Date Reminders
+      if (freshResponse.orders && Array.isArray(freshResponse.orders)) {
+        freshResponse.orders.forEach(order => {
           if ((order.status === 'pending' || order.status === 'assigned') && order.scheduledDate && order.scheduledTime) {
             NotificationService.scheduleOrderReminders(
               order.id,
@@ -259,6 +315,20 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {/* OFFLINE SYNC BADGE */}
+      {pendingSyncCount > 0 && syncService.isOfflineModeEnabled() && (
+        <View style={styles.offlineBadge}>
+          <Ionicons name="cloud-offline-outline" size={20} color="#fff" />
+          <Text style={styles.offlineBadgeText}>
+            {pendingSyncCount} {pendingSyncCount === 1 ? 'OS Pendente' : 'OS Pendentes'} de Sincronização
+          </Text>
+          <Pressable onPress={() => syncService.triggerSync()} style={styles.syncBtn}>
+            <Ionicons name="sync-outline" size={16} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginLeft: 4 }}>Sincronizar</Text>
+          </Pressable>
+        </View>
+      )}
+
       <View style={styles.dashboardContainer}>
         <View style={{ alignItems: 'center', marginBottom: 8 }}>
           <ThemedText style={styles.sectionTitle}>Visão Geral</ThemedText>
@@ -424,6 +494,9 @@ const styles = StyleSheet.create({
   orderId: { fontWeight: 'bold', fontSize: 16, color: '#1c2d4f' },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   statusText: { fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' },
+  offlineBadge: { backgroundColor: '#e11d48', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 8, gap: 8, zIndex: 99 },
+  offlineBadgeText: { color: '#fff', fontSize: 13, fontWeight: 'bold', flex: 1 },
+  syncBtn: { backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, flexDirection: 'row', alignItems: 'center' },
   customerName: { fontSize: 14, color: '#333', fontWeight: '600', marginBottom: 4 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
   addressText: { fontSize: 12, color: '#666' },

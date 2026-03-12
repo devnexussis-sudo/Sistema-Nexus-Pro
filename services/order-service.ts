@@ -1,11 +1,16 @@
 
 import { OrderStatus, ServiceOrder } from '@/constants/mock-data';
-import { logger } from './logger';
-import { supabase, BUCKET_NAME } from './supabase';
-import { authService } from './auth-service';
-import * as FileSystem from 'expo-file-system/legacy';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decode } from 'base64-arraybuffer';
+import * as FileSystem from 'expo-file-system/legacy';
+import { authService } from './auth-service';
 import { CacheService } from './cache-service';
+import { logger } from './logger';
+import { BUCKET_NAME, supabase } from './supabase';
+
+const DISK_CACHE_FORM_TEMPLATES = '@nexus_form_templates';
+const DISK_CACHE_ACTIVATION_RULES = '@nexus_activation_rules';
+const DISK_CACHE_SERVICE_TYPES = '@nexus_service_types';
 
 // Polyfill for arrayBuffer if needed, or assume ArrayBuffer global exists.
 // Ideally we install base64-arraybuffer: npm install base64-arraybuffer
@@ -152,7 +157,7 @@ export class OrderService {
         }
     }
 
-    private static mapDbOrderToApp(dbOrder: any): ExtendedServiceOrder {
+    public static mapDbOrderToApp(dbOrder: any): ExtendedServiceOrder {
         // Map status
         let status: OrderStatus = 'pending';
         switch (dbOrder.status?.toUpperCase()) {
@@ -206,11 +211,19 @@ export class OrderService {
 
         // Choose which date to display as the main "date" in UI based on status
         let displayDateRaw = dbOrder.scheduled_date;
-        if (status === 'completed' && completedDate) displayDateRaw = completedDate;
-        else if (status === 'in_progress' && startedDate) displayDateRaw = startedDate;
-        else if (status === 'blocked' && blockedDate) displayDateRaw = blockedDate;
+        let useUTC = true; // Default for date-only strings from DB
 
-        const dateFormatted = displayDateRaw ? new Date(displayDateRaw).toLocaleDateString('pt-BR') : 'Data n/d';
+        if (status === 'completed' && completedDate) {
+            displayDateRaw = completedDate;
+            useUTC = false; // Timestamps should be local
+        } else if (status === 'blocked' && dbOrder.updated_at) {
+            displayDateRaw = dbOrder.updated_at;
+            useUTC = false; // Timestamps should be local
+        }
+
+        const dateFormatted = displayDateRaw
+            ? new Date(displayDateRaw).toLocaleDateString('pt-BR', useUTC ? { timeZone: 'UTC' } : undefined)
+            : 'Data n/d';
 
         return {
             id: dbOrder.id,
@@ -242,26 +255,33 @@ export class OrderService {
         };
     }
 
-    static async getOrderById(id: string): Promise<ExtendedServiceOrder | undefined> {
+    static async getOrderById(id: string, forceRefresh = false): Promise<ExtendedServiceOrder | undefined> {
         try {
-            const { data, error } = await supabase
-                .from('orders')
-                .select('*')
-                .eq('id', id)
-                .single();
+            const cacheKey = `order_details_${id}`;
+            const cached = await CacheService.get<ExtendedServiceOrder>(cacheKey);
+            if (cached && !forceRefresh) return cached;
 
-            if (error || !data) {
-                logger.log(`Error fetching order ${id}: ${error?.message}`, 'error');
-                return undefined;
-            }
+            return await CacheService.fetcher(cacheKey, async () => {
+                const { data, error } = await supabase
+                    .from('orders')
+                    .select('*')
+                    .eq('id', id)
+                    .single();
 
-            const { data: equipmentsData } = await supabase.rpc('nexus_get_order_equipments', { p_order_id: id });
-            const equipmentsList = Array.isArray(equipmentsData) ? equipmentsData : (equipmentsData ? [equipmentsData] : []);
+                if (error || !data) {
+                    logger.log(`Error fetching order ${id}: ${error?.message}`, 'error');
+                    return undefined;
+                }
 
-            const mapped = this.mapDbOrderToApp(data);
-            mapped.equipments = equipmentsList;
+                const { data: equipmentsData } = await supabase.rpc('nexus_get_order_equipments', { p_order_id: id });
+                const equipmentsList = Array.isArray(equipmentsData) ? equipmentsData : (equipmentsData ? [equipmentsData] : []);
 
-            return mapped;
+                const mapped = this.mapDbOrderToApp(data);
+                mapped.equipments = equipmentsList;
+
+                await CacheService.set(cacheKey, mapped, CacheService.TTL.APP);
+                return mapped;
+            });
         } catch (error) {
             logger.log(`Exception fetching order: ${error}`, 'error');
             return undefined;
@@ -274,6 +294,7 @@ export class OrderService {
         statusFilter?: OrderStatus | 'all';
         startDate?: Date;
         endDate?: Date;
+        forceRefresh?: boolean;
     } = {}): Promise<{ orders: ExtendedServiceOrder[], total: number, stats: Record<string, number> }> {
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id || authService.getCurrentUserId();
@@ -282,14 +303,14 @@ export class OrderService {
             return { orders: [], total: 0, stats: {} };
         }
 
-        const { page = 1, pageSize = 100, statusFilter = 'all', startDate, endDate } = options;
+        const { page = 1, pageSize = 100, statusFilter = 'all', startDate, endDate, forceRefresh = false } = options;
         const from = (page - 1) * pageSize;
         const to = from + pageSize - 1;
 
         const cacheKey = `orders_${userId}_${statusFilter}_${startDate?.getTime() || 0}_${endDate?.getTime() || 0}_${page}`;
 
         const cached = await CacheService.get<any>(cacheKey);
-        if (cached) return cached;
+        if (cached && !forceRefresh) return cached;
 
         return await CacheService.fetcher(cacheKey, async () => {
             const formatLocalISO = (date: Date) => {
@@ -299,16 +320,18 @@ export class OrderService {
                 return `${y}-${m}-${d}`;
             };
 
-            const startDateStr = startDate ? formatLocalISO(startDate) : null;
-            const endDateStr = endDate ? formatLocalISO(endDate) : null;
+            // Range adjustment: To catch everything in Brazil (-3h) for a given local day, 
+            // we search from 00:00 UTC of that day until 02:59:59 UTC of the NEXT day.
+            const nextDay = endDate ? new Date(endDate.getTime() + 24 * 60 * 60 * 1000) : null;
+            const startDateStr = startDate ? (statusFilter === 'completed' || statusFilter === 'blocked' ? `${formatLocalISO(startDate)}T00:00:00Z` : formatLocalISO(startDate)) : null;
+            const endDateStr = endDate ? (statusFilter === 'completed' || statusFilter === 'blocked' ? `${formatLocalISO(nextDay!)}T02:59:59Z` : formatLocalISO(endDate)) : null;
 
             // Helper to get which date column to filter by based on status
             const getDateCol = (statusFilterKey: string) => {
                 switch (statusFilterKey) {
                     case 'completed': return 'end_date';
+                    case 'blocked': return 'updated_at'; // Impeded follows block date
                     case 'in_progress': return 'start_date';
-                    case 'traveling': return 'start_date';
-                    case 'blocked': return 'updated_at';
                     default: return 'scheduled_date';
                 }
             };
@@ -380,8 +403,12 @@ export class OrderService {
                 if (statusFilter !== 'all' && STATUS_GROUPS_DB[statusFilter]) {
                     query = query.in('status', STATUS_GROUPS_DB[statusFilter]);
                 }
-                if (startDateStr) query = query.gte(activeDateCol, startDateStr);
-                if (endDateStr) query = query.lte(activeDateCol, endDateStr);
+
+                // Special case: in_progress/traveling shows ALL regardless of date
+                if (statusFilter !== 'in_progress' && statusFilter !== 'traveling') {
+                    if (startDateStr) query = query.gte(activeDateCol, startDateStr);
+                    if (endDateStr) query = query.lte(activeDateCol, endDateStr);
+                }
             } else {
                 // Pending filter in DB (if possible) or at least date filter
                 if (startDateStr) query = query.gte('scheduled_date', startDateStr);
@@ -429,7 +456,7 @@ export class OrderService {
         });
     }
 
-    static async getCalendarOrders(year: number, month: number): Promise<ExtendedServiceOrder[]> {
+    static async getCalendarOrders(year: number, month: number, forceRefresh = false): Promise<ExtendedServiceOrder[]> {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             const userId = session?.user?.id || authService.getCurrentUserId();
@@ -440,7 +467,7 @@ export class OrderService {
 
             const cacheKey = `calendar_${userId}_${year}_${month}`;
             const cached = await CacheService.get<ExtendedServiceOrder[]>(cacheKey);
-            if (cached) return cached;
+            if (cached && !forceRefresh) return cached;
 
             return await CacheService.fetcher(cacheKey, async () => {
                 let query = supabase.from('orders').select('*');
@@ -652,7 +679,7 @@ export class OrderService {
 
             if (error) throw error;
 
-            return (data || []).map(dt => {
+            const mapped = (data || []).map(dt => {
                 const schema = dt.schema || {};
                 return {
                     id: dt.id,
@@ -663,7 +690,15 @@ export class OrderService {
                     fields: schema.fields || []
                 };
             });
+            // Persistir no disco para uso offline
+            await AsyncStorage.setItem(DISK_CACHE_FORM_TEMPLATES, JSON.stringify(mapped)).catch(() => { });
+            return mapped;
         } catch (error) {
+            // Tentar do cache de disco (modo offline)
+            try {
+                const raw = await AsyncStorage.getItem(DISK_CACHE_FORM_TEMPLATES);
+                if (raw) return JSON.parse(raw);
+            } catch (_) { }
             logger.log(`Error fetching form templates: ${error}`, 'error');
             return [];
         }
@@ -707,14 +742,20 @@ export class OrderService {
 
             if (error) throw error;
 
-            return (data || []).map(r => ({
+            const mapped = (data || []).map(r => ({
                 id: r.id,
                 formId: r.form_template_id,
                 serviceTypeId: r.service_type_id,
                 equipmentFamily: r.conditions?.equipment_family || 'Todos',
                 active: r.is_active
             }));
+            await AsyncStorage.setItem(DISK_CACHE_ACTIVATION_RULES, JSON.stringify(mapped)).catch(() => { });
+            return mapped;
         } catch (error) {
+            try {
+                const raw = await AsyncStorage.getItem(DISK_CACHE_ACTIVATION_RULES);
+                if (raw) return JSON.parse(raw);
+            } catch (_) { }
             logger.log(`Error fetching activation rules: ${error}`, 'error');
             return [];
         }
@@ -728,8 +769,14 @@ export class OrderService {
                 .eq('is_active', true);
 
             if (error) throw error;
-            return data || [];
+            const result = data || [];
+            await AsyncStorage.setItem(DISK_CACHE_SERVICE_TYPES, JSON.stringify(result)).catch(() => { });
+            return result;
         } catch (error) {
+            try {
+                const raw = await AsyncStorage.getItem(DISK_CACHE_SERVICE_TYPES);
+                if (raw) return JSON.parse(raw);
+            } catch (_) { }
             return [];
         }
     }

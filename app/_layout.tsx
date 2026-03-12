@@ -1,31 +1,33 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
-import { StatusBar, setStatusBarBackgroundColor, setStatusBarStyle } from 'expo-status-bar';
+import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { authService } from '@/services/auth-service';
 import { startBackgroundLocation } from '@/services/location-service';
 import { logger } from '@/services/logger';
 import { useEffect, useRef } from 'react';
-import { authService } from '@/services/auth-service';
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  initialRouteName: '(tabs)',
 };
 
-// import * as Notifications from 'expo-notifications';
-import * as Location from 'expo-location';
-import { Alert, Platform } from 'react-native';
 import { NotificationService } from '@/services/notification-service';
 import { supabase } from '@/services/supabase';
-import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+import * as Location from 'expo-location';
+import { Alert, Platform } from 'react-native';
+
+const isExpoGoAndroid = Platform.OS === 'android' && Constants.appOwnership === 'expo';
+const Notifications = isExpoGoAndroid ? null : require('expo-notifications');
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
 
-  const notificationListener = useRef<any>();
-  const responseListener = useRef<any>();
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
 
   useEffect(() => {
     // Enable system-wide log capture immediately
@@ -74,27 +76,29 @@ export default function RootLayout() {
       if (!isAuthenticated) {
         router.replace('/login');
       } else {
-        router.replace('/(tabs)');
+        router.replace('/');
       }
     };
 
     initialize();
 
     // Listeners for foreground/background interaction
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log("Notification Received in Foreground:", notification);
-    });
+    if (Notifications) {
+      notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+        console.log("Notification Received in Foreground:", notification);
+      });
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log("User tapped notification:", response);
-      const data = response.notification.request.content.data;
-      if (data?.orderId) {
-        router.push(`/os/${data.orderId}`);
-      }
-    });
+      responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+        console.log("User tapped notification:", response);
+        const data = response.notification.request.content.data;
+        if (data?.orderId) {
+          router.push(`/os/${data.orderId}`);
+        }
+      });
+    }
 
     return () => {
-      if (typeof Notifications.removeNotificationSubscription === 'function') {
+      if (Notifications && typeof Notifications.removeNotificationSubscription === 'function') {
         if (notificationListener.current) Notifications.removeNotificationSubscription(notificationListener.current);
         if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
       }
@@ -104,12 +108,13 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <StatusBar style="light" backgroundColor="#1c2d4f" translucent={false} />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: '#1c2d4f' },
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: 'bold' },
-          headerBackTitleVisible: false, // Cleaner back button
+          headerBackTitle: '', // Hides back title on iOS
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="os/[id]" options={{ title: 'Detalhes da OS' }} />

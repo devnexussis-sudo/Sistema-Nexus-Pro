@@ -1,16 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Image, Pressable, Alert, ActivityIndicator, Platform } from 'react-native';
-import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { authService } from '@/services/auth-service';
+import { ImageService } from '@/services/image-service';
+import { supabase } from '@/services/supabase';
+import { syncService } from '@/services/sync-service';
 import { Ionicons } from '@expo/vector-icons';
+import { decode } from 'base64-arraybuffer';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { authService } from '@/services/auth-service';
-import { supabase } from '@/services/supabase';
-import * as FileSystem from 'expo-file-system/legacy';
-import { decode } from 'base64-arraybuffer';
-import { ImageService } from '@/services/image-service';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export default function ProfileScreen() {
     const router = useRouter();
@@ -210,6 +211,7 @@ export default function ProfileScreen() {
                             text: 'Sair', style: 'destructive',
                             onPress: async () => {
                                 console.log('User logging out...');
+                                await syncService.clearAllData();
                                 await authService.logout();
                                 router.replace('/login');
                             }

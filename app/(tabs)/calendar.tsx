@@ -1,12 +1,12 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { StyleSheet, View, Text, FlatList, Pressable } from 'react-native';
-import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
-import { MOCK_ORDERS, STATUS_CONFIG } from '@/constants/mock-data';
-import { useRouter } from 'expo-router';
+import { ThemedView } from '@/components/themed-view';
+import { STATUS_CONFIG } from '@/constants/mock-data';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
 
 // Configure locale for Portuguese
 LocaleConfig.locales['pt-br'] = {
@@ -21,8 +21,7 @@ LocaleConfig.locales['pt-br'] = {
 };
 LocaleConfig.defaultLocale = 'pt-br';
 
-import { OrderService } from '@/services/order-service';
-import { ExtendedServiceOrder } from '@/services/order-service';
+import { ExtendedServiceOrder, OrderService } from '@/services/order-service';
 import { ActivityIndicator } from 'react-native';
 
 export default function CalendarScreen() {
@@ -33,13 +32,29 @@ export default function CalendarScreen() {
   const [orders, setOrders] = useState<ExtendedServiceOrder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  React.useEffect(() => {
-    const fetchMonthOrders = async () => {
-      setIsLoading(true);
-      const data = await OrderService.getCalendarOrders(currentYear, currentMonth);
-      setOrders(data);
+  const fetchMonthOrders = async (isBackground = false) => {
+    if (!isBackground) setIsLoading(true);
+    try {
+      // 1. Fetch from Cache first (fast load)
+      if (!isBackground) {
+        const cachedData = await OrderService.getCalendarOrders(currentYear, currentMonth, false);
+        if (cachedData && cachedData.length > 0) {
+          setOrders(cachedData);
+          setIsLoading(false); // Cache was fast, remove loader!
+        }
+      }
+
+      // 2. Fetch from Network implicitly (Background update / SWR pattern)
+      const freshData = await OrderService.getCalendarOrders(currentYear, currentMonth, true);
+      setOrders(freshData);
+    } catch (e) {
+      console.error(e);
+    } finally {
       setIsLoading(false);
-    };
+    }
+  };
+
+  useEffect(() => {
     fetchMonthOrders();
   }, [currentYear, currentMonth]);
 

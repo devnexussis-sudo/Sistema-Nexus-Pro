@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "target": "ES2022",
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
@@ -21,7 +22,7 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": [
-        "./src/*"
+        "./*"
       ],
       "@shared/*": [
         "./shared/*"
@@ -34,5 +35,12 @@
     "node_modules",
     "dist",
     "backend"
+  ],
+  "extends": "expo/tsconfig.base",
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
   ]
 }
