@@ -67,6 +67,10 @@ export const StockManagement: React.FC = () => {
     const [selectedTech, setSelectedTech] = useState<any | null>(null);
     const [techStock, setTechStock] = useState<any[]>([]);
     const [movements, setMovements] = useState<any[]>([]);
+    const [movSearch, setMovSearch] = useState('');
+    const [movTypeFilter, setMovTypeFilter] = useState('ALL');
+    const [movDateFrom, setMovDateFrom] = useState('');
+    const [movDateTo, setMovDateTo] = useState('');
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [transferData, setTransferData] = useState({ itemId: '', techId: '', quantity: '', direction: 'transfer' });
 
@@ -770,62 +774,113 @@ export const StockManagement: React.FC = () => {
                             </div>
                         )}
 
-                        {activeTab === 'movements' && (
-                            <div className="space-y-6">
-                                <h3 className="text-xl font-black text-slate-800 uppercase  flex items-center gap-3">
-                                    <Scale className="text-slate-800" /> Auditoria de Movimentações
-                                </h3>
-                                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-slate-50 border-b border-slate-200">
-                                            <tr className="text-[10px] font-black text-slate-500 uppercase">
-                                                <th className="px-6 py-1.5 text-center">Data</th>
-                                                <th className="px-6 py-1.5 text-center">Tipo</th>
-                                                <th className="px-6 py-1.5">Item</th>
-                                                <th className="px-6 py-1.5 text-center">Qtd.</th>
-                                                <th className="px-6 py-1.5">Técnico / Admin</th>
-                                                <th className="px-6 py-1.5">Referência (OS/ORC)</th>
-                                                <th className="px-6 py-1.5 text-center">Fluxo</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {movements.map(m => (
-                                                <tr key={m.id} className="text-[11px] hover:bg-slate-50/50">
-                                                    <td className="px-6 py-1.5 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
-                                                    <td className="px-6 py-1.5 text-center">
-                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' :
+                        {activeTab === 'movements' && (() => {
+                            const term = movSearch.toLowerCase();
+                            const filtered = movements.filter(m => {
+                                if (movTypeFilter !== 'ALL' && m.type !== movTypeFilter) return false;
+                                if (movDateFrom) { const d = new Date(m.created_at); if (d < new Date(movDateFrom)) return false; }
+                                if (movDateTo) { const d = new Date(m.created_at); const end = new Date(movDateTo); end.setHours(23, 59, 59); if (d > end) return false; }
+                                if (term) {
+                                    const haystack = [
+                                        m.stock_items?.description, m.stock_items?.code,
+                                        m.technician?.name, m.executor?.name,
+                                        m.reference_id, m.source, m.destination
+                                    ].filter(Boolean).join(' ').toLowerCase();
+                                    if (!haystack.includes(term)) return false;
+                                }
+                                return true;
+                            });
+                            return (
+                                <div className="space-y-6">
+                                    <h3 className="text-xl font-black text-slate-800 uppercase flex items-center gap-3">
+                                        <Scale className="text-slate-800" /> Auditoria de Movimentações
+                                    </h3>
+                                    {/* Filtros */}
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <div className="relative flex-1 min-w-[180px]">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                            <input
+                                                type="text" placeholder="Buscar item, técnico, OS..."
+                                                value={movSearch} onChange={e => setMovSearch(e.target.value)}
+                                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
+                                            />
+                                        </div>
+                                        <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 shadow-sm h-[38px]">
+                                            <Filter size={12} className="text-slate-400 mr-2" />
+                                            <select value={movTypeFilter} onChange={e => setMovTypeFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer">
+                                                <option value="ALL">Todos Tipos</option>
+                                                <option value="TRANSFER">Transferência</option>
+                                                <option value="CONSUMPTION">Consumo</option>
+                                                <option value="RESTOCK">Entrada</option>
+                                                <option value="RETURN">Devolução</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input type="date" value={movDateFrom} onChange={e => setMovDateFrom(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-4 focus:ring-primary-100 shadow-sm h-[38px]" />
+                                            <span className="text-[9px] font-black text-slate-400">ATÉ</span>
+                                            <input type="date" value={movDateTo} onChange={e => setMovDateTo(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-4 focus:ring-primary-100 shadow-sm h-[38px]" />
+                                        </div>
+                                        {(movSearch || movTypeFilter !== 'ALL' || movDateFrom || movDateTo) && (
+                                            <button onClick={() => { setMovSearch(''); setMovTypeFilter('ALL'); setMovDateFrom(''); setMovDateTo(''); }} className="px-3 py-1.5 text-[9px] font-bold uppercase text-slate-400 hover:text-rose-500 transition-colors">
+                                                Limpar
+                                            </button>
+                                        )}
+                                        <span className="text-[9px] font-bold text-slate-400 ml-auto">{filtered.length} registro(s)</span>
+                                    </div>
+                                    <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-50 border-b border-slate-200">
+                                                <tr className="text-[10px] font-black text-slate-500 uppercase">
+                                                    <th className="px-6 py-1.5 text-center">Data</th>
+                                                    <th className="px-6 py-1.5 text-center">Tipo</th>
+                                                    <th className="px-6 py-1.5">Item</th>
+                                                    <th className="px-6 py-1.5 text-center">Qtd.</th>
+                                                    <th className="px-6 py-1.5">Técnico / Admin</th>
+                                                    <th className="px-6 py-1.5">Referência (OS/ORC)</th>
+                                                    <th className="px-6 py-1.5 text-center">Fluxo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {filtered.length === 0 ? (
+                                                    <tr><td colSpan={7} className="py-16 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nenhuma movimentação encontrada</td></tr>
+                                                ) : filtered.map(m => (
+                                                    <tr key={m.id} className="text-[11px] hover:bg-slate-50/50">
+                                                        <td className="px-6 py-1.5 text-center text-slate-500 font-bold">{new Date(m.created_at).toLocaleString('pt-BR')}</td>
+                                                        <td className="px-6 py-1.5 text-center">
+                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600' :
                                                                 m.type === 'CONSUMPTION' ? 'bg-amber-100 text-amber-700' :
                                                                     'bg-emerald-50 text-emerald-600'
-                                                            }`}>
-                                                            {m.type === 'TRANSFER' ? 'Transferência' : m.type === 'CONSUMPTION' ? 'Consumo' : 'Entrada'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-1.5">
-                                                        <p className="font-black text-slate-800 uppercase ">{m.stock_items?.description}</p>
-                                                        <p className="text-[9px] text-slate-400">Cód: {m.stock_items?.code}</p>
-                                                    </td>
-                                                    <td className="px-6 py-1.5 text-center font-bold text-slate-900">{m.quantity}</td>
-                                                    <td className="px-6 py-1.5">
-                                                        <div className="flex flex-col">
-                                                            <span className="font-bold text-slate-700 uppercase truncate max-w-[120px]">{m.technician?.name || m.executor?.name || '-'}</span>
-                                                            {m.executor?.name && m.executor.name !== m.technician?.name && (
-                                                                <span className="text-[9px] text-slate-400 italic">Por: {m.executor.name}</span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-1.5">
-                                                        <span className="font-black text-primary-600 text-[10px]">{m.reference_id || '-'}</span>
-                                                    </td>
-                                                    <td className="px-6 py-1.5 text-center text-[10px] font-bold text-slate-400 ">
-                                                        {m.source} → {m.destination}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                                                }`}>
+                                                                {m.type === 'TRANSFER' ? 'Transferência' : m.type === 'CONSUMPTION' ? 'Consumo' : m.type === 'RETURN' ? 'Devolução' : 'Entrada'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-1.5">
+                                                            <p className="font-black text-slate-800 uppercase ">{m.stock_items?.description}</p>
+                                                            <p className="text-[9px] text-slate-400">Cód: {m.stock_items?.code}</p>
+                                                        </td>
+                                                        <td className="px-6 py-1.5 text-center font-bold text-slate-900">{m.quantity}</td>
+                                                        <td className="px-6 py-1.5">
+                                                            <div className="flex flex-col">
+                                                                <span className="font-bold text-slate-700 uppercase truncate max-w-[120px]">{m.technician?.name || m.executor?.name || '-'}</span>
+                                                                {m.executor?.name && m.executor.name !== m.technician?.name && (
+                                                                    <span className="text-[9px] text-slate-400 italic">Por: {m.executor.name}</span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-1.5">
+                                                            <span className="font-black text-primary-600 text-[10px]">{m.reference_id || '-'}</span>
+                                                        </td>
+                                                        <td className="px-6 py-1.5 text-center text-[10px] font-bold text-slate-400 ">
+                                                            {m.source} → {m.destination}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            );
+                        })()}
                     </div>
                 )}
             </div>
