@@ -402,11 +402,17 @@ export const StockService = {
 
             if (!data || data.length === 0) return [];
 
-            // Coletar todos os IDs de usuário únicos
+            // Coletar todos os IDs de usuário únicos e IDs de referências (Mapeamento de UUID para display_id)
             const userIds = new Set<string>();
+            const referenceIds = new Set<string>();
+
             data.forEach(m => {
                 if (m.created_by) userIds.add(m.created_by);
                 if (m.user_id) userIds.add(m.user_id);
+                // Se for um UUID (comprimento 36 clássico), vamos tentar buscar o display_id amigavel
+                if (m.reference_id && m.reference_id.length === 36 && m.reference_id.includes('-')) {
+                    referenceIds.add(m.reference_id);
+                }
             });
 
             // Buscar os nomes desses usuários
@@ -425,9 +431,43 @@ export const StockService = {
                 }
             }
 
+            // Buscar os display_ids exatos (OS ou Orçamentos)
+            let referenceMap: Record<string, string> = {};
+            if (referenceIds.size > 0) {
+                const idsArray = Array.from(referenceIds);
+
+                // Primeiro tenta buscar em Ordens (buxca mais veloz por IN direct)
+                const { data: ordersData } = await supabase
+                    .from('orders')
+                    .select('id, display_id')
+                    .in('id', idsArray);
+
+                if (ordersData) {
+                    ordersData.forEach((o: any) => {
+                        if (o.display_id) referenceMap[o.id] = o.display_id;
+                    });
+                }
+
+                // Filtra os IDs que ainda não achamos pra buscar em Orçamentos
+                const remainingIds = idsArray.filter(id => !referenceMap[id]);
+                if (remainingIds.length > 0) {
+                    const { data: quotesData } = await supabase
+                        .from('quotes')
+                        .select('id, display_id')
+                        .in('id', remainingIds);
+
+                    if (quotesData) {
+                        quotesData.forEach((q: any) => {
+                            if (q.display_id) referenceMap[q.id] = q.display_id;
+                        });
+                    }
+                }
+            }
+
             // Mapear de volta para o formato esperado pelo painel
             return data.map(m => ({
                 ...m,
+                reference_id: m.reference_id && referenceMap[m.reference_id] ? referenceMap[m.reference_id] : m.reference_id,
                 executor: m.created_by ? { name: usersMap[m.created_by] || 'Sistema' } : null,
                 technician: m.user_id ? { name: usersMap[m.user_id] || 'N/A' } : null
             }));
