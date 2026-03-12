@@ -1687,6 +1687,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         )
                     )}
+
+                    {/* ── CARD DE CONCLUSÃO ── */}
+                    {(() => {
+                      const fd = allFormData || {};
+                      const techReport = fd.technicalReport || fd.technical_report || '';
+                      const partsUsed = fd.partsUsed || fd.parts_used || '';
+                      const clientName = fd.clientName || '';
+                      const clientDoc = fd.clientDoc || '';
+                      const completedAt = fd.completedAt || selectedOrder.endDate || '';
+                      const hasConclusionData = techReport || partsUsed || clientName || completedAt;
+
+                      if (!hasConclusionData) return null;
+
+                      return (
+                        <div className="bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl shadow-sm overflow-hidden">
+                          <div className="flex items-center gap-3 px-6 py-4 border-b border-indigo-100 bg-indigo-100/50">
+                            <div className="w-8 h-8 bg-white border border-indigo-200 rounded-lg flex items-center justify-center">
+                              <ShieldCheck size={14} className="text-indigo-500" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-black text-indigo-800 uppercase tracking-wider">Dados de Conclusão</p>
+                              <p className="text-[10px] text-indigo-400 font-medium mt-0.5">Informações registradas na finalização da OS</p>
+                            </div>
+                            {completedAt && (
+                              <span className="text-[9px] font-black text-indigo-500 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-indigo-200">
+                                {new Date(completedAt).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="divide-y divide-indigo-50">
+                            {techReport && (
+                              <div className="px-6 py-4">
+                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Relatório Técnico</p>
+                                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-indigo-100">{techReport}</p>
+                              </div>
+                            )}
+                            {partsUsed && (
+                              <div className="px-6 py-4">
+                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Peças Utilizadas</p>
+                                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-indigo-100">{partsUsed}</p>
+                              </div>
+                            )}
+                            {(clientName || clientDoc) && (
+                              <div className="px-6 py-4 flex gap-8">
+                                {clientName && (
+                                  <div>
+                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Nome do Responsável</p>
+                                    <p className="text-sm font-bold text-slate-800 mt-1">{clientName}</p>
+                                  </div>
+                                )}
+                                {clientDoc && (
+                                  <div>
+                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Documento (CPF)</p>
+                                    <p className="text-sm font-bold text-slate-800 mt-1 font-mono">{clientDoc}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
