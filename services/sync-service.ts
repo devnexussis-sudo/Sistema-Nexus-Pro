@@ -256,6 +256,7 @@ class SyncService {
             clientName: payload.clientName,
             clientDoc: payload.clientDoc,
             tenantId: tenantId,
+            items: payload.usedItems
         });
 
         console.log(`[Sync] OS ${orderId} sincronizada com sucesso via completeOrder.`);
