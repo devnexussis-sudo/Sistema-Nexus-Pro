@@ -384,16 +384,12 @@ export const StockService = {
     getMovements: async (limit = 100): Promise<any[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            // Arquitetura Big Tech: Joins preventivos para auditoria completa
-            // executor -> quem fez a ação (created_by)
-            // technician -> técnico vinculado (user_id)
+            // Buscamos as movimentações sem as relações de usuário porque a FK de created_by pode estar ausente
             const { data, error } = await supabase
                 .from('stock_movements')
                 .select(`
                     *, 
-                    stock_items(description, code),
-                    executor:created_by(name),
-                    technician:user_id(name)
+                    stock_items(description, code)
                 `)
                 .eq('tenant_id', tenantId)
                 .order('created_at', { ascending: false })
@@ -403,7 +399,38 @@ export const StockService = {
                 console.error("❌ [StockService] Erro ao buscar movimentações:", error.message);
                 throw error;
             }
-            return data || [];
+
+            if (!data || data.length === 0) return [];
+
+            // Coletar todos os IDs de usuário únicos
+            const userIds = new Set<string>();
+            data.forEach(m => {
+                if (m.created_by) userIds.add(m.created_by);
+                if (m.user_id) userIds.add(m.user_id);
+            });
+
+            // Buscar os nomes desses usuários
+            let usersMap: Record<string, string> = {};
+            if (userIds.size > 0) {
+                const { data: usersData, error: usersError } = await supabase
+                    .from('users')
+                    .select('id, name')
+                    .in('id', Array.from(userIds));
+
+                if (!usersError && usersData) {
+                    usersMap = usersData.reduce((acc: any, u: any) => {
+                        acc[u.id] = u.name;
+                        return acc;
+                    }, {});
+                }
+            }
+
+            // Mapear de volta para o formato esperado pelo painel
+            return data.map(m => ({
+                ...m,
+                executor: m.created_by ? { name: usersMap[m.created_by] || 'Sistema' } : null,
+                technician: m.user_id ? { name: usersMap[m.user_id] || 'N/A' } : null
+            }));
         }
         return [];
     }
