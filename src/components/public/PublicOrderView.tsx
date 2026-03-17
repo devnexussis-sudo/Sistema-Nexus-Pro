@@ -16,7 +16,9 @@ import {
   ShieldAlert,
   Tag,
   User as UserIcon,
-  Wrench
+  Wrench,
+  Play,
+  Video
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -29,6 +31,12 @@ interface PublicOrderViewProps {
   techs: User[];
   isPrint?: boolean;
 }
+
+const isVideoUrl = (url: string | null) => {
+  if (!url) return false;
+  const videoExtensions = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.webm', '.mkv', '.3gp'];
+  return videoExtensions.some(ext => url.toLowerCase().includes(ext)) || url.toLowerCase().startsWith('data:video/');
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-components
@@ -77,7 +85,7 @@ const CollapsibleFormSection: React.FC<{
     k.toLowerCase().includes('nascimento');
 
   const isImageVal = (v: any) =>
-    typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'));
+    typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('data:video') || v.startsWith('http'));
 
   // Monta lista de itens do formulário: cada item pode ter texto e/ou fotos
   // Preserva a ORDEM original das perguntas
@@ -144,7 +152,7 @@ const CollapsibleFormSection: React.FC<{
                 cleanKey: item.key.replace(/^\[.*?\]\s*-\s*/, '')
               });
               return acc;
-            }, {} as Record<string, typeof formItems & { cleanKey?: string }[]>);
+            }, {} as Record<string, (typeof formItems[0] & { cleanKey?: string })[]>);
 
             return Object.entries(groupedItems).map(([group, items]) => (
               <div key={group} className="space-y-4">
@@ -187,11 +195,22 @@ const CollapsibleFormSection: React.FC<{
                               className="aspect-square rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all"
                               onClick={() => onImageClick(url)}
                             >
-                              <img
-                                src={url}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                alt={key}
-                              />
+                              {isVideoUrl(url) ? (
+                                <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                  <video src={url} className="w-full h-full object-cover opacity-60" />
+                                  <div className="absolute inset-0 flex items-center justify-center shadow-inner">
+                                    <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
+                                      <Play size={14} className="text-white fill-white ml-0.5" />
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <img
+                                  src={url}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                  alt={key}
+                                />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -237,13 +256,16 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   // Carrega todos os equipamentos vinculados via RPC (bypassa RLS)
   React.useEffect(() => {
     if (!order?.id) return;
-    supabase
-      .rpc('nexus_get_order_equipments', { p_order_id: order.id })
-      .then(({ data }) => {
+    const fetchEquips = async () => {
+      try {
+        const { data } = await supabase.rpc('nexus_get_order_equipments', { p_order_id: order.id });
         const rows: any[] = Array.isArray(data) ? data : (data ? [data] : []);
         setLinkedEquipments(rows);
-      })
-      .catch(() => setLinkedEquipments([]));
+      } catch (err) {
+        setLinkedEquipments([]);
+      }
+    };
+    fetchEquips();
   }, [order?.id]);
 
   // Busca endereço atualizado do cliente na tabela customers
@@ -334,7 +356,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       k.toLowerCase().includes('nascimento');
 
     const isImageVal = (v: any) =>
-      typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'));
+      typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('data:video') || v.startsWith('http'));
 
     Object.entries(formDataPrint)
       .filter(([key]) => !SYSTEM_KEYS.has(key) && !isSignatureKey(key))
@@ -561,7 +583,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                         <div className="grid grid-cols-4 gap-2 mt-2">
                           {item.photos.map((p, pIdx) => (
                             <div key={pIdx} className="border border-slate-200 rounded p-0.5 max-h-32 overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
-                              <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência" />
+                              {isVideoUrl(p) ? (
+                                <div className="text-[9px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
+                                  <Video size={16} /> [VÍDEO]
+                                </div>
+                              ) : (
+                                <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência" />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -584,7 +612,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <div className="grid grid-cols-4 gap-2 mt-2">
                       {item.photos.map((p, pIdx) => (
                         <div key={pIdx} className="border border-slate-200 rounded p-0.5 max-h-32 overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
-                          <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência fotográfica" />
+                          {isVideoUrl(p) ? (
+                            <div className="text-[9px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
+                              <Video size={16} /> [VÍDEO]
+                            </div>
+                          ) : (
+                            <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência fotográfica" />
+                          )}
                         </div>
                       ))}
                     </div>
@@ -991,7 +1025,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             const cName = fd.clientName || '';
             const cDoc = fd.clientDoc || '';
             const completedAt = fd.completedAt || order.endDate || '';
-            if (!techReport && !partsUsed && !cName && !completedAt) return null;
+            if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl) return null;
             return (
               <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-6 sm:px-8 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100">
@@ -1034,12 +1068,27 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                           <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Assinatura Digital</span>
                           <div
                             className="h-10 w-28 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1 cursor-zoom-in hover:border-indigo-300 transition-all"
-                            onClick={() => onImageClick(fd.signature)}
+                            onClick={() => setFullscreenImage(fd.signature)}
                           >
                             <img src={fd.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {order.videoUrl && (
+                    <div className="pt-4 border-t border-indigo-100">
+                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Vídeo de Conclusão</p>
+                      <div className="w-full max-w-2xl bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                        <video 
+                          src={order.videoUrl} 
+                          controls 
+                          className="w-full h-auto max-h-[400px]" 
+                          preload="metadata"
+                        >
+                          Seu navegador não suporta o elemento de vídeo.
+                        </video>
+                      </div>
                     </div>
                   )}
                   {(() => {
@@ -1057,7 +1106,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                             <div
                               key={i}
                               className="aspect-square rounded-xl overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
-                              onClick={() => onImageClick(url)}
+                              onClick={() => setFullscreenImage(url)}
                             >
                               <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
                             </div>
@@ -1194,11 +1243,20 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
             onClick={() => setFullscreenImage(null)}
           >
-            <img
-              src={fullscreenImage}
-              className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
-              alt="Visualização"
-            />
+            {isVideoUrl(fullscreenImage) ? (
+              <video
+                src={fullscreenImage}
+                controls
+                autoPlay
+                className="max-w-full max-h-full rounded-2xl shadow-2xl"
+              />
+            ) : (
+              <img
+                src={fullscreenImage}
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                alt="Visualização"
+              />
+            )}
             <button
               className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
               onClick={() => setFullscreenImage(null)}

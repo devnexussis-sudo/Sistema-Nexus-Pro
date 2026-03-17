@@ -29,7 +29,9 @@ import {
   Trash2,
   UserCheck,
   User as UserIcon,
-  X
+  X,
+  Play,
+  Video
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -63,6 +65,12 @@ interface AdminDashboardProps {
   onEditOrder: (order: ServiceOrder) => Promise<void>;
   onCreateOrder: (order: Partial<ServiceOrder>) => Promise<any>;
 }
+
+const isVideoUrl = (url: string | null) => {
+  if (!url) return false;
+  const videoExtensions = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.webm', '.mkv', '.3gp'];
+  return videoExtensions.some(ext => url.toLowerCase().includes(ext)) || url.toLowerCase().startsWith('data:video/');
+};
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   techs, customers, startDate, endDate, onDateChange, onUpdateOrders, onEditOrder, onCreateOrder
@@ -1485,8 +1493,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   ) : fields.map((field: any) => {
                     const answer = allFormData[field.id];
                     const hasAnswer = answer !== undefined && answer !== null && answer !== '';
-                    const isImage = typeof answer === 'string' && (answer.startsWith('http') || answer.startsWith('data:image'));
-                    const isImageArray = Array.isArray(answer) && answer.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image')));
+                    const isMedia = typeof answer === 'string' && (answer.startsWith('http') || answer.startsWith('data:image') || answer.startsWith('data:video'));
+                    const isMediaArray = Array.isArray(answer) && answer.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video')));
                     const isOk = String(answer).toLowerCase() === 'ok' || String(answer).toLowerCase() === 'sim';
                     return (
                       <div key={field.id} className={`px-6 py-3.5 flex justify-between gap-6 items-center transition-colors ${!hasAnswer ? 'bg-blue-50/30' : 'hover:bg-slate-50/50'}`}>
@@ -1494,12 +1502,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <p className="text-[13px] font-medium text-slate-700">{field.label || field.id}</p>
                           {field.type && <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">{field.type}</p>}
                         </div>
-                        {isImage ? (
-                          <img src={answer} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(answer)} alt="foto" />
-                        ) : isImageArray ? (
+                        {isMedia ? (
+                          <div className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(answer)}>
+                            {isVideoUrl(answer) ? (
+                              <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
+                                <video src={answer} className="w-full h-full object-cover opacity-50" />
+                                <Play size={10} className="text-white fill-white absolute" />
+                                <div className="absolute bottom-0 right-0 bg-black/60 px-0.5 rounded-tl text-[6px] text-white font-bold">MP4</div>
+                              </div>
+                            ) : (
+                              <img src={answer} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                            )}
+                          </div>
+                        ) : isMediaArray ? (
                           <div className="flex gap-2">
-                            {(answer as string[]).map((img, i) => (
-                              <img key={i} src={img} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(img)} alt="foto" />
+                            {(answer as string[]).map((media, i) => (
+                              <div key={i} className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(media)}>
+                                {isVideoUrl(media) ? (
+                                  <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
+                                    <video src={media} className="w-full h-full object-cover opacity-50" />
+                                    <Play size={10} className="text-white fill-white absolute" />
+                                    <div className="absolute bottom-0 right-0 bg-black/60 px-0.5 rounded-tl text-[6px] text-white font-bold">MP4</div>
+                                  </div>
+                                ) : (
+                                  <img src={media} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                                )}
+                              </div>
                             ))}
                           </div>
                         ) : hasAnswer ? (
@@ -1540,8 +1568,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true));
 
                     const isOk = (v: any) => String(v).toLowerCase() === 'ok' || String(v).toLowerCase() === 'sim';
-                    const isImg = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'));
-                    const isImgArray = (v: any) => Array.isArray(v) && v.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image')));
+                    const isMedia = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image') || v.startsWith('data:video'));
+                    const isMediaArray = (v: any) => Array.isArray(v) && v.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video')));
 
                     return (
                       <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
@@ -1571,12 +1599,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <p className="text-[13px] font-medium text-slate-700 flex-1">
                                 {!isNaN(Number(key)) ? `Pergunta ${key}` : key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ')}
                               </p>
-                              {isImg(val) ? (
-                                <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(String(val))} alt="foto" />
-                              ) : isImgArray(val) ? (
+                              {isMedia(val) ? (
+                                <div className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(String(val))}>
+                                  {isVideoUrl(String(val)) ? (
+                                    <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
+                                      <video src={String(val)} className="w-full h-full object-cover opacity-50" />
+                                      <Play size={10} className="text-white fill-white absolute" />
+                                    </div>
+                                  ) : (
+                                    <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                                  )}
+                                </div>
+                              ) : isMediaArray(val) ? (
                                 <div className="flex gap-2">
-                                  {(val as string[]).map((img, i) => (
-                                    <img key={i} src={img} className="w-12 h-12 rounded-md object-cover border border-slate-200 cursor-zoom-in" onClick={() => setFullscreenImage(img)} alt="foto" />
+                                  {(val as string[]).map((m, i) => (
+                                    <div key={i} className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(m)}>
+                                      {isVideoUrl(m) ? (
+                                        <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
+                                          <video src={m} className="w-full h-full object-cover opacity-50" />
+                                          <Play size={10} className="text-white fill-white absolute" />
+                                        </div>
+                                      ) : (
+                                        <img src={m} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                                      )}
+                                    </div>
                                   ))}
                                 </div>
                               ) : (
@@ -1896,7 +1942,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: MÍDIAS */}
               {activeTab === 'media' && (
                 <div className="space-y-8">
-                  {/* Combina fotos da OS e das visitas concluídas/pausadas */}
+                  {/* Vídeo Evidência */}
+                  {selectedOrder.videoUrl && (
+                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
+                        <Camera size={16} className="text-slate-400" /> VÍDEO EVIDÊNCIA
+                      </h4>
+                      <div className="w-full max-w-2xl bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                        <video 
+                          src={selectedOrder.videoUrl} 
+                          controls 
+                          className="w-full h-auto max-h-[500px]" 
+                          preload="metadata"
+                        >
+                          Seu navegador não suporta o elemento de vídeo.
+                        </video>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Combina fotos e vídeos da OS e das visitas concluídas/pausadas */}
                   {(() => {
                     const allForms: any[] = [];
                     if (selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) {
@@ -1904,33 +1969,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }
                     orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
 
-                    const extractedPhotos: { key: string, url: string }[] = [];
+                    const extractedMedia: { key: string, url: string, type: 'image' | 'video' }[] = [];
                     allForms.forEach(form => {
                       Object.entries(form).forEach(([key, val]) => {
-                        if (Array.isArray(val)) val.forEach(url => { if (typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:image'))) extractedPhotos.push({ key, url }) });
-                        else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image')) && !key.toLowerCase().includes('assinat') && !key.toLowerCase().includes('sign')) {
-                          extractedPhotos.push({ key, url: val });
+                        if (Array.isArray(val)) {
+                          val.forEach(url => { 
+                            if (typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:image') || url.startsWith('data:video'))) {
+                              extractedMedia.push({ key, url, type: isVideoUrl(url) ? 'video' : 'image' });
+                            }
+                          });
+                        } else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image') || val.startsWith('data:video')) && !key.toLowerCase().includes('assinat') && !key.toLowerCase().includes('sign')) {
+                          extractedMedia.push({ key, url: val, type: isVideoUrl(val) ? 'video' : 'image' });
                         }
                       });
                     });
 
-                    const groupedPhotos = extractedPhotos.reduce((acc, curr) => {
+                    const groupedMedia = extractedMedia.reduce((acc, curr) => {
                       const displayKey = mapIdToLabel(curr.key);
                       if (!acc[displayKey]) acc[displayKey] = [];
                       // Evitar duplicatas exatas de URL no mesmo grupo
-                      if (!acc[displayKey].includes(curr.url)) {
-                        acc[displayKey].push(curr.url);
+                      if (!acc[displayKey].some(item => item.url === curr.url)) {
+                        acc[displayKey].push(curr);
                       }
                       return acc;
-                    }, {} as Record<string, string[]>);
+                    }, {} as Record<string, { url: string, type: 'image' | 'video' }[]>);
 
-                    const groupKeys = Object.keys(groupedPhotos);
+                    const groupKeys = Object.keys(groupedMedia);
 
                     if (groupKeys.length === 0) {
                       return (
                         <div className="py-20 text-center bg-white border border-slate-200 rounded-lg">
                           <Camera className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Nenhuma evidência fotográfica registrada</p>
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Nenhuma evidência registrada</p>
                         </div>
                       );
                     }
@@ -1941,25 +2011,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <Camera size={16} className="text-slate-400" /> {key}
                         </h4>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                          {groupedPhotos[key].map((p, i) => (
+                          {groupedMedia[key].map((p, i) => (
                             <div key={i} className="flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm group hover:border-[#1c2d4f] transition-all">
                               <div
                                 className="aspect-[4/3] bg-slate-50 cursor-zoom-in relative"
-                                onClick={() => setFullscreenImage(p)}
+                                onClick={() => setFullscreenImage(p.url)}
                               >
-                                <img src={p} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                {p.type === 'video' ? (
+                                  <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                    <video src={p.url} className="w-full h-full object-cover opacity-60" />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:scale-110 transition-transform">
+                                        <Play size={16} className="text-white fill-white ml-0.5" />
+                                      </div>
+                                    </div>
+                                    <div className="absolute bottom-2 right-2 bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded text-[8px] text-white font-bold uppercase tracking-wider flex items-center gap-1">
+                                      <Video size={10} /> VÍDEO
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <img src={p.url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                )}
                                 <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors" />
                               </div>
                               <div className="p-3 bg-slate-50/50 border-t border-slate-100 flex-1 flex flex-col justify-between">
                                 <p className="text-[10px] leading-snug font-bold text-slate-700 uppercase tracking-tight line-clamp-2" title={key}>{key}</p>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2 bg-slate-100 self-start px-2 py-0.5 rounded">Foto #{i + 1}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2 bg-slate-100 self-start px-2 py-0.5 rounded">{p.type === 'video' ? `Vídeo #${i + 1}` : `Foto #${i + 1}`}</p>
                               </div>
                             </div>
                           ))}
                         </div>
                       </div>
                     ));
-                  })()}
+                  })()}}
                 </div>
               )}
 
@@ -2438,11 +2522,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onClick={() => setFullscreenImage(null)}
           >
             <div className="relative max-w-5xl w-full h-full flex items-center justify-center">
-              <img
-                src={fullscreenImage}
-                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95"
-                alt="Visualização"
-              />
+              {isVideoUrl(fullscreenImage) ? (
+                <video
+                  src={fullscreenImage}
+                  controls
+                  autoPlay
+                  className="max-w-full max-h-full rounded-lg shadow-2xl animate-in zoom-in-95"
+                />
+              ) : (
+                <img
+                  src={fullscreenImage}
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95"
+                  alt="Visualização"
+                />
+              )}
               <button className="absolute top-0 right-0 p-4 text-white hover:text-slate-300 transition-colors">
                 <X size={32} />
               </button>
