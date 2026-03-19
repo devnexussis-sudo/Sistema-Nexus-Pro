@@ -1734,6 +1734,92 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         )
                     )}
 
+                    {/* ── CARD DE IMPEDIMENTO ── */}
+                    {(() => {
+                      const fd = allFormData || {};
+                      const impType = fd.impedimento_tipo;
+                      const impReason = fd.impedimento_motivo || fd.impediment_reason;
+                      const impDate = fd.impediment_at;
+                      const impParts = fd.impedimento_peca_nome ? {
+                          nome: fd.impedimento_peca_nome,
+                          modelo: fd.impedimento_peca_modelo,
+                          codigo: fd.impedimento_peca_codigo
+                      } : null;
+                      const impPhotos = fd.impedimento_fotos || [];
+                      
+                      const hasImpedimentData = impType || impReason || impParts;
+
+                      if (!hasImpedimentData) return null;
+
+                      return (
+                        <div className="bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 rounded-xl shadow-sm overflow-hidden mb-6">
+                          <div className="flex items-center gap-3 px-6 py-4 border-b border-rose-100 bg-rose-100/50">
+                            <div className="w-8 h-8 bg-white border border-rose-200 rounded-lg flex items-center justify-center">
+                              <Ban size={14} className="text-rose-500" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-black text-rose-800 uppercase tracking-wider">Dados de Impedimento</p>
+                              <p className="text-[10px] text-rose-500 font-medium mt-0.5">Informações registradas ao bloquear a OS</p>
+                            </div>
+                            {impDate && (
+                              <span className="text-[9px] font-black text-rose-600 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-rose-200">
+                                {new Date(impDate).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="divide-y divide-rose-50/50">
+                            {impType && (
+                              <div className="px-6 py-4 flex gap-4 items-center">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest min-w-[120px]">Tipo de Impedimento</p>
+                                <p className="text-sm font-bold text-slate-800">{impType}</p>
+                              </div>
+                            )}
+                            {impReason && (
+                              <div className="px-6 py-4">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Motivo / Detalhes</p>
+                                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-rose-100">{impReason}</p>
+                              </div>
+                            )}
+                            {impParts && (
+                              <div className="px-6 py-4">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Peça Solicitada</p>
+                                <div className="bg-white p-3 rounded-md border border-rose-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                  <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Nome da Peça</p>
+                                    <p className="text-sm font-bold text-slate-800">{impParts.nome}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Modelo</p>
+                                    <p className="text-sm font-bold text-slate-800">{impParts.modelo}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Código</p>
+                                    <p className="text-sm font-bold text-slate-800">{impParts.codigo || '-'}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {impPhotos && impPhotos.length > 0 && (
+                              <div className="px-6 py-4">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-3">Evidências (Fotos)</p>
+                                <div className="flex flex-wrap gap-3">
+                                  {impPhotos.map((url: string, idx: number) => (
+                                    <div 
+                                      key={idx} 
+                                      className="w-24 h-24 rounded-lg overflow-hidden border border-rose-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
+                                      onClick={() => setFullscreenImage(url)}
+                                    >
+                                      <img src={url} alt={`Evidência ${idx}`} className="w-full h-full object-cover" />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* ── CARD DE CONCLUSÃO ── */}
                     {(() => {
                       const fd = allFormData || {};
@@ -2277,10 +2363,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         disabled={!(
                           visits.length === 0 ||
                           visits[visits.length - 1]?.status === VisitStatusEnum.PAUSED ||
-                          visits[visits.length - 1]?.status === VisitStatusEnum.BLOCKED
+                          visits[visits.length - 1]?.status === VisitStatusEnum.BLOCKED ||
+                          selectedOrder.status === OrderStatus.BLOCKED
                         )}
-                        title={visits.length > 0 && visits[visits.length - 1]?.status !== VisitStatusEnum.PAUSED && visits[visits.length - 1]?.status !== VisitStatusEnum.BLOCKED
-                          ? 'A última visita deve estar pausada ou impedida para criar uma nova.'
+                        title={visits.length > 0 && visits[visits.length - 1]?.status !== VisitStatusEnum.PAUSED && visits[visits.length - 1]?.status !== VisitStatusEnum.BLOCKED && selectedOrder.status !== OrderStatus.BLOCKED
+                          ? 'A OS ou última visita devem estar pausadas ou impedidas.'
                           : 'Agendar nova visita'
                         }
                         className="h-9 px-5 gap-2 bg-primary-600 hover:bg-primary-700 shadow-md shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
