@@ -383,7 +383,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   };
 
   return (
-    <div className="min-h-screen bg-[#0d0d12] text-white p-8 font-sans overflow-y-auto custom-scrollbar">
+    <div className="min-h-screen bg-[#0d0d12] text-white p-8 font-poppins overflow-y-auto custom-scrollbar">
       <div className="max-w-7xl mx-auto space-y-10 pb-20 animate-fade-in">
         <header className="flex justify-between items-end border-b border-white/5 pb-10">
           <div>
@@ -1031,7 +1031,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         {deleteConfirm && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/98 backdrop-blur-3xl p-4">
             <div className="bg-[#1c1c26] border border-red-500/20 rounded-[3rem] w-full max-w-lg p-12 shadow-2xl animate-scale-in">
-              <div className="flex flex-col items-center text-center space-y-8">
+              <div className="flex flex-col items-center text-center space-y-8 font-poppins">
                 <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center text-red-500 animate-pulse">
                   <ShieldAlert size={48} />
                 </div>
