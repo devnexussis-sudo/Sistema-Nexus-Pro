@@ -184,6 +184,7 @@ export interface OrderItem {
   stockItemId?: string;
   equipmentId?: string;
   equipmentName?: string;
+  equipmentSerial?: string;
 }
 
 export interface ServiceOrder {
@@ -216,6 +217,7 @@ export interface ServiceOrder {
   signature?: string; // Base64 da assinatura digital
   signatureName?: string; // Nome de quem assinou
   signatureDoc?: string; // CPF/Documento de quem assinou
+  videoUrl?: string; // URL do vídeo anexado (exclusivo para essa OS)
 
   // Financeiro
   billingStatus?: 'PENDING' | 'PAID';

@@ -99,7 +99,8 @@ export const OrderService = {
             // 🖊️ Assinatura do cliente — coletada pelo técnico no encerramento da OS
             signature: data.client_signature_url || data.signature_url,
             signatureName: data.client_signature_name,
-            signatureDoc: data.signature_doc
+            signatureDoc: data.signature_doc,
+            videoUrl: data.video_url,
         };
     },
 
