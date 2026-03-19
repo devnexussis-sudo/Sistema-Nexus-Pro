@@ -1076,12 +1076,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       )}
                     </div>
                   )}
-                  {order.videoUrl && (
+                  {(order.videoUrl || fd.videoUrl || fd.video_url) && (
                     <div className="pt-4 border-t border-indigo-100">
-                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Vídeo de Conclusão</p>
-                      <div className="w-full max-w-2xl bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <Video size={12} /> Vídeo de Conclusão
+                      </p>
+                      <div className="w-full max-w-2xl bg-black rounded-lg overflow-hidden flex items-center justify-center aspect-video shadow-md border border-indigo-100">
                         <video 
-                          src={order.videoUrl} 
+                          src={order.videoUrl || fd.videoUrl || fd.video_url} 
                           controls 
                           className="w-full h-auto max-h-[400px]" 
                           preload="metadata"
