@@ -1,20 +1,42 @@
-import React, { useState } from 'react';
-import { ServiceOrder, User } from '../../types';
 import {
-  Calendar, MapPin, Printer, Hexagon, Box, User as UserIcon, Tag,
-  CheckCircle2, FileText, ShieldAlert, Mail, Phone, DollarSign,
-  ChevronDown, ChevronUp, Clock, Wrench, Package, ClipboardList
+  Box,
+  Calendar,
+  CheckCircle2,
+  ChevronDown, ChevronUp,
+  ClipboardList,
+  Clock,
+  DollarSign,
+  FileText,
+  Hexagon,
+  Mail,
+  MapPin,
+  Package,
+  Phone,
+  Printer,
+  ShieldAlert,
+  Tag,
+  User as UserIcon,
+  Wrench,
+  Play,
+  Video
 } from 'lucide-react';
-import { StatusBadge } from '../ui/StatusBadge';
-import { DataService } from '../../services/dataService';
-import { NexusBranding } from '../ui/NexusBranding';
+import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { DataService } from '../../services/dataService';
+import { ServiceOrder, User } from '../../types';
+import { NexusBranding } from '../ui/NexusBranding';
 
 interface PublicOrderViewProps {
   order: ServiceOrder | null;
   techs: User[];
   isPrint?: boolean;
 }
+
+const isVideoUrl = (url: string | null) => {
+  if (!url) return false;
+  const videoExtensions = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.webm', '.mkv', '.3gp'];
+  return videoExtensions.some(ext => url.toLowerCase().includes(ext)) || url.toLowerCase().startsWith('data:video/');
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-components
@@ -63,7 +85,7 @@ const CollapsibleFormSection: React.FC<{
     k.toLowerCase().includes('nascimento');
 
   const isImageVal = (v: any) =>
-    typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'));
+    typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('data:video') || v.startsWith('http'));
 
   // Monta lista de itens do formulário: cada item pode ter texto e/ou fotos
   // Preserva a ORDEM original das perguntas
@@ -173,11 +195,22 @@ const CollapsibleFormSection: React.FC<{
                               className="aspect-square rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all"
                               onClick={() => onImageClick(url)}
                             >
-                              <img
-                                src={url}
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                alt={key}
-                              />
+                              {isVideoUrl(url) ? (
+                                <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                  <video src={url} className="w-full h-full object-cover opacity-60" />
+                                  <div className="absolute inset-0 flex items-center justify-center shadow-inner">
+                                    <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
+                                      <Play size={14} className="text-white fill-white ml-0.5" />
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <img
+                                  src={url}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                  alt={key}
+                                />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -323,7 +356,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       k.toLowerCase().includes('nascimento');
 
     const isImageVal = (v: any) =>
-      typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'));
+      typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('data:video') || v.startsWith('http'));
 
     Object.entries(formDataPrint)
       .filter(([key]) => !SYSTEM_KEYS.has(key) && !isSignatureKey(key))
@@ -550,7 +583,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                         <div className="grid grid-cols-4 gap-2 mt-2">
                           {item.photos.map((p, pIdx) => (
                             <div key={pIdx} className="border border-slate-200 rounded p-0.5 max-h-32 overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
-                              <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência" />
+                              {isVideoUrl(p) ? (
+                                <div className="text-[9px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
+                                  <Video size={16} /> [VÍDEO]
+                                </div>
+                              ) : (
+                                <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência" />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -573,7 +612,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <div className="grid grid-cols-4 gap-2 mt-2">
                       {item.photos.map((p, pIdx) => (
                         <div key={pIdx} className="border border-slate-200 rounded p-0.5 max-h-32 overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
-                          <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência fotográfica" />
+                          {isVideoUrl(p) ? (
+                            <div className="text-[9px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
+                              <Video size={16} /> [VÍDEO]
+                            </div>
+                          ) : (
+                            <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência fotográfica" />
+                          )}
                         </div>
                       ))}
                     </div>
@@ -903,7 +948,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                         <tr key={item.id || i} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-5 py-3.5">
                             <span className="text-[11px] font-bold text-slate-800 uppercase">{item.description}</span>
-                            {item.fromStock && <span className="ml-2 text-[8px] font-bold text-emerald-600 uppercase">✦ Estoque</span>}
+                            {item.equipmentName && (
+                              <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase mt-1">
+                                <Box size={10} className="text-slate-300" /> {item.equipmentName}
+                              </div>
+                            )}
+                            {item.fromStock && <span className="text-[8px] font-bold text-emerald-600 uppercase mt-1 block">✦ Estoque Técnico</span>}
                           </td>
                           <td className="px-5 py-3.5 text-center text-[11px] text-slate-500 font-bold">{item.quantity}</td>
                           <td className="px-5 py-3.5 text-right text-[11px] font-mono text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -965,6 +1015,113 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             />
           ) : null}
 
+          {/* ── CARD DE CONCLUSÃO ── */}
+          {(() => {
+            const fd: Record<string, any> = typeof order.formData === 'string'
+              ? (() => { try { return JSON.parse(order.formData); } catch { return {}; } })()
+              : (order.formData || {});
+            const techReport = fd.technicalReport || fd.technical_report || '';
+            const partsUsed = fd.partsUsed || fd.parts_used || '';
+            const cName = fd.clientName || '';
+            const cDoc = fd.clientDoc || '';
+            const completedAt = fd.completedAt || order.endDate || '';
+            if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl) return null;
+            return (
+              <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-6 sm:px-8 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                      <CheckCircle2 size={16} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-indigo-800 uppercase tracking-widest">Dados de Conclusão</p>
+                      <p className="text-[9px] text-indigo-400 font-medium mt-0.5">Informações registradas na finalização</p>
+                    </div>
+                  </div>
+                  {completedAt && (
+                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-wide px-2.5 py-1 rounded-full border bg-white border-indigo-200 flex items-center gap-1.5">
+                      <Clock size={10} /> {new Date(completedAt).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <div className="px-6 sm:px-8 py-6 space-y-5">
+                  {techReport && (
+                    <div>
+                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2">Relatório Técnico</p>
+                      <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{techReport}</p>
+                    </div>
+                  )}
+                  {partsUsed && (
+                    <div>
+                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2">Peças Utilizadas</p>
+                      <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{partsUsed}</p>
+                    </div>
+                  )}
+                  {(cName || cDoc || fd.signature) && (
+                    <div className="flex flex-col sm:flex-row gap-6 pt-4 border-t border-indigo-100">
+                      <div className="flex gap-8 flex-1">
+                        {cName && <InfoPill label="Responsável" value={cName} />}
+                        {cDoc && <InfoPill label="CPF" value={cDoc} mono />}
+                      </div>
+                      {fd.signature && (
+                        <div className="flex flex-col gap-1.5 shrink-0">
+                          <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Assinatura Digital</span>
+                          <div
+                            className="h-10 w-28 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1 cursor-zoom-in hover:border-indigo-300 transition-all"
+                            onClick={() => setFullscreenImage(fd.signature)}
+                          >
+                            <img src={fd.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {(order.videoUrl || fd.videoUrl || fd.video_url) && (
+                    <div className="pt-4 border-t border-indigo-100">
+                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <Video size={12} /> Vídeo de Conclusão
+                      </p>
+                      <div className="w-full max-w-2xl bg-black rounded-lg overflow-hidden flex items-center justify-center aspect-video shadow-md border border-indigo-100">
+                        <video 
+                          src={order.videoUrl || fd.videoUrl || fd.video_url} 
+                          controls 
+                          className="w-full h-auto max-h-[400px]" 
+                          preload="metadata"
+                        >
+                          Seu navegador não suporta o elemento de vídeo.
+                        </video>
+                      </div>
+                    </div>
+                  )}
+                  {(() => {
+                    const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
+                    const photos = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
+                    const validPhotos = photos.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
+
+                    if (validPhotos.length === 0) return null;
+
+                    return (
+                      <div className="pt-4 border-t border-indigo-100">
+                        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Anexos de Conclusão</p>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                          {validPhotos.map((url: string, i: number) => (
+                            <div
+                              key={i}
+                              className="aspect-square rounded-xl overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
+                              onClick={() => setFullscreenImage(url)}
+                            >
+                              <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ── ASSINATURAS (sempre visível no final) ── */}
           {(() => {
             const fd: Record<string, any> = typeof order.formData === 'string'
@@ -991,12 +1148,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             // Nunca usar customerName como fallback (seria o nome cadastrado, não quem assinou)
             const clientName = (order as any).signatureName ||
               fd.signatureName ||
+              fd.clientName ||
               findFd('assinaturadoclientenome') ||
               findFd('responsavelpelorecebi') ||
               findFd('responsavel');
 
             const clientDoc = (order as any).signatureDoc ||
               fd.signatureDoc ||
+              fd.clientDoc ||
               findFd('assinaturadoclientecpf') ||
               findFd('cpf');
 
@@ -1086,11 +1245,20 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
             onClick={() => setFullscreenImage(null)}
           >
-            <img
-              src={fullscreenImage}
-              className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
-              alt="Visualização"
-            />
+            {isVideoUrl(fullscreenImage) ? (
+              <video
+                src={fullscreenImage}
+                controls
+                autoPlay
+                className="max-w-full max-h-full rounded-2xl shadow-2xl"
+              />
+            ) : (
+              <img
+                src={fullscreenImage}
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                alt="Visualização"
+              />
+            )}
             <button
               className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
               onClick={() => setFullscreenImage(null)}

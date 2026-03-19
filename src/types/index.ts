@@ -182,6 +182,7 @@ export interface OrderItem {
   total: number;
   fromStock?: boolean;
   stockItemId?: string;
+  equipmentId?: string;
   equipmentName?: string;
   equipmentSerial?: string;
 }
@@ -264,15 +265,6 @@ export enum VisitStatusEnum {
 
 // Alias para backward compatibility (não remover)
 export type VisitStatus = 'pending' | 'ongoing' | 'paused' | 'blocked' | 'completed';
-
-// Transições válidas — single source of truth
-export const VALID_VISIT_TRANSITIONS: Record<VisitStatusEnum, VisitStatusEnum[]> = {
-  [VisitStatusEnum.PENDING]: [VisitStatusEnum.ONGOING],
-  [VisitStatusEnum.ONGOING]: [VisitStatusEnum.BLOCKED, VisitStatusEnum.COMPLETED],
-  [VisitStatusEnum.PAUSED]: [VisitStatusEnum.ONGOING], // Legacy: manter para visitas antigas
-  [VisitStatusEnum.BLOCKED]: [],
-  [VisitStatusEnum.COMPLETED]: [],
-};
 
 // Status de visita que permitem criação de nova visita na mesma OS
 export const CAN_CREATE_NEW_VISIT_FROM: VisitStatusEnum[] = [

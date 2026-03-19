@@ -280,11 +280,22 @@ export const TechnicianMap: React.FC = () => {
 
     const isMovingTechsHistory = historyPath.length > 5; // Simulação de status de movimento para o resumo histórico
 
-    const activeTechs = technicians.filter(t =>
-        t.last_latitude !== undefined && t.last_latitude !== null &&
-        t.last_longitude !== undefined && t.last_longitude !== null &&
-        t.active !== false
-    );
+    const activeTechs = technicians.filter(t => {
+        const hasCoords = t.last_latitude !== undefined && t.last_latitude !== null &&
+            t.last_longitude !== undefined && t.last_longitude !== null;
+        const isActive = t.active !== false;
+
+        // 🕒 Regra de Inatividade: Só exibe no mapa se foi visto nas últimas 24 horas
+        let isRecent = false;
+        if (t.last_seen) {
+            const diff = Date.now() - new Date(t.last_seen).getTime();
+            const hours = diff / (1000 * 60 * 60);
+            isRecent = hours <= 24;
+        }
+
+        return hasCoords && isActive && isRecent;
+    });
+
     const movingTechs = activeTechs.filter(t => isTechMoving(t.last_seen));
     const stoppedTechs = activeTechs.filter(t => !isTechMoving(t.last_seen));
 
