@@ -13,7 +13,7 @@ export default function StockScreen() {
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [showPrice, setShowPrice] = useState(true);
+    const [showPrice, setShowPrice] = useState(false);
 
     const fetchStock = async (isBackground = false) => {
         if (!isBackground) setIsLoading(true);

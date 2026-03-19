@@ -123,14 +123,17 @@ export default function HomeScreen() {
         const filtered = selectedFilter === 'all'
           ? mapped
           : mapped.filter((o: any) => {
-            if (selectedFilter === 'pending') return ['pending', 'assigned'].includes(o.status);
+            if (selectedFilter === 'pending') return ['pending', 'assigned', 'traveling'].includes(o.status);
             return o.status === selectedFilter;
           });
 
         setOrders(filtered);
         setTotalOrders(filtered.length);
         const stats: Record<string, number> = { all: mapped.length, pending: 0, in_progress: 0, blocked: 0, completed: 0 };
-        mapped.forEach((o: any) => { if (stats[o.status] !== undefined) stats[o.status]++; if (o.status === 'assigned') stats.pending++; });
+        mapped.forEach((o: any) => {
+          if (stats[o.status] !== undefined) stats[o.status]++;
+          if (['assigned', 'traveling', 'pending'].includes(o.status)) stats.pending++;
+        });
         setServerStats(stats);
       } finally {
         setIsLoading(false);
@@ -404,7 +407,14 @@ export default function HomeScreen() {
             <OrderCard
               order={item}
               onShare={handleShareOS}
-              onPress={() => router.push(`/os/${item.id}`)}
+              onPress={() => {
+                const isExecuting = item.status === 'in_progress' || item.status === 'EM ANDAMENTO';
+                if (isExecuting) {
+                  router.push({ pathname: '/os/execute', params: { id: item.id } });
+                } else {
+                  router.push(`/os/${item.id}`);
+                }
+              }}
             />
           )}
           showsVerticalScrollIndicator={false}

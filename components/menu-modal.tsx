@@ -17,7 +17,7 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
 
     const handleForceSync = async () => {
         onClose();
-        await syncService.forceSync();
+        await syncService.triggerSync(true);
     };
 
     const handleLogout = () => {

@@ -146,7 +146,14 @@ export const NotificationService = {
         if (isExpoGoAndroid || !Notifications) return;
         try {
             await Notifications.scheduleNotificationAsync({
-                content: { title, body, data, sound: true },
+                content: {
+                    title,
+                    body,
+                    data,
+                    sound: true,
+                    priority: Notifications.AndroidNotificationPriority?.MAX,
+                    channelId: 'default'
+                },
                 trigger: null,
             });
         } catch (e) {

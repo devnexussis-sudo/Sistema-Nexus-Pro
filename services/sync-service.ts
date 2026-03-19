@@ -46,6 +46,8 @@ class SyncService {
         await AsyncStorage.setItem(APP_OFFLINE_MODE_KEY, enabled ? 'true' : 'false');
         if (enabled) {
             this.startListening();
+            // Automatically prefetch data for today when enabling offline mode
+            this.prefetchTodayOrders().catch(e => console.error('[Sync] Auto-prefetch fail:', e));
         } else {
             this.stopListening();
             await this.triggerSync(true);
@@ -246,12 +248,24 @@ class SyncService {
             }
         }
 
-        // 4. Chamar completeOrder — exatamente como o modo online
+        // 4. Processar videoUrl local, se houver
+        let processedVideoUrl = payload.videoUrl || null;
+        if (processedVideoUrl && (typeof processedVideoUrl === 'string') && (processedVideoUrl.startsWith('file://') || (FileSystem.documentDirectory && processedVideoUrl.startsWith(FileSystem.documentDirectory)))) {
+            try {
+                const url = await OrderService.uploadFile(processedVideoUrl, `orders/${orderId}/videos`, tenantId, 'video/mp4');
+                if (url) processedVideoUrl = url;
+            } catch (e) {
+                console.error('[Sync] Falha foto/video extra:', e);
+            }
+        }
+
+        // 5. Chamar completeOrder — exatamente como o modo online
         await OrderService.completeOrder(orderId, {
             technicalReport: payload.technical_report || '',
             partsUsed: payload.parts_used || '',
             photos: processedExtraPhotos,
             signature: processedSignature,
+            videoUrl: processedVideoUrl, // <-- Added here
             formData: finalFormData,
             clientName: payload.clientName,
             clientDoc: payload.clientDoc,
@@ -430,12 +444,14 @@ class SyncService {
             // Usar OrderService para popular o AsyncStorage com as chaves corretas
             try {
                 const { OrderService } = await import('./order-service');
+                const { StockService } = await import('./stock-service');
                 await Promise.all([
                     OrderService.getFormTemplates(),
                     OrderService.getActivationRules(),
                     OrderService.getServiceTypes(),
+                    StockService.getMyStock(true), // Pre-cache user stock for offline mode
                 ]);
-            } catch (_) { /* silencioso */ }
+            } catch (e) { console.error('[Sync] Falha ao pré-aquecer cache:', e); }
 
             return allOrders.length;
 
