@@ -1,10 +1,9 @@
 
-import { supabase, adminAuthProxy, publicSupabase } from '../lib/supabase';
-import { StorageService } from './storageService';
-import { UserRole } from '../types'; // Adjust import path if needed
 import { CacheManager } from '../lib/cache';
+import { adminAuthProxy, publicSupabase, supabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
-import { logger } from '../lib/logger';
+import { UserRole } from '../types'; // Adjust import path if needed
+import { StorageService } from './storageService';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
@@ -140,32 +139,63 @@ export const TechnicianService = {
         CacheManager.invalidate(`techs_${tenantId}`);
 
         if (isCloudEnabled) {
-            console.log("=== CRIANDO TÉCNICO OFICIAL SUPABASE AUTH ===");
+            // 🔍 Discovery Layer: Verifica se o e-mail já existe no Auth (Provisionamento Inteligente)
+            let userId: string | null = null;
+            let existingAuthUser: any = null;
 
-            // Nota: A verificação de e-mail existente idealmente estaria aqui.
-            // Assumimos que o Supabase Auth.admin.createUser vai falhar se já existir.
+            try {
+                const { data: listData } = await adminAuthProxy.admin.listUsers();
+                existingAuthUser = (listData.users || []).find(u => u.email?.toLowerCase() === tech.email.toLowerCase());
 
-            const { data, error } = await adminAuthProxy.admin.createUser({
-                email: tech.email.toLowerCase(),
-                password: tech.password,
-                user_metadata: {
-                    name: tech.name,
-                    role: UserRole.TECHNICIAN,
-                    tenantId: tenantId,
-                    phone: tech.phone || '',
-                    avatar: tech.avatar || ''
-                },
-                email_confirm: true
-            });
+                if (existingAuthUser) {
+                    userId = existingAuthUser.id;
+                    console.log("📍 Usuário já federado no Auth. Vinculando ID existente:", userId);
 
-            if (error) throw error;
+                    // Se já existe, atualizamos apenas metadados para incluir o cargo técnico se necessário
+                    await adminAuthProxy.admin.updateUserById(userId, {
+                        user_metadata: {
+                            ...existingAuthUser.user_metadata,
+                            phone: tech.phone || existingAuthUser.user_metadata.phone
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn("⚠️ Falha na busca prévia de usuários (Discovery):", e);
+            }
 
-            // 1. Sincronizar com a tabela public.users (Necessário para a FK da tabela technicians)
-            const dbUser = {
-                id: data.user.id,
+            if (!userId) {
+                // Provisionamento de novo usuário no Supabase Auth
+                const { data: authData, error: authError } = await adminAuthProxy.admin.createUser({
+                    email: tech.email.toLowerCase(),
+                    password: tech.password,
+                    user_metadata: {
+                        name: tech.name,
+                        role: UserRole.TECHNICIAN,
+                        tenantId: tenantId,
+                        phone: tech.phone || '',
+                        avatar: tech.avatar || ''
+                    },
+                    email_confirm: true
+                });
+
+                if (authError) throw authError;
+                userId = authData.user?.id || null;
+            }
+
+            if (!userId) throw new Error("ID de usuário não gerado.");
+
+            // 1. Sincronizar com a tabela public.users (Base Profile)
+            // Se o usuário já existe, não sobrescrevemos o papel (role) para não rebaixar um ADMIN para TECHNICIAN na base users
+            // Apenas garantimos que o registro básico exista.
+            const { data: existingDbUser } = await supabase.from('users').select('role').eq('id', userId).single();
+
+            const dbUser: any = {
+                id: userId,
                 name: tech.name,
                 email: tech.email.toLowerCase(),
-                role: UserRole.TECHNICIAN,
+                role: (existingDbUser?.role === UserRole.ADMIN || existingDbUser?.role === 'SUPER_ADMIN' as any)
+                    ? existingDbUser.role
+                    : UserRole.TECHNICIAN,
                 active: tech.active ?? true,
                 tenant_id: tenantId,
                 avatar: tech.avatar || ''
@@ -179,7 +209,7 @@ export const TechnicianService = {
 
             // 2. Sincronizar com a tabela public.technicians
             const dbTech: any = {
-                id: data.user.id,
+                id: userId,
                 name: tech.name,
                 email: tech.email.toLowerCase(), // Pode falhar se não rodou a migração
                 active: tech.active ?? true,

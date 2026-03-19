@@ -524,22 +524,33 @@ export default function ExecuteOSScreen() {
             setVideoProcessingStatus('Comprimindo (H265) Mágica Backstage...');
 
             // ─── Ponto B: COMPRESSÃO PROFUNDA H.265 ─────────────────────────────
-            // Esta biblioteca no Expo Native foca no H264/H265 por hardware (muito rápido)
             let compressedUri = localUri;
             try {
                 const isExpoGo = require('expo-constants').default.appOwnership === 'expo';
                 if (!isExpoGo) {
-                    const { Video } = require('react-native-compressor');
-                    const result = await Video.compress(localUri, {
-                        compressionMethod: 'manual',
-                        bitrate: 1500000,   // Boa qualidade (1.5Mbps) superando limites pesados
-                        maxSize: 720,       
-                        minimumFileSizeForCompress: 0,
-                    });
-                    if (result) compressedUri = result;
+                    const { FFmpegKit, ReturnCode } = require('ffmpeg-kit-react-native');
+                    const outPath = `${FileSystem.cacheDirectory}compressed_${Date.now()}.mp4`;
+                    
+                    const hwCodec = Platform.OS === 'ios' ? 'hevc_videotoolbox' : 'hevc_mediacodec';
+                    
+                    // Executa o FFMPEG aproveitando aceleracao de hardware para HEVC e priorizando a velocidade (superfast/veryfast obrigatorio)
+                    let session = await FFmpegKit.execute(`-y -i "${localUri}" -c:v ${hwCodec} -b:v 1500k -preset superfast -c:a copy "${outPath}"`);
+                    let returnCode = await session.getReturnCode();
+                    
+                    // Caso o encoder de hardware repila o parâmetro '-preset', fazemos fallback cirúrgico
+                    if (!ReturnCode.isSuccess(returnCode)) {
+                        session = await FFmpegKit.execute(`-y -i "${localUri}" -c:v ${hwCodec} -b:v 1500k -c:a copy "${outPath}"`);
+                        returnCode = await session.getReturnCode();
+                    }
+                    
+                    if (ReturnCode.isSuccess(returnCode)) {
+                        compressedUri = 'file://' + outPath;
+                    } else {
+                        console.warn('[Video] FFmpeg compressão falhou, prosseguindo com o arquivo original.');
+                    }
                 }
             } catch (compErr) {
-                console.warn('[Video] Compressor ignorado (Expo Go ou erro):', compErr);
+                console.warn('[Video] FFmpegKit falhou:', compErr);
             }
 
             // Mede a redução conseguida

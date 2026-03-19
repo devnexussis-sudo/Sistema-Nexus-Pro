@@ -1,11 +1,10 @@
 
-import { supabase, adminAuthProxy, publicSupabase } from '../lib/supabase';
 import { CacheManager } from '../lib/cache';
-import { UserRole, User, UserGroup } from '../types';
-import type { DbTenant, DbTenantStats, DbTenantInsert, DbUser, DbUserInsert, DbUserGroup, DbUserGroupInsert } from '../types/database';
-import { StorageService } from './storageService';
+import { adminAuthProxy, supabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
-import { logger } from '../lib/logger';
+import { User, UserGroup, UserRole } from '../types';
+import type { DbTenant, DbTenantInsert, DbTenantStats, DbUser, DbUserGroup } from '../types/database';
+import { StorageService } from './storageService';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
@@ -436,30 +435,59 @@ export const TenantService = {
     },
 
     createUser: async (userData: Omit<User, 'id'> & { password?: string; tenantId: string; groupId?: string }): Promise<DbUser> => {
-        // This usually involves creating Auth User + DB User
         if (isCloudEnabled) {
-            // 1. Cria usuário Auth via adminAuthProxy (Edge Function)
-            const { data: authUser, error: authError } = await adminAuthProxy.admin.createUser({
-                email: userData.email,
-                password: userData.password,
-                email_confirm: true,
-                user_metadata: {
-                    name: userData.name,
-                    role: userData.role,
-                    tenantId: userData.tenantId,
-                    avatar: userData.avatar
+            // 🛡️ Discovery Layer: Provisionamento Inteligente de Administradores
+            let userId: string | null = null;
+            let existingAuthUser: any = null;
+
+            try {
+                const { data: listData } = await adminAuthProxy.admin.listUsers();
+                existingAuthUser = (listData.users || []).find(u => u.email?.toLowerCase() === userData.email.toLowerCase());
+
+                if (existingAuthUser) {
+                    userId = existingAuthUser.id;
+                    console.log("📍 Identidade detectada no Auth. Promovendo usuário a Gestor:", userId);
+
+                    // Atualiza metadados para refletir o novo papel administrativo
+                    await adminAuthProxy.admin.updateUserById(userId, {
+                        user_metadata: {
+                            ...existingAuthUser.user_metadata,
+                            role: userData.role,
+                            tenantId: userData.tenantId,
+                            name: userData.name || existingAuthUser.user_metadata.name
+                        }
+                    });
                 }
-            });
+            } catch (e) {
+                console.warn("⚠️ Falha na busca prévia (Discovery):", e);
+            }
 
-            if (authError) throw authError;
-            if (!authUser.user) throw new Error("Falha ao criar usuário de autenticação.");
+            if (!userId) {
+                // 1. Cria usuário Auth via adminAuthProxy (Edge Function)
+                const { data: authUser, error: authError } = await adminAuthProxy.admin.createUser({
+                    email: userData.email.toLowerCase(),
+                    password: userData.password,
+                    email_confirm: true,
+                    user_metadata: {
+                        name: userData.name,
+                        role: userData.role,
+                        tenantId: userData.tenantId,
+                        avatar: userData.avatar
+                    }
+                });
 
-            // 2. Create DB User Entry
+                if (authError) throw authError;
+                userId = authUser.user?.id || null;
+            }
+
+            if (!userId) throw new Error("Falha ao gerar UID para o novo gestor.");
+
+            // 2. Create/Update DB User Entry (Promove para o papel definido na aba de usuários)
             const dbUser: any = {
-                id: authUser.user.id,
+                id: userId,
                 name: userData.name,
                 email: userData.email,
-                role: userData.role,
+                role: userData.role, // Aqui será ADMIN ou SUPER_ADMIN vindo da aba de usuários
                 active: userData.active,
                 tenant_id: userData.tenantId,
                 group_id: userData.groupId,
@@ -469,7 +497,7 @@ export const TenantService = {
 
             const { data, error } = await supabase
                 .from('users')
-                .insert([dbUser])
+                .upsert([dbUser]) // Usamos upsert para garantir que se ele já era técnico na tabela users com outro role, ele agora seja promovido
                 .select()
                 .single();
 

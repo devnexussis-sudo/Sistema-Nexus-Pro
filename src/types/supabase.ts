@@ -422,6 +422,7 @@ export type Database = {
           total_value: number | null
           type: string | null
           updated_at: string | null
+          video_url: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -469,6 +470,7 @@ export type Database = {
           total_value?: number | null
           type?: string | null
           updated_at?: string | null
+          video_url?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -516,6 +518,7 @@ export type Database = {
           total_value?: number | null
           type?: string | null
           updated_at?: string | null
+          video_url?: string | null
         }
         Relationships: [
           {

@@ -174,6 +174,7 @@ export interface DbOrder {
     checkin_location?: DbGeoLocation;
     checkout_location?: DbGeoLocation;
     pause_reason?: string;
+    video_url?: string;
     created_at: string;
     updated_at: string;
 }

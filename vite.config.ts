@@ -1,6 +1,6 @@
+import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 // Plugins de otimização
@@ -106,7 +106,7 @@ export default defineConfig({
 
   // Otimizações de desenvolvimento
   server: {
-    port: 3000,
+    port: 3001,
     host: true,
 
     // HMR otimizado
