@@ -18,7 +18,8 @@ import {
   User as UserIcon,
   Wrench,
   Play,
-  Video
+  Video,
+  Globe
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -312,6 +313,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const companyPhone = tenant?.phone || '';
   const companyEmail = tenant?.admin_email || tenant?.email || '';
   const companyDoc = tenant?.cnpj || tenant?.document || '';
+  const companyWebsite = tenant?.website || '';
 
   const fmt = (d?: string) => {
     if (!d) return '—';
@@ -697,20 +699,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 )
               }
               <div className="min-w-0 flex-1">
-                <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight truncate leading-none mb-2">{companyName}</h1>
+                <h1 className="text-sm font-bold text-slate-900 uppercase tracking-tight truncate leading-none mb-1.5">{companyName}</h1>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   {companyDoc && (
-                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
+                    <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
                       CNPJ: {companyDoc}
                     </span>
                   )}
                   {companyPhone && (
-                    <span className="flex items-center gap-1 text-[9px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                    <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
                       <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
                     </span>
                   )}
+                  {companyWebsite && (
+                    <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                      <Globe size={9} className="text-[#3e5b99]" /> {companyWebsite.replace(/^https?:\/\//, '')}
+                    </span>
+                  )}
                   {companyAddress && (
-                    <span className="flex items-center gap-1 text-[9px] font-black text-slate-500 uppercase tracking-widest truncate max-w-[150px] sm:max-w-sm md:max-w-md">
+                    <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest truncate max-w-[150px] sm:max-w-sm md:max-w-md">
                       <MapPin size={9} className="text-[#3e5b99] shrink-0" /> {companyAddress}
                     </span>
                   )}
@@ -736,24 +743,24 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* ── OS HERO BANNER ── */}
         <div className="bg-[#1c2d4f] print:hidden">
-          <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+          <div className="max-w-6xl mx-auto px-4 sm:px-8 py-5 sm:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
             {/* OS identity */}
-            <div className="flex items-center gap-5">
-              <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10 shrink-0">
-                <Wrench size={26} className="text-white" />
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
+                <Wrench size={22} className="text-white" />
               </div>
               <div>
-                <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] leading-none mb-1.5">Ordem de Serviço</p>
-                <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-none">
+                <p className="text-[8px] font-bold text-white/40 uppercase tracking-[0.3em] leading-none mb-1">Ordem de Serviço</p>
+                <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tighter leading-none">
                   #{order.displayId || order.id.slice(0, 8).toUpperCase()}
                 </h2>
-                <p className="text-[10px] font-bold text-white/50 uppercase tracking-wide mt-1.5">{order.title}</p>
+                <p className="text-[9px] font-semibold text-white/50 uppercase tracking-wide mt-1">{order.title}</p>
               </div>
             </div>
 
             {/* Status + priority */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border flex items-center gap-2 ${{
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className={`px-2.5 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest border flex items-center gap-1.5 ${{
                 'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
                 'ATRIBUÍDO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
                 'EM DESLOCAMENTO': 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
@@ -763,7 +770,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 'IMPEDIDO': 'bg-red-500/20 text-red-300 border-red-500/30'
               }[order.status] || 'bg-white/10 text-white/70 border-white/10'
                 }`}>
-                <span className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${{
+                <span className={`w-1 h-1 rounded-full animate-pulse-subtle ${{
                   'PENDENTE': 'bg-slate-400',
                   'ATRIBUÍDO': 'bg-sky-400',
                   'EM DESLOCAMENTO': 'bg-fuchsia-400',
@@ -775,11 +782,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   }`} />
                 {order.status}
               </div>
-              <div className="px-3 py-1.5 bg-white/10 rounded-full text-[9px] font-black text-white/70 uppercase tracking-widest border border-white/10">
+              <div className="px-2.5 py-1 bg-white/10 rounded-full text-[8px] font-bold text-white/70 uppercase tracking-widest border border-white/10">
                 {order.priority}
               </div>
-              <div className="px-3 py-1.5 bg-white/10 rounded-full text-[9px] font-black text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
-                <Calendar size={11} /> {fmt(order.createdAt)}
+              <div className="px-2.5 py-1 bg-white/10 rounded-full text-[8px] font-bold text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
+                <Calendar size={10} /> {fmt(order.createdAt)}
               </div>
             </div>
           </div>
