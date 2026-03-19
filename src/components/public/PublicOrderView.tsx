@@ -189,18 +189,18 @@ const CollapsibleFormSection: React.FC<{
 
                       {/* Fotos da mesma pergunta */}
                       {photos.length > 0 && (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 px-3 pb-3">
+                        <div className="flex flex-wrap gap-3 px-3 pb-3 mt-2">
                           {photos.map((url, i) => (
                             <div
                               key={i}
-                              className="aspect-square rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all"
+                              className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
                               onClick={() => onImageClick(url)}
                             >
                               {isVideoUrl(url) ? (
                                 <div className="w-full h-full relative flex items-center justify-center bg-black">
                                   <video src={url} className="w-full h-full object-cover opacity-60" />
                                   <div className="absolute inset-0 flex items-center justify-center shadow-inner">
-                                    <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
+                                    <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
                                       <Play size={14} className="text-white fill-white ml-0.5" />
                                     </div>
                                   </div>
@@ -422,7 +422,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
           <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do chamado e Cliente</div>
           <div className="grid grid-cols-12 divide-x divide-slate-200">
@@ -582,15 +582,15 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key.replace(/^\[.*?\]\s*-\s*/, '')}</p>
                       {item.text && <p className={`text-[11px] font-bold uppercase leading-snug ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.text}</p>}
                       {item.photos.length > 0 && (
-                        <div className="grid grid-cols-4 gap-2 mt-2">
+                        <div className="flex flex-wrap gap-3 mt-3">
                           {item.photos.map((p, pIdx) => (
-                            <div key={pIdx} className="border border-slate-200 rounded p-0.5 max-h-32 overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
+                            <div key={pIdx} className="border border-slate-200 rounded p-1 w-[200px] h-[150px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
                               {isVideoUrl(p) ? (
-                                <div className="text-[9px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
-                                  <Video size={16} /> [VÍDEO]
+                                <div className="text-[10px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
+                                  <Video size={18} /> [VÍDEO]
                                 </div>
                               ) : (
-                                <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência" />
+                                <img src={p} className="w-full h-full object-contain" alt="Evidência" />
                               )}
                             </div>
                           ))}
@@ -611,15 +611,15 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key.replace(/^\[.*?\]\s*-\s*/, '')}</p>
                   {item.text && <p className={`text-[11px] font-bold uppercase leading-snug ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.text}</p>}
                   {item.photos.length > 0 && (
-                    <div className="grid grid-cols-4 gap-2 mt-2">
+                    <div className="flex flex-wrap gap-3 mt-3">
                       {item.photos.map((p, pIdx) => (
-                        <div key={pIdx} className="border border-slate-200 rounded p-0.5 max-h-32 overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
+                        <div key={pIdx} className="border border-slate-200 rounded p-1 w-[200px] h-[150px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
                           {isVideoUrl(p) ? (
-                            <div className="text-[9px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
-                              <Video size={16} /> [VÍDEO]
+                            <div className="text-[10px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
+                              <Video size={18} /> [VÍDEO]
                             </div>
                           ) : (
-                            <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência fotográfica" />
+                            <img src={p} className="w-full h-full object-contain" alt="Evidência fotográfica" />
                           )}
                         </div>
                       ))}
@@ -631,7 +631,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         ) : null}
 
-        <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-8">
+        <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
           <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
           <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
             <div className="p-4 flex flex-col items-center justify-center gap-3">
@@ -1086,10 +1086,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   {(order.videoUrl || fd.videoUrl || fd.video_url || validPhotos.length > 0) && (
                     <div className="pt-4 border-t border-indigo-100">
                       <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Evidências de Conclusão</p>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                      <div className="flex flex-wrap gap-3 mt-1">
                         {(order.videoUrl || fd.videoUrl || fd.video_url) && (
                           <div
-                            className="aspect-square rounded-xl overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative group"
+                            className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] shrink-0 rounded-xl overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative group"
                             onClick={() => setFullscreenImage(order.videoUrl || fd.videoUrl || fd.video_url)}
                           >
                             <video 
@@ -1098,14 +1098,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                               preload="metadata"
                             />
                             <div className="absolute inset-0 flex items-center justify-center">
-                              <Play size={16} className="text-white fill-white" />
+                              <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
                             </div>
                           </div>
                         )}
                         {validPhotos.map((url: string, i: number) => (
                           <div
                             key={i}
-                            className="aspect-square rounded-xl overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
+                            className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] shrink-0 rounded-xl overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
                             onClick={() => setFullscreenImage(url)}
                           >
                             <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
