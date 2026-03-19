@@ -130,7 +130,7 @@ const CollapsibleFormSection: React.FC<{
                 cleanKey: item.key.replace(/^\[.*?\]\s*-\s*/, '')
               });
               return acc;
-            }, {} as Record<string, typeof formItems & { cleanKey?: string }[]>);
+            }, {} as Record<string, (typeof formItems[0] & { cleanKey?: string })[]>);
 
             return Object.entries(groupedItems).map(([group, items]) => (
               <div key={group} className="space-y-4">
@@ -223,13 +223,16 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   // Carrega todos os equipamentos vinculados via RPC (bypassa RLS)
   React.useEffect(() => {
     if (!order?.id) return;
-    supabase
-      .rpc('nexus_get_order_equipments', { p_order_id: order.id })
-      .then(({ data }) => {
+    const fetchEquips = async () => {
+      try {
+        const { data } = await supabase.rpc('nexus_get_order_equipments', { p_order_id: order.id });
         const rows: any[] = Array.isArray(data) ? data : (data ? [data] : []);
         setLinkedEquipments(rows);
-      })
-      .catch(() => setLinkedEquipments([]));
+      } catch (err) {
+        setLinkedEquipments([]);
+      }
+    };
+    fetchEquips();
   }, [order?.id]);
 
   // Busca endereço atualizado do cliente na tabela customers

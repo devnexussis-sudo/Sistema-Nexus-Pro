@@ -1,7 +1,7 @@
 
-import { supabase } from './supabase';
 import { authService } from './auth-service';
 import { logger } from './logger';
+import { supabase } from './supabase';
 
 export interface TenantSettings {
     showStockPrice: boolean;
@@ -19,7 +19,7 @@ export class TenantService {
             const userId = authService.getCurrentUserId();
             if (!userId) {
                 console.log('[TenantService] No userId found, returning default settings');
-                return { showStockPrice: true };
+                return { showStockPrice: false };
             }
 
             if (!forceRefresh && this.settingsCache[userId]) {
@@ -37,7 +37,7 @@ export class TenantService {
 
             if (userError || !userData?.tenant_id) {
                 console.warn('[TenantService] Error or no tenant_id for user:', userError?.message);
-                return { showStockPrice: true };
+                return { showStockPrice: false };
             }
 
             const tenantId = userData.tenant_id;
@@ -53,7 +53,7 @@ export class TenantService {
             if (tenantError) {
                 console.error(`[TenantService] ❌ Erro ao buscar tenant: ${tenantError.message}`);
                 logger.log(`Tenant settings fetch error: ${tenantError.message}`, 'warn');
-                return { showStockPrice: true };
+                return { showStockPrice: false };
             }
 
             console.log('[TenantService] 📦 Dados do tenant recebidos:', JSON.stringify(tenantData));
@@ -63,7 +63,7 @@ export class TenantService {
                 showStockPrice: tenantData?.metadata?.showItemPricesInApp ??
                     tenantData?.show_stock_price ??
                     tenantData?.settings?.show_stock_price ??
-                    true
+                    false
             };
 
             console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}`);
@@ -73,7 +73,7 @@ export class TenantService {
         } catch (error) {
             console.error('[TenantService] 💥 Exceção:', error);
             logger.log(`TenantService exception: ${error}`, 'error');
-            return { showStockPrice: true };
+            return { showStockPrice: false };
         }
     }
 

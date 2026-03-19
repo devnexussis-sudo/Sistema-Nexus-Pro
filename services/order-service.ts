@@ -67,6 +67,7 @@ export interface OrderItem {
     stockItemId?: string;
     equipmentId?: string;
     equipmentName?: string;
+    equipmentSerial?: string;
 }
 
 export interface ExtendedServiceOrder extends ServiceOrder {
@@ -99,7 +100,7 @@ export interface ExtendedServiceOrder extends ServiceOrder {
 
 export class OrderService {
 
-    public static async uploadFile(uri: string, folder: string, manualTenantId?: string): Promise<string | null> {
+    public static async uploadFile(uri: string, folder: string, manualTenantId?: string, contentType?: string): Promise<string | null> {
         try {
             console.log(`[OrderService] 📤 Iniciando upload. URI local: ${uri.substring(0, 60)}...`);
 
@@ -118,7 +119,16 @@ export class OrderService {
 
             const cleanFolder = folder.replace(/^\/+/, '').replace(/\/+$/, '');
             const finalFolder = tenantId ? `${tenantId}/${cleanFolder}` : cleanFolder;
-            const fileName = `${finalFolder}/${Date.now()}_${Math.random().toString(36).substring(7)}.webp`.replace(/\/+/g, '/');
+
+            // Determinar extensão pelo contentType
+            let ext = 'webp';
+            if (contentType) {
+                if (contentType.includes('video/mp4')) ext = 'mp4';
+                else if (contentType.includes('image/jpeg')) ext = 'jpg';
+                else if (contentType.includes('image/png')) ext = 'png';
+            }
+
+            const fileName = `${finalFolder}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`.replace(/\/+/g, '/');
 
             // 2. Obter os dados base64 (Lidando com arquivos locais ou Data URIs de assinatura)
             let base64: string;
@@ -144,7 +154,7 @@ export class OrderService {
             const { data, error } = await supabase.storage
                 .from(BUCKET_NAME)
                 .upload(fileName, arrayBuffer, {
-                    contentType: 'image/webp',
+                    contentType: contentType || 'image/webp',
                     upsert: false
                 });
 
@@ -355,7 +365,7 @@ export class OrderService {
             const isAdmin = userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER';
 
             const STATUS_GROUPS_DB: Record<string, string[]> = {
-                in_progress: ['EM ANDAMENTO'],
+                in_progress: ['EM ANDAMENTO', 'EM DESLOCAMENTO'],
                 traveling: ['EM DESLOCAMENTO'],
                 blocked: ['IMPEDIDO'],
                 completed: ['CONCLUÍDO'],
@@ -402,7 +412,8 @@ export class OrderService {
                     (o: any) => o.status && (
                         o.status.toUpperCase().includes('ATRIBU') ||
                         o.status.toUpperCase().includes('PENDENT') ||
-                        o.status.toUpperCase().includes('ABERTA')
+                        o.status.toUpperCase().includes('ABERTA') ||
+                        o.status.toUpperCase().includes('DESLOCAMENTO')
                     )
                 ).length;
             }
@@ -448,7 +459,8 @@ export class OrderService {
             if (statusFilter === 'pending') {
                 filteredData = filteredData.filter((o: any) => {
                     const s = (o.status || '').toUpperCase();
-                    return s.includes('ATRIBU') || s.includes('PENDENT') || s.includes('ABERTA');
+                    return s.includes('ATRIBU') || s.includes('PENDENT') || s.includes('ABERTA') ||
+                        s.includes('DESLOCAMENTO');
                 });
             }
 
@@ -514,6 +526,7 @@ export class OrderService {
         technicalReport: string;
         partsUsed: string;
         photos: string[];
+        videoUrl?: string | null;
         signature: string | null;
         formData?: any;
         clientName?: string;
@@ -552,7 +565,7 @@ export class OrderService {
             if (details.items && details.items.length > 0) {
                 const { data: userData } = await supabase.auth.getUser();
                 const uid = userData?.user?.id;
-                
+
                 if (uid) {
                     for (const item of details.items) {
                         if (item.fromStock && item.stockItemId) {
@@ -589,6 +602,7 @@ export class OrderService {
                 },
                 items: details.items || [], // Save items structured list
                 signature_url: signatureUrl,
+                video_url: details.videoUrl || null,
                 billing_status: itemsValue > 0 ? 'PENDING' : undefined
             };
 

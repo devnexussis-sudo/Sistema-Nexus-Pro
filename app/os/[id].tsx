@@ -9,11 +9,13 @@ import { syncService } from '@/services/sync-service';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, KeyboardAvoidingView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function OrderDetailsScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     // Initialize order state, will be updated via useFocusEffect
     const [order, setOrder] = useState<any | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
@@ -226,66 +228,75 @@ export default function OrderDetailsScreen() {
                     </View>
                 </View>
 
-                {/* Customer Info */}
+                {/* Customer & Address Info */}
                 <View style={styles.card}>
-                    <ThemedText type="subtitle">Cliente</ThemedText>
-                    <Text style={styles.infoText}>{order.customer}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Ionicons name="person-outline" size={14} color="#64748b" style={{ marginRight: 6 }} />
+                        <ThemedText type="subtitle" style={{ fontSize: 12, textTransform: 'uppercase', color: '#64748b', letterSpacing: 0.5 }}>Cliente</ThemedText>
+                    </View>
+                    <Text style={[styles.infoText, { fontWeight: '700', fontSize: 16, color: '#0f172a', marginBottom: 12, marginTop: 2 }]}>{order.customer}</Text>
+
+                    <View style={styles.divider} />
+                    
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Ionicons name="location-outline" size={14} color="#64748b" style={{ marginRight: 6 }} />
+                        <ThemedText type="subtitle" style={{ fontSize: 12, textTransform: 'uppercase', color: '#64748b', letterSpacing: 0.5 }}>Endereço</ThemedText>
+                    </View>
+                    <Text style={[styles.addressText, { marginTop: 2 }]}>{order.address}</Text>
+
+                    <Pressable style={styles.gpsButton} onPress={openGPS}>
+                        <Ionicons name="navigate" size={16} color="#3b82f6" />
+                        <Text style={styles.gpsButtonText}>Abrir no GPS</Text>
+                    </Pressable>
                 </View>
 
                 {/* Problem Description */}
                 <View style={styles.card}>
-                    <ThemedText type="subtitle">Problema Relatado</ThemedText>
-                    <Text style={styles.infoText}>{order.description}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Ionicons name="alert-circle-outline" size={14} color="#64748b" style={{ marginRight: 6 }} />
+                        <ThemedText type="subtitle" style={{ fontSize: 12, textTransform: 'uppercase', color: '#64748b', letterSpacing: 0.5 }}>Problema Relatado</ThemedText>
+                    </View>
+                    <Text style={[styles.infoText, { marginTop: 2 }]}>{order.description}</Text>
                     {order.problemReason && (
-                        <Text style={[styles.infoText, { marginTop: 8, fontStyle: 'italic', color: '#666' }]}>
-                            "{order.problemReason}"
-                        </Text>
+                        <View style={{ marginTop: 10, backgroundColor: '#f8fafc', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#f1f5f9' }}>
+                            <Text style={[styles.infoText, { marginTop: 0, fontStyle: 'italic', color: '#475569', fontSize: 13 }]}>
+                                "{order.problemReason}"
+                            </Text>
+                        </View>
                     )}
                 </View>
 
                 {/* Equipment Info */}
                 <View style={styles.card}>
-                    <ThemedText type="subtitle">Equipamentos</ThemedText>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Ionicons name="hardware-chip-outline" size={14} color="#64748b" style={{ marginRight: 6 }} />
+                        <ThemedText type="subtitle" style={{ fontSize: 12, textTransform: 'uppercase', color: '#64748b', letterSpacing: 0.5 }}>Equipamentos</ThemedText>
+                    </View>
                     {order.equipments && order.equipments.length > 0 ? (
                         order.equipments.map((eq: any, index: number) => (
-                            <View key={eq.id || index} style={{ marginTop: index > 0 ? 12 : 8, paddingTop: index > 0 ? 12 : 0, borderTopWidth: index > 0 ? 1 : 0, borderTopColor: '#f0f0f0' }}>
+                            <View key={eq.id || index} style={{ marginTop: index > 0 ? 12 : 6, paddingTop: index > 0 ? 12 : 0, borderTopWidth: index > 0 ? 1 : 0, borderTopColor: '#f1f5f9' }}>
                                 <View style={styles.detailRow}>
-                                    <Ionicons name="hardware-chip-outline" size={18} color="#666" />
                                     <Text style={styles.infoTextLabel}>Modelo:</Text>
                                     <Text style={styles.infoTextValue}>{eq.equipment_model || eq.equipment_name || 'N/A'}</Text>
                                 </View>
                                 <View style={styles.detailRow}>
-                                    <Ionicons name="barcode-outline" size={18} color="#666" />
                                     <Text style={styles.infoTextLabel}>S/N:</Text>
                                     <Text style={styles.infoTextValue}>{eq.equipment_serial || 'N/A'}</Text>
                                 </View>
                             </View>
                         ))
                     ) : (
-                        <View style={{ marginTop: 8 }}>
+                        <View style={{ marginTop: 6 }}>
                             <View style={styles.detailRow}>
-                                <Ionicons name="hardware-chip-outline" size={18} color="#666" />
                                 <Text style={styles.infoTextLabel}>Modelo:</Text>
                                 <Text style={styles.infoTextValue}>{order.equipment || 'N/A'}</Text>
                             </View>
                             <View style={styles.detailRow}>
-                                <Ionicons name="barcode-outline" size={18} color="#666" />
                                 <Text style={styles.infoTextLabel}>S/N:</Text>
                                 <Text style={styles.infoTextValue}>{order.serialNumber || 'N/A'}</Text>
                             </View>
                         </View>
                     )}
-                </View>
-
-                {/* Address & GPS */}
-                <View style={styles.card}>
-                    <ThemedText type="subtitle">Endereço</ThemedText>
-                    <Text style={styles.addressText}>{order.address}</Text>
-
-                    <Pressable style={styles.gpsButton} onPress={openGPS}>
-                        <Ionicons name="map" size={20} color="#fff" />
-                        <Text style={styles.gpsButtonText}>Abrir no GPS</Text>
-                    </Pressable>
                 </View>
 
                 {/* Blocked Reason Display */}
@@ -405,15 +416,44 @@ export default function OrderDetailsScreen() {
                             );
                         })()}
 
-                        {/* 3. Peças Utilizadas */}
+                        {/* 3. Itens do Estoque Utilizados */}
+                        {(() => {
+                            const items = order.items || [];
+                            if (!items || items.length === 0) return null;
+                            return (
+                                <View style={styles.executionSection}>
+                                    <View style={styles.sectionHeader}>
+                                        <Ionicons name="cube-outline" size={16} color="#475569" />
+                                        <Text style={styles.executionSectionLabel}>Estoque Utilizado</Text>
+                                    </View>
+                                    <View style={styles.reportContent}>
+                                        {items.map((item: any, i: number) => (
+                                            <View key={i} style={[{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }, i > 0 && { borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 6, marginTop: 4 }]}>
+                                                <View style={{ flex: 1, paddingRight: 10 }}>
+                                                    <Text style={[styles.infoText, { marginTop: 0, fontWeight: '700' }]}>{item.description || item.item?.description}</Text>
+                                                    {item.equipmentName && (
+                                                        <Text style={{ fontSize: 10, color: '#64748b' }}>
+                                                            Aplicado: {item.equipmentName} {item.equipmentSerial ? `(S/N: ${item.equipmentSerial})` : ''}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                                <Text style={[styles.infoText, { marginTop: 0, fontWeight: '800', color: '#0f172a' }]}>{item.quantity} un</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            );
+                        })()}
+
+                        {/* 4. Observações de Materiais (Antigo Peças Utilizadas) */}
                         {(() => {
                             const parts = order.executionDetails?.partsUsed || order.formData?.parts_used;
                             if (!parts) return null;
                             return (
                                 <View style={styles.executionSection}>
                                     <View style={styles.sectionHeader}>
-                                        <Ionicons name="construct-outline" size={16} color="#475569" />
-                                        <Text style={styles.executionSectionLabel}>Peças Utilizadas</Text>
+                                        <Ionicons name="chatbox-ellipses-outline" size={16} color="#475569" />
+                                        <Text style={styles.executionSectionLabel}>Observações de Materiais</Text>
                                     </View>
                                     <View style={styles.reportContent}>
                                         <Text style={styles.infoText}>{parts}</Text>
@@ -481,7 +521,7 @@ export default function OrderDetailsScreen() {
 
             {/* Footer Actions - Only show if pending or in_progress */}
             {isEditable && (
-                <View style={[styles.footer, order.status === 'completed' && { paddingBottom: 20 }]}>
+                <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 10, 20) }]}>
                     <Pressable style={[styles.actionButton, styles.blockButton]} onPress={handleBlock}>
                         <Ionicons name="hand-left-outline" size={20} color="#e11d48" />
                         <Text style={styles.blockButtonText}>Impedir</Text>
@@ -504,7 +544,7 @@ export default function OrderDetailsScreen() {
                 visible={modalVisible}
                 onRequestClose={() => setModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
+                <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Motivo do Impedimento</Text>
 
@@ -526,7 +566,7 @@ export default function OrderDetailsScreen() {
                             </Pressable>
                         </View>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
 
             {/* Image Viewer Modal */}
@@ -541,317 +581,53 @@ export default function OrderDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f8fafc', // Sofisticated grayish blue
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#f8fafc',
-    },
-    errorText: {
-        fontSize: 16,
-        color: '#64748b',
-        fontWeight: '500',
-    },
-    content: {
-        padding: 16,
-        paddingBottom: 100, // Make room for footer
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    title: {
-        fontSize: 26, // Little larger, bolder
-        fontWeight: '900', // Black font weight for big tech look
-        color: '#0f172a',
-        letterSpacing: -0.5,
-    },
-    statusBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-        backgroundColor: '#e6f3ff', // default fallback
-    },
-    statusText: {
-        fontSize: 11,
-        fontWeight: '900',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    card: {
-        backgroundColor: '#ffffff',
-        borderRadius: 16, // Softer radius
-        padding: 20,
-        marginBottom: 16,
-        shadowColor: '#64748b',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 2,
-        borderWidth: 1,
-        borderColor: '#f1f5f9',
-    },
-    infoText: {
-        fontSize: 16,
-        color: '#334155',
-        marginTop: 6,
-        lineHeight: 24,
-    },
-    detailRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        marginTop: 12,
-        gap: 12,
-    },
-    infoTextLabel: {
-        fontSize: 13,
-        fontWeight: '900',
-        color: '#94a3b8',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        width: 80,
-    },
-    infoTextValue: {
-        fontSize: 15,
-        color: '#1e293b',
-        flex: 1,
-        fontWeight: '500',
-    },
-    addressText: {
-        fontSize: 15,
-        color: '#334155',
-        marginTop: 6,
-        marginBottom: 16,
-        lineHeight: 22,
-    },
-    gpsButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#f1f5f9', // Light gray blue instead of heavy blue
-        paddingVertical: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        gap: 8,
-    },
-    gpsButtonText: {
-        color: '#3b82f6', // Bright blue text
-        fontWeight: '800', // Extra bold
-        fontSize: 14,
-    },
-    photosContainer: {
-        flexDirection: 'row',
-        marginTop: 12,
-    },
-    photoThumbnail: {
-        width: 100,
-        height: 100,
-        borderRadius: 12,
-        backgroundColor: '#f1f5f9',
-        marginRight: 12,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-    },
-    signatureImage: {
-        width: '100%',
-        height: 120,
-        backgroundColor: '#ffffff',
-        marginTop: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-    },
-    footer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: '#ffffff',
-        padding: 16,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        borderTopWidth: 1,
-        borderTopColor: '#f1f5f9',
-        // Increased padding to be safely above system gesture bars and fixed buttons
-        paddingBottom: Platform.OS === 'ios' ? 54 : 45,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -12 },
-        shadowOpacity: 0.1,
-        shadowRadius: 24,
-        elevation: 25,
-    },
-    actionButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flex: 0.48, // slightly less than half to leave gap
-        paddingVertical: 16,
-        borderRadius: 14,
-        gap: 8,
-    },
-    blockButton: {
-        backgroundColor: '#fff1f2',
-        borderWidth: 1,
-        borderColor: '#fecdd3',
-    },
-    blockButtonText: {
-        color: '#e11d48',
-        fontWeight: '800',
-        fontSize: 16,
-    },
-    executeButton: {
-        backgroundColor: '#1e293b', // Deep slate
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 6,
-        elevation: 4,
-    },
-    executeButtonText: {
-        color: '#ffffff',
-        fontWeight: '800',
-        fontSize: 16,
-    },
-    // Modal Styles
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    modalContent: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 20,
-        width: '100%',
-        maxWidth: 400,
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 16,
-        color: '#1c2d4f',
-        textAlign: 'center',
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 8,
-        padding: 12,
-        fontSize: 16,
-        textAlignVertical: 'top', // Android multiline fix
-        minHeight: 100,
-        marginBottom: 20,
-    },
-    modalButtons: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    modalButton: {
-        flex: 0.48,
-        paddingVertical: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    cancelButton: {
-        backgroundColor: '#f5f5f5',
-    },
-    cancelButtonText: {
-        color: '#666',
-        fontWeight: '600',
-    },
-    confirmButton: {
-        backgroundColor: '#d32f2f',
-    },
-    confirmButtonText: {
-        color: '#fff',
-        fontWeight: 'bold',
-    },
-    // New Styles for Dynamic Content
-    dynamicFieldRow: {
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
-    },
-    dynamicFieldLabel: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#64748b',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: 4,
-    },
-    dynamicFieldValue: {
-        fontSize: 15,
-        color: '#0f172a',
-        fontWeight: '600',
-        lineHeight: 20,
-    },
-    executionSection: {
-        marginTop: 16,
-        paddingTop: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#f1f5f9',
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 8,
-    },
-    executionSectionLabel: {
-        fontSize: 13,
-        fontWeight: '800',
-        color: '#475569',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-    },
-    reportContent: {
-        backgroundColor: '#f8fafc',
-        padding: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#f1f5f9',
-    },
-    groupBadge: {
-        backgroundColor: '#e2e8f0',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-        alignSelf: 'flex-start',
-        marginBottom: 8,
-    },
-    groupBadgeText: {
-        fontSize: 10,
-        fontWeight: '900',
-        color: '#475569',
-        textTransform: 'uppercase',
-    },
-    checklistItemsContainer: {
-        backgroundColor: '#ffffff',
-    },
-    signatureCanvas: {
-        backgroundColor: '#f8fafc',
-        borderRadius: 12,
-        marginTop: 8,
-        borderWidth: 1,
-        borderColor: '#f1f5f9',
-        padding: 8,
-    },
-    clientNameText: {
-        fontSize: 13,
-        color: '#64748b',
-        marginTop: 8,
-        textAlign: 'center',
-        fontStyle: 'italic',
-    },
+    container: { flex: 1, backgroundColor: '#f1f5f9' },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f1f5f9' },
+    errorText: { fontSize: 16, color: '#64748b', fontWeight: '500' },
+    content: { padding: 14, paddingBottom: 100 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    title: { fontSize: 22, fontWeight: '900', color: '#0f172a', letterSpacing: -0.5 },
+    statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, backgroundColor: '#e6f3ff' },
+    statusText: { fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5 },
+    card: { backgroundColor: '#ffffff', borderRadius: 16, padding: 14, marginBottom: 12, shadowColor: '#0f172a', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: '#e2e8f0' },
+    divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 12 },
+    infoText: { fontSize: 13, color: '#334155', marginTop: 6, lineHeight: 20 },
+    detailRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8, gap: 10 },
+    infoTextLabel: { fontSize: 11, fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, width: 60 },
+    infoTextValue: { fontSize: 13, color: '#1e293b', flex: 1, fontWeight: '600' },
+    addressText: { fontSize: 13, color: '#334155', marginTop: 6, marginBottom: 12, lineHeight: 18 },
+    gpsButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eff6ff', paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#bfdbfe', gap: 6 },
+    gpsButtonText: { color: '#2563eb', fontWeight: '800', fontSize: 13 },
+    photosContainer: { flexDirection: 'row', marginTop: 10 },
+    photoThumbnail: { width: 80, height: 80, borderRadius: 10, backgroundColor: '#f1f5f9', marginRight: 10, borderWidth: 1, borderColor: '#e2e8f0' },
+    signatureImage: { width: '100%', height: 100, backgroundColor: '#ffffff', marginTop: 10, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
+    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 14, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingBottom: Platform.OS === 'ios' ? 44 : 35, shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 15 },
+    actionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flex: 0.48, paddingVertical: 14, borderRadius: 12, gap: 8 },
+    blockButton: { backgroundColor: '#fff1f2', borderWidth: 1, borderColor: '#fecdd3' },
+    blockButtonText: { color: '#e11d48', fontWeight: '800', fontSize: 15 },
+    executeButton: { backgroundColor: '#1e293b', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+    executeButtonText: { color: '#ffffff', fontWeight: '800', fontSize: 15 },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+    modalContent: { backgroundColor: '#fff', borderRadius: 12, padding: 20, width: '100%', maxWidth: 400 },
+    modalTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 14, color: '#1c2d4f', textAlign: 'center' },
+    input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 14, textAlignVertical: 'top', minHeight: 90, marginBottom: 16 },
+    modalButtons: { flexDirection: 'row', justifyContent: 'space-between' },
+    modalButton: { flex: 0.48, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+    cancelButton: { backgroundColor: '#f1f5f9' },
+    cancelButtonText: { color: '#64748b', fontWeight: '600' },
+    confirmButton: { backgroundColor: '#d32f2f' },
+    confirmButtonText: { color: '#fff', fontWeight: 'bold' },
+    dynamicFieldRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+    dynamicFieldLabel: { fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+    dynamicFieldValue: { fontSize: 14, color: '#0f172a', fontWeight: '600', lineHeight: 20 },
+    executionSection: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+    executionSectionLabel: { fontSize: 12, fontWeight: '800', color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 },
+    reportContent: { backgroundColor: '#f8fafc', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#f1f5f9' },
+    groupBadge: { backgroundColor: '#e2e8f0', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 6 },
+    groupBadgeText: { fontSize: 9, fontWeight: '900', color: '#475569', textTransform: 'uppercase' },
+    checklistItemsContainer: { backgroundColor: '#ffffff' },
+    signatureCanvas: { backgroundColor: '#f8fafc', borderRadius: 10, marginTop: 6, borderWidth: 1, borderColor: '#f1f5f9', padding: 6 },
+    clientNameText: { fontSize: 12, color: '#64748b', marginTop: 6, textAlign: 'center', fontStyle: 'italic' },
 });
 

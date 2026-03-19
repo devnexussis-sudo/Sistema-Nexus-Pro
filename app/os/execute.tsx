@@ -1,20 +1,21 @@
 import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { ImageService } from '@/services/image-service';
 import { OrderItem, OrderService } from '@/services/order-service';
 import { StockService, TechStockItem } from '@/services/stock-service';
 import { syncService } from '@/services/sync-service';
+import { TenantService } from '@/services/tenant-service';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import Voice, { SpeechErrorEvent, SpeechResultsEvent } from '@react-native-voice/voice';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as VideoThumbnails from 'expo-video-thumbnails';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import React, { useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureScreen from 'react-native-signature-canvas';
 
@@ -43,6 +44,9 @@ export default function ExecuteOSScreen() {
     const [usedItems, setUsedItems] = useState<OrderItem[]>([]); // Structured parts
     const [extraPhotos, setExtraPhotos] = useState<string[]>([]);
     const [isUploadingExtra, setIsUploadingExtra] = useState(false);
+    const [videoUri, setVideoUri] = useState<string | null>(null);
+    const [videoThumbUri, setVideoThumbUri] = useState<string | null>(null);
+    const [isUploadingVideo, setIsUploadingVideo] = useState(false);
 
     const [selectedPart, setSelectedPart] = useState<TechStockItem | null>(null);
     const [signature, setSignature] = useState<string | null>(null);
@@ -51,119 +55,49 @@ export default function ExecuteOSScreen() {
 
     const [isSignatureModalVisible, setSignatureModalVisible] = useState(false);
     const [isPartPickerVisible, setIsPartPickerVisible] = useState(false);
+    const [isQuantityModalVisible, setQuantityModalVisible] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [qtyToSelect, setQtyToSelect] = useState('1');
+    const [showPrice, setShowPrice] = useState(false);
+
+    // Video states
+    const [isVideoModalVisible, setVideoModalVisible] = useState(false);
+    const [videoProcessingStatus, setVideoProcessingStatus] = useState<string | null>(null); // null=idle, string=msg
+    const [videoSizeMB, setVideoSizeMB] = useState<number | null>(null);
     const [myStock, setMyStock] = useState<TechStockItem[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [viewerVisible, setViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isUploadingPhoto, setIsUploadingPhoto] = useState<string | null>(null);
-    const [isRecording, setIsRecording] = useState(false);
+    const [isPartsVisible, setIsPartsVisible] = useState(false);
     const signatureRef = useRef<any>(null);
+    const scrollViewRef = useRef<ScrollView>(null);
 
-    // 🎤 Configuração do Reconhecimento de Voz Gratuito (Nativo) - Refatorado para SDK 55
-    useEffect(() => {
-        const onSpeechStart = () => setIsRecording(true);
-        const onSpeechEnd = () => setIsRecording(false);
-        const onSpeechError = (e: SpeechErrorEvent) => {
-            console.error('[Voice] Erro:', e);
-            setIsRecording(false);
-            if (e.error?.message?.includes('auth') || e.error?.message?.includes('perm')) {
-                Alert.alert('Permissão', 'Acesso ao microfone negado ou não autorizado.');
-            }
-        };
-        const onSpeechResults = (e: SpeechResultsEvent) => {
-            if (e.value && e.value.length > 0) {
-                const transcribed = e.value[0];
-                const corrected = autoCorrectText(transcribed);
-                setTechnicalReport(prev => {
-                    const separator = prev ? '\n' : '';
-                    return `${prev}${separator}${corrected}`;
-                });
-            }
-        };
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(0);
+    const [activeEquipmentKey, setActiveEquipmentKey] = useState<string | null>(null);
 
-        Voice.onSpeechStart = onSpeechStart;
-        Voice.onSpeechEnd = onSpeechEnd;
-        Voice.onSpeechError = onSpeechError;
-        Voice.onSpeechResults = onSpeechResults;
 
-        return () => {
-            Voice.destroy().then(Voice.removeAllListeners);
-        };
-    }, []);
+    const getEquipmentKeys = () => Object.keys(formsConfig);
+    const totalEquipmentPages = getEquipmentKeys().length;
+    // Pages: 0: Details, 1..N: Equipment Forms, N+1: Conclusion/Video, N+2: Validation
+    const totalPages = 1 + totalEquipmentPages + 1 + 1;
 
-    const autoCorrectText = (text: string) => {
-        if (!text) return '';
-        let cleaned = text.trim();
-        cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-        if (!cleaned.endsWith('.') && !cleaned.endsWith('!') && !cleaned.endsWith('?')) {
-            cleaned += '.';
-        }
-        return cleaned;
-    };
-
-    const handleVoiceStart = async () => {
-        try {
-            // 🎙️ No Android, pedimos permissão usando o PermissionsAndroid nativo do RN
-            if (Platform.OS === 'android') {
-                const { PermissionsAndroid } = require('react-native');
-                const granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-                    {
-                        title: 'Permissão de Microfone',
-                        message: 'Precisamos do microfone para transcrever seu relatório.',
-                        buttonPositive: 'OK',
-                    }
-                );
-                if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-                    Alert.alert('Permissão Negada', 'Habilite o microfone nas configurações do seu Android para usar esta função.');
-                    return;
-                }
-            }
-
-            // No iOS, o Voice.start() dispara o pedido nativo.
-            setIsRecording(true);
-
-            if (!Voice || typeof Voice.start !== 'function') {
-                throw new Error('voice_module_not_found');
-            }
-
-            await Voice.start('pt-BR');
-        } catch (e: any) {
-            setIsRecording(false);
-
-            // Prevents Red Screen (Console Error) for known missing native module errors in Expo Go
-            if (e.message?.includes('startSpeech') || e.message === 'voice_module_not_found') {
-                console.log('[Voice] Módulo nativo ausente (normal no Expo Go). Erro original retirado para evitar tela vermelha.');
-                Alert.alert(
-                    'Função Limitada',
-                    'O Reconhecimento de Voz nativo não está disponível. Isso ocorre ao usar o Expo Go porque exige bibliotecas nativas profundas. Para testar o microfone, instale a versão APK.'
-                );
-                return;
-            }
-
-            console.error('[Voice] Erro ao iniciar:', e);
-
-            if (e.code === 'not_available') {
-                Alert.alert('Recurso Indisponível', 'O serviço de voz do sistema não respondeu. Verifique se o Google (Android) ou Siri (iOS) estão ativos.');
-            } else {
-                Alert.alert(
-                    'Permissão Necessária',
-                    'O microfone está bloqueado. Por favor, verifique as permissões do aplicativo nas configurações do seu celular.',
-                    [{ text: 'OK' }]
-                );
-            }
+    const nextPage = () => {
+        if (currentPage < totalPages - 1) {
+            setCurrentPage(prev => prev + 1);
+            scrollViewRef.current?.scrollTo({ y: 0, animated: false });
         }
     };
 
-    const handleVoiceStop = async () => {
-        try {
-            await Voice.stop();
-            setIsRecording(false);
-        } catch (e) {
-            console.error('[Voice] Erro ao parar:', e);
-            setIsRecording(false);
+    const prevPage = () => {
+        if (currentPage > 0) {
+            setCurrentPage(prev => prev - 1);
+            scrollViewRef.current?.scrollTo({ y: 0, animated: false });
         }
     };
+
+
 
     const fetchTemplateForEquipment = async (orderData: any, eq: any, rules: any[], serviceTypes: any[], allTemplates: any[]) => {
         let template: any = null;
@@ -213,6 +147,14 @@ export default function ExecuteOSScreen() {
                 try {
                     if (!isBackground) setIsLoading(true);
 
+                    // Carregar config do tenant (Preços)
+                    try {
+                        const settings = await TenantService.getSettings();
+                        if (isActive) setShowPrice(settings.showStockPrice);
+                    } catch (err) {
+                        console.error("[ExecuteOS] Error loading settings:", err);
+                    }
+
                     // MODO OFFLINE: tentar cache local primeiro
                     if (syncService.isOfflineModeEnabled()) {
                         const raw = await syncService.getOrderDetail(id as string);
@@ -233,9 +175,13 @@ export default function ExecuteOSScreen() {
                                 if (cache.signature) setSignature(cache.signature);
                                 if (cache.clientName) setClientName(cache.clientName);
                                 if (cache.clientDoc) setClientDoc(cache.clientDoc);
+                                if (cache.videoUri) setVideoUri(cache.videoUri);
+                                if (cache.videoThumbUri) setVideoThumbUri(cache.videoThumbUri);
+                                if (cache.videoSizeMB) setVideoSizeMB(cache.videoSizeMB);
                             } else {
                                 if (mapped.items) setUsedItems(mapped.items);
                             }
+
 
                             // Carregar formulários offline
                             const equipmentsList = (mapped.equipments && mapped.equipments.length > 0)
@@ -265,6 +211,13 @@ export default function ExecuteOSScreen() {
                                 }
                                 newFormsConfig[eqKey] = { equipamento: eq, template, data: initialData };
                             }
+
+                            // Carregar estoque do técnico no modo offline
+                            try {
+                                const stock = await StockService.getMyStock();
+                                if (isActive) setMyStock(stock);
+                            } catch (sErr) { }
+
                             if (isActive) setFormsConfig(newFormsConfig);
                             if (isActive) setIsLoading(false);
                             return; // Dado encontrado — não vai para rede
@@ -296,9 +249,13 @@ export default function ExecuteOSScreen() {
                             if (cache.signature) setSignature(cache.signature);
                             if (cache.clientName) setClientName(cache.clientName);
                             if (cache.clientDoc) setClientDoc(cache.clientDoc);
+                            if (cache.videoUri) setVideoUri(cache.videoUri);
+                            if (cache.videoThumbUri) setVideoThumbUri(cache.videoThumbUri);
+                            if (cache.videoSizeMB) setVideoSizeMB(cache.videoSizeMB);
                         } else {
                             if (orderData.items) setUsedItems(orderData.items);
                             setTechnicalReport(orderData.formData?.technical_report || orderData.executionDetails?.technicalReport || '');
+
                             setPartsUsed(orderData.formData?.parts_used || orderData.executionDetails?.partsUsed || '');
                         }
 
@@ -365,7 +322,13 @@ export default function ExecuteOSScreen() {
                 } catch (error) {
                     console.error("[ExecuteOS] Error loading data:", error);
                 } finally {
-                    if (isActive) setIsLoading(false);
+                    if (isActive) {
+                        setIsLoading(false);
+                        // Carregar configurações se não carregadas
+                        TenantService.getSettings().then(s => {
+                            if (isActive) setShowPrice(s.showStockPrice);
+                        }).catch(() => { });
+                    }
                 }
             };
 
@@ -404,8 +367,12 @@ export default function ExecuteOSScreen() {
                     signature,
                     clientName,
                     clientDoc,
+                    videoUri,
+                    videoThumbUri,
+                    videoSizeMB,
                     timestamp: new Date().getTime()
                 };
+
 
                 await AsyncStorage.setItem(`os_cache_${id}`, JSON.stringify(cacheData));
             } catch (e) {
@@ -415,18 +382,20 @@ export default function ExecuteOSScreen() {
 
         const timeout = setTimeout(saveToCache, 1000); // Debounce save
         return () => clearTimeout(timeout);
-    }, [id, formsConfig, technicalReport, partsUsed, usedItems, extraPhotos, signature, clientName, clientDoc, isLoading, order]);
+    }, [id, formsConfig, technicalReport, partsUsed, usedItems, extraPhotos, signature, clientName, clientDoc, videoUri, videoThumbUri, videoSizeMB, isLoading, order]);
 
-    const addUsedItem = (stockItem: TechStockItem, equipmentId?: string, equipmentName?: string) => {
+
+    const addUsedItem = (stockItem: TechStockItem, quantity: number, equipmentId?: string, equipmentName?: string, equipmentSerial?: string) => {
         const newItem: OrderItem = {
             description: stockItem.item?.description || 'Item sem descrição',
-            quantity: 1,
+            quantity: quantity,
             unitPrice: stockItem.item?.sellPrice || 0,
-            total: stockItem.item?.sellPrice || 0,
+            total: (stockItem.item?.sellPrice || 0) * quantity,
             fromStock: true,
             stockItemId: stockItem.stockItemId,
             equipmentId: equipmentId,
-            equipmentName: equipmentName
+            equipmentName: equipmentName,
+            equipmentSerial: equipmentSerial
         };
         setUsedItems(prev => [...prev, newItem]);
         setIsPartPickerVisible(false);
@@ -436,8 +405,9 @@ export default function ExecuteOSScreen() {
         setUsedItems(prev => prev.filter((_, i) => i !== index));
     };
 
-    const handleSignature = (signatureData: string) => {
+    const handleSignature = async (signatureData: string) => {
         setSignature(signatureData);
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
         setSignatureModalVisible(false);
     };
 
@@ -498,6 +468,115 @@ export default function ExecuteOSScreen() {
             setExtraPhotos(prev => [...prev, finalUri]);
         } finally {
             setIsUploadingExtra(false);
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PIPELINE DE VÍDEO
+    // Gravar → Comprimir (react-native-compressor) → Thumbnail → Upload silencioso
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const handleTakeVideo = async () => {
+        try {
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['videos'],
+                videoQuality: 1,      // 720p — qualidade boa
+                allowsEditing: false, // sem edição manual
+                // sem videoMaxDuration — sem limite de tempo
+            });
+            if (!result.canceled && result.assets?.[0]?.uri) {
+                // Inicia todo o fluxo pesado no backstage sem bloquear a UI!
+                startBackstageVideoProcess(result.assets[0].uri);
+            }
+        } catch {
+            Alert.alert('Erro', 'Não foi possível acessar a câmera.');
+        }
+    };
+
+    /**
+     * Motor de Compressão H265 Backstage:
+     * - Anexa a miniatura IMEDIATAMENTE (dando a sensação de pronto pro usuário)
+     * - Em segundo plano, roda a compressão profunda (H265) e faz o upload
+     * - Substitui a opção de play por um loader na miniatura
+     */
+    const startBackstageVideoProcess = async (rawUri: string) => {
+        try {
+            const localUri = rawUri.startsWith('/') ? `file://${rawUri}` : rawUri;
+
+            // ─── Ponto A: UI INSTANTÂNEA ──────────────────────────────────────────
+            // Seta a URI pra miniatura já ocupar o card, mas travado como "processing"
+            setIsUploadingVideo(true);
+            setVideoProcessingStatus('Gerando miniatura...');
+            setVideoUri(localUri); 
+            setVideoThumbUri(null);
+            setVideoSizeMB(null);
+
+            // Thumbnail extraído nativamente (leva ms)
+            try {
+                const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(localUri, { time: 500, quality: 0.7 });
+                setVideoThumbUri(thumb);
+            } catch (err) {
+                console.warn('[Video] Falha na thumbnail:', err);
+            }
+
+            // A partir daqui, o card de vídeo já aparece na tela!
+            // Começa o processamento pesado:
+            setVideoProcessingStatus('Comprimindo (H265) Mágica Backstage...');
+
+            // ─── Ponto B: COMPRESSÃO PROFUNDA H.265 ─────────────────────────────
+            // Esta biblioteca no Expo Native foca no H264/H265 por hardware (muito rápido)
+            let compressedUri = localUri;
+            try {
+                const isExpoGo = require('expo-constants').default.appOwnership === 'expo';
+                if (!isExpoGo) {
+                    const { Video } = require('react-native-compressor');
+                    const result = await Video.compress(localUri, {
+                        compressionMethod: 'manual',
+                        bitrate: 1500000,   // Boa qualidade (1.5Mbps) superando limites pesados
+                        maxSize: 720,       
+                        minimumFileSizeForCompress: 0,
+                    });
+                    if (result) compressedUri = result;
+                }
+            } catch (compErr) {
+                console.warn('[Video] Compressor ignorado (Expo Go ou erro):', compErr);
+            }
+
+            // Mede a redução conseguida
+            const info = await FileSystem.getInfoAsync(compressedUri);
+            const sizeMB = ((info as any).size ?? 0) / 1024 / 1024;
+            setVideoSizeMB(Math.round(sizeMB * 10) / 10);
+            
+            // ─── Ponto C: UPLOAD BACKGROUND ─────────────────────────────────────
+            setVideoProcessingStatus('Sincronizando com nuvem...');
+            const netInfo = await NetInfo.fetch();
+            
+            if (!netInfo.isConnected || syncService.isOfflineModeEnabled()) {
+                // Offline fallback
+                const fileName = `offline_video_${id}_${Date.now()}.mp4`;
+                const destPath = `${FileSystem.documentDirectory}${fileName}`;
+                await FileSystem.copyAsync({ from: compressedUri, to: destPath });
+                setVideoUri(destPath);
+            } else {
+                // Upload normal para o Storage
+                const publicUrl = await OrderService.uploadFile(
+                    compressedUri,
+                    `orders/${id}/videos`,
+                    order?.tenantId,
+                    'video/mp4'
+                );
+
+                if (publicUrl) {
+                    setVideoUri(publicUrl); // Troca a URL local pela URL Pública da CDN
+                }
+            }
+        } catch (error) {
+            console.error('[Video] Erro backstage fatal:', error);
+            Alert.alert('Erro', 'Ocorreu um erro ao otimizar o vídeo.');
+        } finally {
+            // Libera o Play Button e remove spinners
+            setIsUploadingVideo(false);
+            setVideoProcessingStatus(null);
         }
     };
 
@@ -642,6 +721,7 @@ export default function ExecuteOSScreen() {
                     if (photo.startsWith('file://')) localPhotosToSync.push(photo);
                 }
                 if (signature) localPhotosToSync.push(signature);
+                if (videoUri && videoUri.startsWith('file://')) localPhotosToSync.push(videoUri);
 
                 await syncService.addToQueue({
                     type: 'complete_os',
@@ -656,6 +736,7 @@ export default function ExecuteOSScreen() {
                         clientName,
                         clientDoc,
                         tenantId: order?.tenantId,
+                        videoUrl: videoUri,
                     },
                     localPhotos: localPhotosToSync
                 });
@@ -673,6 +754,7 @@ export default function ExecuteOSScreen() {
                     technicalReport,
                     partsUsed,
                     photos: extraPhotos,
+                    videoUrl: videoUri,
                     signature,
                     formData: finalFormData,
                     clientName,
@@ -703,8 +785,8 @@ export default function ExecuteOSScreen() {
             case 'TEXT':
             case 'LONG_TEXT':
                 return (
-                    <View key={field.id} style={styles.section}>
-                        <ThemedText type="subtitle">{field.label}</ThemedText>
+                    <View key={field.id} style={styles.dynamicFieldControl}>
+                        <Text style={styles.dynamicFieldLabel}>{field.label}</Text>
                         <TextInput
                             style={[styles.input, field.type === 'LONG_TEXT' && styles.textArea]}
                             placeholder={field.label}
@@ -717,8 +799,8 @@ export default function ExecuteOSScreen() {
                 );
             case 'SELECT':
                 return (
-                    <View key={field.id} style={styles.section}>
-                        <ThemedText type="subtitle">{field.label}</ThemedText>
+                    <View key={field.id} style={styles.dynamicFieldControl}>
+                        <Text style={styles.dynamicFieldLabel}>{field.label}</Text>
                         <View style={styles.pickerContainer}>
                             {(field.options || []).map((opt: string) => (
                                 <Pressable
@@ -735,8 +817,8 @@ export default function ExecuteOSScreen() {
             case 'PHOTO':
                 const photos = Array.isArray(data[field.id]) ? data[field.id] : (data[field.id] ? [data[field.id]] : []);
                 return (
-                    <View key={field.id} style={styles.section}>
-                        <ThemedText type="subtitle">{field.label} ({photos.length}/3)</ThemedText>
+                    <View key={field.id} style={styles.dynamicFieldControl}>
+                        <Text style={styles.dynamicFieldLabel}>{field.label} ({photos.length}/3)</Text>
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
                             {photos.map((photoUri: string, index: number) => (
                                 <Pressable key={index} style={{ position: 'relative', width: 100, height: 100, borderRadius: 8, overflow: 'hidden' }}
@@ -766,13 +848,18 @@ export default function ExecuteOSScreen() {
     };
 
     return (
-        <ThemedView style={styles.container}>
-            <Stack.Screen options={{ title: `Executando OS`, headerRight: () => <HeaderRightToggle /> }} />
+        <KeyboardAvoidingView style={[{ flex: 1 }, styles.container]} behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}>
+            <Stack.Screen options={{ title: `Execução - Página ${currentPage + 1}/${totalPages}`, headerRight: () => <HeaderRightToggle /> }} />
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView ref={scrollViewRef} contentContainerStyle={styles.content} scrollEnabled={true}>
 
-                {/* OS INFORMATION HEADER */}
-                {order && (
+                {/* PROGRESS BAR */}
+                <View style={styles.progressBarContainer}>
+                    <View style={[styles.progressBar, { width: `${((currentPage + 1) / totalPages) * 100}%` }]} />
+                </View>
+
+                {/* PAGE 0: OS INFORMATION HEADER */}
+                {currentPage === 0 && order && (
                     <View style={styles.infoCard}>
                         <View style={styles.infoCardHeader}>
                             <Ionicons name="information-circle" size={20} color="#1c2d4f" />
@@ -787,18 +874,32 @@ export default function ExecuteOSScreen() {
                             <Text style={styles.infoLabel}>TÍTULO DO SERVIÇO</Text>
                             <Text style={styles.infoValueBold}>{order.displayId}: {order.description?.split('\n')[0]}</Text>
                         </View>
+                        <View style={styles.infoDivider} />
+                        <View style={styles.infoRow}>
+                            <Text style={styles.infoLabel}>EQUIPAMENTOS RELACIONADOS</Text>
+                            {order.equipments && order.equipments.length > 0 ? (
+                                order.equipments.map((eq: any, idx: number) => (
+                                    <View key={eq.id || idx} style={{ marginTop: 4 }}>
+                                        <Text style={styles.infoValue}>• {eq.equipment_model || eq.equipment_name} (S/N: {eq.equipment_serial || 'N/A'})</Text>
+                                    </View>
+                                ))
+                            ) : (
+                                <Text style={styles.infoValue}>• {order.equipment} (S/N: {order.serialNumber || 'N/A'})</Text>
+                            )}
+                        </View>
                     </View>
                 )}
 
-                {/* EQUIPMENT FORMS */}
-                {Object.entries(formsConfig).map(([eqKey, config]) => {
-                    const isCollapsed = !!collapsedForms[eqKey];
+                {/* PAGES 1..N: EQUIPMENT FORMS */}
+                {currentPage > 0 && currentPage <= totalEquipmentPages && (() => {
+                    const eqKeys = getEquipmentKeys();
+                    const eqKey = eqKeys[currentPage - 1];
+                    const config = formsConfig[eqKey];
+                    if (!config) return null;
+
                     return (
                         <View key={eqKey} style={styles.equipmentGroup}>
-                            <Pressable
-                                style={styles.equipmentHeader}
-                                onPress={() => toggleFormCollapse(eqKey)}
-                            >
+                            <View style={styles.equipmentHeader}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                                     <View style={styles.equipmentIconWrapper}>
                                         <Ionicons name="hardware-chip-outline" size={18} color="#1c2d4f" />
@@ -808,180 +909,221 @@ export default function ExecuteOSScreen() {
                                         {config.equipamento?.equipment_serial ? ` - S/N: ${config.equipamento.equipment_serial}` : ''}
                                     </Text>
                                 </View>
-                                <Ionicons name={isCollapsed ? "chevron-down" : "chevron-up"} size={22} color="#fff" />
+                            </View>
+
+                            <View style={styles.equipmentFormsContainer}>
+                                {config.template ? (
+                                    config.template.fields.map((field: any) => renderDynamicField(eqKey, field, config.data))
+                                ) : (
+                                    <View style={[styles.dynamicFieldControl, { alignItems: 'center', padding: 24, margin: 12, backgroundColor: '#f8fafc', elevation: 0 }]}>
+                                        <Ionicons name="document-text-outline" size={40} color="#cbd5e1" />
+                                        <Text style={{ color: '#94a3b8', marginTop: 10, fontWeight: '600' }}>Nenhum formulário dinâmico vinculado.</Text>
+                                    </View>
+                                )}
+                            </View>
+
+                            {/* PART INCLUSION FOR THIS EQUIPMENT */}
+                            <Pressable 
+                                style={[styles.showPartsButton, { marginHorizontal: 12, marginBottom: 16 }]} 
+                                onPress={() => {
+                                    setActiveEquipmentKey(eqKey);
+                                    setIsPartPickerVisible(true);
+                                }}
+                            >
+
+                                <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
+                                <Text style={styles.showPartsButtonText}>Incluir Peça para este Equipamento</Text>
                             </Pressable>
 
-                            {!isCollapsed && (
-                                <>
-                                    {config.template ? (
-                                        <View style={styles.equipmentFormsContainer}>
-                                            {config.template.fields.map((field: any) => renderDynamicField(eqKey, field, config.data))}
-                                        </View>
-                                    ) : (
-                                        <View style={[styles.section, { alignItems: 'center', padding: 24, margin: 16, backgroundColor: '#f8fafc', elevation: 0 }]}>
-                                            <Ionicons name="document-text-outline" size={40} color="#cbd5e1" />
-                                            <Text style={{ color: '#94a3b8', marginTop: 10, fontWeight: '600' }}>Nenhum formulário dinâmico vinculado.</Text>
-                                        </View>
-                                    )}
-                                </>
+                            {/* List parts already added to this equipment */}
+                            {usedItems.filter(item => item.equipmentId === config.equipamento?.id || (config.equipamento?.id === 'single' && !item.equipmentId)).length > 0 && (
+                                <View style={{ paddingHorizontal: 12, marginBottom: 16 }}>
+                                    <Text style={[styles.infoLabel, { marginBottom: 8 }]}>PEÇAS VINCULADAS:</Text>
+                                    {usedItems
+                                        .filter(item => item.equipmentId === config.equipamento?.id || (config.equipamento?.id === 'single' && !item.equipmentId))
+                                        .map((item, idx) => (
+                                            <View key={idx} style={[styles.usedItemCard, { marginBottom: 6 }]}>
+                                                <Text style={[styles.usedItemDescription, { flex: 1 }]}>{item.description} (x{item.quantity})</Text>
+                                                <Pressable onPress={() => removeUsedItem(usedItems.indexOf(item))}>
+                                                    <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                                                </Pressable>
+                                            </View>
+                                        ))
+                                    }
+                                </View>
                             )}
                         </View>
                     );
-                })}
+                })()}
 
-                {/* CONCLUSÃO GLOBAL */}
-                <View style={styles.globalConclusionSection}>
-                    <View style={styles.conclusionHeader}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                            <View style={[styles.equipmentIconWrapper, { backgroundColor: '#e2e8f0' }]}>
-                                <Ionicons name="checkmark-done-circle-outline" size={18} color="#0f172a" />
+                {/* PAGE N+1: CONCLUSÃO GLOBAL / VÍDEO */}
+                {currentPage === totalEquipmentPages + 1 && (
+                    <View style={[styles.globalConclusionSection, { marginTop: 4, backgroundColor: '#fdfcf0', borderColor: '#eab308' }]}>
+                        <View style={[styles.conclusionHeader, { backgroundColor: '#fef9c3' }]}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                <View style={[styles.equipmentIconWrapper, { backgroundColor: '#fef3c7' }]}>
+                                    <Ionicons name="checkmark-done-circle-outline" size={18} color="#854d0e" />
+                                </View>
+                                <Text style={[styles.equipmentTitle, { color: '#854d0e' }]}>Conclusão Geral do Atendimento</Text>
                             </View>
-                            <Text style={[styles.equipmentTitle, { color: '#0f172a' }]}>Conclusão Geral da OS</Text>
-                        </View>
-                    </View>
-
-                    <View style={[styles.section, { borderTopWidth: 0, marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                            <ThemedText type="subtitle">Relatório Técnico</ThemedText>
-
-                            <Pressable
-                                style={[
-                                    styles.voiceButton,
-                                    isRecording && styles.voiceButtonActive
-                                ]}
-                                onPress={isRecording ? handleVoiceStop : handleVoiceStart}
-                            >
-                                <Ionicons
-                                    name={isRecording ? "stop-circle" : "mic"}
-                                    size={20}
-                                    color={isRecording ? "#ef4444" : "#1c2d4f"}
-                                />
-                                <Text style={[styles.voiceButtonText, isRecording && { color: '#ef4444' }]}>
-                                    {isRecording ? 'Ouvindo... (Parar)' : 'Falar Relatório'}
-                                </Text>
-                            </Pressable>
                         </View>
 
-                        <TextInput
-                            style={[styles.input, styles.textArea, isRecording && { opacity: 0.6 }]}
-                            placeholder={isRecording ? "Dite seu relatório agora..." : "Descreva o serviço realizado, diagnósticos e considerações finais..."}
-                            multiline
-                            numberOfLines={4}
-                            value={technicalReport}
-                            onChangeText={setTechnicalReport}
-                        />
+                        <View style={[styles.section, { borderTopWidth: 0, marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0, backgroundColor: 'transparent', elevation: 0, borderWidth: 0 }]}>
+                            <ThemedText type="subtitle" style={{ marginBottom: 8 }}>Relatório Técnico Final</ThemedText>
+                            <TextInput
+                                style={[styles.input, styles.textArea]}
+                                placeholder={"Descreva as ações realizadas no atendimento..."}
+                                multiline
+                                numberOfLines={4}
+                                value={technicalReport}
+                                onChangeText={setTechnicalReport}
+                            />
 
-                        <View style={{ marginTop: 24 }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                <ThemedText type="subtitle">Peças e Materiais (Estoque)</ThemedText>
-                                <Pressable
-                                    style={styles.addPartButton}
-                                    onPress={() => setIsPartPickerVisible(true)}
-                                >
-                                    <Ionicons name="add-circle-outline" size={18} color="#fff" />
-                                    <Text style={styles.addPartButtonText}>Incluir Item</Text>
-                                </Pressable>
-                            </View>
-
-                            {usedItems.length > 0 ? (
-                                <View style={styles.usedItemsList}>
-                                    {usedItems.map((item, index) => (
-                                        <View key={index} style={styles.usedItemCard}>
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.usedItemDescription}>{item.description}</Text>
-                                                {item.equipmentName && (
-                                                    <View style={styles.itemEquipmentBadge}>
-                                                        <Ionicons name="hardware-chip-outline" size={10} color="#64748b" />
-                                                        <Text style={styles.itemEquipmentText}>{item.equipmentName}</Text>
+                            {/* VÍDEO SECTION ON THIS PAGE */}
+                            <View style={[styles.card, { marginTop: 20, elevation: 0, backgroundColor: '#ffffff' }]}>
+                                <View style={styles.cardHeader}>
+                                    <Ionicons name="videocam" size={16} color="#059669" />
+                                    <ThemedText style={styles.cardTitle}>Vídeo Evidência</ThemedText>
+                                </View>
+                                <View style={styles.cardContent}>
+                                    {videoUri ? (
+                                        <Pressable
+                                            style={styles.videoPreviewCard}
+                                            disabled={isUploadingVideo}
+                                            onPress={() => {
+                                                const playUri = videoUri.startsWith('http')
+                                                    ? videoUri : (videoUri.startsWith('/') ? `file://${videoUri}` : videoUri);
+                                                Linking.openURL(playUri).catch(() => Alert.alert('Erro', 'Não foi possível reproduzir o vídeo.'));
+                                            }}
+                                        >
+                                            <View style={styles.videoThumbContainer}>
+                                                {videoThumbUri ? (
+                                                    <Image source={{ uri: videoThumbUri }} style={styles.videoThumbImage} resizeMode="cover" />
+                                                ) : (
+                                                    <Ionicons name="film-outline" size={40} color="rgba(255,255,255,0.25)" />
+                                                )}
+                                                {isUploadingVideo ? (
+                                                    <View style={styles.videoProcessingOverlay}>
+                                                        <ActivityIndicator size="large" color="#10b981" />
+                                                        <Text style={styles.videoProcessingOverlayText}>{videoProcessingStatus || 'Processando...'}</Text>
+                                                    </View>
+                                                ) : (
+                                                    <View style={styles.videoPlayOverlay}>
+                                                        <Ionicons name="play-circle" size={50} color="#fff" />
                                                     </View>
                                                 )}
-                                                <Text style={styles.usedItemDetails}>
-                                                    Qtd: {item.quantity} • Unit: R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                </Text>
                                             </View>
-                                            <Pressable onPress={() => removeUsedItem(index)} style={styles.removePartButton}>
-                                                <Ionicons name="trash-outline" size={20} color="#ef4444" />
-                                            </Pressable>
-                                        </View>
-                                    ))}
-                                </View>
-                            ) : (
-                                <View style={styles.emptyItemsBox}>
-                                    <Text style={styles.emptyItemsText}>Nenhuma peça de estoque adicionada.</Text>
-                                </View>
-                            )}
-
-                            <View style={{ marginTop: 16 }}>
-                                <ThemedText type="subtitle">Observações de Materiais</ThemedText>
-                                <TextInput
-                                    style={[styles.input]}
-                                    placeholder="Dutos, conectores, parafusos ou anotações extras..."
-                                    value={partsUsed}
-                                    onChangeText={setPartsUsed}
-                                />
-                            </View>
-                        </View>
-
-                        <View style={{ marginTop: 24 }}>
-                            <ThemedText type="subtitle">Anexos Extras ({extraPhotos.length})</ThemedText>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
-                                {extraPhotos.map((photoUri, index) => (
-                                    <Pressable key={index} style={{ position: 'relative', width: 80, height: 80, borderRadius: 8, overflow: 'hidden' }}
-                                        onPress={() => { setSelectedImage(photoUri); setViewerVisible(true); }}>
-                                        <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} />
-                                        <Pressable style={{ position: 'absolute', bottom: 0, width: '100%', backgroundColor: 'rgba(255,0,0,0.7)', alignItems: 'center', padding: 2 }}
-                                            onPress={() => setExtraPhotos(prev => prev.filter((_, i) => i !== index))}>
-                                            <Ionicons name="trash" size={14} color="#fff" />
+                                            <View style={styles.videoMetaBar}>
+                                                <Text style={styles.videoMetaText}>Vídeo Anexado {videoSizeMB ? `(${videoSizeMB}MB)` : ''}</Text>
+                                                {!isUploadingVideo && (
+                                                    <Pressable onPress={() => setVideoUri(null)}>
+                                                        <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                                                    </Pressable>
+                                                )}
+                                            </View>
                                         </Pressable>
+                                    ) : (
+                                        <Pressable style={styles.videoRecordButton} onPress={handleTakeVideo}>
+                                            <Ionicons name="videocam" size={24} color="#059669" />
+                                            <View style={{ flex: 1, marginLeft: 12 }}>
+                                                <Text style={styles.videoRecordTitle}>Gravar Vídeo de Conclusão</Text>
+                                                <Text style={styles.videoRecordSubtitle}>Qualidade ótima, tamanho reduzido</Text>
+                                            </View>
+                                        </Pressable>
+                                    )}
+                                </View>
+                            </View>
+
+                            {/* EXTRA PHOTOS */}
+                            <View style={{ marginTop: 20 }}>
+                                <ThemedText type="subtitle">Fotos Extras (Opcional)</ThemedText>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
+                                    {extraPhotos.map((photoUri, index) => (
+                                        <Pressable key={index} style={{ position: 'relative', width: 80, height: 80, borderRadius: 8, overflow: 'hidden' }}
+                                            onPress={() => { setSelectedImage(photoUri); setViewerVisible(true); }}>
+                                            <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} />
+                                            <Pressable style={{ position: 'absolute', top: 0, right: 0, backgroundColor: 'rgba(255,0,0,0.7)', padding: 2 }}
+                                                onPress={() => setExtraPhotos(prev => prev.filter((_, i) => i !== index))}>
+                                                <Ionicons name="close" size={14} color="#fff" />
+                                            </Pressable>
+                                        </Pressable>
+                                    ))}
+                                    <Pressable style={[styles.photoFieldPlaceholder, { width: 80, height: 80, marginTop: 0 }]}
+                                        onPress={handleTakeExtraPhoto} disabled={isUploadingExtra}>
+                                        <Ionicons name="camera" size={20} color="#666" />
+                                        <Text style={{ fontSize: 10, color: '#666' }}>Anexar</Text>
                                     </Pressable>
-                                ))}
-                                <Pressable style={[styles.photoFieldPlaceholder, { width: 80, height: 80, margin: 0, minHeight: 80 }]}
-                                    onPress={handleTakeExtraPhoto} disabled={isUploadingExtra}>
-                                    {isUploadingExtra ? <Text style={{ fontSize: 10, color: '#666' }}>Enviando...</Text> : <><Ionicons name="camera" size={20} color="#666" /><Text style={{ fontSize: 10, color: '#666', fontWeight: 'bold' }}>Anexar</Text></>}
-                                </Pressable>
+                                </View>
                             </View>
                         </View>
                     </View>
-                </View>
+                )}
 
-                {/* SIGNATURE SECTION */}
-                <View style={styles.section}>
-                    <ThemedText type="subtitle">Validação do Cliente</ThemedText>
-                    <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4, fontWeight: '600', color: '#666' }]}>Nome do Responsável / Cliente</Text>
-                    <TextInput style={styles.input} placeholder="Nome de quem acompanhou o serviço" value={clientName} onChangeText={setClientName} />
+                {/* PAGE N+2: VALIDATION */}
+                {currentPage === totalEquipmentPages + 2 && (
+                    <View style={styles.section}>
+                        <ThemedText type="subtitle">Validação do Cliente</ThemedText>
+                        <Text style={[styles.fieldLabel, { marginTop: 12, marginBottom: 4 }]}>Nome do Responsável</Text>
+                        <TextInput style={styles.input} placeholder="Quem acompanhou o serviço" value={clientName} onChangeText={setClientName} />
 
-                    <Text style={[styles.fieldLabel, { marginTop: 16, marginBottom: 4, fontWeight: '600', color: '#666' }]}>CPF / Documento (Opcional)</Text>
-                    <TextInput style={styles.input} placeholder="Ex: 000.000.000-00" value={clientDoc} onChangeText={setClientDoc} keyboardType="numeric" />
+                        <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 8 }]}>Assinatura Digital</Text>
+                        {signature ? (
+                            <Pressable onPress={() => setSignature(null)} style={styles.signaturePreviewContainer}>
+                                <Image source={{ uri: signature }} style={styles.signaturePreview} resizeMode="contain" />
+                                <Text style={styles.clearSignatureText}>Tocar para refazer</Text>
+                            </Pressable>
+                        ) : (
+                            <Pressable style={styles.signaturePlaceholder} onPress={async () => {
+                                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+                                setSignatureModalVisible(true);
+                            }}>
+                                <Ionicons name="pencil" size={32} color="#666" />
+                                <Text style={styles.signaturePlaceholderText}>Coletar Assinatura</Text>
+                            </Pressable>
+                        )}
+                    </View>
+                )}
+            </ScrollView>
 
-                    <Text style={[styles.fieldLabel, { marginTop: 24, marginBottom: 8, fontWeight: '600', color: '#666' }]}>Assinatura Digital</Text>
-                    {signature ? (
-                        <Pressable onPress={() => setSignature(null)} style={styles.signaturePreviewContainer}>
-                            <Image source={{ uri: signature }} style={styles.signaturePreview} resizeMode="contain" />
-                            <Text style={styles.clearSignatureText}>Toque para apagar e assinar novamente</Text>
+            {/* NEW PAGINATED FOOTER */}
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+                    {currentPage > 0 ? (
+                        <Pressable style={[styles.paginationButton, styles.backButton]} onPress={prevPage}>
+                            <Ionicons name="chevron-back" size={20} color="#475569" />
+                            <Text style={styles.backButtonText}>Anterior</Text>
                         </Pressable>
                     ) : (
-                        <Pressable style={styles.signaturePlaceholder} onPress={() => setSignatureModalVisible(true)}>
-                            <Ionicons name="pencil" size={32} color="#666" />
-                            <Text style={styles.signaturePlaceholderText}>Coletar Assinatura do Cliente</Text>
+                        <View style={{ flex: 1 }} />
+                    )}
+
+                    {currentPage < totalPages - 1 ? (
+                        <Pressable style={[styles.paginationButton, styles.nextButton]} onPress={nextPage}>
+                            <Text style={styles.nextButtonText}>Próximo</Text>
+                            <Ionicons name="chevron-forward" size={20} color="#fff" />
+                        </Pressable>
+                    ) : (
+                        <Pressable style={[styles.submitButton, { flex: 1 }, isSubmitting && { opacity: 0.7 }]} onPress={handleSubmit} disabled={isSubmitting}>
+                            <Text style={styles.submitButtonText}>{isSubmitting ? 'Enviando...' : 'Finalizar OS'}</Text>
                         </Pressable>
                     )}
                 </View>
-            </ScrollView>
-
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}>
-                <Pressable style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]} onPress={handleSubmit} disabled={isSubmitting}>
-                    <Text style={styles.submitButtonText}>{isSubmitting ? 'Finalizando...' : 'Finalizar OS'}</Text>
-                </Pressable>
             </View>
 
             {/* Modals */}
-            <Modal visible={isSignatureModalVisible} animationType="slide" onRequestClose={() => setSignatureModalVisible(false)}>
+            <Modal visible={isSignatureModalVisible} animationType="slide" onRequestClose={async () => {
+                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+                setSignatureModalVisible(false);
+            }}>
                 <View style={styles.signatureModalContainer}>
                     <SignatureScreen ref={signatureRef} onOK={handleSignature}
                         webStyle={`.m-signature-pad--footer {display: none; margin: 0px;} body,html {width: 100%; height: 100%;}`}
                     />
-                    <View style={styles.signatureFooter}>
-                        <Pressable onPress={() => setSignatureModalVisible(false)} style={styles.signatureActionBtn}><Text>Cancelar</Text></Pressable>
+                    <View style={[styles.signatureFooter, { paddingBottom: Math.max(insets.bottom + 20, 24) }]}>
+                        <Pressable onPress={async () => {
+                            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+                            setSignatureModalVisible(false);
+                        }} style={styles.signatureActionBtn}><Text>Cancelar</Text></Pressable>
                         <Pressable onPress={() => signatureRef.current?.readSignature()} style={[styles.signatureActionBtn, styles.confirmBtn]}><Text style={styles.confirmText}>Confirmar</Text></Pressable>
                     </View>
                 </View>
@@ -1005,46 +1147,179 @@ export default function ExecuteOSScreen() {
                             </Pressable>
                         </View>
 
-                        <FlatList
-                            data={myStock}
-                            keyExtractor={(item) => item.id}
-                            contentContainerStyle={{ padding: 20 }}
-                            ListEmptyComponent={
-                                <View style={{ alignItems: 'center', padding: 40 }}>
-                                    <Ionicons name="cube-outline" size={48} color="#cbd5e1" />
-                                    <Text style={{ color: '#94a3b8', marginTop: 12, textAlign: 'center' }}>
-                                        Nenhum item disponível no seu estoque.
-                                    </Text>
-                                </View>
-                            }
-                            renderItem={({ item }) => (
-                                <Pressable
-                                    style={styles.stockPickerItem}
-                                    onPress={() => {
-                                        const equipments = order?.equipments || [];
-                                        if (equipments.length > 1) {
+                        <View style={{ padding: 16, backgroundColor: '#f8fafc', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                            <View style={styles.searchContainer}>
+                                <Ionicons name="search" size={18} color="#94a3b8" />
+                                <TextInput
+                                    style={styles.searchInputStyle}
+                                    placeholder="Pesquisar por nome ou código..."
+                                    value={searchQuery}
+                                    onChangeText={setSearchQuery}
+                                />
+                                {searchQuery.length > 0 && (
+                                    <Pressable onPress={() => setSearchQuery('')}>
+                                        <Ionicons name="close-circle" size={18} color="#cbd5e1" />
+                                    </Pressable>
+                                )}
+                            </View>
+                        </View>
+
+                        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+                            {(() => {
+                                const filtered = myStock.filter(s =>
+                                    s.item?.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                    s.item?.code.toLowerCase().includes(searchQuery.toLowerCase())
+                                );
+
+                                if (filtered.length === 0) {
+                                    return (
+                                        <View style={{ alignItems: 'center', padding: 40 }}>
+                                            <Ionicons name="cube-outline" size={48} color="#cbd5e1" />
+                                            <Text style={{ color: '#94a3b8', marginTop: 12, textAlign: 'center' }}>
+                                                {searchQuery ? 'Nenhhum item corresponde à busca.' : 'Nenhum item disponível no seu estoque.'}
+                                            </Text>
+                                        </View>
+                                    );
+                                }
+
+                                return filtered.map((item) => (
+                                    <Pressable
+                                        key={item.id}
+                                        style={styles.stockPickerItem}
+                                        onPress={() => {
                                             setSelectedPart(item);
-                                        } else {
-                                            const eq = equipments[0];
-                                            addUsedItem(item, eq?.id, eq?.equipment_model || eq?.equipment_name || order?.equipment);
-                                        }
-                                    }}
+                                            setQtyToSelect('1');
+                                            setQuantityModalVisible(true);
+                                            setIsPartPickerVisible(false);
+                                        }}
+                                    >
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.stockItemName}>{item.item?.description}</Text>
+                                            <Text style={styles.stockItemCode}>
+                                                {item.item?.code} • Saldo: {item.quantity}
+                                                {showPrice ? ` • R$ ${item.item?.sellPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+                                            </Text>
+                                        </View>
+                                        <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+                                    </Pressable>
+                                ));
+                            })()}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* MODAL: DEFINIR QUANTIDADE */}
+            <Modal
+                visible={isQuantityModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setQuantityModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.bottomSheet, { paddingBottom: 20 }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Definir Quantidade</Text>
+                            <Pressable onPress={() => { setQuantityModalVisible(false); setSelectedPart(null); }}>
+                                <Ionicons name="close" size={24} color="#666" />
+                            </Pressable>
+                        </View>
+                        <View style={{ padding: 24, alignItems: 'center' }}>
+                            <Text style={{ fontSize: 16, color: '#334155', marginBottom: 16, fontWeight: '600' }}>
+                                {selectedPart?.item?.description}
+                            </Text>
+
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20, marginBottom: 24 }}>
+                                <Pressable
+                                    onPress={() => setQtyToSelect(prev => Math.max(1, parseInt(prev || '1') - 1).toString())}
+                                    style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}
                                 >
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.stockItemName}>{item.item?.description}</Text>
-                                        <Text style={styles.stockItemCode}>{item.item?.code} • Saldo: {item.quantity}</Text>
-                                    </View>
-                                    <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+                                    <Ionicons name="remove" size={24} color="#1e293b" />
                                 </Pressable>
-                            )}
-                        />
+
+                                <TextInput
+                                    style={{ fontSize: 32, fontWeight: 'bold', color: '#1e293b', textAlign: 'center', minWidth: 60 }}
+                                    keyboardType="numeric"
+                                    value={qtyToSelect}
+                                    onChangeText={setQtyToSelect}
+                                    autoFocus
+                                />
+
+                                <Pressable
+                                    onPress={() => setQtyToSelect(prev => (parseInt(prev || '1') + 1).toString())}
+                                    style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                    <Ionicons name="add" size={24} color="#1e293b" />
+                                </Pressable>
+                            </View>
+
+                            <Pressable
+                                style={{ backgroundColor: '#0f172a', width: '100%', paddingVertical: 16, borderRadius: 12, alignItems: 'center' }}
+                                onPress={() => {
+                                    const q = parseInt(qtyToSelect) || 0;
+
+                                    if (q <= 0) {
+                                        Alert.alert('Quantidade inválida', 'Informe uma quantidade maior que zero.');
+                                        return;
+                                    }
+
+                                    if (selectedPart && q > selectedPart.quantity) {
+                                        Alert.alert(
+                                            'Saldo insuficiente',
+                                            `Você possui apenas ${selectedPart.quantity} unidades deste item em estoque.`
+                                        );
+                                        return;
+                                    }
+
+                                    if (activeEquipmentKey) {
+                                        const config = formsConfig[activeEquipmentKey];
+                                        const eq = config.equipamento;
+                                        if (selectedPart) {
+                                            addUsedItem(
+                                                selectedPart,
+                                                q,
+                                                eq?.id,
+                                                eq?.equipment_model || eq?.equipment_name || order?.equipment,
+                                                eq?.equipment_serial || order?.serialNumber
+                                            );
+                                        }
+                                        setQuantityModalVisible(false);
+                                        setSelectedPart(null);
+                                        setActiveEquipmentKey(null);
+                                        return;
+                                    }
+
+                                    const equipments = order?.equipments || [];
+
+                                    if (equipments.length > 1) {
+                                        setQuantityModalVisible(false);
+                                        // selectedPart já está setado, então o próximo modal (equipamento) abrirá
+                                    } else {
+                                        const eq = equipments[0];
+                                        if (selectedPart) {
+                                            addUsedItem(
+                                                selectedPart,
+                                                q,
+                                                eq?.id,
+                                                eq?.equipment_model || eq?.equipment_name || order?.equipment,
+                                                eq?.equipment_serial || order?.serialNumber
+                                            );
+                                        }
+                                        setQuantityModalVisible(false);
+                                        setSelectedPart(null);
+                                    }
+                                }}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Confirmar</Text>
+                            </Pressable>
+                        </View>
                     </View>
                 </View>
             </Modal>
 
             {/* MODAL: SELECIONAR EQUIPAMENTO PARA A PEÇA (Caso tenha vários) */}
             <Modal
-                visible={!!selectedPart}
+                visible={!!selectedPart && !isQuantityModalVisible}
                 transparent={true}
                 animationType="fade"
                 onRequestClose={() => setSelectedPart(null)}
@@ -1065,7 +1340,13 @@ export default function ExecuteOSScreen() {
                                     style={styles.eqSelectorItem}
                                     onPress={() => {
                                         if (selectedPart) {
-                                            addUsedItem(selectedPart, eq.id, eq.equipment_model || eq.equipment_name);
+                                            addUsedItem(
+                                                selectedPart,
+                                                parseInt(qtyToSelect) || 1,
+                                                eq.id,
+                                                eq.equipment_model || eq.equipment_name,
+                                                eq.equipment_serial
+                                            );
                                             setSelectedPart(null);
                                         }
                                     }}
@@ -1073,6 +1354,7 @@ export default function ExecuteOSScreen() {
                                     <Ionicons name="hardware-chip-outline" size={20} color="#1c2d4f" />
                                     <Text style={styles.eqSelectorText}>
                                         {eq.equipment_model || eq.equipment_name || `Equipamento ${idx + 1}`}
+                                        {eq.equipment_serial ? ` (S/N: ${eq.equipment_serial})` : ''}
                                     </Text>
                                 </Pressable>
                             ))}
@@ -1080,200 +1362,115 @@ export default function ExecuteOSScreen() {
                     </View>
                 </View>
             </Modal>
-        </ThemedView>
+
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f8fafc' }, // Modern bluish gray
-    content: { padding: 16, paddingBottom: 100 },
-    section: { marginBottom: 16, backgroundColor: '#ffffff', padding: 20, borderRadius: 16, shadowColor: '#64748b', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2, borderWidth: 1, borderColor: '#f1f5f9' },
-    input: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 14, fontSize: 16, backgroundColor: '#f8fafc', marginTop: 10, color: '#1e293b' },
-    textArea: { minHeight: 120, textAlignVertical: 'top' },
-    pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
-    optionBtn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
+    container: { flex: 1, backgroundColor: '#f1f5f9' },
+    content: { padding: 14, paddingBottom: 100 },
+    section: { marginBottom: 14, backgroundColor: '#ffffff', padding: 16, borderRadius: 14, shadowColor: '#0f172a', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: '#e2e8f0' },
+    dynamicFieldControl: { marginBottom: 12, backgroundColor: '#ffffff', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#64748b', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1 },
+    dynamicFieldLabel: { fontSize: 13, fontWeight: '700', color: '#1e293b', marginBottom: 2 },
+    input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 12, fontSize: 14, backgroundColor: '#f8fafc', marginTop: 6, color: '#1e293b' },
+    textArea: { minHeight: 90, textAlignVertical: 'top' },
+    pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    optionBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: '#f8fafc' },
     optionBtnSelected: { backgroundColor: '#0f172a', borderColor: '#0f172a' },
-    optionText: { color: '#475569', fontWeight: '600' },
-    optionTextSelected: { color: '#ffffff', fontWeight: 'bold' },
-    photoFieldPlaceholder: { height: 120, borderWidth: 2, borderColor: '#cbd5e1', borderStyle: 'dashed', borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', marginTop: 10, gap: 8 },
-    fieldLabel: { fontSize: 13, color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-    signaturePlaceholder: { height: 140, borderWidth: 2, borderColor: '#cbd5e1', borderStyle: 'dashed', borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', marginTop: 8, gap: 8 },
-    signaturePlaceholderText: { color: '#64748b', fontSize: 15, fontWeight: '600' },
-    signaturePreviewContainer: { alignItems: 'center', marginTop: 12 },
-    signaturePreview: { width: '100%', height: 150, backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-    clearSignatureText: { color: '#e11d48', fontWeight: '700', marginTop: 10 },
-    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.03, shadowRadius: 15, elevation: 10 },
-    submitButton: { backgroundColor: '#10b981', paddingVertical: 18, borderRadius: 14, alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-    submitButtonText: { color: '#ffffff', fontSize: 18, fontWeight: '900', letterSpacing: 0.5 },
+    optionText: { color: '#475569', fontWeight: '600', fontSize: 13 },
+    optionTextSelected: { color: '#ffffff', fontWeight: 'bold', fontSize: 13 },
+    photoFieldPlaceholder: { height: 90, borderWidth: 1.5, borderColor: '#cbd5e1', borderStyle: 'dashed', borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', marginTop: 8, gap: 6 },
+    fieldLabel: { fontSize: 11, color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+    signaturePlaceholder: { height: 110, borderWidth: 1.5, borderColor: '#cbd5e1', borderStyle: 'dashed', borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', marginTop: 8, gap: 8 },
+    signaturePlaceholderText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
+    signaturePreviewContainer: { alignItems: 'center', marginTop: 10 },
+    signaturePreview: { width: '100%', height: 110, backgroundColor: '#ffffff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
+    clearSignatureText: { color: '#e11d48', fontWeight: '700', marginTop: 8, fontSize: 12 },
+    footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', padding: 14, borderTopWidth: 1, borderTopColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 12 },
+    submitButton: { backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 3 },
+    submitButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
     signatureModalContainer: { flex: 1, backgroundColor: '#ffffff', paddingTop: 40 },
-    signatureFooter: { flexDirection: 'row', padding: 20, justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
-    signatureActionBtn: { paddingVertical: 14, paddingHorizontal: 28, borderRadius: 12, backgroundColor: '#f1f5f9' },
+    signatureFooter: { flexDirection: 'row', padding: 16, justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+    signatureActionBtn: { paddingVertical: 12, paddingHorizontal: 24, borderRadius: 10, backgroundColor: '#f1f5f9' },
     confirmBtn: { backgroundColor: '#0f172a' },
     confirmText: { color: '#ffffff', fontWeight: 'bold' },
-    infoCard: { backgroundColor: '#ffffff', borderRadius: 16, padding: 20, marginBottom: 24, borderLeftWidth: 6, borderLeftColor: '#0f172a', shadowColor: '#64748b', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
-    infoCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: 12 },
-    infoCardTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 },
-    infoRow: { marginBottom: 14 },
-    infoLabel: { fontSize: 11, fontWeight: '900', color: '#94a3b8', marginBottom: 4, letterSpacing: 0.5 },
-    infoValue: { fontSize: 15, color: '#334155', fontWeight: '500' },
-    infoDivider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 14 },
-    infoValueBold: { fontSize: 16, fontWeight: '800', color: '#0f172a' },
-    equipmentGroup: { marginBottom: 24, borderRadius: 16, backgroundColor: '#ffffff', shadowColor: '#64748b', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2, borderWidth: 1, borderColor: '#f1f5f9', overflow: 'hidden' },
-    equipmentHeader: { backgroundColor: '#1e293b', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    equipmentIconWrapper: { backgroundColor: '#ffffff', padding: 6, borderRadius: 8 },
-    equipmentTitle: { color: '#ffffff', fontWeight: '800', fontSize: 15, flex: 1, letterSpacing: -0.2 },
-    equipmentFormsContainer: { padding: 8, backgroundColor: '#f8fafc' },
-    globalConclusionSection: { marginBottom: 24, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff' },
-    conclusionHeader: { backgroundColor: '#f1f5f9', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-    voiceButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f1f5f9',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-        gap: 6,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-    },
-    voiceButtonActive: {
-        backgroundColor: '#fee2e2',
-        borderColor: '#fecaca',
-    },
-    voiceButtonDisabled: {
-        opacity: 0.7,
-        backgroundColor: '#f8fafc',
-    },
-    voiceButtonText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#1c2d4f',
-    },
-    addPartButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#0f172a',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 8,
-        gap: 6,
-    },
-    addPartButtonText: {
-        color: '#ffffff',
-        fontSize: 13,
-        fontWeight: 'bold',
-    },
-    usedItemsList: {
-        marginTop: 8,
-        gap: 12,
-    },
-    usedItemCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        backgroundColor: '#f8fafc',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-    },
-    usedItemDescription: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#1e293b',
-    },
-    itemEquipmentBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f1f5f9',
-        alignSelf: 'flex-start',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 4,
-        marginTop: 4,
-        gap: 4,
-    },
-    itemEquipmentText: {
-        fontSize: 10,
-        fontWeight: '600',
-        color: '#64748b',
-    },
-    usedItemDetails: {
-        fontSize: 12,
-        color: '#64748b',
-        marginTop: 4,
-    },
-    removePartButton: {
-        padding: 8,
-    },
-    emptyItemsBox: {
-        padding: 20,
-        backgroundColor: '#f8fafc',
-        borderRadius: 12,
-        borderStyle: 'dashed',
-        borderWidth: 1,
-        borderColor: '#cbd5e1',
-        alignItems: 'center',
-    },
-    emptyItemsText: {
-        color: '#94a3b8',
-        fontSize: 13,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
-    bottomSheet: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        maxHeight: '80%',
-        paddingBottom: 40,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#1c2d4f',
-    },
-    stockPickerItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
-    },
-    stockItemName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#1e293b',
-        marginBottom: 4,
-    },
-    stockItemCode: {
-        fontSize: 13,
-        color: '#64748b',
-    },
-    eqSelectorItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        backgroundColor: '#f8fafc',
-        borderRadius: 12,
-        marginBottom: 10,
-        gap: 12,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-    },
-    eqSelectorText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#1e293b',
-    },
+    infoCard: { backgroundColor: '#ffffff', borderRadius: 14, padding: 16, marginBottom: 18, borderLeftWidth: 4, borderLeftColor: '#0f172a', shadowColor: '#0f172a', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+    infoCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: 10 },
+    infoCardTitle: { fontSize: 14, fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: 0.5 },
+    infoRow: { marginBottom: 8 },
+    infoLabel: { fontSize: 10, fontWeight: '900', color: '#94a3b8', marginBottom: 2, letterSpacing: 0.5 },
+    infoValue: { fontSize: 13, color: '#334155', fontWeight: '500' },
+    infoDivider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 10 },
+    infoValueBold: { fontSize: 14, fontWeight: '800', color: '#0f172a' },
+    equipmentGroup: { marginBottom: 18, borderRadius: 14, backgroundColor: '#ffffff', shadowColor: '#0f172a', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
+    equipmentHeader: { backgroundColor: '#1e293b', padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    equipmentIconWrapper: { backgroundColor: '#ffffff', padding: 4, borderRadius: 6 },
+    equipmentTitle: { color: '#ffffff', fontWeight: '700', fontSize: 14, flex: 1, letterSpacing: -0.2 },
+    equipmentFormsContainer: { padding: 12, backgroundColor: '#f8fafc' },
+    showPartsButton: { marginBottom: 18, backgroundColor: '#1e293b', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#334155', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, shadowColor: '#0f172a', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+    showPartsButtonText: { color: '#ffffff', fontWeight: 'bold', fontSize: 14 },
+    globalConclusionSection: { marginBottom: 18, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff' },
+    conclusionHeader: { backgroundColor: '#e2e8f0', padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#cbd5e1' },
+    voiceButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, gap: 4, borderWidth: 1, borderColor: '#e2e8f0' },
+    voiceButtonActive: { backgroundColor: '#fee2e2', borderColor: '#fecaca' },
+    voiceButtonDisabled: { opacity: 0.7, backgroundColor: '#f8fafc' },
+    voiceButtonText: { fontSize: 11, fontWeight: '700', color: '#1c2d4f' },
+    addPartButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0f172a', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, gap: 4 },
+    addPartButtonText: { color: '#ffffff', fontSize: 12, fontWeight: 'bold' },
+    usedItemsList: { marginTop: 6, gap: 10 },
+    usedItemCard: { flexDirection: 'row', alignItems: 'center', padding: 10, backgroundColor: '#f8fafc', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
+    usedItemDescription: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
+    itemEquipmentBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 4, gap: 4 },
+    itemEquipmentText: { fontSize: 10, fontWeight: '600', color: '#64748b' },
+    usedItemDetails: { fontSize: 11, color: '#64748b', marginTop: 4 },
+    removePartButton: { padding: 6 },
+    emptyItemsBox: { padding: 16, backgroundColor: '#f8fafc', borderRadius: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: '#cbd5e1', alignItems: 'center' },
+    emptyItemsText: { color: '#94a3b8', fontSize: 12 },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    bottomSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', paddingBottom: 30 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+    modalTitle: { fontSize: 16, fontWeight: 'bold', color: '#1c2d4f' },
+    stockPickerItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+    stockItemName: { fontSize: 14, fontWeight: '600', color: '#1e293b', marginBottom: 2 },
+    stockItemCode: { fontSize: 12, color: '#64748b' },
+    eqSelectorItem: { flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: '#f8fafc', borderRadius: 10, marginBottom: 8, gap: 10, borderWidth: 1, borderColor: '#e2e8f0' },
+    eqSelectorText: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
+    searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 10, height: 40, borderWidth: 1, borderColor: '#e2e8f0' },
+    searchInputStyle: { flex: 1, marginLeft: 8, fontSize: 13, color: '#333' },
+    videoModalContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
+    videoModalCloseButton: { position: 'absolute', top: 40, right: 20, zIndex: 10, padding: 10 },
+    fullscreenVideo: { width: '100%', height: '80%' },
+    card: { marginBottom: 14, backgroundColor: '#ffffff', borderRadius: 14, shadowColor: '#0f172a', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
+    cardHeader: { backgroundColor: '#f8fafc', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+    headerIconBox: { padding: 6, borderRadius: 8 },
+    cardTitle: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
+    cardContent: { padding: 16 },
+    // ── Video Card Styles ──────────────────────────────────────────────────────
+    videoProcessingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 28, backgroundColor: '#f0fdf4', borderRadius: 12, borderWidth: 1, borderColor: '#bbf7d0' },
+    videoProcessingText: { fontSize: 13, fontWeight: '600', color: '#059669' },
+    videoPreviewCard: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b' },
+    videoThumbContainer: { height: 180, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a', position: 'relative' },
+    videoThumbImage: { width: '100%', height: '100%', position: 'absolute' },
+    videoPlayOverlay: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+    videoProcessingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.85)', alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+    videoProcessingOverlayText: { color: '#10b981', fontSize: 13, fontWeight: '700', marginTop: 12 },
+    videoPlayButtonLarge: { backgroundColor: 'rgba(5,150,105,0.9)', width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 8, elevation: 8 },
+    videoMetaBar: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#f0fdf4' },
+    videoMetaText: { fontSize: 13, fontWeight: '600', color: '#059669' },
+    videoMetaAction: { fontSize: 12, color: '#059669', fontWeight: '600' },
+    videoRecordButton: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, paddingHorizontal: 14, backgroundColor: '#f8fafc', borderRadius: 12, borderWidth: 1.5, borderColor: '#d1d5db', borderStyle: 'dashed' },
+    videoRecordIconCircle: { backgroundColor: '#059669', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', shadowColor: '#059669', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
+    videoRecordTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
+    videoRecordSubtitle: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
+    // ── Pagination Styles ──────────────────────────────────────────────────────
+    progressBarContainer: { height: 4, backgroundColor: '#e2e8f0', borderRadius: 2, marginBottom: 16, overflow: 'hidden' },
+    progressBar: { height: '100%', backgroundColor: '#0f172a' },
+    paginationButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, flex: 1, justifyContent: 'center', gap: 8 },
+    backButton: { backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
+    backButtonText: { color: '#475569', fontWeight: 'bold', fontSize: 14 },
+    nextButton: { backgroundColor: '#0f172a' },
+    nextButtonText: { color: '#ffffff', fontWeight: 'bold', fontSize: 14 },
+
 });
+
