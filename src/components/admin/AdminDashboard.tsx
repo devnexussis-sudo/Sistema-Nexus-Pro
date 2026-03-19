@@ -1816,15 +1816,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                                           <Video size={12} /> Vídeo de Conclusão (Evidência)
                                         </p>
-                                        <div className="w-full max-w-xl bg-black rounded-lg overflow-hidden flex items-center justify-center aspect-video shadow-md border border-indigo-100">
-                                          <video 
-                                            src={selectedOrder.videoUrl || fd.videoUrl || fd.video_url} 
-                                            controls 
-                                            className="w-full h-full max-h-[400px]" 
-                                            preload="metadata"
+                                        <div className="flex flex-wrap gap-3">
+                                          <div
+                                            className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative group"
+                                            onClick={() => setFullscreenImage(selectedOrder.videoUrl || fd.videoUrl || fd.video_url)}
                                           >
-                                            Seu navegador não suporta o elemento de vídeo.
-                                          </video>
+                                            <video 
+                                              src={selectedOrder.videoUrl || fd.videoUrl || fd.video_url} 
+                                              className="w-full h-full object-cover opacity-60" 
+                                              preload="metadata"
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                              <Play size={16} className="text-white fill-white" />
+                                            </div>
+                                          </div>
                                         </div>
                                       </div>
                                     )}
@@ -1962,24 +1967,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: MÍDIAS */}
               {activeTab === 'media' && (
                 <div className="space-y-8">
-                  {/* Vídeo Evidência */}
-                  {selectedOrder.videoUrl && (
-                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
-                        <Camera size={16} className="text-slate-400" /> VÍDEO EVIDÊNCIA
-                      </h4>
-                      <div className="w-full max-w-2xl bg-black rounded-lg overflow-hidden flex items-center justify-center">
-                        <video 
-                          src={selectedOrder.videoUrl} 
-                          controls 
-                          className="w-full h-auto max-h-[500px]" 
-                          preload="metadata"
-                        >
-                          Seu navegador não suporta o elemento de vídeo.
-                        </video>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Combina fotos e vídeos da OS e das visitas concluídas/pausadas */}
                   {(() => {
@@ -1989,11 +1976,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }
                     orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
 
-                    const extractedMedia: { key: string, url: string, type: 'image' | 'video' }[] = [];
+                    const rawMedia: { key: string, url: string, type: 'image' | 'video' }[] = [];
                     
                     // Incluir o vídeo principal da OS se não estiver no form_data
                     if (selectedOrder.videoUrl) {
-                      extractedMedia.push({ key: 'Vídeo da OS', url: selectedOrder.videoUrl, type: 'video' });
+                      rawMedia.push({ key: 'Vídeo da OS', url: selectedOrder.videoUrl, type: 'video' });
                     }
 
                     allForms.forEach(form => {
@@ -2001,22 +1988,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         if (Array.isArray(val)) {
                           val.forEach(url => { 
                             if (typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:image') || url.startsWith('data:video'))) {
-                              extractedMedia.push({ key, url, type: isVideoUrl(url) ? 'video' : 'image' });
+                              rawMedia.push({ key, url, type: isVideoUrl(url) ? 'video' : 'image' });
                             }
                           });
                         } else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image') || val.startsWith('data:video')) && !key.toLowerCase().includes('assinat') && !key.toLowerCase().includes('sign')) {
-                          extractedMedia.push({ key, url: val, type: isVideoUrl(val) ? 'video' : 'image' });
+                          rawMedia.push({ key, url: val, type: isVideoUrl(val) ? 'video' : 'image' });
                         }
                       });
+                    });
+
+                    // Filtrar duplicados globais por URL
+                    const seenUrls = new Set<string>();
+                    const extractedMedia = rawMedia.filter(m => {
+                      const cleanUrl = m.url.split('?')[0];
+                      if (seenUrls.has(cleanUrl)) return false;
+                      seenUrls.add(cleanUrl);
+                      return true;
                     });
 
                     const groupedMedia = extractedMedia.reduce((acc, curr) => {
                       const displayKey = mapIdToLabel(curr.key);
                       if (!acc[displayKey]) acc[displayKey] = [];
-                      // Evitar duplicatas exatas de URL no mesmo grupo
-                      if (!acc[displayKey].some(item => item.url === curr.url)) {
-                        acc[displayKey].push(curr);
-                      }
+                      acc[displayKey].push(curr);
                       return acc;
                     }, {} as Record<string, { url: string, type: 'image' | 'video' }[]>);
 
