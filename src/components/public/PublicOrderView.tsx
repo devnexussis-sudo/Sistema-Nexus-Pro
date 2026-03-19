@@ -717,7 +717,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     </span>
                   )}
                   {companyAddress && (
-                    <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest truncate max-w-[150px] sm:max-w-sm md:max-w-md">
+                    <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest leading-normal">
                       <MapPin size={9} className="text-[#3e5b99] shrink-0" /> {companyAddress}
                     </span>
                   )}
