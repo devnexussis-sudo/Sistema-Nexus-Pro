@@ -391,7 +391,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
-    <div className="bg-white text-[10px] leading-tight font-sans p-6 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div className="bg-white text-[10px] leading-tight font-poppins p-6 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
       {/* Print Header */}
       <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
         <div className="flex gap-4 items-center">
@@ -681,7 +681,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       <div className="hidden print:!block">
         <PrintLayout />
       </div>
-      <div className="min-h-screen bg-[#F0F2F5] font-sans selection:bg-[#1c2d4f]/10 print:hidden">
+      <div className="min-h-screen bg-[#F0F2F5] font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
         {/* ── TOP ACCENT BAR ── */}
         <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 

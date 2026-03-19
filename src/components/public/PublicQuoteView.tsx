@@ -302,7 +302,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     // ── PRINT LAYOUT COMPONENT ──
     // ── PRINT LAYOUT COMPONENT ──
     const PrintLayout = () => (
-        <div className="bg-white text-[12px] leading-relaxed font-sans p-4 sm:p-6 print:break-inside-avoid min-h-[297mm] w-[210mm] mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+        <div className="bg-white text-[12px] leading-relaxed font-poppins p-4 sm:p-6 print:break-inside-avoid min-h-[297mm] w-[210mm] mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
             {/* Header: Company & Quote Info */}
             <div className="flex justify-between items-start pb-6 border-b-4 border-[#1c2d4f] mb-6">
                 <div className="flex gap-6 items-center">
@@ -484,7 +484,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 <PrintLayout />
             </div>
 
-            <div className="min-h-screen bg-[#F0F2F5] font-sans selection:bg-[#1c2d4f]/10 print:hidden">
+            <div className="min-h-screen bg-[#F0F2F5] font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
                 {/* ── TOP ACCENT BAR ── */}
                 <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 
