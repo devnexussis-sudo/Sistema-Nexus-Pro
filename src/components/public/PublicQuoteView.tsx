@@ -915,7 +915,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             <NexusBranding size="lg" className="opacity-80 transform scale-[0.6] sm:scale-[0.85] origin-left -my-2 sm:-my-1" />
                         </div>
                         <div className="text-center sm:text-right space-y-0.5 sm:space-y-1 mt-[-10px] sm:mt-0">
-                            <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma Solução Nexus Line</p>
+                            <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma solução DUNO</p>
                             <p className="text-[7px] sm:text-[8px] text-slate-300 uppercase tracking-widest">
                                 Ambientes Seguros · Documento emitido eletronicamente
                             </p>
