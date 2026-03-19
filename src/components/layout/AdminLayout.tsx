@@ -72,7 +72,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     );
 
     return (
-        <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-sans">
+        <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-poppins">
             {/* Header Global */}
             <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm shrink-0 border-b border-slate-200">
                 <div className="flex items-center">
