@@ -696,26 +696,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   </div>
                 )
               }
-              <div className="min-w-0">
-                <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight truncate leading-none">{companyName}</h1>
-                <div className="hidden sm:flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1.5">
-                  {companyPhone && (
-                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                      <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
-                    </span>
-                  )}
-                  {companyEmail && (
-                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                      <Mail size={9} className="text-[#3e5b99]" /> {companyEmail}
-                    </span>
-                  )}
+              <div className="min-w-0 flex-1">
+                <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight truncate leading-none mb-2">{companyName}</h1>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   {companyDoc && (
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
                       CNPJ: {companyDoc}
                     </span>
                   )}
+                  {companyPhone && (
+                    <span className="flex items-center gap-1 text-[9px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                      <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
+                    </span>
+                  )}
                   {companyAddress && (
-                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-xs">
+                    <span className="flex items-center gap-1 text-[9px] font-black text-slate-500 uppercase tracking-widest truncate max-w-[150px] sm:max-w-sm md:max-w-md">
                       <MapPin size={9} className="text-[#3e5b99] shrink-0" /> {companyAddress}
                     </span>
                   )}
