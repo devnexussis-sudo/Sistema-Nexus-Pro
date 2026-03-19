@@ -1025,7 +1025,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             const cName = fd.clientName || '';
             const cDoc = fd.clientDoc || '';
             const completedAt = fd.completedAt || order.endDate || '';
-            if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl) return null;
+            
+            const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
+            const photos = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
+            const validPhotos = photos.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
+
+            if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl && !fd.videoUrl && !fd.video_url && validPhotos.length === 0) return null;
             return (
               <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-6 sm:px-8 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100">
@@ -1076,47 +1081,37 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       )}
                     </div>
                   )}
-                  {(order.videoUrl || fd.videoUrl || fd.video_url) && (
+                  {(order.videoUrl || fd.videoUrl || fd.video_url || validPhotos.length > 0) && (
                     <div className="pt-4 border-t border-indigo-100">
-                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <Video size={12} /> Vídeo de Conclusão
-                      </p>
-                      <div className="w-full max-w-2xl bg-black rounded-lg overflow-hidden flex items-center justify-center aspect-video shadow-md border border-indigo-100">
-                        <video 
-                          src={order.videoUrl || fd.videoUrl || fd.video_url} 
-                          controls 
-                          className="w-full h-auto max-h-[400px]" 
-                          preload="metadata"
-                        >
-                          Seu navegador não suporta o elemento de vídeo.
-                        </video>
+                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Evidências de Conclusão</p>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                        {(order.videoUrl || fd.videoUrl || fd.video_url) && (
+                          <div
+                            className="aspect-square rounded-xl overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative group"
+                            onClick={() => setFullscreenImage(order.videoUrl || fd.videoUrl || fd.video_url)}
+                          >
+                            <video 
+                              src={order.videoUrl || fd.videoUrl || fd.video_url} 
+                              className="w-full h-full object-cover opacity-60" 
+                              preload="metadata"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Play size={16} className="text-white fill-white" />
+                            </div>
+                          </div>
+                        )}
+                        {validPhotos.map((url: string, i: number) => (
+                          <div
+                            key={i}
+                            className="aspect-square rounded-xl overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
+                            onClick={() => setFullscreenImage(url)}
+                          >
+                            <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
-                  {(() => {
-                    const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
-                    const photos = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
-                    const validPhotos = photos.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
-
-                    if (validPhotos.length === 0) return null;
-
-                    return (
-                      <div className="pt-4 border-t border-indigo-100">
-                        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Anexos de Conclusão</p>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                          {validPhotos.map((url: string, i: number) => (
-                            <div
-                              key={i}
-                              className="aspect-square rounded-xl overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
-                              onClick={() => setFullscreenImage(url)}
-                            >
-                              <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
             );
