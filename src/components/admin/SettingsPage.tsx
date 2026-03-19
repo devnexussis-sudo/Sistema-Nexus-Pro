@@ -139,8 +139,14 @@ export const SettingsPage: React.FC = () => {
         const response = await fetch(`https://viacep.com.br/ws/${rawCep}/json/`);
         const data = await response.json();
         if (!data.erro) {
-          const fullAddress = `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
-          setCompany(prev => ({ ...prev, address: fullAddress }));
+          setCompany(prev => ({
+            ...prev,
+            street: data.logradouro || '',
+            address: data.logradouro || '',
+            neighborhood: data.bairro || '',
+            city: data.localidade || '',
+            state: data.uf || ''
+          }));
         }
       } catch (error) {
         console.error("Erro ao buscar CEP:", error);
