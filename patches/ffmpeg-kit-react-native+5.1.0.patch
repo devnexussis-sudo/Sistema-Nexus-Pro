@@ -1,0 +1,23 @@
+diff --git a/node_modules/ffmpeg-kit-react-native/android/build.gradle b/node_modules/ffmpeg-kit-react-native/android/build.gradle
+index dcb21f2..722f9f6 100644
+--- a/node_modules/ffmpeg-kit-react-native/android/build.gradle
++++ b/node_modules/ffmpeg-kit-react-native/android/build.gradle
+@@ -16,9 +16,7 @@ static def safePackageName(String packageName) {
+ }
+ 
+ def safePackageVersion(String packageName) {
+-  def version = project.properties['ffmpegKit.android.main.version']
+-  def ltsVersion = project.properties['ffmpegKit.android.lts.version']
+-  packageName.contains("-lts") ? ltsVersion + ".LTS" : version
++  return packageName.contains("-lts") ? "6.0-2.LTS" : "6.0-2"
+ }
+ 
+ def safeExtGet(String prop, String fallback) {
+@@ -52,6 +50,7 @@ android {
+ repositories {
+   mavenCentral()
+   google()
++  maven { url 'https://oss.sonatype.org/content/repositories/releases' }
+ 
+   def found = false
+   def defaultDir = null
