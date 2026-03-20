@@ -523,35 +523,10 @@ export default function ExecuteOSScreen() {
             // Começa o processamento pesado:
             setVideoProcessingStatus('Comprimindo (H265) Mágica Backstage...');
 
-            // ─── Ponto B: COMPRESSÃO PROFUNDA H.265 ─────────────────────────────
+            // ─── Ponto B: Upload direto (vídeo já capturado em 720p pelo ImagePicker) ──
+            // Compressão via FFmpegKit removida: dependência nativa incompatível com Gradle 9.
+            // O videoQuality:1 do launchCameraAsync já garante qualidade adequada sem .so nativo.
             let compressedUri = localUri;
-            try {
-                const isExpoGo = require('expo-constants').default.appOwnership === 'expo';
-                if (!isExpoGo) {
-                    const { FFmpegKit, ReturnCode } = require('ffmpeg-kit-react-native');
-                    const outPath = `${FileSystem.cacheDirectory}compressed_${Date.now()}.mp4`;
-                    
-                    const hwCodec = Platform.OS === 'ios' ? 'hevc_videotoolbox' : 'hevc_mediacodec';
-                    
-                    // Executa o FFMPEG aproveitando aceleracao de hardware para HEVC e priorizando a velocidade (superfast/veryfast obrigatorio)
-                    let session = await FFmpegKit.execute(`-y -i "${localUri}" -c:v ${hwCodec} -b:v 1500k -preset superfast -c:a copy "${outPath}"`);
-                    let returnCode = await session.getReturnCode();
-                    
-                    // Caso o encoder de hardware repila o parâmetro '-preset', fazemos fallback cirúrgico
-                    if (!ReturnCode.isSuccess(returnCode)) {
-                        session = await FFmpegKit.execute(`-y -i "${localUri}" -c:v ${hwCodec} -b:v 1500k -c:a copy "${outPath}"`);
-                        returnCode = await session.getReturnCode();
-                    }
-                    
-                    if (ReturnCode.isSuccess(returnCode)) {
-                        compressedUri = 'file://' + outPath;
-                    } else {
-                        console.warn('[Video] FFmpeg compressão falhou, prosseguindo com o arquivo original.');
-                    }
-                }
-            } catch (compErr) {
-                console.warn('[Video] FFmpegKit falhou:', compErr);
-            }
 
             // Mede a redução conseguida
             const info = await FileSystem.getInfoAsync(compressedUri);
