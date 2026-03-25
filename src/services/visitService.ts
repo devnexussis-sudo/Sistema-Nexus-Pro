@@ -139,11 +139,24 @@ export const VisitService = {
 
         if (existingVisits.length > 0) {
             const lastVisit = existingVisits[existingVisits.length - 1];
-            if (!VisitStateMachine.canCreateNewVisit(lastVisit.status)) {
+            const forceAllow = ['IMPEDIDO', 'PAUSADO'].includes(params.orderStatus);
+
+            if (!VisitStateMachine.canCreateNewVisit(lastVisit.status) && !forceAllow) {
                 throw new Error(
                     `INVALID_VISIT_STATE: Visita nº ${lastVisit.visitNumber} está "${lastVisit.status}". ` +
                     `Nova visita só é criada a partir de IMPEDIDO.`
                 );
+            }
+
+            // Fallback para mobile legados: se a OS estiver impedida/pausada mas a visita não, sincroniza a força
+            if (forceAllow && !VisitStateMachine.canCreateNewVisit(lastVisit.status)) {
+                const targetSyncStatus = params.orderStatus === 'PAUSADO' 
+                    ? VisitStatusEnum.PAUSED 
+                    : VisitStatusEnum.BLOCKED;
+                
+                await supabase.from('service_visits')
+                    .update({ status: targetSyncStatus, updated_at: new Date().toISOString() })
+                    .eq('id', lastVisit.id);
             }
         }
 
