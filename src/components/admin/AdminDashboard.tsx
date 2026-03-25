@@ -648,12 +648,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       // Refresh visitas
       const updatedVisits = await VisitService.getVisitsByOrderId(selectedOrder.id);
       setVisits(updatedVisits);
-      // Sincroniza a OS via onEditOrder (caminho comprovado)
+      // Sincroniza a OS localmente refletindo as mudanças do createNewVisit
       const updatedOrder: ServiceOrder = {
         ...selectedOrder,
+        status: OrderStatus.ASSIGNED, // Muda para ATRIBUÍDO
         scheduledDate: newVisitDraft.scheduledDate,
         scheduledTime: newVisitDraft.scheduledTime || selectedOrder.scheduledTime,
         assignedTo: newVisitDraft.technicianId || selectedOrder.assignedTo,
+        formData: {}, // Limpa o checklist / impedimento localmente
+        signature: undefined,
+        signatureName: undefined,
+        signatureDoc: undefined,
+        videoUrl: undefined,
       };
       await onEditOrder(updatedOrder);
       setSelectedOrder(updatedOrder);
