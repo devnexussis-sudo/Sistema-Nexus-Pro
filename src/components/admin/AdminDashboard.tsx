@@ -1677,22 +1677,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 return (
                   <div className="max-w-4xl mx-auto space-y-8">
-                    {/* Alerta de impedimento */}
-                    {selectedOrder.status === 'IMPEDIDO' && (
-                      <div className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
-                        <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
-                        <div className="flex-1">
-                          <h4 className="text-sm font-bold text-rose-900">Serviço Impedido</h4>
-                          <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.'}</p>
-                          {selectedOrder.formData?.blockPhotoUrl && (
-                            <a href={selectedOrder.formData.blockPhotoUrl} target="_blank" rel="noreferrer" className="mt-3 block">
-                              <img src={selectedOrder.formData.blockPhotoUrl} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover" style={{maxHeight: 200}} />
-                              <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                    {/* Alertas de impedimento (Histórico e Atual) */}
+                    {(() => {
+                        const impediments: any[] = [];
+                        
+                        // Atual
+                        if (selectedOrder.status === 'IMPEDIDO' || selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason) {
+                            impediments.push({
+                                title: selectedOrder.status === 'IMPEDIDO' ? 'Serviço Impedido (Atual)' : 'Registro de Impedimento',
+                                reason: selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
+                                photo: selectedOrder.formData?.blockPhotoUrl
+                            });
+                        }
+
+                        // Histórico das visitas
+                        [...orderVisits].sort((a,b) => a.visitNumber - b.visitNumber).forEach(v => {
+                            const vFd: any = v.formData || {};
+                            if (v.status === 'blocked' || v.status === 'paused' || v.impedimentReason || v.pauseReason || vFd.impediment_reason || vFd.blockReason) {
+                                const reason = v.impedimentReason || v.pauseReason || vFd.impediment_reason || vFd.blockReason;
+                                const photo = vFd.blockPhotoUrl;
+                                if (reason) {
+                                    impediments.push({
+                                        title: `Impedimento Registrado (Visita nº ${v.visitNumber})`,
+                                        reason: reason,
+                                        photo: photo
+                                    });
+                                }
+                            }
+                        });
+
+                        // Deduplicar mensagens iguais
+                        const uniqueMap = new Map();
+                        impediments.forEach(imp => {
+                            const key = imp.reason.toLowerCase() + (imp.photo || '');
+                            if (!uniqueMap.has(key)) uniqueMap.set(key, imp);
+                        });
+                        const finalImpediments = Array.from(uniqueMap.values());
+
+                        if (finalImpediments.length === 0) return null;
+
+                        return (
+                          <div className="space-y-4 mb-6">
+                            {finalImpediments.map((imp, idx) => (
+                              <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
+                                <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
+                                <div className="flex-1">
+                                  <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
+                                  <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{imp.reason}</p>
+                                  {imp.photo && (
+                                    <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
+                                      <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 200}} />
+                                      <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                    })()}
 
                     {formsTabLoading ? (
                       <div className="flex items-center justify-center py-16 gap-3">
@@ -1962,23 +2005,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: EXECUÇÃO (CHECKLIST) — mantido para backward compat */}
               {activeTab === 'execution' && (
                 <div className="max-w-4xl mx-auto space-y-6">
-                  {selectedOrder.status === 'IMPEDIDO' && (
-                    <div className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
-                      <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0">
-                        <AlertTriangle size={20} />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-sm font-bold text-rose-900">Serviço Impedido</h4>
-                        <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado pelo técnico.'}</p>
-                        {selectedOrder.formData?.blockPhotoUrl && (
-                          <a href={selectedOrder.formData.blockPhotoUrl} target="_blank" rel="noreferrer" className="mt-3 block">
-                            <img src={selectedOrder.formData.blockPhotoUrl} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover" style={{maxHeight: 200}} />
-                            <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  {/* Alertas de Impedimento Histórico e Atual */}
+                  {(() => {
+                      const impediments: any[] = [];
+                      
+                      if (selectedOrder.status === 'IMPEDIDO' || selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason) {
+                          impediments.push({
+                              title: selectedOrder.status === 'IMPEDIDO' ? 'Serviço Impedido (Atual)' : 'Registro de Impedimento',
+                              reason: selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
+                              photo: selectedOrder.formData?.blockPhotoUrl
+                          });
+                      }
+
+                      [...orderVisits].sort((a,b) => a.visitNumber - b.visitNumber).forEach(v => {
+                          const vFd: any = v.formData || {};
+                          if (v.status === 'blocked' || v.status === 'paused' || v.impedimentReason || v.pauseReason || vFd.impediment_reason || vFd.blockReason) {
+                              const reason = v.impedimentReason || v.pauseReason || vFd.impediment_reason || vFd.blockReason;
+                              const photo = vFd.blockPhotoUrl;
+                              if (reason) {
+                                  impediments.push({
+                                      title: `Impedimento Registrado (Visita nº ${v.visitNumber})`,
+                                      reason: reason,
+                                      photo: photo
+                                  });
+                              }
+                          }
+                      });
+
+                      const uniqueMap = new Map();
+                      impediments.forEach(imp => {
+                          const key = imp.reason.toLowerCase() + (imp.photo || '');
+                          if (!uniqueMap.has(key)) uniqueMap.set(key, imp);
+                      });
+                      const finalImpediments = Array.from(uniqueMap.values());
+
+                      if (finalImpediments.length === 0) return null;
+
+                      return (
+                        <div className="space-y-4 mb-6">
+                          {finalImpediments.map((imp, idx) => (
+                            <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
+                              <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
+                              <div className="flex-1">
+                                <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
+                                <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{imp.reason}</p>
+                                {imp.photo && (
+                                  <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
+                                    <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 200}} />
+                                    <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                  })()}
 
                   {/* Agrupar e Renderizar os Checklists de Todas as Visitas */}
                   {(() => {
