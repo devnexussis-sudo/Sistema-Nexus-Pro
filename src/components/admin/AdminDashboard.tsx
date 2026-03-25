@@ -1675,9 +1675,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {selectedOrder.status === 'IMPEDIDO' && (
                       <div className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
                         <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
-                        <div>
+                        <div className="flex-1">
                           <h4 className="text-sm font-bold text-rose-900">Serviço Impedido</h4>
-                          <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.'}</p>
+                          <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.'}</p>
+                          {selectedOrder.formData?.blockPhotoUrl && (
+                            <a href={selectedOrder.formData.blockPhotoUrl} target="_blank" rel="noreferrer" className="mt-3 block">
+                              <img src={selectedOrder.formData.blockPhotoUrl} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover" style={{maxHeight: 200}} />
+                              <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
+                            </a>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1955,9 +1961,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0">
                         <AlertTriangle size={20} />
                       </div>
-                      <div>
+                      <div className="flex-1">
                         <h4 className="text-sm font-bold text-rose-900">Serviço Impedido</h4>
-                        <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado pelo técnico.'}</p>
+                        <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado pelo técnico.'}</p>
+                        {selectedOrder.formData?.blockPhotoUrl && (
+                          <a href={selectedOrder.formData.blockPhotoUrl} target="_blank" rel="noreferrer" className="mt-3 block">
+                            <img src={selectedOrder.formData.blockPhotoUrl} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover" style={{maxHeight: 200}} />
+                            <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
+                          </a>
+                        )}
                       </div>
                     </div>
                   )}

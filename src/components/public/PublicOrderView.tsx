@@ -920,14 +920,24 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
 
           {/* ── IMPEDIMENTO (if any) ── */}
-          {(order.status === 'IMPEDIDO' || (order.formData as any)?.impediment_reason) && (
-            <div className="bg-red-50 rounded-2xl border border-red-100 shadow-sm p-6 sm:p-8">
-              <SectionHeader icon={<ShieldAlert size={15} />} title="Aviso de Impedimento" color="text-red-600" />
-              <p className="text-sm font-bold text-red-800 italic">
-                "{(order.formData as any)?.impediment_reason || order.notes?.replace('IMPEDIMENTO: ', '') || 'Sem motivo detalhado.'}"
-              </p>
-            </div>
-          )}
+          {(order.status === 'IMPEDIDO' || (order.formData as any)?.impediment_reason || (order.formData as any)?.blockReason) && (() => {
+            const fd = (order.formData as any) || {};
+            const reason = fd.impediment_reason || fd.blockReason || order.notes?.replace('IMPEDIMENTO: ', '') || 'Sem motivo detalhado.';
+            const blockPhoto = fd.blockPhotoUrl;
+            return (
+              <div className="bg-red-50 rounded-2xl border border-red-100 shadow-sm p-6 sm:p-8">
+                <SectionHeader icon={<ShieldAlert size={15} />} title="Aviso de Impedimento" color="text-red-600" />
+                <p className="text-sm font-bold text-red-800 italic mb-4">"{reason}"</p>
+                {blockPhoto && (
+                  <a href={blockPhoto} target="_blank" rel="noreferrer" className="block">
+                    <img src={blockPhoto} alt="Foto do impedimento" className="w-full max-w-sm rounded-xl border border-red-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 240}} />
+                    <span className="text-[10px] text-red-400 font-bold uppercase tracking-widest mt-2 block">Foto do Impedimento (clique para ampliar)</span>
+                  </a>
+                )}
+              </div>
+            );
+          })()}
+
 
           {/* ── PEÇAS E VALORES ── */}
           {order.showValueToClient && order.items && order.items.length > 0 && (
