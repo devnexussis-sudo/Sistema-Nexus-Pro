@@ -154,45 +154,50 @@ export const VisitService = {
                 );
             }
 
-            // Preservar evidências (fotos de impedimento, checkin, checklists paciais) da visita anterior
+            // ── Construir form_data arquivado de forma ACUMULATIVA ──────
+            // Nunca sobrescrever — unir os históricos de ambas as fontes (visita + OS)
+            const visitFd: any = lastVisit.formData || {};
+            const orderFd: any = orderData?.form_data || {};
+
+            // Mescla o impediment_history: combina listas de ambas as fontes sem duplicar
+            const visitHistory: any[] = Array.isArray(visitFd.impediment_history) ? visitFd.impediment_history : [];
+            const orderHistory: any[] = Array.isArray(orderFd.impediment_history) ? orderFd.impediment_history : [];
+
+            // Usa a data como chave para deduplicar entradas que possam existir nas duas fontes
+            const mergedHistoryMap = new Map<string, any>();
+            [...visitHistory, ...orderHistory].forEach(entry => {
+                mergedHistoryMap.set(entry.blockedAt, entry);
+            });
+            const mergedHistory = Array.from(mergedHistoryMap.values())
+                .sort((a, b) => new Date(a.blockedAt).getTime() - new Date(b.blockedAt).getTime());
+
             const archivedFormData = {
-                ...(lastVisit.formData || {}),
-                ...(orderData?.form_data || {}),
+                ...visitFd,
+                ...orderFd,
+                // Garante que o histórico completo e unificado prevaleça
+                impediment_history: mergedHistory,
+                // Campos de auditoria extras
                 ...(orderData?.signature ? { signature: orderData.signature } : {}),
                 ...(orderData?.signature_name ? { signatureName: orderData.signature_name } : {}),
                 ...(orderData?.signature_doc ? { signatureDoc: orderData.signature_doc } : {}),
-                ...(orderData?.video_url ? { videoUrl: orderData.video_url } : {})
+                ...(orderData?.video_url ? { videoUrl: orderData.video_url } : {}),
             };
 
             // Atualizar status e backup de dados na visita anterior
-            if (forceAllow && !VisitStateMachine.canCreateNewVisit(lastVisit.status)) {
-                const targetSyncStatus = params.orderStatus === 'PAUSADO' 
-                    ? VisitStatusEnum.PAUSED 
-                    : VisitStatusEnum.BLOCKED;
-                
-                const { error: updateErr } = await supabase.from('service_visits')
-                    .update({ 
-                        status: targetSyncStatus, 
-                        form_data: archivedFormData,
-                        updated_at: new Date().toISOString() 
-                    })
-                    .eq('id', lastVisit.id);
-                
-                if (updateErr) {
-                    throw new Error(`CRITICAL: Falha ao arquivar dados da visita anterior (Erro DB: ${updateErr.message}). O Reset da OS foi abortado para evitar perda de dados.`);
-                }
-            } else {
-                // Mesmo que o status da visita já estivesse correto, garantimos que os dados da OS sejam arquivados na primeira visita
-                const { error: updateErr } = await supabase.from('service_visits')
-                    .update({ 
-                        form_data: archivedFormData,
-                        updated_at: new Date().toISOString() 
-                    })
-                    .eq('id', lastVisit.id);
+            const targetSyncStatus = (forceAllow && !VisitStateMachine.canCreateNewVisit(lastVisit.status))
+                ? (params.orderStatus === 'PAUSADO' ? VisitStatusEnum.PAUSED : VisitStatusEnum.BLOCKED)
+                : lastVisit.status;
 
-                if (updateErr) {
-                    throw new Error(`CRITICAL: Falha ao arquivar form_data da visita na base (Erro DB: ${updateErr.message}).`);
-                }
+            const { error: updateErr } = await supabase.from('service_visits')
+                .update({ 
+                    status: targetSyncStatus, 
+                    form_data: archivedFormData,
+                    updated_at: new Date().toISOString() 
+                })
+                .eq('id', lastVisit.id);
+            
+            if (updateErr) {
+                throw new Error(`CRITICAL: Falha ao arquivar evidências da visita ${lastVisit.visitNumber} (DB: ${updateErr.message}). Operação abortada para evitar perda de dados.`);
             }
         }
 
