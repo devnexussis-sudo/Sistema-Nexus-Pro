@@ -170,21 +170,29 @@ export const VisitService = {
                     ? VisitStatusEnum.PAUSED 
                     : VisitStatusEnum.BLOCKED;
                 
-                await supabase.from('service_visits')
+                const { error: updateErr } = await supabase.from('service_visits')
                     .update({ 
                         status: targetSyncStatus, 
                         form_data: archivedFormData,
                         updated_at: new Date().toISOString() 
                     })
                     .eq('id', lastVisit.id);
+                
+                if (updateErr) {
+                    throw new Error(`CRITICAL: Falha ao arquivar dados da visita anterior (Erro DB: ${updateErr.message}). O Reset da OS foi abortado para evitar perda de dados.`);
+                }
             } else {
                 // Mesmo que o status da visita já estivesse correto, garantimos que os dados da OS sejam arquivados na primeira visita
-                await supabase.from('service_visits')
+                const { error: updateErr } = await supabase.from('service_visits')
                     .update({ 
                         form_data: archivedFormData,
                         updated_at: new Date().toISOString() 
                     })
                     .eq('id', lastVisit.id);
+
+                if (updateErr) {
+                    throw new Error(`CRITICAL: Falha ao arquivar form_data da visita na base (Erro DB: ${updateErr.message}).`);
+                }
             }
         }
 
