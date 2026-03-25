@@ -1679,56 +1679,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="max-w-4xl mx-auto space-y-8">
                     {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
                     {(() => {
+                        // Mapa de chave=blockedAt para garantir sem duplicatas entre visitas arquivadas e OS atual
+                        const seenKeys = new Set<string>();
                         const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
 
-                        // Fonte primária: visitas arquivadas (cada visita tem seu form_data com histórico)
+                        const addEntry = (title: string, entry: { reason?: string; photoUrl?: string; blockedAt?: string }) => {
+                            const key = entry.blockedAt || (title + (entry.reason || ''));
+                            if (seenKeys.has(key)) return;
+                            seenKeys.add(key);
+                            impediments.push({ title, reason: entry.reason || 'Sem motivo.', photo: entry.photoUrl, date: entry.blockedAt });
+                        };
+
+                        // 1. Visitas arquivadas (cada visita tem seu form_data com impediment_history)
                         [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
                             const vFd: any = v.formData || {};
-
-                            // 1. Prioridade: impediment_history (append-only — nunca sobrescreve)
                             if (Array.isArray(vFd.impediment_history) && vFd.impediment_history.length > 0) {
-                                vFd.impediment_history.forEach((entry: any) => {
-                                    impediments.push({
-                                        title: `Impedimento — Visita nº ${v.visitNumber}`,
-                                        reason: entry.reason || 'Sem motivo.',
-                                        photo: entry.photoUrl,
-                                        date: entry.blockedAt,
-                                    });
-                                });
-                            // 2. Fallback legado: campos únicos antigos
+                                vFd.impediment_history.forEach((entry: any) =>
+                                    addEntry(`Impedimento — Visita nº ${v.visitNumber}`, entry)
+                                );
                             } else {
+                                // Fallback legado (visitas antes do impediment_history)
                                 const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
-                                if (reason) {
-                                    impediments.push({
-                                        title: `Impedimento — Visita nº ${v.visitNumber}`,
-                                        reason,
-                                        photo: vFd.blockPhotoUrl,
-                                        date: vFd.blockedAt,
-                                    });
-                                }
+                                if (reason) addEntry(`Impedimento — Visita nº ${v.visitNumber}`, { reason, photoUrl: vFd.blockPhotoUrl, blockedAt: vFd.blockedAt });
                             }
                         });
 
-                        // Fallback: OS atual se ainda não tiver visita arquivada (primeira impedição)
-                        if (impediments.length === 0 && (selectedOrder.status === 'IMPEDIDO' || selectedOrder.formData?.blockReason)) {
-                            const fd: any = selectedOrder.formData || {};
-                            if (Array.isArray(fd.impediment_history) && fd.impediment_history.length > 0) {
-                                fd.impediment_history.forEach((entry: any) => {
-                                    impediments.push({
-                                        title: 'Impedimento (Atual)',
-                                        reason: entry.reason || 'Sem motivo.',
-                                        photo: entry.photoUrl,
-                                        date: entry.blockedAt,
-                                    });
-                                });
-                            } else {
-                                impediments.push({
-                                    title: 'Impedimento (Atual)',
-                                    reason: fd.blockReason || fd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
-                                    photo: fd.blockPhotoUrl,
-                                    date: fd.blockedAt,
-                                });
-                            }
+                        // 2. OS atual — SEMPRE lida, independente de ter visitas arquivadas
+                        // O impedimento mais recente fica aqui até o admin agendar a próxima visita
+                        const osFd: any = selectedOrder.formData || {};
+                        if (Array.isArray(osFd.impediment_history) && osFd.impediment_history.length > 0) {
+                            osFd.impediment_history.forEach((entry: any) =>
+                                addEntry('Impedimento (Atual)', entry)
+                            );
+                        } else if (osFd.blockReason || selectedOrder.status === 'IMPEDIDO') {
+                            addEntry('Impedimento (Atual)', {
+                                reason: osFd.blockReason || osFd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
+                                photoUrl: osFd.blockPhotoUrl,
+                                blockedAt: osFd.blockedAt,
+                            });
                         }
 
                         if (impediments.length === 0) return null;
@@ -2025,52 +2013,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="max-w-4xl mx-auto space-y-6">
                   {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
                   {(() => {
+                      const seenKeys = new Set<string>();
                       const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
+
+                      const addEntry = (title: string, entry: { reason?: string; photoUrl?: string; blockedAt?: string }) => {
+                          const key = entry.blockedAt || (title + (entry.reason || ''));
+                          if (seenKeys.has(key)) return;
+                          seenKeys.add(key);
+                          impediments.push({ title, reason: entry.reason || 'Sem motivo.', photo: entry.photoUrl, date: entry.blockedAt });
+                      };
 
                       [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
                           const vFd: any = v.formData || {};
-
                           if (Array.isArray(vFd.impediment_history) && vFd.impediment_history.length > 0) {
-                              vFd.impediment_history.forEach((entry: any) => {
-                                  impediments.push({
-                                      title: `Impedimento — Visita nº ${v.visitNumber}`,
-                                      reason: entry.reason || 'Sem motivo.',
-                                      photo: entry.photoUrl,
-                                      date: entry.blockedAt,
-                                  });
-                              });
+                              vFd.impediment_history.forEach((entry: any) =>
+                                  addEntry(`Impedimento — Visita nº ${v.visitNumber}`, entry)
+                              );
                           } else {
                               const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
-                              if (reason) {
-                                  impediments.push({
-                                      title: `Impedimento — Visita nº ${v.visitNumber}`,
-                                      reason,
-                                      photo: vFd.blockPhotoUrl,
-                                      date: vFd.blockedAt,
-                                  });
-                              }
+                              if (reason) addEntry(`Impedimento — Visita nº ${v.visitNumber}`, { reason, photoUrl: vFd.blockPhotoUrl, blockedAt: vFd.blockedAt });
                           }
                       });
 
-                      if (impediments.length === 0 && (selectedOrder.status === 'IMPEDIDO' || selectedOrder.formData?.blockReason)) {
-                          const fd: any = selectedOrder.formData || {};
-                          if (Array.isArray(fd.impediment_history) && fd.impediment_history.length > 0) {
-                              fd.impediment_history.forEach((entry: any) => {
-                                  impediments.push({
-                                      title: 'Impedimento (Atual)',
-                                      reason: entry.reason || 'Sem motivo.',
-                                      photo: entry.photoUrl,
-                                      date: entry.blockedAt,
-                                  });
-                              });
-                          } else {
-                              impediments.push({
-                                  title: 'Impedimento (Atual)',
-                                  reason: fd.blockReason || fd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
-                                  photo: fd.blockPhotoUrl,
-                                  date: fd.blockedAt,
-                              });
-                          }
+                      // OS atual — SEMPRE lida
+                      const osFd: any = selectedOrder.formData || {};
+                      if (Array.isArray(osFd.impediment_history) && osFd.impediment_history.length > 0) {
+                          osFd.impediment_history.forEach((entry: any) =>
+                              addEntry('Impedimento (Atual)', entry)
+                          );
+                      } else if (osFd.blockReason || selectedOrder.status === 'IMPEDIDO') {
+                          addEntry('Impedimento (Atual)', {
+                              reason: osFd.blockReason || osFd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
+                              photoUrl: osFd.blockPhotoUrl,
+                              blockedAt: osFd.blockedAt,
+                          });
                       }
 
                       if (impediments.length === 0) return null;
