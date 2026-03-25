@@ -7,19 +7,18 @@ import {
   Clock,
   DollarSign,
   FileText,
+  Globe,
   Hexagon,
-  Mail,
   MapPin,
   Package,
   Phone,
+  Play,
   Printer,
   ShieldAlert,
   Tag,
   User as UserIcon,
-  Wrench,
-  Play,
   Video,
-  Globe
+  Wrench
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
