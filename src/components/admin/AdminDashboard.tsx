@@ -1706,19 +1706,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             }
                         });
 
-                        // Deduplicar mensagens iguais
-                        const uniqueMap = new Map();
-                        impediments.forEach(imp => {
-                            const key = imp.reason.toLowerCase() + (imp.photo || '');
-                            if (!uniqueMap.has(key)) uniqueMap.set(key, imp);
-                        });
-                        const finalImpediments = Array.from(uniqueMap.values());
-
-                        if (finalImpediments.length === 0) return null;
+                        if (impediments.length === 0) return null;
 
                         return (
                           <div className="space-y-4 mb-6">
-                            {finalImpediments.map((imp, idx) => (
+                            {impediments.map((imp, idx) => (
                               <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
                                 <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
                                 <div className="flex-1">
@@ -2032,18 +2024,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           }
                       });
 
-                      const uniqueMap = new Map();
-                      impediments.forEach(imp => {
-                          const key = imp.reason.toLowerCase() + (imp.photo || '');
-                          if (!uniqueMap.has(key)) uniqueMap.set(key, imp);
-                      });
-                      const finalImpediments = Array.from(uniqueMap.values());
-
-                      if (finalImpediments.length === 0) return null;
+                      if (impediments.length === 0) return null;
 
                       return (
                         <div className="space-y-4 mb-6">
-                          {finalImpediments.map((imp, idx) => (
+                          {impediments.map((imp, idx) => (
                             <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
                               <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
                               <div className="flex-1">
