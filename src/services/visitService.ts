@@ -134,6 +134,12 @@ export const VisitService = {
             );
         }
 
+        // ── Backup e Limpeza do Estado Atual ─────────────
+        const { data: orderData } = await supabase.from('orders')
+            .select('form_data, signature, signature_name, signature_doc, video_url')
+            .eq('id', params.orderId)
+            .single();
+
         // ── Guarda 2: Visita anterior permite nova visita ─────────────
         const existingVisits = await VisitService.getVisitsByOrderId(params.orderId);
 
@@ -148,14 +154,36 @@ export const VisitService = {
                 );
             }
 
-            // Fallback para mobile legados: se a OS estiver impedida/pausada mas a visita não, sincroniza a força
+            // Preservar evidências (fotos de impedimento, checkin, checklists paciais) da visita anterior
+            const archivedFormData = {
+                ...(lastVisit.formData || {}),
+                ...(orderData?.form_data || {}),
+                ...(orderData?.signature ? { signature: orderData.signature } : {}),
+                ...(orderData?.signature_name ? { signatureName: orderData.signature_name } : {}),
+                ...(orderData?.signature_doc ? { signatureDoc: orderData.signature_doc } : {}),
+                ...(orderData?.video_url ? { videoUrl: orderData.video_url } : {})
+            };
+
+            // Atualizar status e backup de dados na visita anterior
             if (forceAllow && !VisitStateMachine.canCreateNewVisit(lastVisit.status)) {
                 const targetSyncStatus = params.orderStatus === 'PAUSADO' 
                     ? VisitStatusEnum.PAUSED 
                     : VisitStatusEnum.BLOCKED;
                 
                 await supabase.from('service_visits')
-                    .update({ status: targetSyncStatus, updated_at: new Date().toISOString() })
+                    .update({ 
+                        status: targetSyncStatus, 
+                        form_data: archivedFormData,
+                        updated_at: new Date().toISOString() 
+                    })
+                    .eq('id', lastVisit.id);
+            } else {
+                // Mesmo que o status da visita já estivesse correto, garantimos que os dados da OS sejam arquivados na primeira visita
+                await supabase.from('service_visits')
+                    .update({ 
+                        form_data: archivedFormData,
+                        updated_at: new Date().toISOString() 
+                    })
                     .eq('id', lastVisit.id);
             }
         }
@@ -199,12 +227,17 @@ export const VisitService = {
             changedBy: createdBy,
         });
 
-        // ── Repor OS para ATRIBUÍDO + sincronizar agendamento ─────────
+        // ── Repor OS para ATRIBUÍDO + sincronizar agendamento e LIMPAR execução do app mobile ─────────
         await supabase.from('orders').update({
             status: 'ATRIBUÍDO',
             assigned_to: params.technicianId,
             scheduled_date: params.scheduledDate,
             scheduled_time: params.scheduledTime || null,
+            form_data: {}, // Reset do checklist / motivações de impedimento
+            signature: null,
+            signature_name: null,
+            signature_doc: null,
+            video_url: null,
             updated_at: new Date().toISOString(),
         }).eq('id', params.orderId).eq('tenant_id', tenantId);
 
