@@ -1677,34 +1677,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 return (
                   <div className="max-w-4xl mx-auto space-y-8">
-                    {/* Alertas de impedimento (Histórico e Atual) */}
+                    {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
                     {(() => {
-                        const impediments: any[] = [];
-                        
-                        // Atual
-                        if (selectedOrder.status === 'IMPEDIDO' || selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason) {
-                            impediments.push({
-                                title: selectedOrder.status === 'IMPEDIDO' ? 'Serviço Impedido (Atual)' : 'Registro de Impedimento',
-                                reason: selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
-                                photo: selectedOrder.formData?.blockPhotoUrl
-                            });
-                        }
+                        const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
 
-                        // Histórico das visitas
-                        [...orderVisits].sort((a,b) => a.visitNumber - b.visitNumber).forEach(v => {
+                        // Fonte primária: visitas arquivadas (cada visita tem seu form_data com histórico)
+                        [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
                             const vFd: any = v.formData || {};
-                            if (v.status === 'blocked' || v.status === 'paused' || v.impedimentReason || v.pauseReason || vFd.impediment_reason || vFd.blockReason) {
-                                const reason = v.impedimentReason || v.pauseReason || vFd.impediment_reason || vFd.blockReason;
-                                const photo = vFd.blockPhotoUrl;
+
+                            // 1. Prioridade: impediment_history (append-only — nunca sobrescreve)
+                            if (Array.isArray(vFd.impediment_history) && vFd.impediment_history.length > 0) {
+                                vFd.impediment_history.forEach((entry: any) => {
+                                    impediments.push({
+                                        title: `Impedimento — Visita nº ${v.visitNumber}`,
+                                        reason: entry.reason || 'Sem motivo.',
+                                        photo: entry.photoUrl,
+                                        date: entry.blockedAt,
+                                    });
+                                });
+                            // 2. Fallback legado: campos únicos antigos
+                            } else {
+                                const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
                                 if (reason) {
                                     impediments.push({
-                                        title: `Impedimento Registrado (Visita nº ${v.visitNumber})`,
-                                        reason: reason,
-                                        photo: photo
+                                        title: `Impedimento — Visita nº ${v.visitNumber}`,
+                                        reason,
+                                        photo: vFd.blockPhotoUrl,
+                                        date: vFd.blockedAt,
                                     });
                                 }
                             }
                         });
+
+                        // Fallback: OS atual se ainda não tiver visita arquivada (primeira impedição)
+                        if (impediments.length === 0 && (selectedOrder.status === 'IMPEDIDO' || selectedOrder.formData?.blockReason)) {
+                            const fd: any = selectedOrder.formData || {};
+                            if (Array.isArray(fd.impediment_history) && fd.impediment_history.length > 0) {
+                                fd.impediment_history.forEach((entry: any) => {
+                                    impediments.push({
+                                        title: 'Impedimento (Atual)',
+                                        reason: entry.reason || 'Sem motivo.',
+                                        photo: entry.photoUrl,
+                                        date: entry.blockedAt,
+                                    });
+                                });
+                            } else {
+                                impediments.push({
+                                    title: 'Impedimento (Atual)',
+                                    reason: fd.blockReason || fd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
+                                    photo: fd.blockPhotoUrl,
+                                    date: fd.blockedAt,
+                                });
+                            }
+                        }
 
                         if (impediments.length === 0) return null;
 
@@ -1715,7 +1740,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
                                 <div className="flex-1">
                                   <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
-                                  <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{imp.reason}</p>
+                                  {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
+                                  <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
                                   {imp.photo && (
                                     <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
                                       <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 200}} />
@@ -1997,32 +2023,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: EXECUÇÃO (CHECKLIST) — mantido para backward compat */}
               {activeTab === 'execution' && (
                 <div className="max-w-4xl mx-auto space-y-6">
-                  {/* Alertas de Impedimento Histórico e Atual */}
+                  {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
                   {(() => {
-                      const impediments: any[] = [];
-                      
-                      if (selectedOrder.status === 'IMPEDIDO' || selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason) {
-                          impediments.push({
-                              title: selectedOrder.status === 'IMPEDIDO' ? 'Serviço Impedido (Atual)' : 'Registro de Impedimento',
-                              reason: selectedOrder.formData?.impediment_reason || selectedOrder.formData?.blockReason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
-                              photo: selectedOrder.formData?.blockPhotoUrl
-                          });
-                      }
+                      const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
 
-                      [...orderVisits].sort((a,b) => a.visitNumber - b.visitNumber).forEach(v => {
+                      [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
                           const vFd: any = v.formData || {};
-                          if (v.status === 'blocked' || v.status === 'paused' || v.impedimentReason || v.pauseReason || vFd.impediment_reason || vFd.blockReason) {
-                              const reason = v.impedimentReason || v.pauseReason || vFd.impediment_reason || vFd.blockReason;
-                              const photo = vFd.blockPhotoUrl;
+
+                          if (Array.isArray(vFd.impediment_history) && vFd.impediment_history.length > 0) {
+                              vFd.impediment_history.forEach((entry: any) => {
+                                  impediments.push({
+                                      title: `Impedimento — Visita nº ${v.visitNumber}`,
+                                      reason: entry.reason || 'Sem motivo.',
+                                      photo: entry.photoUrl,
+                                      date: entry.blockedAt,
+                                  });
+                              });
+                          } else {
+                              const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
                               if (reason) {
                                   impediments.push({
-                                      title: `Impedimento Registrado (Visita nº ${v.visitNumber})`,
-                                      reason: reason,
-                                      photo: photo
+                                      title: `Impedimento — Visita nº ${v.visitNumber}`,
+                                      reason,
+                                      photo: vFd.blockPhotoUrl,
+                                      date: vFd.blockedAt,
                                   });
                               }
                           }
                       });
+
+                      if (impediments.length === 0 && (selectedOrder.status === 'IMPEDIDO' || selectedOrder.formData?.blockReason)) {
+                          const fd: any = selectedOrder.formData || {};
+                          if (Array.isArray(fd.impediment_history) && fd.impediment_history.length > 0) {
+                              fd.impediment_history.forEach((entry: any) => {
+                                  impediments.push({
+                                      title: 'Impedimento (Atual)',
+                                      reason: entry.reason || 'Sem motivo.',
+                                      photo: entry.photoUrl,
+                                      date: entry.blockedAt,
+                                  });
+                              });
+                          } else {
+                              impediments.push({
+                                  title: 'Impedimento (Atual)',
+                                  reason: fd.blockReason || fd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
+                                  photo: fd.blockPhotoUrl,
+                                  date: fd.blockedAt,
+                              });
+                          }
+                      }
 
                       if (impediments.length === 0) return null;
 
@@ -2033,7 +2082,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
                               <div className="flex-1">
                                 <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
-                                <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{imp.reason}</p>
+                                {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
+                                <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
                                 {imp.photo && (
                                   <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
                                     <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 200}} />
@@ -2542,7 +2592,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       {visits.map((visit, idx) => {
                         const isLast = idx === visits.length - 1;
                         const rawStatus = visit.status;
-                        const effectiveStatus = (rawStatus === 'pending' || rawStatus === 'ongoing') && selectedOrder.status === 'CONCLUÍDO' ? 'completed' : rawStatus;
+                        // A visita mais recente (Atual) deve espelhar o status da OS se ainda não foi sincronizada
+                        const effectiveStatus = (() => {
+                          if (rawStatus === 'completed' || visit.isLocked) return 'completed';
+                          if (rawStatus === 'blocked') return 'blocked';
+                          if (rawStatus === 'paused') return 'paused';
+                          if (rawStatus === 'ongoing') {
+                            if (selectedOrder.status === 'CONCLUÍDO') return 'completed';
+                            if (selectedOrder.status === 'IMPEDIDO') return 'blocked';
+                            return 'ongoing';
+                          }
+                          if (rawStatus === 'pending') {
+                            if (selectedOrder.status === 'CONCLUÍDO') return 'completed';
+                            if (isLast && selectedOrder.status === 'IMPEDIDO') return 'blocked';
+                          }
+                          return rawStatus;
+                        })();
 
                         const canEdit = effectiveStatus !== VisitStatusEnum.COMPLETED && !visit.isLocked;
                         const isEditingThis = editingVisitId === visit.id;
