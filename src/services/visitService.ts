@@ -263,6 +263,20 @@ export const VisitService = {
             const hist: any[] = Array.isArray((source as any).impediment_history)
                 ? (source as any).impediment_history
                 : [];
+            
+            // ── RECUPERA E CONVERTE FORMATOS LEGADOS GASTOS DA VERSÃO ANTIGA DO APP ──
+            // Isso previne que visitas passadas (1 a 15) que não tinham 'impediment_history', 
+            // e os "blockReason" enviados pelo APK antigo do técnico não evaporem na hora do reset.
+            const s = source as any;
+            const singleLegacyReason = s.blockReason || s.impedimentReason || s.impediment_reason;
+            if (singleLegacyReason && !hist.some((e: any) => e.reason === singleLegacyReason)) {
+                hist.push({
+                    reason: singleLegacyReason,
+                    photoUrl: s.blockPhotoUrl,
+                    blockedAt: s.blockedAt || s.createdAt || new Date().toISOString()
+                });
+            }
+
             for (const entry of hist) {
                 if (entry?.blockedAt) consolidatedHistoryMap.set(entry.blockedAt, entry);
             }
