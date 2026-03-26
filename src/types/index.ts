@@ -271,6 +271,15 @@ export const CAN_CREATE_NEW_VISIT_FROM: VisitStatusEnum[] = [
   VisitStatusEnum.BLOCKED,
 ];
 
+// Mapa formal de transições válidas entre status de visita
+export const VALID_VISIT_TRANSITIONS: Record<VisitStatusEnum, VisitStatusEnum[]> = {
+  [VisitStatusEnum.PENDING]:   [VisitStatusEnum.ONGOING],
+  [VisitStatusEnum.ONGOING]:   [VisitStatusEnum.PAUSED, VisitStatusEnum.BLOCKED, VisitStatusEnum.COMPLETED],
+  [VisitStatusEnum.PAUSED]:    [VisitStatusEnum.ONGOING, VisitStatusEnum.BLOCKED],
+  [VisitStatusEnum.BLOCKED]:   [],  // terminal — nova visita é criada
+  [VisitStatusEnum.COMPLETED]: [],  // terminal
+};
+
 export type ImpedimentCategory =
   | 'AWAITING_PART'
   | 'ACCESS_DENIED'

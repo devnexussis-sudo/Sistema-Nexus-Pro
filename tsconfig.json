@@ -34,13 +34,11 @@
   "exclude": [
     "node_modules",
     "dist",
-    "backend"
+    "backend",
+    "APP Nexus"
   ],
-  "extends": "expo/tsconfig.base",
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "src/**/*.ts",
+    "src/**/*.tsx"
   ]
 }

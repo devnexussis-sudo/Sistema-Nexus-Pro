@@ -42,6 +42,7 @@ import { DataService } from '../../services/dataService';
 import { EquipmentService } from '../../services/equipmentService';
 import { FormService } from '../../services/formService';
 import { VisitService } from '../../services/visitService';
+import { supabase } from '../../lib/supabase';
 import { type Customer, OrderStatus, type ServiceOrder, type ServiceVisit, type User, VisitStatusEnum } from '../../types';
 import { PublicOrderView } from '../public/PublicOrderView';
 import { OrderTimeline } from '../shared/OrderTimeline';
