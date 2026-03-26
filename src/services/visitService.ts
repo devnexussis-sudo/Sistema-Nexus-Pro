@@ -240,13 +240,45 @@ export const VisitService = {
             changedBy: createdBy,
         });
 
-        // ── Repor OS para ATRIBUÍDO + sincronizar agendamento e LIMPAR execução do app mobile ─────────
+        // ── Repor OS para ATRIBUÍDO + sincronizar agendamento ─────────────────────────────────────────
+        // IMPORTANTE: NÃO zerar form_data por completo.
+        // O impediment_history consolidado de TODAS as visitas deve ser preservado na OS,
+        // para que o próximo blockOrder (no mobile) leia o histórico completo e faça append,
+        // em vez de criar um array com apenas 1 entrada.
+        //
+        // O que limpamos: checklist, assinatura, vídeo (execução da visita).
+        // O que mantemos: impediment_history (evidências imutáveis de bloqueios).
+
+        // 1. Coleta o impediment_history consolidado de TODAS as visitas arquivadas
+        const allVisitsForHistory = await VisitService.getVisitsByOrderId(params.orderId);
+        const consolidatedHistoryMap = new Map<string, any>();
+
+        // Varre todas as visitas + a OS atual (orderData) para montar o histórico completo
+        const allSources = [
+            ...(orderData?.form_data ? [orderData.form_data] : []),
+            ...allVisitsForHistory.map(v => v.formData || {}),
+        ];
+
+        for (const source of allSources) {
+            const hist: any[] = Array.isArray((source as any).impediment_history)
+                ? (source as any).impediment_history
+                : [];
+            for (const entry of hist) {
+                if (entry?.blockedAt) consolidatedHistoryMap.set(entry.blockedAt, entry);
+            }
+        }
+
+        const consolidatedHistory = Array.from(consolidatedHistoryMap.values())
+            .sort((a, b) => new Date(a.blockedAt).getTime() - new Date(b.blockedAt).getTime());
+
+        // 2. Reseta a OS mantendo apenas o histórico de impedimentos
         await supabase.from('orders').update({
             status: 'ATRIBUÍDO',
             assigned_to: params.technicianId,
             scheduled_date: params.scheduledDate,
             scheduled_time: params.scheduledTime || null,
-            form_data: {}, // Reset do checklist / motivações de impedimento
+            // Limpa checklist/execução, mas PRESERVA o histórico de impedimentos
+            form_data: consolidatedHistory.length > 0 ? { impediment_history: consolidatedHistory } : {},
             signature: null,
             signature_name: null,
             signature_doc: null,
