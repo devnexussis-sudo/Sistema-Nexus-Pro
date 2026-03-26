@@ -652,7 +652,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setOrderVisits(updatedVisits);
 
       // Atualiza o estado local da OS para refletir o estado real do banco
-      // (status=ATRIBUÍDO, mantendo o form_data preservado intacto)
+      // (status=ATRIBUÍDO, mantendo o form_data preservado intacto O Histórico de Impedimentos)
+      const preservedHistory = Array.isArray(selectedOrder.formData?.impediment_history)
+         ? selectedOrder.formData.impediment_history
+         : [];
+
       const freshOrder: ServiceOrder = {
         ...selectedOrder,
         status: OrderStatus.ASSIGNED,
