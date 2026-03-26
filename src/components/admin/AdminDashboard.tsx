@@ -1763,9 +1763,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                         if (impediments.length === 0) return null;
 
+                        // Deduplicador Inteligente baseado no motivo e foto (sem depender exclusivamente da data)
+                        const uniqueImpediments = impediments.filter((value, index, self) =>
+                           index === self.findIndex((t) => (
+                              t.reason === value.reason && 
+                              (t.photo === value.photo || (!t.photo && !value.photo))
+                           ))
+                        );
+
                         return (
                           <div className="space-y-4 mb-6">
-                            {impediments.map((imp, idx) => (
+                            {uniqueImpediments.map((imp, idx) => (
                               <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
                                 <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
                                 <div className="flex-1">
