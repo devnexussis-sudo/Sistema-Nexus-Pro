@@ -311,6 +311,18 @@ export interface ServiceVisit {
   updatedAt: string;
 }
 
+// ── Histórico Estruturado de Impedimentos (Nova Tabela) ──────
+export interface OrderImpediment {
+  id: string;
+  tenantId: string;
+  orderId: string;
+  visitId?: string;
+  technicianId?: string;
+  reason: string;
+  photoUrl?: string;
+  createdAt: string;
+}
+
 // ── Equipamento vinculado à OS ────────────────────────────────
 export interface ServiceOrderEquipment {
   id: string;
