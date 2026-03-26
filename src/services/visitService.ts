@@ -272,19 +272,26 @@ export const VisitService = {
             .sort((a, b) => new Date(a.blockedAt).getTime() - new Date(b.blockedAt).getTime());
 
         // 2. Reseta a OS mantendo apenas o histórico de impedimentos
-        await supabase.from('orders').update({
+        const { error: resetError } = await supabase.from('orders').update({
             status: 'ATRIBUÍDO',
             assigned_to: params.technicianId,
             scheduled_date: params.scheduledDate,
             scheduled_time: params.scheduledTime || null,
             // Limpa checklist/execução, mas PRESERVA o histórico de impedimentos
             form_data: consolidatedHistory.length > 0 ? { impediment_history: consolidatedHistory } : {},
-            signature: null,
-            signature_name: null,
+            // Limpa assinaturas correspondendo à tipagem verdadeira no DB (DbOrder)
+            signature_url: null,
+            client_signature_url: null,
+            client_signature_name: null,
             signature_doc: null,
             video_url: null,
             updated_at: new Date().toISOString(),
         }).eq('id', params.orderId).eq('tenant_id', tenantId);
+
+        if (resetError) {
+            logger.error('[VisitService] Falha ao re-atribuir OS no banco.', { error: resetError, orderId: params.orderId });
+            throw new Error(`CRITICAL_RESET_ERROR: A visita foi criada, mas a OS não pôde ser resetada (${resetError.message})`);
+        }
 
         logger.info('[VisitService] Nova visita criada', {
             orderId: params.orderId,
