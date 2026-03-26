@@ -11,11 +11,9 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 export default function SettingsScreen() {
     const [isGpsEnabled, setIsGpsEnabled] = useState(false);
-    const [isOfflineEnabled, setIsOfflineEnabled] = useState(false);
 
     useEffect(() => {
         checkGpsStatus();
-        setIsOfflineEnabled(syncService.isOfflineModeEnabled());
     }, []);
 
     const checkGpsStatus = async () => {
@@ -47,10 +45,6 @@ export default function SettingsScreen() {
         }
     };
 
-    const toggleOffline = async (val: boolean) => {
-        setIsOfflineEnabled(val);
-        await syncService.toggleOfflineMode(val);
-    };
 
     return (
         <ThemedView style={styles.container}>
@@ -74,20 +68,6 @@ export default function SettingsScreen() {
                     />
                 </View>
 
-                <View style={[styles.settingRow, { marginTop: 20 }]}>
-                    <View style={styles.settingInfo}>
-                        <Text style={styles.settingLabel}>Modo Offline-First (Mídia)</Text>
-                        <Text style={styles.settingDescription}>
-                            Sincroniza fotos e ordens pendentes em fila, ideal para áreas sem sinal.
-                        </Text>
-                    </View>
-                    <Switch
-                        trackColor={{ false: '#767577', true: '#1c2d4f' }}
-                        thumbColor={isOfflineEnabled ? '#fff' : '#f4f3f4'}
-                        onValueChange={toggleOffline}
-                        value={isOfflineEnabled}
-                    />
-                </View>
             </View>
 
             <View style={styles.section}>

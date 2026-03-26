@@ -96,6 +96,7 @@ export interface ExtendedServiceOrder extends ServiceOrder {
     publicToken?: string;
     startedDate?: string;
     completedDate?: string;
+    videoUrl?: string | null;
 }
 
 export class OrderService {
@@ -275,7 +276,8 @@ export class OrderService {
             scheduledTime: dbOrder.scheduled_time,
             startedDate: startedDate,
             completedDate: completedDate,
-            rawStatus: dbOrder.status
+            rawStatus: dbOrder.status,
+            videoUrl: dbOrder.video_url || null,
         };
     }
 
@@ -639,16 +641,31 @@ export class OrderService {
         }
     }
 
-    static async blockOrder(id: string, reason: string): Promise<void> {
+    static async blockOrder(id: string, reason: string, blockPhotoUrl?: string | null): Promise<void> {
         try {
-            // Let's fetch first to be safe
+            // Busca form_data atual para ACUMULAR, nunca sobrescrever
             const { data: current } = await supabase.from('orders').select('form_data').eq('id', id).single();
             const currentForm = current?.form_data || {};
 
+            // Array imutável de evidências — cada impedimento é um novo item, jamais sobrescreve
+            const previousHistory: any[] = Array.isArray(currentForm.impediment_history) 
+                ? currentForm.impediment_history 
+                : [];
+
+            const newEntry = {
+                reason,
+                blockedAt: new Date().toISOString(),
+                ...(blockPhotoUrl ? { photoUrl: blockPhotoUrl } : {}),
+            };
+
             const newForm = {
                 ...currentForm,
+                // Mantém campos legados para compatibilidade com partes do sistema mais antigas
                 blockReason: reason,
-                blockedAt: new Date().toISOString()
+                blockedAt: newEntry.blockedAt,
+                ...(blockPhotoUrl ? { blockPhotoUrl } : {}),
+                // Lista imutável de todos os impedimentos (append-only)
+                impediment_history: [...previousHistory, newEntry],
             };
 
             const { error } = await supabase
@@ -667,6 +684,7 @@ export class OrderService {
             throw error;
         }
     }
+
 
     static async startDisplacement(id: string): Promise<void> {
         try {
