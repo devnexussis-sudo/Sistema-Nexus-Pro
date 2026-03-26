@@ -283,7 +283,6 @@ export const VisitService = {
             signature_url: null,
             client_signature_url: null,
             client_signature_name: null,
-            signature_doc: null,
             video_url: null,
             updated_at: new Date().toISOString(),
         }).eq('id', params.orderId).eq('tenant_id', tenantId);
