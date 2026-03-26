@@ -7,18 +7,18 @@ import {
   Clock,
   DollarSign,
   FileText,
+  Globe,
   Hexagon,
-  Mail,
   MapPin,
   Package,
   Phone,
+  Play,
   Printer,
   ShieldAlert,
   Tag,
   User as UserIcon,
-  Wrench,
-  Play,
-  Video
+  Video,
+  Wrench
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -70,7 +70,7 @@ const CollapsibleFormSection: React.FC<{
   const SYSTEM_KEYS = new Set([
     'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
     'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-    'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+    'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
     'finishedAt', 'completedAt', 'technical_report', 'parts_used',
     'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
     'clientName', 'customerName', 'customerAddress', 'tenantId',
@@ -188,18 +188,18 @@ const CollapsibleFormSection: React.FC<{
 
                       {/* Fotos da mesma pergunta */}
                       {photos.length > 0 && (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 px-3 pb-3">
+                        <div className="flex flex-wrap gap-3 px-3 pb-3 mt-2">
                           {photos.map((url, i) => (
                             <div
                               key={i}
-                              className="aspect-square rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all"
+                              className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
                               onClick={() => onImageClick(url)}
                             >
                               {isVideoUrl(url) ? (
                                 <div className="w-full h-full relative flex items-center justify-center bg-black">
                                   <video src={url} className="w-full h-full object-cover opacity-60" />
                                   <div className="absolute inset-0 flex items-center justify-center shadow-inner">
-                                    <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
+                                    <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
                                       <Play size={14} className="text-white fill-white ml-0.5" />
                                     </div>
                                   </div>
@@ -312,6 +312,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const companyPhone = tenant?.phone || '';
   const companyEmail = tenant?.admin_email || tenant?.email || '';
   const companyDoc = tenant?.cnpj || tenant?.document || '';
+  const companyWebsite = tenant?.website || '';
 
   const fmt = (d?: string) => {
     if (!d) return '—';
@@ -341,7 +342,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     const SYSTEM_KEYS = new Set([
       'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
       'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-      'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+      'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
       'finishedAt', 'completedAt', 'technical_report', 'parts_used',
       'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
       'clientName', 'customerName', 'customerAddress', 'tenantId',
@@ -389,7 +390,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
-    <div className="bg-white text-[10px] leading-tight font-sans p-6 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div className="bg-white text-[10px] leading-tight font-poppins p-6 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
       {/* Print Header */}
       <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
         <div className="flex gap-4 items-center">
@@ -420,7 +421,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
           <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do chamado e Cliente</div>
           <div className="grid grid-cols-12 divide-x divide-slate-200">
@@ -540,7 +541,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             const SYSTEM_KEYS_P = new Set([
               'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
               'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-              'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+              'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
               'finishedAt', 'completedAt', 'technical_report', 'parts_used',
               'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
               'clientName', 'customerName', 'customerAddress', 'tenantId',
@@ -580,15 +581,15 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key.replace(/^\[.*?\]\s*-\s*/, '')}</p>
                       {item.text && <p className={`text-[11px] font-bold uppercase leading-snug ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.text}</p>}
                       {item.photos.length > 0 && (
-                        <div className="grid grid-cols-4 gap-2 mt-2">
+                        <div className="flex flex-wrap gap-3 mt-3">
                           {item.photos.map((p, pIdx) => (
-                            <div key={pIdx} className="border border-slate-200 rounded p-0.5 max-h-32 overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
+                            <div key={pIdx} className="border border-slate-200 rounded p-1 w-[200px] h-[150px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
                               {isVideoUrl(p) ? (
-                                <div className="text-[9px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
-                                  <Video size={16} /> [VÍDEO]
+                                <div className="text-[10px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
+                                  <Video size={18} /> [VÍDEO]
                                 </div>
                               ) : (
-                                <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência" />
+                                <img src={p} className="w-full h-full object-contain" alt="Evidência" />
                               )}
                             </div>
                           ))}
@@ -609,15 +610,15 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key.replace(/^\[.*?\]\s*-\s*/, '')}</p>
                   {item.text && <p className={`text-[11px] font-bold uppercase leading-snug ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.text}</p>}
                   {item.photos.length > 0 && (
-                    <div className="grid grid-cols-4 gap-2 mt-2">
+                    <div className="flex flex-wrap gap-3 mt-3">
                       {item.photos.map((p, pIdx) => (
-                        <div key={pIdx} className="border border-slate-200 rounded p-0.5 max-h-32 overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
+                        <div key={pIdx} className="border border-slate-200 rounded p-1 w-[200px] h-[150px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
                           {isVideoUrl(p) ? (
-                            <div className="text-[9px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
-                              <Video size={16} /> [VÍDEO]
+                            <div className="text-[10px] font-black text-slate-400 uppercase flex flex-col items-center gap-1">
+                              <Video size={18} /> [VÍDEO]
                             </div>
                           ) : (
-                            <img src={p} className="max-w-full max-h-full object-contain" style={{ maxHeight: '120px' }} alt="Evidência fotográfica" />
+                            <img src={p} className="w-full h-full object-contain" alt="Evidência fotográfica" />
                           )}
                         </div>
                       ))}
@@ -629,7 +630,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         ) : null}
 
-        <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-8">
+        <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
           <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
           <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
             <div className="p-4 flex flex-col items-center justify-center gap-3">
@@ -664,7 +665,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           <NexusBranding size="lg" className="opacity-80 origin-left scale-75" />
         </div>
         <div className="text-right">
-          <p className="text-[8px] font-bold uppercase tracking-widest text-[#1c2d4f]">(Uma solução DUNO)</p>
+          <p className="text-[8px] font-bold uppercase tracking-widest text-[#1c2d4f]">Uma solução DUNO</p>
           <p className="text-[7px] uppercase tracking-tight mt-0.5">Documento emitido eletronicamente. Auditável na plataforma central.</p>
         </div>
       </div>
@@ -679,7 +680,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       <div className="hidden print:!block">
         <PrintLayout />
       </div>
-      <div className="min-h-screen bg-[#F0F2F5] font-sans selection:bg-[#1c2d4f]/10 print:hidden">
+      <div className="min-h-screen bg-[#F0F2F5] font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
         {/* ── TOP ACCENT BAR ── */}
         <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 
@@ -696,26 +697,26 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   </div>
                 )
               }
-              <div className="min-w-0">
-                <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight truncate leading-none">{companyName}</h1>
-                <div className="hidden sm:flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1.5">
-                  {companyPhone && (
-                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                      <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
-                    </span>
-                  )}
-                  {companyEmail && (
-                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                      <Mail size={9} className="text-[#3e5b99]" /> {companyEmail}
-                    </span>
-                  )}
+              <div className="min-w-0 flex-1">
+                <h1 className="text-sm font-bold text-slate-900 uppercase tracking-tight truncate leading-none mb-1.5">{companyName}</h1>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   {companyDoc && (
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
                       CNPJ: {companyDoc}
                     </span>
                   )}
+                  {companyPhone && (
+                    <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                      <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
+                    </span>
+                  )}
+                  {companyWebsite && (
+                    <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                      <Globe size={9} className="text-[#3e5b99]" /> {companyWebsite.replace(/^https?:\/\//, '')}
+                    </span>
+                  )}
                   {companyAddress && (
-                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-xs">
+                    <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest leading-normal">
                       <MapPin size={9} className="text-[#3e5b99] shrink-0" /> {companyAddress}
                     </span>
                   )}
@@ -741,24 +742,24 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* ── OS HERO BANNER ── */}
         <div className="bg-[#1c2d4f] print:hidden">
-          <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+          <div className="max-w-6xl mx-auto px-4 sm:px-8 py-5 sm:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
             {/* OS identity */}
-            <div className="flex items-center gap-5">
-              <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10 shrink-0">
-                <Wrench size={26} className="text-white" />
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
+                <Wrench size={22} className="text-white" />
               </div>
               <div>
-                <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] leading-none mb-1.5">Ordem de Serviço</p>
-                <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-none">
+                <p className="text-[8px] font-bold text-white/40 uppercase tracking-[0.3em] leading-none mb-1">Ordem de Serviço</p>
+                <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tighter leading-none">
                   #{order.displayId || order.id.slice(0, 8).toUpperCase()}
                 </h2>
-                <p className="text-[10px] font-bold text-white/50 uppercase tracking-wide mt-1.5">{order.title}</p>
+                <p className="text-[9px] font-semibold text-white/50 uppercase tracking-wide mt-1">{order.title}</p>
               </div>
             </div>
 
             {/* Status + priority */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border flex items-center gap-2 ${{
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className={`px-2.5 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest border flex items-center gap-1.5 ${{
                 'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
                 'ATRIBUÍDO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
                 'EM DESLOCAMENTO': 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
@@ -768,7 +769,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 'IMPEDIDO': 'bg-red-500/20 text-red-300 border-red-500/30'
               }[order.status] || 'bg-white/10 text-white/70 border-white/10'
                 }`}>
-                <span className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${{
+                <span className={`w-1 h-1 rounded-full animate-pulse-subtle ${{
                   'PENDENTE': 'bg-slate-400',
                   'ATRIBUÍDO': 'bg-sky-400',
                   'EM DESLOCAMENTO': 'bg-fuchsia-400',
@@ -780,11 +781,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   }`} />
                 {order.status}
               </div>
-              <div className="px-3 py-1.5 bg-white/10 rounded-full text-[9px] font-black text-white/70 uppercase tracking-widest border border-white/10">
+              <div className="px-2.5 py-1 bg-white/10 rounded-full text-[8px] font-bold text-white/70 uppercase tracking-widest border border-white/10">
                 {order.priority}
               </div>
-              <div className="px-3 py-1.5 bg-white/10 rounded-full text-[9px] font-black text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
-                <Calendar size={11} /> {fmt(order.createdAt)}
+              <div className="px-2.5 py-1 bg-white/10 rounded-full text-[8px] font-bold text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
+                <Calendar size={10} /> {fmt(order.createdAt)}
               </div>
             </div>
           </div>
@@ -919,14 +920,24 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
 
           {/* ── IMPEDIMENTO (if any) ── */}
-          {(order.status === 'IMPEDIDO' || (order.formData as any)?.impediment_reason) && (
-            <div className="bg-red-50 rounded-2xl border border-red-100 shadow-sm p-6 sm:p-8">
-              <SectionHeader icon={<ShieldAlert size={15} />} title="Aviso de Impedimento" color="text-red-600" />
-              <p className="text-sm font-bold text-red-800 italic">
-                "{(order.formData as any)?.impediment_reason || order.notes?.replace('IMPEDIMENTO: ', '') || 'Sem motivo detalhado.'}"
-              </p>
-            </div>
-          )}
+          {(order.status === 'IMPEDIDO' || (order.formData as any)?.impediment_reason || (order.formData as any)?.blockReason) && (() => {
+            const fd = (order.formData as any) || {};
+            const reason = fd.impediment_reason || fd.blockReason || order.notes?.replace('IMPEDIMENTO: ', '') || 'Sem motivo detalhado.';
+            const blockPhoto = fd.blockPhotoUrl;
+            return (
+              <div className="bg-red-50 rounded-2xl border border-red-100 shadow-sm p-6 sm:p-8">
+                <SectionHeader icon={<ShieldAlert size={15} />} title="Aviso de Impedimento" color="text-red-600" />
+                <p className="text-sm font-bold text-red-800 italic mb-4">"{reason}"</p>
+                {blockPhoto && (
+                  <a href={blockPhoto} target="_blank" rel="noreferrer" className="block">
+                    <img src={blockPhoto} alt="Foto do impedimento" className="w-full max-w-sm rounded-xl border border-red-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 240}} />
+                    <span className="text-[10px] text-red-400 font-bold uppercase tracking-widest mt-2 block">Foto do Impedimento (clique para ampliar)</span>
+                  </a>
+                )}
+              </div>
+            );
+          })()}
+
 
           {/* ── PEÇAS E VALORES ── */}
           {order.showValueToClient && order.items && order.items.length > 0 && (
@@ -1025,7 +1036,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             const cName = fd.clientName || '';
             const cDoc = fd.clientDoc || '';
             const completedAt = fd.completedAt || order.endDate || '';
-            if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl) return null;
+            
+            const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
+            const photos = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
+            const validPhotos = photos.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
+
+            if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl && !fd.videoUrl && !fd.video_url && validPhotos.length === 0) return null;
             return (
               <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-6 sm:px-8 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100">
@@ -1076,47 +1092,37 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       )}
                     </div>
                   )}
-                  {(order.videoUrl || fd.videoUrl || fd.video_url) && (
+                  {(order.videoUrl || fd.videoUrl || fd.video_url || validPhotos.length > 0) && (
                     <div className="pt-4 border-t border-indigo-100">
-                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <Video size={12} /> Vídeo de Conclusão
-                      </p>
-                      <div className="w-full max-w-2xl bg-black rounded-lg overflow-hidden flex items-center justify-center aspect-video shadow-md border border-indigo-100">
-                        <video 
-                          src={order.videoUrl || fd.videoUrl || fd.video_url} 
-                          controls 
-                          className="w-full h-auto max-h-[400px]" 
-                          preload="metadata"
-                        >
-                          Seu navegador não suporta o elemento de vídeo.
-                        </video>
+                      <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Evidências de Conclusão</p>
+                      <div className="flex flex-wrap gap-3 mt-1">
+                        {(order.videoUrl || fd.videoUrl || fd.video_url) && (
+                          <div
+                            className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] shrink-0 rounded-xl overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative group"
+                            onClick={() => setFullscreenImage(order.videoUrl || fd.videoUrl || fd.video_url)}
+                          >
+                            <video 
+                              src={order.videoUrl || fd.videoUrl || fd.video_url} 
+                              className="w-full h-full object-cover opacity-60" 
+                              preload="metadata"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
+                            </div>
+                          </div>
+                        )}
+                        {validPhotos.map((url: string, i: number) => (
+                          <div
+                            key={i}
+                            className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] shrink-0 rounded-xl overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
+                            onClick={() => setFullscreenImage(url)}
+                          >
+                            <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
-                  {(() => {
-                    const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
-                    const photos = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
-                    const validPhotos = photos.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
-
-                    if (validPhotos.length === 0) return null;
-
-                    return (
-                      <div className="pt-4 border-t border-indigo-100">
-                        <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Anexos de Conclusão</p>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                          {validPhotos.map((url: string, i: number) => (
-                            <div
-                              key={i}
-                              className="aspect-square rounded-xl overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
-                              onClick={() => setFullscreenImage(url)}
-                            >
-                              <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
             );
@@ -1231,7 +1237,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               <NexusBranding size="lg" className="opacity-80 transform scale-[0.6] sm:scale-[0.85] origin-left -my-2 sm:-my-1" />
             </div>
             <div className="text-center sm:text-right space-y-0.5 sm:space-y-1 mt-[-10px] sm:mt-0">
-              <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">(Uma solução DUNO)</p>
+              <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma solução DUNO</p>
               <p className="text-[7px] sm:text-[8px] text-slate-300 uppercase tracking-widest">
                 Documento emitido eletronicamente · Autenticidade garantida pela plataforma
               </p>

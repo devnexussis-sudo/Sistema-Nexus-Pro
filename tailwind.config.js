@@ -34,7 +34,8 @@ export default {
                 }
             },
             fontFamily: {
-                sans: ['Inter', 'sans-serif'],
+                sans: ['Poppins', 'Inter', 'sans-serif'],
+                poppins: ['Poppins', 'sans-serif'],
             },
         },
     },

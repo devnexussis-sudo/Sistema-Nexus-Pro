@@ -134,16 +134,70 @@ export const VisitService = {
             );
         }
 
+        // ── Backup e Limpeza do Estado Atual ─────────────
+        const { data: orderData } = await supabase.from('orders')
+            .select('form_data, signature, signature_name, signature_doc, video_url')
+            .eq('id', params.orderId)
+            .single();
+
         // ── Guarda 2: Visita anterior permite nova visita ─────────────
         const existingVisits = await VisitService.getVisitsByOrderId(params.orderId);
 
         if (existingVisits.length > 0) {
             const lastVisit = existingVisits[existingVisits.length - 1];
-            if (!VisitStateMachine.canCreateNewVisit(lastVisit.status)) {
+            const forceAllow = ['IMPEDIDO', 'PAUSADO'].includes(params.orderStatus);
+
+            if (!VisitStateMachine.canCreateNewVisit(lastVisit.status) && !forceAllow) {
                 throw new Error(
                     `INVALID_VISIT_STATE: Visita nº ${lastVisit.visitNumber} está "${lastVisit.status}". ` +
                     `Nova visita só é criada a partir de IMPEDIDO.`
                 );
+            }
+
+            // ── Construir form_data arquivado de forma ACUMULATIVA ──────
+            // Nunca sobrescrever — unir os históricos de ambas as fontes (visita + OS)
+            const visitFd: any = lastVisit.formData || {};
+            const orderFd: any = orderData?.form_data || {};
+
+            // Mescla o impediment_history: combina listas de ambas as fontes sem duplicar
+            const visitHistory: any[] = Array.isArray(visitFd.impediment_history) ? visitFd.impediment_history : [];
+            const orderHistory: any[] = Array.isArray(orderFd.impediment_history) ? orderFd.impediment_history : [];
+
+            // Usa a data como chave para deduplicar entradas que possam existir nas duas fontes
+            const mergedHistoryMap = new Map<string, any>();
+            [...visitHistory, ...orderHistory].forEach(entry => {
+                mergedHistoryMap.set(entry.blockedAt, entry);
+            });
+            const mergedHistory = Array.from(mergedHistoryMap.values())
+                .sort((a, b) => new Date(a.blockedAt).getTime() - new Date(b.blockedAt).getTime());
+
+            const archivedFormData = {
+                ...visitFd,
+                ...orderFd,
+                // Garante que o histórico completo e unificado prevaleça
+                impediment_history: mergedHistory,
+                // Campos de auditoria extras
+                ...(orderData?.signature ? { signature: orderData.signature } : {}),
+                ...(orderData?.signature_name ? { signatureName: orderData.signature_name } : {}),
+                ...(orderData?.signature_doc ? { signatureDoc: orderData.signature_doc } : {}),
+                ...(orderData?.video_url ? { videoUrl: orderData.video_url } : {}),
+            };
+
+            // Atualizar status e backup de dados na visita anterior
+            const targetSyncStatus = (forceAllow && !VisitStateMachine.canCreateNewVisit(lastVisit.status))
+                ? (params.orderStatus === 'PAUSADO' ? VisitStatusEnum.PAUSED : VisitStatusEnum.BLOCKED)
+                : lastVisit.status;
+
+            const { error: updateErr } = await supabase.from('service_visits')
+                .update({ 
+                    status: targetSyncStatus, 
+                    form_data: archivedFormData,
+                    updated_at: new Date().toISOString() 
+                })
+                .eq('id', lastVisit.id);
+            
+            if (updateErr) {
+                throw new Error(`CRITICAL: Falha ao arquivar evidências da visita ${lastVisit.visitNumber} (DB: ${updateErr.message}). Operação abortada para evitar perda de dados.`);
             }
         }
 
@@ -186,14 +240,77 @@ export const VisitService = {
             changedBy: createdBy,
         });
 
-        // ── Repor OS para ATRIBUÍDO + sincronizar agendamento ─────────
-        await supabase.from('orders').update({
+        // ── Repor OS para ATRIBUÍDO + sincronizar agendamento ─────────────────────────────────────────
+        // IMPORTANTE: NÃO zerar form_data por completo.
+        // O impediment_history consolidado de TODAS as visitas deve ser preservado na OS,
+        // para que o próximo blockOrder (no mobile) leia o histórico completo e faça append,
+        // em vez de criar um array com apenas 1 entrada.
+        //
+        // O que limpamos: checklist, assinatura, vídeo (execução da visita).
+        // O que mantemos: impediment_history (evidências imutáveis de bloqueios).
+
+        // 1. Coleta o impediment_history consolidado de TODAS as visitas arquivadas
+        const allVisitsForHistory = await VisitService.getVisitsByOrderId(params.orderId);
+        const consolidatedHistoryMap = new Map<string, any>();
+
+        // Varre todas as visitas + a OS atual (orderData) para montar o histórico completo
+        const allSources = [
+            ...(orderData?.form_data ? [orderData.form_data] : []),
+            ...allVisitsForHistory.map(v => v.formData || {}),
+        ];
+
+        for (const source of allSources) {
+            const hist: any[] = Array.isArray((source as any).impediment_history)
+                ? [...(source as any).impediment_history] // Clona para manter referências seguras
+                : [];
+            
+            // ── RECUPERA E CONVERTE FORMATOS LEGADOS GASTOS DA VERSÃO ANTIGA DO APP ──
+            const s = source as any;
+            const singleLegacyReason = s.blockReason || s.impedimentReason || s.impediment_reason;
+            if (singleLegacyReason && !hist.some((e: any) => e.reason === singleLegacyReason)) {
+                hist.push({
+                    reason: singleLegacyReason,
+                    photoUrl: s.blockPhotoUrl,
+                    blockedAt: s.blockedAt || s.createdAt || new Date().toISOString()
+                });
+            }
+
+            for (const entry of hist) {
+                // Se a entrada não tem blockedAt por ser de um app antigo com erro, fabrica uma data em UTC
+                const safeKey = entry.blockedAt || new Date().toISOString();
+                if (!entry.blockedAt) entry.blockedAt = safeKey;
+                
+                // Só reinsere se The motivo the data for the inquestionável pra evitar quebrar The map the 
+                const uniqueContentKey = safeKey + (entry.reason || '');
+                if (!consolidatedHistoryMap.has(uniqueContentKey)) {
+                    consolidatedHistoryMap.set(uniqueContentKey, entry);
+                }
+            }
+        }
+
+        const consolidatedHistory = Array.from(consolidatedHistoryMap.values())
+            .sort((a, b) => new Date(a.blockedAt).getTime() - new Date(b.blockedAt).getTime());
+
+        // 2. Reseta a OS mantendo apenas o histórico de impedimentos
+        const { error: resetError } = await supabase.from('orders').update({
             status: 'ATRIBUÍDO',
             assigned_to: params.technicianId,
             scheduled_date: params.scheduledDate,
             scheduled_time: params.scheduledTime || null,
+            // Limpa checklist/execução
+            form_data: {},
+            // Limpa assinaturas correspondendo à tipagem verdadeira no DB (DbOrder)
+            signature_url: null,
+            client_signature_url: null,
+            client_signature_name: null,
+            video_url: null,
             updated_at: new Date().toISOString(),
         }).eq('id', params.orderId).eq('tenant_id', tenantId);
+
+        if (resetError) {
+            logger.error('[VisitService] Falha ao re-atribuir OS no banco.', { error: resetError, orderId: params.orderId });
+            throw new Error(`CRITICAL_RESET_ERROR: A visita foi criada, mas a OS não pôde ser resetada (${resetError.message})`);
+        }
 
         logger.info('[VisitService] Nova visita criada', {
             orderId: params.orderId,
