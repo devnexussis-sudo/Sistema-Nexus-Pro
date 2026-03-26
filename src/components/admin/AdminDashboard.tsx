@@ -82,8 +82,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
-  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
-  const [orderVisits, setOrderVisits] = useState<any[]>([]);
+   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+   const [orderVisits, setOrderVisits] = useState<any[]>([]);
+   const [orderImpediments, setOrderImpediments] = useState<OrderImpediment[]>([]);
 
   // ── Edição Inline ──────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
@@ -245,6 +246,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       VisitService.getVisitsByOrderId(selectedOrder.id).then(v => {
         setOrderVisits(v);
       });
+
+      // Busca histórico estruturado de impedimentos (Nova Tabela Master)
+      supabase.from('order_impediments')
+        .select('*')
+        .eq('order_id', selectedOrder.id)
+        .order('created_at', { ascending: true })
+        .then(({ data }) => {
+           if (data) setOrderImpediments(data);
+        });
 
       // Busca o template para mapear IDs para Labels no checklist
       if (selectedOrder.formId) {
@@ -1714,51 +1724,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         // Lista para agrupar todas as ocorrências de impedimentos (para render) sem deduplicação destrutiva
                         const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
 
-                        // 1. Visitas passadas/arquivadas da Ordem
-                        [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
-                            const vFd: any = v.formData || {};
-                            if (Array.isArray(vFd.impediment_history) && vFd.impediment_history.length > 0) {
-                                vFd.impediment_history.forEach((entry: any, i: number) => {
-                                    impediments.push({
-                                        title: `Impedimento — Visita nº ${v.visitNumber} (Evidência ${i + 1})`,
-                                        reason: entry.reason || 'Sem motivo detalhado.',
-                                        photo: entry.photoUrl,
-                                        date: entry.blockedAt
-                                    });
-                                });
-                            } else {
-                                // Pega dos campos legados/avulsos
-                                const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
-                                if (reason) {
-                                    impediments.push({
-                                        title: `Impedimento — Visita nº ${v.visitNumber}`,
-                                        reason: reason,
-                                        photo: vFd.blockPhotoUrl,
-                                        date: vFd.blockedAt || v.updatedAt
-                                    });
-                                }
-                            }
+                        // 1. CARREGAMENTO MESTRE: Nova Tabela Estruturada (Imutável e Independente)
+                        orderImpediments.forEach((imp, i) => {
+                           impediments.push({
+                              title: `Impedimento Registrado — Evento ${i + 1}`,
+                              reason: imp.reason,
+                              photo: imp.photoUrl,
+                              date: imp.createdAt
+                           });
                         });
 
-                        // 2. A própria OS (que contém as movimentações da visita em andamento/atual)
-                        const osFd: any = selectedOrder.formData || {};
-                        if (Array.isArray(osFd.impediment_history) && osFd.impediment_history.length > 0) {
-                            osFd.impediment_history.forEach((entry: any, i: number) => {
-                                impediments.push({
-                                    title: `Impedimento (Atual) — Evento ${i + 1}`,
-                                    reason: entry.reason || 'Sem motivo detalhado.',
-                                    photo: entry.photoUrl,
-                                    date: entry.blockedAt
-                                });
-                            });
-                        } else if (osFd.blockReason || selectedOrder.status === 'IMPEDIDO') {
-                            const reason = osFd.blockReason || osFd.impediment_reason || (selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.');
-                            impediments.push({
-                                title: 'Impedimento (Atual)',
-                                reason: reason,
-                                photo: osFd.blockPhotoUrl,
-                                date: osFd.blockedAt || selectedOrder.updatedAt
-                            });
+                        // 2. LEGADO: Busca em Visitas passadas apenas se não houver registros na nova tabela (migração suave)
+                        if (impediments.length === 0) {
+                           [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
+                               const vFd: any = v.formData || {};
+                               const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
+                               if (reason) {
+                                   impediments.push({
+                                       title: `Impedimento — Visita nº ${v.visitNumber}`,
+                                       reason: reason,
+                                       photo: vFd.blockPhotoUrl,
+                                       date: vFd.blockedAt || v.updatedAt
+                                   });
+                               }
+                           });
                         }
 
                         if (impediments.length === 0) return null;
