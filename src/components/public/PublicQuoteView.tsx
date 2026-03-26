@@ -5,7 +5,7 @@ import {
     User, FileText, AlertCircle, Share2, Printer,
     ArrowRight, Lock, Signature as SignatureIcon, Send,
     Calendar, ShieldCheck, DollarSign, XCircle, Mail, Phone,
-    X, Loader2
+    X, Loader2, Globe
 } from 'lucide-react';
 import { DataService } from '../../services/dataService';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -297,11 +297,12 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     const companyPhone = tenant?.phone || '';
     const companyEmail = tenant?.admin_email || tenant?.email || '';
     const companyDoc = tenant?.cnpj || tenant?.document || '';
+    const companyWebsite = tenant?.website || '';
 
     // ── PRINT LAYOUT COMPONENT ──
     // ── PRINT LAYOUT COMPONENT ──
     const PrintLayout = () => (
-        <div className="bg-white text-[12px] leading-relaxed font-sans p-8 print:break-inside-avoid min-h-[297mm] w-[210mm] mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+        <div className="bg-white text-[12px] leading-relaxed font-poppins p-4 sm:p-6 print:break-inside-avoid min-h-[297mm] w-[210mm] mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
             {/* Header: Company & Quote Info */}
             <div className="flex justify-between items-start pb-6 border-b-4 border-[#1c2d4f] mb-6">
                 <div className="flex gap-6 items-center">
@@ -339,7 +340,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
             </div>
 
             {/* Customer Information */}
-            <div className="border border-slate-300 rounded-xl overflow-hidden mb-6 break-inside-avoid shadow-sm">
+            <div className="border border-slate-300 rounded-xl overflow-hidden mb-3 break-inside-avoid shadow-sm">
                 <div className="bg-slate-100 px-4 py-2 border-b border-slate-300">
                     <h3 className="font-black text-[11px] uppercase tracking-widest text-slate-700">Dados do Cliente / Solicitante</h3>
                 </div>
@@ -357,7 +358,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
             {/* Object/Description */}
             {quote.description && (
-                <div className="border border-slate-300 rounded-xl overflow-hidden mb-6 break-inside-avoid">
+                <div className="border border-slate-300 rounded-xl overflow-hidden mb-3 break-inside-avoid">
                     <div className="bg-slate-100 px-4 py-2 border-b border-slate-300">
                         <h3 className="font-black text-[11px] uppercase tracking-widest text-slate-700">Objeto e Escopo Técnico</h3>
                     </div>
@@ -369,7 +370,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
             {/* Items Table */}
             {quote.items && quote.items.length > 0 && (
-                <div className="border border-slate-300 rounded-xl overflow-hidden mb-8 break-inside-avoid shadow-sm">
+                <div className="border border-slate-300 rounded-xl overflow-hidden mb-4 break-inside-avoid shadow-sm">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-[#1c2d4f] text-[10px] font-black text-white uppercase tracking-wider">
@@ -414,7 +415,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
             {/* Approval / Signature Area */}
             {quote.status === 'APROVADO' ? (
-                <div className="border-2 border-emerald-500 rounded-xl overflow-hidden break-inside-avoid mb-6 bg-emerald-50/20">
+                <div className="border-2 border-emerald-500 rounded-xl overflow-hidden break-inside-avoid mb-3 bg-emerald-50/20">
                     <div className="bg-emerald-50 px-4 py-2 border-b border-emerald-200 flex items-center gap-2">
                         <CheckCircle size={16} className="text-emerald-600" />
                         <span className="font-black text-[11px] uppercase tracking-widest text-emerald-800">Protocolo de Aceite Digital Validado</span>
@@ -483,7 +484,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 <PrintLayout />
             </div>
 
-            <div className="min-h-screen bg-[#F0F2F5] font-sans selection:bg-[#1c2d4f]/10 print:hidden">
+            <div className="min-h-screen bg-[#F0F2F5] font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
                 {/* ── TOP ACCENT BAR ── */}
                 <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 
@@ -500,27 +501,29 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     </div>
                                 )
                             }
-                            <div className="min-w-0">
-                                <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight truncate leading-none">{companyName}</h1>
-                                <div className="hidden sm:flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1.5">
-                                    {companyPhone && (
-                                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                                            <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
-                                        </span>
-                                    )}
-                                    {companyEmail && (
-                                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-                                            <Mail size={9} className="text-[#3e5b99]" /> {companyEmail}
-                                        </span>
-                                    )}
+                            <div className="min-w-0 flex-1">
+                                <h1 className="text-sm font-bold text-slate-900 uppercase tracking-tight truncate leading-none mb-1.5">{companyName}</h1>
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                                     {companyDoc && (
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                                        <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
                                             CNPJ: {companyDoc}
                                         </span>
                                     )}
-                                </div>
-                                <div className="mt-1 flex sm:hidden">
-                                    <NexusBranding size="sm" className="opacity-40" />
+                                    {companyPhone && (
+                                        <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                                            <Phone size={9} className="text-[#3e5b99]" /> {companyPhone}
+                                        </span>
+                                    )}
+                                    {companyWebsite && (
+                                        <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap text-opacity-80">
+                                            <Globe size={9} className="text-[#3e5b99]" /> {companyWebsite.replace(/^https?:\/\//, '')}
+                                        </span>
+                                    )}
+                                    {companyAddress && (
+                                        <span className="flex items-center gap-1 text-[9px] font-semibold text-slate-500 uppercase tracking-widest leading-normal">
+                                            <MapPin size={9} className="text-[#3e5b99] shrink-0" /> {companyAddress}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -542,25 +545,25 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 </header>
 
                 {/* ── QUOTE HERO BANNER ── */}
-                <div className={`${quote.status === 'APROVADO' || quote.status === 'CONVERTIDO' ? 'bg-emerald-700' : 'bg-[#1c2d4f]'} transition-colors`}>
-                    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+                <div className={`${quote.status === 'APROVADO' || quote.status === 'CONVERTIDO' ? 'bg-emerald-700' : 'bg-[#1c2d4f]'} transition-colors print:hidden`}>
+                    <div className="max-w-6xl mx-auto px-4 sm:px-8 py-5 sm:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
                         {/* Quote identity */}
-                        <div className="flex items-center gap-5">
-                            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10 shrink-0">
-                                <Calculator size={26} className="text-white" />
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
+                                <Calculator size={22} className="text-white" />
                             </div>
                             <div>
-                                <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] leading-none mb-1.5">Proposta Comercial</p>
-                                <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-none">
+                                <p className="text-[8px] font-bold text-white/40 uppercase tracking-[0.3em] leading-none mb-1">Proposta Comercial</p>
+                                <h2 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tighter leading-none">
                                     #{quote.displayId || `ORC-${quote.id.slice(0, 8).toUpperCase()}`}
                                 </h2>
-                                {quote.title && <p className="text-[10px] font-bold text-white/50 uppercase tracking-wide mt-1.5">{quote.title}</p>}
+                                {quote.title && <p className="text-[9px] font-semibold text-white/50 uppercase tracking-wide mt-1">{quote.title}</p>}
                             </div>
                         </div>
 
                         {/* Status + priority */}
-                        <div className="flex items-center gap-3 flex-wrap">
-                            <div className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border flex items-center gap-2 ${{
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                            <div className={`px-2.5 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest border flex items-center gap-1.5 ${{
                                 'PENDENTE': 'bg-slate-500/20 text-slate-300 border-slate-500/30',
                                 'ABERTO': 'bg-sky-500/20 text-sky-300 border-sky-500/30',
                                 'APROVADO': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
@@ -569,7 +572,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                 'VENCIDO': 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                             }[quote.status] || 'bg-white/10 text-white/70 border-white/10'
                                 }`}>
-                                <span className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${{
+                                <span className={`w-1 h-1 rounded-full animate-pulse-subtle ${{
                                     'PENDENTE': 'bg-slate-400',
                                     'ABERTO': 'bg-sky-400',
                                     'APROVADO': 'bg-emerald-400',
@@ -580,8 +583,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     }`} />
                                 {quote.status}
                             </div>
-                            <div className="px-3 py-1.5 bg-white/10 rounded-full text-[9px] font-black text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
-                                <Calendar size={11} /> Emissão: {new Date(quote.createdAt).toLocaleDateString()}
+                            <div className="px-2.5 py-1 bg-white/10 rounded-full text-[8px] font-bold text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
+                                <Calendar size={10} /> Emissão: {new Date(quote.createdAt).toLocaleDateString()}
                             </div>
                         </div>
                     </div>
@@ -912,7 +915,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             <NexusBranding size="lg" className="opacity-80 transform scale-[0.6] sm:scale-[0.85] origin-left -my-2 sm:-my-1" />
                         </div>
                         <div className="text-center sm:text-right space-y-0.5 sm:space-y-1 mt-[-10px] sm:mt-0">
-                            <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma Solução Nexus Line</p>
+                            <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma solução DUNO</p>
                             <p className="text-[7px] sm:text-[8px] text-slate-300 uppercase tracking-widest">
                                 Ambientes Seguros · Documento emitido eletronicamente
                             </p>

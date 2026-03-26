@@ -9,7 +9,7 @@ import {
   ShieldCheck, Briefcase, Hash, CreditCard, Settings,
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
   ShieldAlert, Terminal, X, UploadCloud, Languages,
-  BellRing, Database, History, HardDrive, Loader2, Loader
+  BellRing, Database, History, HardDrive, Loader2, Loader, Share2
 } from 'lucide-react';
 
 interface CompanyData {
@@ -42,6 +42,7 @@ interface SystemParams {
   sessionTimeout: string;
   backupFrequency: 'daily' | 'weekly' | 'monthly';
   showItemPricesInApp: boolean;
+  allowOsSharing: boolean;
 }
 
 export const SettingsPage: React.FC = () => {
@@ -81,7 +82,8 @@ export const SettingsPage: React.FC = () => {
     notifyClient: true,
     sessionTimeout: '2h',
     backupFrequency: 'daily',
-    showItemPricesInApp: false
+    showItemPricesInApp: false,
+    allowOsSharing: true,
   });
 
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
@@ -120,7 +122,8 @@ export const SettingsPage: React.FC = () => {
         ...prev,
         osPrefix: osPref,
         osInitialNumber: osStart,
-        showItemPricesInApp: data.metadata?.showItemPricesInApp ?? false
+        showItemPricesInApp: data.metadata?.showItemPricesInApp ?? false,
+        allowOsSharing: data.metadata?.allowOsSharing ?? true,
       }));
 
       setDbInfo({ slug: data.slug || '', id: data.id });
@@ -139,8 +142,14 @@ export const SettingsPage: React.FC = () => {
         const response = await fetch(`https://viacep.com.br/ws/${rawCep}/json/`);
         const data = await response.json();
         if (!data.erro) {
-          const fullAddress = `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
-          setCompany(prev => ({ ...prev, address: fullAddress }));
+          setCompany(prev => ({
+            ...prev,
+            street: data.logradouro || '',
+            address: data.logradouro || '',
+            neighborhood: data.bairro || '',
+            city: data.localidade || '',
+            state: data.uf || ''
+          }));
         }
       } catch (error) {
         console.error("Erro ao buscar CEP:", error);
@@ -247,7 +256,8 @@ export const SettingsPage: React.FC = () => {
         metadata: {
           ...data?.metadata,
           showItemPricesInApp: params.showItemPricesInApp,
-          techAdvancedSettings: params.techAdvancedSettings
+          techAdvancedSettings: params.techAdvancedSettings,
+          allowOsSharing: params.allowOsSharing,
         }
       };
 
@@ -756,7 +766,7 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Ocultar/Exibir Preço de Peças</h4>
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Exibir Preço de Peças</h4>
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, showItemPricesInApp: !params.showItemPricesInApp })}
@@ -767,6 +777,27 @@ export const SettingsPage: React.FC = () => {
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
                           Se ativado, o técnico conseguirá ver o valor financeiro dos itens no estoque em seu app.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.allowOsSharing ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <Share2 size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Compartilhamento de OS</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, allowOsSharing: !params.allowOsSharing })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.allowOsSharing ? 'bg-blue-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.allowOsSharing ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Se ativado, o técnico poderá compartilhar o link público de uma OS concluída via WhatsApp ou e-mail.
                         </p>
                       </div>
                     </div>

@@ -49,9 +49,15 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
     const [signerName, setSignerName] = useState(order.signatureName || '');
     const [signerDoc, setSignerDoc] = useState(order.signatureDoc || '');
 
-    // Block State
+    // Block State & Start Prompt
+    const [showStartPrompt, setShowStartPrompt] = useState(false);
+    const [pendingFlowAction, setPendingFlowAction] = useState<'START_WORK' | 'ARRIVE_START' | null>(null);
+
     const [showBlockModal, setShowBlockModal] = useState(false);
+    const [impedimentType, setImpedimentType] = useState<'absence' | 'parts' | 'other' | ''>('');
     const [blockReason, setBlockReason] = useState('');
+    const [impedimentParts, setImpedimentParts] = useState({ name: '', model: '', code: '' });
+    const [impedimentPhotos, setImpedimentPhotos] = useState<string[]>([]);
 
     // 📍 FLUXO DE ATENDIMENTO (FSM v2 — 7 estados)
     const handleFlowAction = async (action: 'START_TRAVEL' | 'START_WORK' | 'ARRIVE_START' | 'FINISH') => {
@@ -115,14 +121,83 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
     };
 
 
-    const handleBlockOrder = async () => {
-        if (!blockReason.trim()) return;
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        
         setIsLoading(true);
         try {
-            await onUpdateStatus(OrderStatus.BLOCKED, `IMPEDIMENTO: ${blockReason}`, {
-                impediment_reason: blockReason,
+            const compressImage = (file: File): Promise<string> => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const MAX_WIDTH = 1000;
+                            const scaleSize = MAX_WIDTH / img.width;
+                            const width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
+                            const height = (img.width > MAX_WIDTH) ? img.height * scaleSize : img.height;
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx?.drawImage(img, 0, 0, width, height);
+                            resolve(canvas.toDataURL('image/jpeg', 0.7));
+                        };
+                        img.onerror = () => reject('err');
+                        img.src = event.target?.result as string;
+                    };
+                    reader.onerror = () => reject('err');
+                });
+            };
+
+            const newPhotos = [];
+            for (let i = 0; i < files.length; i++) {
+                const b64 = await compressImage(files[i]);
+                newPhotos.push(b64);
+            }
+            setImpedimentPhotos(prev => [...prev, ...newPhotos]);
+        } catch (err) {
+            alert('Erro ao processar imagem.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleBlockOrder = async () => {
+        if (!impedimentType) {
+            alert('Selecione um motivo de impedimento.');
+            return;
+        }
+        if (impedimentType === 'other' && !blockReason.trim()) {
+            alert('Descreva o motivo.');
+            return;
+        }
+        if (impedimentType === 'parts' && (!impedimentParts.name || !impedimentParts.model)) {
+            alert('Preencha os dados da peça obrigatórios (Nome e Modelo).');
+            return;
+        }
+        
+        setIsLoading(true);
+        try {
+            const typeLabel = impedimentType === 'absence' ? 'Cliente Ausente' : 
+                              impedimentType === 'parts' ? 'Necessidade de Peças' : 'Outros';
+                              
+            const finalReason = impedimentType === 'other' ? blockReason : typeLabel;
+                                
+            const impedimentData = {
+                impedimento_tipo: typeLabel,
+                impedimento_motivo: blockReason,
+                impedimento_peca_nome: impedimentParts.name,
+                impedimento_peca_modelo: impedimentParts.model,
+                impedimento_peca_codigo: impedimentParts.code,
+                impedimento_fotos: impedimentPhotos, // Base64 arrays (converted in updateStatus pipeline)
+                impediment_reason: finalReason, 
                 impediment_at: new Date().toISOString()
-            });
+            };
+
+            await onUpdateStatus(OrderStatus.BLOCKED, `IMPEDIMENTO: ${blockReason || typeLabel}`, impedimentData);
             onClose();
         } catch (e) {
             console.error(e);
@@ -284,7 +359,8 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                 <button
                     onClick={() => {
                         if (confirm('Você já está no cliente?\n\nSIM = Iniciar Serviço\nNÃO/Cancelar = Iniciar Deslocamento')) {
-                            handleFlowAction('START_WORK');
+                            setPendingFlowAction('START_WORK');
+                            setShowStartPrompt(true);
                         } else {
                             handleFlowAction('START_TRAVEL');
                         }
@@ -301,7 +377,10 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
         if (s === OrderStatus.TRAVELING) {
             return (
                 <button
-                    onClick={() => handleFlowAction('ARRIVE_START')}
+                    onClick={() => {
+                        setPendingFlowAction('ARRIVE_START');
+                        setShowStartPrompt(true);
+                    }}
                     className="w-full h-14 bg-purple-600 text-white rounded-lg font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-purple-700 shadow-lg shadow-purple-200"
                 >
                     {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" /> : <MapPin size={20} />}
@@ -612,7 +691,13 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                     {/* Botão de Impedimento sempre visível se não concluído */}
                     {order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.CANCELED && (
                         <button
-                            onClick={() => { setBlockReason(''); setShowBlockModal(true); }}
+                            onClick={() => { 
+                                setBlockReason(''); 
+                                setImpedimentType(''); 
+                                setImpedimentPhotos([]); 
+                                setImpedimentParts({name:'', model:'', code:''}); 
+                                setShowBlockModal(true); 
+                            }}
                             className="h-14 w-14 rounded-lg bg-rose-50 border border-rose-100 text-rose-500 flex flex-col items-center justify-center gap-1 active:scale-95 transition-all shrink-0"
                             title="Reportar Impedimento / Pausa"
                         >
@@ -627,42 +712,182 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                 </div>
             </div>
 
-            {/* BLOCK MODAL */}
+            {/* START PROMPT MODAL */}
             {
-                showBlockModal && (
+                showStartPrompt && (
                     <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
                         <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl space-y-5 animate-in zoom-in-95">
-                            <div className="text-center">
-                                <div className="w-14 h-14 bg-rose-50 rounded-full flex items-center justify-center mx-auto text-rose-500 mb-4 border border-rose-100">
-                                    <Ban size={28} />
+                            <div className="text-center space-y-2">
+                                <div className="w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-500 mb-2 border border-indigo-100">
+                                    <Play size={28} className="ml-1" fill="currentColor" />
                                 </div>
-                                <h3 className="text-lg font-black text-slate-900 uppercase italic">Impedir Atendimento</h3>
-                                <p className="text-xs text-slate-500 font-bold uppercase tracking-tight max-w-[200px] mx-auto mt-1">
-                                    O serviço não deve ou não pode continuar?
+                                <h3 className="text-lg font-black text-slate-900 uppercase italic">Execução da OS</h3>
+                                <p className="text-xs text-slate-500 font-bold uppercase tracking-tight max-w-[200px] mx-auto">
+                                    A OS será executada ou deverá ser impedida?
                                 </p>
                             </div>
-
-                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                <textarea
-                                    className="w-full h-24 bg-transparent p-2 text-sm font-bold text-slate-700 outline-none resize-none placeholder:text-slate-300"
-                                    placeholder="Descreva o motivo (ex: Aguardando peças, Cliente ausente...)"
-                                    value={blockReason}
-                                    onChange={e => setBlockReason(e.target.value)}
-                                    autoFocus
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-3 pt-2">
                                 <button
-                                    onClick={() => { setShowBlockModal(false); setBlockReason(''); }}
-                                    className="py-3.5 rounded-lg border border-slate-200 text-slate-500 font-black text-[10px] uppercase tracking-wider hover:bg-slate-50 transition-colors"
+                                    onClick={() => {
+                                        setShowStartPrompt(false);
+                                        if (pendingFlowAction) handleFlowAction(pendingFlowAction);
+                                    }}
+                                    className="w-full py-4 rounded-lg bg-indigo-600 text-white font-black uppercase tracking-wider active:scale-95 transition-all shadow-md shadow-indigo-200"
+                                >
+                                    Executar Normalmente
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowStartPrompt(false);
+                                        setBlockReason('');
+                                        setImpedimentType('');
+                                        setImpedimentParts({name: '', model: '', code: ''});
+                                        setImpedimentPhotos([]);
+                                        setShowBlockModal(true);
+                                    }}
+                                    className="w-full py-4 rounded-lg bg-rose-50 text-rose-600 font-black uppercase tracking-wider active:scale-95 transition-all shadow-none border border-rose-200"
+                                >
+                                    Impedir / Não Executar
+                                </button>
+                                <button
+                                    onClick={() => setShowStartPrompt(false)}
+                                    className="w-full py-3 rounded-lg text-slate-400 hover:text-slate-600 font-bold uppercase text-[10px] active:scale-95 transition-all"
                                 >
                                     Voltar
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* BLOCK MODAL COM FORMULÁRIO COMPLETO */}
+            {
+                showBlockModal && (
+                    <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-start justify-center p-4 pt-10 overflow-y-auto animate-in fade-in duration-200">
+                        <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl space-y-5 animate-in slide-in-from-bottom-8 mb-10">
+                            <div className="text-center border-b border-slate-100 pb-4">
+                                <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto text-rose-500 mb-3 border border-rose-100">
+                                    <Ban size={24} />
+                                </div>
+                                <h3 className="text-lg font-black text-slate-900 uppercase italic">Impedir OS</h3>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight mt-1">
+                                    Preencha os dados de impedimento
+                                </p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Motivo do Impedimento *</label>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {[
+                                            { id: 'absence', label: 'Cliente Ausente' },
+                                            { id: 'parts', label: 'Necessidade de Peças' },
+                                            { id: 'other', label: 'Outros' }
+                                        ].map(opt => (
+                                            <button
+                                                key={opt.id}
+                                                // eslint-disable-next-line
+                                                onClick={() => setImpedimentType(opt.id as any)}
+                                                className={`py-3 px-4 rounded-lg border text-sm font-bold text-left transition-all ${
+                                                    impedimentType === opt.id 
+                                                        ? 'bg-rose-50 border-rose-500 text-rose-700' 
+                                                        : 'bg-white border-slate-200 text-slate-600'
+                                                }`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {impedimentType === 'parts' && (
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dados da Peça</label>
+                                        <input 
+                                            placeholder="Nome da Peça *" 
+                                            value={impedimentParts.name} 
+                                            onChange={e => setImpedimentParts(p => ({...p, name: e.target.value}))}
+                                            className="w-full bg-white border border-slate-200 rounded-lg p-3 text-sm font-bold outline-none focus:border-rose-300" 
+                                        />
+                                        <input 
+                                            placeholder="Modelo *" 
+                                            value={impedimentParts.model} 
+                                            onChange={e => setImpedimentParts(p => ({...p, model: e.target.value}))}
+                                            className="w-full bg-white border border-slate-200 rounded-lg p-3 text-sm font-bold outline-none focus:border-rose-300" 
+                                        />
+                                        <input 
+                                            placeholder="Código (Opcional)" 
+                                            value={impedimentParts.code} 
+                                            onChange={e => setImpedimentParts(p => ({...p, code: e.target.value}))}
+                                            className="w-full bg-white border border-slate-200 rounded-lg p-3 text-sm font-bold outline-none focus:border-rose-300" 
+                                        />
+                                    </div>
+                                )}
+
+                                {impedimentType === 'other' && (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Descreva o Motivo *</label>
+                                        <textarea
+                                            className="w-full h-24 bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-700 outline-none resize-none focus:border-rose-300 placeholder:text-slate-300"
+                                            placeholder="Escreva aqui..."
+                                            value={blockReason}
+                                            onChange={e => setBlockReason(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+
+                                {impedimentType && impedimentType !== 'other' && (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Detalhes extras (Opcional)</label>
+                                        <textarea
+                                            className="w-full h-16 bg-white border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-700 outline-none resize-none focus:border-rose-300 placeholder:text-slate-300"
+                                            placeholder="Alguma observação adicional?"
+                                            value={blockReason}
+                                            onChange={e => setBlockReason(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Fotos de Evidência */}
+                                {impedimentType && (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex justify-between">
+                                            <span>Evidências (Opcional)</span>
+                                            <span className="text-primary-500 font-bold">{impedimentPhotos.length} fotos</span>
+                                        </label>
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {impedimentPhotos.map((photo, idx) => (
+                                                <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden group">
+                                                    <img src={photo} alt="Evidência" className="w-full h-full object-cover" />
+                                                    <button 
+                                                        onClick={() => setImpedimentPhotos(p => p.filter((_, i) => i !== idx))}
+                                                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 transition-opacity flex items-center justify-center p-0.5"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            <label className="aspect-square rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center text-slate-400 hover:text-primary-500 hover:border-primary-300 cursor-pointer transition-colors">
+                                                <input type="file" multiple accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                                                <Camera size={20} />
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => setShowBlockModal(false)}
+                                    className="flex-1 py-3.5 rounded-lg border border-slate-200 text-slate-500 font-black text-[10px] uppercase tracking-wider hover:bg-slate-50 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
                                 <button
                                     onClick={handleBlockOrder}
-                                    disabled={!blockReason.trim() || isLoading}
-                                    className="py-3.5 rounded-lg bg-rose-500 text-white font-black text-[10px] uppercase tracking-wider shadow-none active:scale-95 transition-all disabled:opacity-50"
+                                    disabled={!impedimentType || isLoading}
+                                    className="flex-[2] py-3.5 rounded-lg bg-rose-500 text-white font-black text-[10px] uppercase tracking-wider shadow-none active:scale-95 transition-all disabled:opacity-50"
                                 >
                                     Confirmar Impedimento
                                 </button>
