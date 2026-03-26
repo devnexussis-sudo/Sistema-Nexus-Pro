@@ -672,12 +672,6 @@ export class OrderService {
                 .from('orders')
                 .update({
                     status: 'IMPEDIDO',
-                    // Mantém no form_data apenas para compatibilidade visual imediata (opcional)
-                    form_data_update: {
-                       blockReason: reason,
-                       blockPhotoUrl: blockPhotoUrl,
-                       blockedAt: new Date().toISOString()
-                    }
                 })
                 .eq('id', id);
 
