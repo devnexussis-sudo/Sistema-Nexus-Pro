@@ -643,25 +643,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       });
       setShowNewVisitForm(false);
       setNewVisitDraft({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' });
-      // Refresh visitas
+
+      // Refresh visitas e OS — createNewVisit já atualizou o DB corretamente.
+      // NÃO chamamos onEditOrder aqui pois isso sobrescreveria form_data no banco
+      // com um objeto vazio, destruindo o impediment_history que foi preservado.
       const updatedVisits = await VisitService.getVisitsByOrderId(selectedOrder.id);
       setVisits(updatedVisits);
-      // Sincroniza a OS localmente refletindo as mudanças do createNewVisit
-      const updatedOrder: ServiceOrder = {
+      setOrderVisits(updatedVisits);
+
+      // Atualiza o estado local da OS para refletir o estado real do banco
+      // (status=ATRIBUÍDO, mantendo o form_data preservado intacto)
+      const freshOrder: ServiceOrder = {
         ...selectedOrder,
-        status: OrderStatus.ASSIGNED, // Muda para ATRIBUÍDO
+        status: OrderStatus.ASSIGNED,
         scheduledDate: newVisitDraft.scheduledDate,
         scheduledTime: newVisitDraft.scheduledTime || selectedOrder.scheduledTime,
         assignedTo: newVisitDraft.technicianId || selectedOrder.assignedTo,
-        formData: {}, // Limpa o checklist / impedimento localmente
         signature: undefined,
         signatureName: undefined,
         signatureDoc: undefined,
         videoUrl: undefined,
       };
-      await onEditOrder(updatedOrder);
-      setSelectedOrder(updatedOrder);
-      ordersRefetch();
+      setSelectedOrder(freshOrder);
+      
+      // Força recarregamento da query `orders` via usePagedOrders
+      await ordersRefetch();
     } catch (e: any) {
       const msg = (e.message || '').startsWith('INVALID_') ? e.message.split(': ')[1] : e.message;
       alert(msg || 'Erro ao criar visita.');
