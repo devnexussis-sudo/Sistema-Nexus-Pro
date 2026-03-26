@@ -261,12 +261,10 @@ export const VisitService = {
 
         for (const source of allSources) {
             const hist: any[] = Array.isArray((source as any).impediment_history)
-                ? (source as any).impediment_history
+                ? [...(source as any).impediment_history] // Clona para manter referências seguras
                 : [];
             
             // ── RECUPERA E CONVERTE FORMATOS LEGADOS GASTOS DA VERSÃO ANTIGA DO APP ──
-            // Isso previne que visitas passadas (1 a 15) que não tinham 'impediment_history', 
-            // e os "blockReason" enviados pelo APK antigo do técnico não evaporem na hora do reset.
             const s = source as any;
             const singleLegacyReason = s.blockReason || s.impedimentReason || s.impediment_reason;
             if (singleLegacyReason && !hist.some((e: any) => e.reason === singleLegacyReason)) {
@@ -278,7 +276,15 @@ export const VisitService = {
             }
 
             for (const entry of hist) {
-                if (entry?.blockedAt) consolidatedHistoryMap.set(entry.blockedAt, entry);
+                // Se a entrada não tem blockedAt por ser de um app antigo com erro, fabrica uma data em UTC
+                const safeKey = entry.blockedAt || new Date().toISOString();
+                if (!entry.blockedAt) entry.blockedAt = safeKey;
+                
+                // Só reinsere se The motivo the data for the inquestionável pra evitar quebrar The map the 
+                const uniqueContentKey = safeKey + (entry.reason || '');
+                if (!consolidatedHistoryMap.has(uniqueContentKey)) {
+                    consolidatedHistoryMap.set(uniqueContentKey, entry);
+                }
             }
         }
 
