@@ -1707,44 +1707,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="max-w-4xl mx-auto space-y-8">
                     {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
                     {(() => {
-                        // Mapa de chave=blockedAt para garantir sem duplicatas entre visitas arquivadas e OS atual
-                        const seenKeys = new Set<string>();
+                        // Lista para agrupar todas as ocorrências de impedimentos (para render) sem deduplicação destrutiva
                         const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
 
-                        const addEntry = (title: string, entry: { reason?: string; photoUrl?: string; blockedAt?: string }) => {
-                            const key = entry.blockedAt || (title + (entry.reason || ''));
-                            if (seenKeys.has(key)) return;
-                            seenKeys.add(key);
-                            impediments.push({ title, reason: entry.reason || 'Sem motivo.', photo: entry.photoUrl, date: entry.blockedAt });
-                        };
-
-                        // 1. Visitas arquivadas (cada visita tem seu form_data com impediment_history)
+                        // 1. Visitas passadas/arquivadas da Ordem
                         [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
                             const vFd: any = v.formData || {};
                             if (Array.isArray(vFd.impediment_history) && vFd.impediment_history.length > 0) {
-                                vFd.impediment_history.forEach((entry: any) =>
-                                    addEntry(`Impedimento — Visita nº ${v.visitNumber}`, entry)
-                                );
+                                vFd.impediment_history.forEach((entry: any, i: number) => {
+                                    impediments.push({
+                                        title: `Impedimento — Visita nº ${v.visitNumber} (Evidência ${i + 1})`,
+                                        reason: entry.reason || 'Sem motivo detalhado.',
+                                        photo: entry.photoUrl,
+                                        date: entry.blockedAt
+                                    });
+                                });
                             } else {
-                                // Fallback legado (visitas antes do impediment_history)
+                                // Pega dos campos legados/avulsos
                                 const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
-                                if (reason) addEntry(`Impedimento — Visita nº ${v.visitNumber}`, { reason, photoUrl: vFd.blockPhotoUrl, blockedAt: vFd.blockedAt });
+                                if (reason) {
+                                    impediments.push({
+                                        title: `Impedimento — Visita nº ${v.visitNumber}`,
+                                        reason: reason,
+                                        photo: vFd.blockPhotoUrl,
+                                        date: vFd.blockedAt || v.updatedAt
+                                    });
+                                }
                             }
                         });
 
-                        // 2. OS atual — SEMPRE lida, independente de ter visitas arquivadas
-                        // O impedimento mais recente fica aqui até o admin agendar a próxima visita
+                        // 2. A própria OS (que contém as movimentações da visita em andamento/atual)
                         const osFd: any = selectedOrder.formData || {};
                         if (Array.isArray(osFd.impediment_history) && osFd.impediment_history.length > 0) {
-                            osFd.impediment_history.forEach((entry: any) =>
-                                addEntry('Impedimento (Atual)', entry)
-                            );
-                        } else if (osFd.blockReason || selectedOrder.status === 'IMPEDIDO') {
-                            addEntry('Impedimento (Atual)', {
-                                reason: osFd.blockReason || osFd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
-                                photoUrl: osFd.blockPhotoUrl,
-                                blockedAt: osFd.blockedAt,
+                            osFd.impediment_history.forEach((entry: any, i: number) => {
+                                // Evita exibir do status atual se essa MESMA data/foto já foi impressa arquivada.
+                                // Essa simples check impede repetição massiva de array sem quebrar lógicas pontuais.
+                                const isDup = impediments.some(imp => imp.date === entry.blockedAt && imp.reason === entry.reason);
+                                if (!isDup) {
+                                    impediments.push({
+                                        title: `Impedimento (Atual) — Evento ${i + 1}`,
+                                        reason: entry.reason || 'Sem motivo detalhado.',
+                                        photo: entry.photoUrl,
+                                        date: entry.blockedAt
+                                    });
+                                }
                             });
+                        } else if (osFd.blockReason || selectedOrder.status === 'IMPEDIDO') {
+                            const reason = osFd.blockReason || osFd.impediment_reason || (selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.');
+                            const isDup = impediments.some(imp => imp.reason === reason && imp.date === osFd.blockedAt);
+                            
+                            if (!isDup) {
+                                impediments.push({
+                                    title: 'Impedimento (Atual)',
+                                    reason: reason,
+                                    photo: osFd.blockPhotoUrl,
+                                    date: osFd.blockedAt || selectedOrder.updatedAt
+                                });
+                            }
                         }
 
                         if (impediments.length === 0) return null;
