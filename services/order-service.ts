@@ -643,41 +643,58 @@ export class OrderService {
 
     static async blockOrder(id: string, reason: string, blockPhotoUrl?: string | null): Promise<void> {
         try {
-            // Busca form_data atual para ACUMULAR, nunca sobrescrever
-            const { data: current } = await supabase.from('orders').select('form_data').eq('id', id).single();
-            const currentForm = current?.form_data || {};
+            // Pega tenant_id e visita atual para o vínculo estruturado
+            const { data: order } = await supabase.from('orders').select('tenant_id').eq('id', id).single();
+            const { data: userData } = await supabase.auth.getUser();
+            const { data: currentVisit } = await supabase.from('service_visits')
+                .select('id')
+                .eq('order_id', id)
+                .in('status', ['pending', 'ongoing', 'paused'])
+                .order('visit_number', { ascending: false })
+                .limit(1)
+                .single();
 
-            // Array imutável de evidências — cada impedimento é um novo item, jamais sobrescreve
-            const previousHistory: any[] = Array.isArray(currentForm.impediment_history) 
-                ? currentForm.impediment_history 
-                : [];
+            // 1. REGISTRO ESTRUTURADO (Inquebrável)
+            // Insere na nova tabela dedicada — Isso NUNCA apaga o passado.
+            const { error: insertErr } = await supabase.from('order_impediments').insert({
+                tenant_id: order?.tenant_id,
+                order_id: id,
+                visit_id: currentVisit?.id,
+                technician_id: userData?.user?.id,
+                reason: reason,
+                photo_url: blockPhotoUrl,
+            });
 
-            const newEntry = {
-                reason,
-                blockedAt: new Date().toISOString(),
-                ...(blockPhotoUrl ? { photoUrl: blockPhotoUrl } : {}),
-            };
+            if (insertErr) throw insertErr;
 
-            const newForm = {
-                ...currentForm,
-                // Mantém campos legados para compatibilidade com partes do sistema mais antigas
-                blockReason: reason,
-                blockedAt: newEntry.blockedAt,
-                ...(blockPhotoUrl ? { blockPhotoUrl } : {}),
-                // Lista imutável de todos os impedimentos (append-only)
-                impediment_history: [...previousHistory, newEntry],
-            };
-
+            // 2. ATUALIZAÇÃO DE STATUS DA OS
             const { error } = await supabase
                 .from('orders')
                 .update({
                     status: 'IMPEDIDO',
-                    form_data: newForm
+                    // Mantém no form_data apenas para compatibilidade visual imediata (opcional)
+                    form_data_update: {
+                       blockReason: reason,
+                       blockPhotoUrl: blockPhotoUrl,
+                       blockedAt: new Date().toISOString()
+                    }
                 })
                 .eq('id', id);
 
             if (error) throw error;
-            logger.log(`Order ${id} blocked`, 'info');
+
+            // 3. ATUALIZAÇÃO DA VISITA
+            if (userData?.user?.id && currentVisit?.id) {
+                await supabase.from('service_visits')
+                    .update({
+                        status: 'blocked',
+                        impediment_reason: reason,
+                        departure_time: new Date().toISOString()
+                    })
+                    .eq('id', currentVisit.id);
+            }
+
+            logger.log(`Order ${id} blocked structurally`, 'info');
 
         } catch (error) {
             logger.log(`Error blocking order: ${error}`, 'error');
