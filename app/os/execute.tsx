@@ -485,11 +485,24 @@ export default function ExecuteOSScreen() {
                 // sem videoMaxDuration — sem limite de tempo
             });
             if (!result.canceled && result.assets?.[0]?.uri) {
-                // Inicia todo o fluxo pesado no backstage sem bloquear a UI!
                 startBackstageVideoProcess(result.assets[0].uri);
             }
         } catch {
             Alert.alert('Erro', 'Não foi possível acessar a câmera.');
+        }
+    };
+
+    const handlePickVideoFromGallery = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['videos'],
+                allowsEditing: false,
+            });
+            if (!result.canceled && result.assets?.[0]?.uri) {
+                startBackstageVideoProcess(result.assets[0].uri);
+            }
+        } catch {
+            Alert.alert('Erro', 'Não foi possível acessar a galeria.');
         }
     };
 
@@ -523,10 +536,35 @@ export default function ExecuteOSScreen() {
             // Começa o processamento pesado:
             setVideoProcessingStatus('Comprimindo (H265) Mágica Backstage...');
 
-            // ─── Ponto B: Upload direto (vídeo já capturado em 720p pelo ImagePicker) ──
-            // Compressão via FFmpegKit removida: dependência nativa incompatível com Gradle 9.
-            // O videoQuality:1 do launchCameraAsync já garante qualidade adequada sem .so nativo.
+            // ─── Ponto B: Compressão Cross-Platform (iOS e Android) ─────────────
+            setVideoProcessingStatus('Otimizando (H264/432x768/Mono)...');
             let compressedUri = localUri;
+            
+            try {
+                // Removemos bibliotecas nativas exclusivas para suportar perfeitamente iOS e Android
+                const { Video } = require('react-native-compressor');
+                
+                // Parâmetros de Compressão Extrema
+                const compressionResult = await Video.compress(
+                    localUri,
+                    {
+                        compressionMethod: 'manual',
+                        maxSize: 480,          // 480p: ~2.7x mais bits/pixel vs 768p → sem pixelação
+                        bitrate: 200000,       // 0.2 Mbps (Arquivo mínimo — máxima compressão)
+                        minimumFileSizeForCompress: 0,
+                        isMinBitRateEnabled: false, // Força a compressão sempre, mesmo se vier compactado da galeria
+                    } as any,
+                    (progress) => {
+                        setVideoProcessingStatus(`Otimizando... ${Math.round(progress * 100)}%`);
+                    }
+                );
+                
+                if (compressionResult) {
+                    compressedUri = compressionResult;
+                }
+            } catch (err) {
+                console.warn('[Video] Falha na compressão nativa, usando original:', err);
+            }
 
             // Mede a redução conseguida
             const info = await FileSystem.getInfoAsync(compressedUri);
@@ -1009,13 +1047,22 @@ export default function ExecuteOSScreen() {
                                             </View>
                                         </Pressable>
                                     ) : (
-                                        <Pressable style={styles.videoRecordButton} onPress={handleTakeVideo}>
-                                            <Ionicons name="videocam" size={24} color="#059669" />
-                                            <View style={{ flex: 1, marginLeft: 12 }}>
-                                                <Text style={styles.videoRecordTitle}>Gravar Vídeo de Conclusão</Text>
-                                                <Text style={styles.videoRecordSubtitle}>Qualidade ótima, tamanho reduzido</Text>
-                                            </View>
-                                        </Pressable>
+                                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                                            <Pressable style={[styles.videoRecordButton, { flex: 1 }]} onPress={handleTakeVideo}>
+                                                <Ionicons name="videocam" size={22} color="#059669" />
+                                                <View style={{ flex: 1, marginLeft: 8 }}>
+                                                    <Text style={styles.videoRecordTitle}>Gravar Vídeo</Text>
+                                                    <Text style={styles.videoRecordSubtitle}>Câmera ao vivo</Text>
+                                                </View>
+                                            </Pressable>
+                                            <Pressable style={[styles.videoRecordButton, { flex: 1, borderColor: '#3b82f6', backgroundColor: '#eff6ff' }]} onPress={handlePickVideoFromGallery}>
+                                                <Ionicons name="images-outline" size={22} color="#3b82f6" />
+                                                <View style={{ flex: 1, marginLeft: 8 }}>
+                                                    <Text style={[styles.videoRecordTitle, { color: '#3b82f6' }]}>Da Galeria</Text>
+                                                    <Text style={styles.videoRecordSubtitle}>Vídeo existente</Text>
+                                                </View>
+                                            </Pressable>
+                                        </View>
                                     )}
                                 </View>
                             </View>

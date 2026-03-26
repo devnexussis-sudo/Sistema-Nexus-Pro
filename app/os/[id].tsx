@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, KeyboardAvoidingView } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function OrderDetailsScreen() {
@@ -25,6 +26,9 @@ export default function OrderDetailsScreen() {
     // Image viewer state
     const [viewerVisible, setViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    // Block photo state
+    const [impedimentPhotoUri, setImpedimentPhotoUri] = useState<string | null>(null);
+    const [isUploadingBlock, setIsUploadingBlock] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -114,12 +118,16 @@ export default function OrderDetailsScreen() {
                     { text: 'Cancelar', style: 'cancel' },
                     {
                         text: 'Iniciar Deslocamento', onPress: async () => {
+                            setLoading(true);
                             try {
                                 await OrderService.startDisplacement(id as string);
-                                const updated = await OrderService.getOrderById(id as string);
-                                setOrder(updated);
+                                // Force network refresh AND manually update state to guarantee immediate UI reaction
+                                const updated = await OrderService.getOrderById(id as string, true);
+                                setOrder(updated || { ...order, status: 'traveling' });
                             } catch (err: any) {
                                 Alert.alert('Erro no Deslocamento', err?.message || String(err));
+                            } finally {
+                                setLoading(false);
                             }
                         }
                     },
@@ -188,6 +196,21 @@ export default function OrderDetailsScreen() {
         setModalVisible(true);
     };
 
+    const handlePickBlockPhoto = async () => {
+        try {
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['images'],
+                quality: 0.8,
+                allowsEditing: false,
+            });
+            if (!result.canceled && result.assets?.[0]?.uri) {
+                setImpedimentPhotoUri(result.assets[0].uri);
+            }
+        } catch {
+            Alert.alert('Erro', 'Não foi possível acessar a câmera.');
+        }
+    };
+
     const confirmBlock = async () => {
         if (!impedimentReason.trim()) {
             Alert.alert('Atenção', 'Por favor, informe o motivo do impedimento.');
@@ -195,16 +218,31 @@ export default function OrderDetailsScreen() {
         }
 
         try {
-            await OrderService.blockOrder(order.id, impedimentReason);
+            setIsUploadingBlock(true);
+
+            // Upload da foto (se houver) antes de bloquear
+            let blockPhotoUrl: string | null = null;
+            if (impedimentPhotoUri) {
+                blockPhotoUrl = await OrderService.uploadFile(
+                    impedimentPhotoUri,
+                    `orders/${order.id}/block`,
+                    order.tenantId
+                );
+            }
+
+            await OrderService.blockOrder(order.id, impedimentReason, blockPhotoUrl);
             Alert.alert('Impedimento Registrado', `Motivo: ${impedimentReason}`);
             setModalVisible(false);
             setImpedimentReason('');
+            setImpedimentPhotoUri(null);
 
             // re-fetch
-            const u = await OrderService.getOrderById(id as string);
+            const u = await OrderService.getOrderById(id as string, true);
             setOrder(u);
         } catch (e) {
             Alert.alert('Erro', 'Não foi possível bloquear a OS.');
+        } finally {
+            setIsUploadingBlock(false);
         }
     };
 
@@ -304,6 +342,19 @@ export default function OrderDetailsScreen() {
                     <View style={[styles.card, { borderColor: '#d32f2f', borderWidth: 1 }]}>
                         <ThemedText type="subtitle" style={{ color: '#d32f2f' }}>Motivo do Impedimento</ThemedText>
                         <Text style={styles.infoText}>{order.blockReason}</Text>
+                        {order.formData?.blockPhotoUrl && (
+                            <Pressable
+                                style={{ marginTop: 10 }}
+                                onPress={() => openImage(order.formData.blockPhotoUrl)}
+                            >
+                                <Image
+                                    source={{ uri: order.formData.blockPhotoUrl }}
+                                    style={{ width: '100%', height: 180, borderRadius: 10, backgroundColor: '#f8d7da' }}
+                                    resizeMode="cover"
+                                />
+                                <Text style={{ fontSize: 10, color: '#d32f2f', marginTop: 4, fontWeight: '700', textAlign: 'center' }}>Foto do Impedimento (toque para ampliar)</Text>
+                            </Pressable>
+                        )}
                     </View>
                 )}
 
@@ -492,6 +543,26 @@ export default function OrderDetailsScreen() {
                             );
                         })()}
 
+                        {/* 5. Vídeo Anexado */}
+                        {order.videoUrl && (
+                            <View style={styles.executionSection}>
+                                <View style={styles.sectionHeader}>
+                                    <Ionicons name="videocam-outline" size={16} color="#475569" />
+                                    <Text style={styles.executionSectionLabel}>Vídeo do Atendimento</Text>
+                                </View>
+                                <Pressable
+                                    style={styles.videoPlayerButton}
+                                    onPress={() => Linking.openURL(order.videoUrl!)}
+                                >
+                                    <View style={styles.videoIconContainer}>
+                                        <Ionicons name="play-circle" size={56} color="#fff" />
+                                    </View>
+                                    <Text style={styles.videoPlayerText}>Toque para reproduzir o vídeo</Text>
+                                    <Text style={styles.videoPlayerSubText}>Abrirá no player nativo do dispositivo</Text>
+                                </Pressable>
+                            </View>
+                        )}
+
                         {/* Assinatura */}
                         {(order.executionDetails?.signature || order.formData?.signature) && (
                             <View style={[styles.executionSection, { borderBottomWidth: 0 }]}>
@@ -557,12 +628,32 @@ export default function OrderDetailsScreen() {
                             onChangeText={setImpedimentReason}
                         />
 
+                        {/* Foto do impedimento (opcional) */}
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Foto do Impedimento (Opcional)</Text>
+                        {impedimentPhotoUri ? (
+                            <Pressable onPress={() => setImpedimentPhotoUri(null)} style={{ marginBottom: 12 }}>
+                                <Image source={{ uri: impedimentPhotoUri }} style={{ width: '100%', height: 150, borderRadius: 10, backgroundColor: '#f8d7da' }} resizeMode="cover" />
+                                <Text style={{ textAlign: 'center', fontSize: 10, color: '#e11d48', marginTop: 4, fontWeight: '700' }}>Toque para remover</Text>
+                            </Pressable>
+                        ) : (
+                            <Pressable
+                                onPress={handlePickBlockPhoto}
+                                style={{ borderWidth: 1, borderColor: '#fca5a5', borderStyle: 'dashed', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 12, backgroundColor: '#fff5f5', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                            >
+                                <Ionicons name="camera-outline" size={18} color="#e11d48" />
+                                <Text style={{ fontSize: 12, color: '#e11d48', fontWeight: '700' }}>Fotografar Impedimento</Text>
+                            </Pressable>
+                        )}
+
                         <View style={styles.modalButtons}>
-                            <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={() => setModalVisible(false)}>
+                            <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={() => { setModalVisible(false); setImpedimentPhotoUri(null); }}>
                                 <Text style={styles.cancelButtonText}>Cancelar</Text>
                             </Pressable>
-                            <Pressable style={[styles.modalButton, styles.confirmButton]} onPress={confirmBlock}>
-                                <Text style={styles.confirmButtonText}>Confirmar</Text>
+                            <Pressable style={[styles.modalButton, styles.confirmButton]} onPress={confirmBlock} disabled={isUploadingBlock}>
+                                {isUploadingBlock
+                                    ? <ActivityIndicator size="small" color="#fff" />
+                                    : <Text style={styles.confirmButtonText}>Confirmar</Text>
+                                }
                             </Pressable>
                         </View>
                     </View>
@@ -629,5 +720,9 @@ const styles = StyleSheet.create({
     checklistItemsContainer: { backgroundColor: '#ffffff' },
     signatureCanvas: { backgroundColor: '#f8fafc', borderRadius: 10, marginTop: 6, borderWidth: 1, borderColor: '#f1f5f9', padding: 6 },
     clientNameText: { fontSize: 12, color: '#64748b', marginTop: 6, textAlign: 'center', fontStyle: 'italic' },
+    videoPlayerButton: { backgroundColor: '#1e293b', borderRadius: 12, overflow: 'hidden', marginTop: 4, alignItems: 'center', justifyContent: 'center', paddingVertical: 20 },
+    videoIconContainer: { marginBottom: 8 },
+    videoPlayerText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    videoPlayerSubText: { color: '#94a3b8', fontSize: 11, marginTop: 4 },
 });
 

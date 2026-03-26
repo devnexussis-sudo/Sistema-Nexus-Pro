@@ -15,7 +15,7 @@ import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl
 const ITEMS_PER_PAGE = 10;
 
 // Internal Order Card Component
-const OrderCard = ({ order, onShare, onPress }: { order: any; onShare: any; onPress: any }) => (
+const OrderCard = ({ order, onShare, onPress, allowShare }: { order: any; onShare: any; onPress: any; allowShare: boolean }) => (
   <Pressable style={styles.orderCard} onPress={onPress}>
     <View style={styles.orderHeader}>
       <Text style={styles.orderId}>{order.displayId || order.id}</Text>
@@ -49,7 +49,7 @@ const OrderCard = ({ order, onShare, onPress }: { order: any; onShare: any; onPr
         </Text>
       </View>
 
-      {order.status === 'completed' && order.publicToken ? (
+      {allowShare && order.status === 'completed' && order.publicToken ? (
         <Pressable
           style={styles.shareButton}
           onPress={(e) => {
@@ -87,6 +87,29 @@ export default function HomeScreen() {
 
   // Offline Sync State
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  // Tenant feature flags
+  const [allowOsSharing, setAllowOsSharing] = useState(true);
+
+  // Load tenant settings (allowOsSharing)
+  useEffect(() => {
+    const loadTenantSettings = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        if (!userId) return;
+        const { data: userData } = await supabase.from('users').select('tenant_id').eq('id', userId).single();
+        if (userData?.tenant_id) {
+          const { data: tenantData } = await supabase.from('tenants').select('metadata').eq('id', userData.tenant_id).single();
+          if (tenantData?.metadata) {
+            setAllowOsSharing(tenantData.metadata.allowOsSharing ?? true);
+          }
+        }
+      } catch (e) {
+        console.error('[Home] Failed to load tenant settings:', e);
+      }
+    };
+    loadTenantSettings();
+  }, []);
 
   useEffect(() => {
     fetchOrdersRef.current = fetchOrders;
@@ -407,6 +430,7 @@ export default function HomeScreen() {
             <OrderCard
               order={item}
               onShare={handleShareOS}
+              allowShare={allowOsSharing}
               onPress={() => {
                 const isExecuting = item.status === 'in_progress' || item.status === 'EM ANDAMENTO';
                 if (isExecuting) {

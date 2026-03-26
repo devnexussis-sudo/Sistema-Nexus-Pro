@@ -3,6 +3,7 @@
     "name": "DUNO",
     "slug": "nexus-mobile",
     "version": "1.0.3",
+    "sdkVersion": "52.0.0",
     "orientation": "portrait",
     "backgroundColor": "#ffffff",
     "icon": "./assets/images/app-icon-duno-v6.png",
