@@ -1740,30 +1740,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         const osFd: any = selectedOrder.formData || {};
                         if (Array.isArray(osFd.impediment_history) && osFd.impediment_history.length > 0) {
                             osFd.impediment_history.forEach((entry: any, i: number) => {
-                                // Evita exibir do status atual se essa MESMA data/foto já foi impressa arquivada.
-                                // Essa simples check impede repetição massiva de array sem quebrar lógicas pontuais.
-                                const isDup = impediments.some(imp => imp.date === entry.blockedAt && imp.reason === entry.reason);
-                                if (!isDup) {
-                                    impediments.push({
-                                        title: `Impedimento (Atual) — Evento ${i + 1}`,
-                                        reason: entry.reason || 'Sem motivo detalhado.',
-                                        photo: entry.photoUrl,
-                                        date: entry.blockedAt
-                                    });
-                                }
+                                impediments.push({
+                                    title: `Impedimento (Atual) — Evento ${i + 1}`,
+                                    reason: entry.reason || 'Sem motivo detalhado.',
+                                    photo: entry.photoUrl,
+                                    date: entry.blockedAt
+                                });
                             });
                         } else if (osFd.blockReason || selectedOrder.status === 'IMPEDIDO') {
                             const reason = osFd.blockReason || osFd.impediment_reason || (selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.');
-                            const isDup = impediments.some(imp => imp.reason === reason && imp.date === osFd.blockedAt);
-                            
-                            if (!isDup) {
-                                impediments.push({
-                                    title: 'Impedimento (Atual)',
-                                    reason: reason,
-                                    photo: osFd.blockPhotoUrl,
-                                    date: osFd.blockedAt || selectedOrder.updatedAt
-                                });
-                            }
+                            impediments.push({
+                                title: 'Impedimento (Atual)',
+                                reason: reason,
+                                photo: osFd.blockPhotoUrl,
+                                date: osFd.blockedAt || selectedOrder.updatedAt
+                            });
                         }
 
                         if (impediments.length === 0) return null;
