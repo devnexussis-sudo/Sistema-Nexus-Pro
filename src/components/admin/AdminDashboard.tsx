@@ -242,10 +242,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setEquipments([]);
 
       // Busca o técnicos da OS via RPC secundário (não bloqueante)
-      import('../../services/orderService').then(mod => {
-        mod.OrderService.getOrderVisits(selectedOrder.id).then(v => {
-          setOrderVisits(v);
-        });
+      VisitService.getVisitsByOrderId(selectedOrder.id).then(v => {
+        setOrderVisits(v);
       });
 
       // Busca o template para mapear IDs para Labels no checklist
@@ -1458,10 +1456,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: FORMULÁRIOS — 1 bloco por equipamento */}
               {activeTab === 'forms' && (() => {
                 const opType = selectedOrder.operationType || '';
-                const allFormData: Record<string, any> = {
-                  ...(selectedOrder.formData || {}),
-                  ...orderVisits.reduce((acc: any, v: any) => ({ ...acc, ...(v.formData || {}) }), {}),
-                };
+                // ── Merge seguro: NUNCA sobrescrevemos impediment_history via spread ──
+                const allFormData: Record<string, any> = (() => {
+                  const base: any = { ...(selectedOrder.formData || {}) };
+                  // Acumula impediment_history de TODAS as fontes
+                  const allHistory: any[] = [
+                    ...(Array.isArray(base.impediment_history) ? base.impediment_history : []),
+                  ];
+                  for (const v of orderVisits) {
+                    const vFd: any = v.formData || {};
+                    // Mescla campos não-impediment normalmente
+                    Object.entries(vFd).forEach(([k, val]) => {
+                      if (k !== 'impediment_history') base[k] = val;
+                    });
+                    // Acumula impediment_history em vez de sobrescrever
+                    if (Array.isArray(vFd.impediment_history)) {
+                      allHistory.push(...vFd.impediment_history);
+                    }
+                  }
+                  // Dedup por blockedAt para evitar duplicatas entre fontes
+                  const seen = new Set<string>();
+                  base.impediment_history = allHistory.filter(e => {
+                    const key = e?.blockedAt || JSON.stringify(e);
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                  });
+                  return base;
+                })();
 
                 // Resolve o template correto para um dado equipamento
                 const resolveTemplate = (eqFamily: string) => {
