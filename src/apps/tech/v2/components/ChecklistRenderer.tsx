@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { FormField, FormFieldType } from '../../../../types';
-import { Camera, Check, X } from 'lucide-react';
+import { Camera, Check, X } from 'lucide-react-native';
 import { DataService } from '../../../../services/dataService';
 
 interface ChecklistRendererProps {

@@ -681,7 +681,23 @@ export default function ExecuteOSScreen() {
             const config = formsConfig[key];
             if (config.template) {
                 for (const field of config.template.fields) {
-                    if (field.required && !config.data[field.id] && field.type !== 'PHOTO' && field.type !== 'SIGNATURE') {
+                    // 1. Verifica visibilidade (usando a mesma lógica de renderização para consistência)
+                    let isVisible = true;
+                    if (field.condition && field.condition.fieldId) {
+                        const dependentValue = config.data[field.condition.fieldId];
+                        const operator = (field.condition.operator || 'equals') as string;
+                        const normalizedDependent = (dependentValue ?? '').toString().trim().toLowerCase();
+                        const normalizedExpected = (field.condition.value ?? '').toString().trim().toLowerCase();
+
+                        if (operator === 'equals' || operator === 'equal') {
+                            if (normalizedDependent !== normalizedExpected) isVisible = false;
+                        } else if (operator === 'not_equals') {
+                            if (normalizedDependent === normalizedExpected) isVisible = false;
+                        }
+                    }
+
+                    // 2. Se visível e obrigatório, valida resposta
+                    if (isVisible && field.required && !config.data[field.id] && field.type !== 'PHOTO' && field.type !== 'SIGNATURE') {
                         const eqDesc = config.equipamento?.equipment_model || config.equipamento?.equipment_name || 'selecionado';
                         Alert.alert('Campo Obrigatório', `Por favor, preencha o campo "${field.label}" no equipamento ${eqDesc}.`);
                         return;
@@ -937,7 +953,26 @@ export default function ExecuteOSScreen() {
 
                             <View style={styles.equipmentFormsContainer}>
                                 {config.template ? (
-                                    config.template.fields.map((field: any) => renderDynamicField(eqKey, field, config.data))
+                                    config.template.fields.map((field: any) => {
+                                        // 🧠 Lógica de Gatilho Inteligente — Visibilidade Condicional (App Nativo)
+                                        if (field.condition && field.condition.fieldId) {
+                                            const dependentValue = config.data[field.condition.fieldId];
+                                            const expectedValue = field.condition.value;
+                                            const operator = (field.condition.operator || 'equals') as string;
+
+                                            // Normaliza para comparação segura (trim + lowercase)
+                                            const normalizedDependent = (dependentValue ?? '').toString().trim().toLowerCase();
+                                            const normalizedExpected = (expectedValue ?? '').toString().trim().toLowerCase();
+
+                                            if (operator === 'equals' || operator === 'equal') {
+                                                if (normalizedDependent !== normalizedExpected) return null;
+                                            } else if (operator === 'not_equals') {
+                                                if (normalizedDependent === normalizedExpected) return null;
+                                            }
+                                        }
+
+                                        return renderDynamicField(eqKey, field, config.data);
+                                    })
                                 ) : (
                                     <View style={[styles.dynamicFieldControl, { alignItems: 'center', padding: 24, margin: 12, backgroundColor: '#f8fafc', elevation: 0 }]}>
                                         <Ionicons name="document-text-outline" size={40} color="#cbd5e1" />

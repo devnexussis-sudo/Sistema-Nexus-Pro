@@ -17,7 +17,7 @@ import {
     ArrowLeft,
     History,
     Clock
-} from 'lucide-react';
+} from 'lucide-react-native';
 import { ChecklistRenderer } from '../components/ChecklistRenderer';
 import { SignatureCanvas } from '../components/ui/SignatureCanvas';
 import { DataService } from '../../../../services/dataService';
