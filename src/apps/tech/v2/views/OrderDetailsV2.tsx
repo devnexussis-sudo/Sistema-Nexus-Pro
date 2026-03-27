@@ -211,15 +211,29 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
     // 🔄 Load Logic (Template)
     useEffect(() => {
         const loadTemplate = async () => {
-            console.log('[OrderDetails] 🔄 Loading checklist...', { type: order.operationType });
+            console.log('[OrderDetails Mobile] 🔄 Loading checklist...', { type: order.operationType });
             setIsLoading(true);
             if (!template) {
                 try {
-                    const [rules, templates, equipments] = await Promise.all([
+                    const [rules, templates, equipments, serviceTypes] = await Promise.all([
                         DataService.getActivationRules(),
                         DataService.getFormTemplates(),
-                        DataService.getEquipments()
+                        DataService.getEquipments(),
+                        DataService.getServiceTypes()
                     ]);
+
+                    console.log('[OrderDetails Mobile] 📦 Dados carregados:', {
+                        rules: rules.length,
+                        templates: templates.length,
+                        equipments: equipments.length,
+                        serviceTypes: serviceTypes.length
+                    });
+
+                    // 1. Mapeia UUID do service type para o nome (Crucial para o match)
+                    const serviceTypeMap: Record<string, string> = {};
+                    serviceTypes.forEach((st: any) => {
+                        serviceTypeMap[st.id] = (st.name || st.title || '').trim().toLowerCase();
+                    });
 
                     let equipmentFamily = '';
                     const equipment = equipments.find((e: any) =>
@@ -229,25 +243,50 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
 
                     if (equipment) equipmentFamily = equipment.familyName;
 
-                    const matchingRule = rules.find((r: any) =>
-                        r.serviceType === order.operationType &&
-                        (!r.equipmentFamily || r.equipmentFamily === equipmentFamily)
-                    );
+                    const orderTypeLower = (order.operationType || '').trim().toLowerCase();
+                    console.log('[OrderDetails Mobile] 🔍 Buscando regra para:', { orderTypeLower, equipmentFamily });
 
-                    if (matchingRule && matchingRule.formTemplateId) {
-                        const foundTemplate = templates.find((t: any) => t.id === matchingRule.formTemplateId);
+                    // 2. Regra de ativação: resolve o nome do tipo pelo UUID antes de comparar
+                    const matchingRule = rules.find((r: any) => {
+                        const ruleServiceTypeName = serviceTypeMap[r.serviceTypeId] || '';
+                        const ruleEquipFamily = (r.equipmentFamily || '').trim().toLowerCase();
+                        const orderEquipFamily = equipmentFamily.trim().toLowerCase();
+
+                        console.log('[OrderDetails Mobile] ↳ Avaliando regra:', {
+                            ruleServiceTypeId: r.serviceTypeId,
+                            resolvedName: ruleServiceTypeName,
+                            ruleFormId: r.formId,
+                            matches: ruleServiceTypeName === orderTypeLower
+                        });
+
+                        return ruleServiceTypeName === orderTypeLower &&
+                            (!ruleEquipFamily || ruleEquipFamily === 'todos' || ruleEquipFamily === orderEquipFamily);
+                    });
+
+                    if (matchingRule) {
+                        const formIdToFind = matchingRule.formId || matchingRule.formTemplateId || matchingRule.form_template_id;
+                        console.log('[OrderDetails Mobile] ✅ Regra encontrada! Buscando template:', formIdToFind);
+
+                        const foundTemplate = templates.find((t: any) => t.id === formIdToFind);
                         if (foundTemplate) {
+                            console.log('[OrderDetails Mobile] ✅ Template carregado:', foundTemplate.title);
                             setTemplate(foundTemplate);
                             return;
+                        } else {
+                            console.warn('[OrderDetails Mobile] ⚠️ Template não encontrado:', formIdToFind);
                         }
+                    } else {
+                        console.warn('[OrderDetails Mobile] ⚠️ Nenhuma regra de ativação encontrada para:', orderTypeLower);
                     }
 
+                    // 3. Fallback: tenta match por título ou serviceTypes direto no template
                     const fallbackTemplate = templates.find((t: any) =>
-                        t.serviceTypes?.some((st: string) => st.toLowerCase() === (order.operationType || '').toLowerCase()) ||
-                        t.title?.toLowerCase().includes((order.operationType || '').toLowerCase())
+                        t.serviceTypes?.some((st: string) => st.toLowerCase() === orderTypeLower) ||
+                        t.title?.toLowerCase().includes(orderTypeLower)
                     );
 
                     if (fallbackTemplate) {
+                        console.log('[OrderDetails Mobile] 🔄 Usando fallback por nome:', fallbackTemplate.title);
                         setTemplate(fallbackTemplate);
                         return;
                     }
@@ -267,10 +306,11 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                             ]
                         };
                     }
+                    console.warn('[OrderDetails Mobile] ⚠️ Usando fallback básico');
                     setTemplate(finalFallback);
 
                 } catch (e) {
-                    console.error("[OrderDetails] Error loading checklist:", e);
+                    console.error("[OrderDetails Mobile] Error loading checklist:", e);
                 } finally {
                     setIsLoading(false);
                 }
@@ -321,6 +361,36 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
     };
 
     const handleFinish = async () => {
+        // 🧪 Validação do Checklist antes de finalizar (Mobile)
+        if (template && template.fields) {
+            for (const field of template.fields) {
+                // 1. Verifica visibilidade (usando lógica normalizada)
+                let isVisible = true;
+                if (field.condition && field.condition.fieldId) {
+                    const dependentValue = answers[field.condition.fieldId];
+                    const operator = (field.condition.operator || 'equals') as string;
+                    const normalizedDependent = (dependentValue ?? '').toString().trim().toLowerCase();
+                    const normalizedExpected = (field.condition.value ?? '').toString().trim().toLowerCase();
+
+                    if (operator === 'equals' || operator === 'equal') {
+                        if (normalizedDependent !== normalizedExpected) isVisible = false;
+                    } else if (operator === 'not_equals') {
+                        if (normalizedDependent === normalizedExpected) isVisible = false;
+                    }
+                }
+                
+                // 2. Se visível e obrigatório, valida resposta
+                if (isVisible && field.required) {
+                    const val = answers[field.id];
+                    if (val === undefined || val === null || val === '') {
+                        alert(`O campo "${field.label}" é obrigatório.`);
+                        setActiveSection('checklist');
+                        return;
+                    }
+                }
+            }
+        }
+
         if (!signature || !signerName) {
             alert("Assinatura e Nome do Responsável são obrigatórios.");
             return;
