@@ -32,12 +32,23 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
     return (
         <div className="space-y-6">
             {fields.map(field => {
-                // Lógica de condicional simples (exibir apenas se condição satisfeita)
-                if (field.condition) {
+                // 🧠 Lógica de Gatilho Inteligente — Visibilidade Condicional
+                if (field.condition && field.condition.fieldId) {
                     const dependentValue = answers[field.condition.fieldId];
-                    if (field.condition.operator === 'equals' && dependentValue !== field.condition.value) return null;
-                    if (field.condition.operator === 'not_equals' && dependentValue === field.condition.value) return null;
-                    if (!field.condition.operator && dependentValue !== field.condition.value) return null;
+                    const expectedValue = field.condition.value;
+                    const operator = (field.condition.operator || 'equals') as string;
+
+                    // Normaliza para comparação segura (trim + lowercase)
+                    const normalizedDependent = (dependentValue ?? '').toString().trim().toLowerCase();
+                    const normalizedExpected = (expectedValue ?? '').toString().trim().toLowerCase();
+
+                    console.log(`[Checklist Mobile] Avaliando campo "${field.label}" | resposta pai: "${normalizedDependent}" | esperado: "${normalizedExpected}"`);
+
+                    if (operator === 'equals' || operator === 'equal') {
+                        if (normalizedDependent !== normalizedExpected) return null;
+                    } else if (operator === 'not_equals') {
+                        if (normalizedDependent === normalizedExpected) return null;
+                    }
                 }
 
                 return (
