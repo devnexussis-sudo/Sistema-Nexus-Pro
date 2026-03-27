@@ -544,15 +544,12 @@ export default function ExecuteOSScreen() {
                 // Removemos bibliotecas nativas exclusivas para suportar perfeitamente iOS e Android
                 const { Video } = require('react-native-compressor');
                 
-                // Parâmetros de Compressão Extrema
+                // Parâmetros de Compressão Otimizada (Balanceia Resolução e Tamanho)
                 const compressionResult = await Video.compress(
                     localUri,
                     {
-                        compressionMethod: 'manual',
-                        maxSize: 480,          // 480p: ~2.7x mais bits/pixel vs 768p → sem pixelação
-                        bitrate: 200000,       // 0.2 Mbps (Arquivo mínimo — máxima compressão)
+                        compressionMethod: 'auto',
                         minimumFileSizeForCompress: 0,
-                        isMinBitRateEnabled: false, // Força a compressão sempre, mesmo se vier compactado da galeria
                     } as any,
                     (progress) => {
                         setVideoProcessingStatus(`Otimizando... ${Math.round(progress * 100)}%`);
@@ -1082,22 +1079,23 @@ export default function ExecuteOSScreen() {
                                             </View>
                                         </Pressable>
                                     ) : (
-                                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                                            <Pressable style={[styles.videoRecordButton, { flex: 1 }]} onPress={handleTakeVideo}>
-                                                <Ionicons name="videocam" size={22} color="#059669" />
-                                                <View style={{ flex: 1, marginLeft: 8 }}>
-                                                    <Text style={styles.videoRecordTitle}>Gravar Vídeo</Text>
-                                                    <Text style={styles.videoRecordSubtitle}>Câmera ao vivo</Text>
-                                                </View>
-                                            </Pressable>
-                                            <Pressable style={[styles.videoRecordButton, { flex: 1, borderColor: '#3b82f6', backgroundColor: '#eff6ff' }]} onPress={handlePickVideoFromGallery}>
-                                                <Ionicons name="images-outline" size={22} color="#3b82f6" />
-                                                <View style={{ flex: 1, marginLeft: 8 }}>
-                                                    <Text style={[styles.videoRecordTitle, { color: '#3b82f6' }]}>Da Galeria</Text>
-                                                    <Text style={styles.videoRecordSubtitle}>Vídeo existente</Text>
-                                                </View>
-                                            </Pressable>
-                                        </View>
+                                        <Pressable style={styles.videoRecordButton} onPress={() => {
+                                            Alert.alert(
+                                                'Anexar Vídeo',
+                                                'Escolha a origem do vídeo:',
+                                                [
+                                                  { text: 'Gravar Vídeo', onPress: handleTakeVideo },
+                                                  { text: 'Da Galeria', onPress: handlePickVideoFromGallery },
+                                                  { text: 'Cancelar', style: 'cancel' }
+                                                ]
+                                            );
+                                        }}>
+                                            <Ionicons name="videocam" size={24} color="#059669" />
+                                            <View style={{ flex: 1, marginLeft: 12 }}>
+                                                <Text style={styles.videoRecordTitle}>Anexar Vídeo</Text>
+                                                <Text style={styles.videoRecordSubtitle}>Gravar na hora ou escolher da galeria</Text>
+                                            </View>
+                                        </Pressable>
                                     )}
                                 </View>
                             </View>
