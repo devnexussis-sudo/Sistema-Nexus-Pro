@@ -19,6 +19,7 @@ export const StockManagement: React.FC = () => {
     const [items, setItems] = useState<StockItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showFilters, setShowFilters] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<StockItem | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -507,8 +508,15 @@ export const StockManagement: React.FC = () => {
 
                     {/* Filters & Actions */}
                     <div className="flex items-center gap-2 shrink-0">
-                        {activeTab === 'items' && (
-                            <div className="hidden lg:flex items-center gap-2">
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`flex items-center gap-2 px-4 h-[42px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+                        >
+                            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
+                        </button>
+
+                        {showFilters && activeTab === 'items' && (
+                            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
                                 <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
                                     <Filter size={14} className="text-slate-400 mr-2" />
                                     <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none max-w-[100px] cursor-pointer">

@@ -53,6 +53,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [periodicity, setPeriodicity] = useState('Mensal');
     const [maintenanceDay, setMaintenanceDay] = useState<number>(1);
+    const [showFilters, setShowFilters] = useState(false);
     const [changeReason, setChangeReason] = useState('');
 
     // New Step 2 States
@@ -251,28 +252,41 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                             />
                         </div>
 
-                        <div className="flex items-center gap-3 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
-                            <div className="flex items-center gap-2 px-2 border-r border-slate-100">
-                                <Calendar size={16} className="text-[#1c2d4f]" />
-                                <span className="text-[9px] font-bold uppercase text-slate-400">Ciclo</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input type="date" value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
-                                <span className="text-[10px] font-bold text-slate-300">até</span>
-                                <input type="date" value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
-                            </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`flex items-center gap-2 px-4 h-[42px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+                          >
+                            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
+                          </button>
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10">
-                            <ListFilter size={14} className="text-slate-400 mr-2" />
-                            <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                                <option value="ALL">Todos Status</option>
-                                <option value={OrderStatus.PENDING}>Ativo</option>
-                                <option value={OrderStatus.CANCELED}>Inativo</option>
-                            </select>
+                    {showFilters && (
+                      <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="flex flex-col lg:flex-row gap-4">
+                          <div className="flex items-center gap-3 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
+                              <div className="flex items-center gap-2 px-2 border-r border-slate-100">
+                                  <Calendar size={16} className="text-[#1c2d4f]" />
+                                  <span className="text-[9px] font-bold uppercase text-slate-400">Ciclo</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                  <input type="date" value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
+                                  <span className="text-[10px] font-bold text-slate-300">até</span>
+                                  <input type="date" value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
+                              </div>
+                          </div>
+
+                          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10">
+                              <ListFilter size={14} className="text-slate-400 mr-2" />
+                              <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                                  <option value="ALL">Todos Status</option>
+                                  <option value={OrderStatus.PENDING}>Ativo</option>
+                                  <option value={OrderStatus.CANCELED}>Inativo</option>
+                              </select>
+                          </div>
                         </div>
+
                         <button
                             onClick={() => {
                                 setSearchTerm(''); setStatusFilter('ALL'); setStartDateFilter(''); setEndDateFilter('');
@@ -281,7 +295,8 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                         >
                             Limpar Filtros
                         </button>
-                    </div>
+                      </div>
+                    )}
                 </div>
 
                 <div className="flex-1 overflow-auto custom-scrollbar">

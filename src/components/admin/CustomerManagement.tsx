@@ -39,6 +39,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [showFilters, setShowFilters] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
@@ -331,18 +332,27 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
         {/* Filters & Actions */}
         <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
-            <Filter size={14} className="text-slate-400 mr-2" />
-            <select
-              className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-            >
-              <option value="ALL">Status</option>
-              <option value="ACTIVE">Ativos</option>
-              <option value="INACTIVE">Inativos</option>
-            </select>
-          </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-4 h-[42px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+          >
+            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
+          </button>
+
+          {showFilters && (
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
+              <Filter size={14} className="text-slate-400 mr-2" />
+              <select
+                className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+              >
+                <option value="ALL">Status</option>
+                <option value="ACTIVE">Ativos</option>
+                <option value="INACTIVE">Inativos</option>
+              </select>
+            </div>
+          )}
 
           <Button
             onClick={() => setIsModalOpen(true)}

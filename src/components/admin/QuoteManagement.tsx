@@ -32,6 +32,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isConverting, setIsConverting] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showFilters, setShowFilters] = useState(false);
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
     const [viewQuote, setViewQuote] = useState<Quote | null>(null);
 
@@ -244,12 +245,20 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
                     />
                 </div>
-                <button
-                    onClick={() => { resetForm(); setIsModalOpen(true); }}
-                    className="px-6 py-3 h-[46px] bg-[#1c2d4f] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm shadow-[#1c2d4f]/10 hover:bg-[#253a66] transition-all flex items-center gap-2 whitespace-nowrap"
-                >
-                    <Plus size={16} /> Novo Orçamento
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`flex items-center gap-2 px-4 h-[46px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+                    >
+                        <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
+                    </button>
+                    <button
+                        onClick={() => { resetForm(); setIsModalOpen(true); }}
+                        className="px-6 py-3 h-[46px] bg-[#1c2d4f] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm shadow-[#1c2d4f]/10 hover:bg-[#253a66] transition-all flex items-center gap-2 whitespace-nowrap"
+                    >
+                        <Plus size={16} /> Novo Orçamento
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">

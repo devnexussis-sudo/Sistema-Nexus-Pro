@@ -30,6 +30,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedItem, setSelectedItem] = useState<any | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
 
     // Form de Baixa
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -471,9 +472,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
             {/* ── FILTROS + STATS ── */}
             <div className="flex-shrink-0 space-y-4 mb-4">
-                {/* Filtros */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                    <div className="md:col-span-4 relative group">
+                {/* Row 1: Search & Toggle */}
+                <div className="flex flex-col lg:flex-row gap-3 items-center">
+                    <div className="relative flex-1 group">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1c2d4f] transition-colors" size={15} />
                         <input
                             type="text"
@@ -483,29 +484,50 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                         />
                     </div>
-                    <div className="md:col-span-4 flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2">
-                        <Calendar size={13} className="text-[#1c2d4f] shrink-0" />
-                        <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
-                        <Slash size={10} className="text-slate-300 shrink-0" />
-                        <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
-                    </div>
-                    <div className="md:col-span-2 flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2">
-                        <UserCheck size={13} className="text-[#1c2d4f] shrink-0" />
-                        <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2.5" value={techFilter} onChange={e => { setTechFilter(e.target.value); setCurrentPage(1); }}>
-                            <option value="ALL">Técnicos (Todos)</option>
-                            {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                            <option value="Administrador">Admin</option>
-                        </select>
-                    </div>
-                    <div className="md:col-span-2 flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2">
-                        <Layer size={13} className="text-[#1c2d4f] shrink-0" />
-                        <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2.5" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
-                            <option value="ALL">Status (Todos)</option>
-                            <option value="PENDING">Pendente</option>
-                            <option value="PAID">Faturado</option>
-                        </select>
-                    </div>
+                    <button
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`flex items-center gap-2 px-4 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+                    >
+                        <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
+                    </button>
                 </div>
+
+                {/* Collapsible Filters */}
+                {showFilters && (
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="md:col-span-6 flex flex-col gap-1.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Período de Referência</label>
+                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2 h-10">
+                                <Calendar size={13} className="text-[#1c2d4f] shrink-0" />
+                                <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
+                                <Slash size={10} className="text-slate-300 shrink-0" />
+                                <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
+                            </div>
+                        </div>
+                        <div className="md:col-span-3 flex flex-col gap-1.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Técnico / Responsável</label>
+                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2 h-10">
+                                <UserCheck size={13} className="text-[#1c2d4f] shrink-0" />
+                                <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2.5" value={techFilter} onChange={e => { setTechFilter(e.target.value); setCurrentPage(1); }}>
+                                    <option value="ALL">Técnicos (Todos)</option>
+                                    {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                    <option value="Administrador">Admin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="md:col-span-3 flex flex-col gap-1.5">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Estado do Lançamento</label>
+                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2 h-10">
+                                <Layer size={13} className="text-[#1c2d4f] shrink-0" />
+                                <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2.5" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
+                                    <option value="ALL">Status (Todos)</option>
+                                    <option value="PENDING">Pendente</option>
+                                    <option value="PAID">Faturado</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

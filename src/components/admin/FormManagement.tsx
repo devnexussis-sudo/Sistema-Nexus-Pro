@@ -35,6 +35,7 @@ export const FormManagement: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
@@ -252,9 +253,16 @@ export const FormManagement: React.FC = () => {
 
         {/* Filters & Actions */}
         <div className="flex items-center gap-2 flex-shrink-0 w-full xl:w-auto justify-end">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-4 h-[42px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+          >
+            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
+          </button>
+
           {/* Only show filters if needed (e.g. templates status) */}
-          {activeTab === 'templates' && (
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
+          {showFilters && activeTab === 'templates' && (
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
               <Filter size={14} className="text-slate-400 mr-2" />
               <select
                 className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
