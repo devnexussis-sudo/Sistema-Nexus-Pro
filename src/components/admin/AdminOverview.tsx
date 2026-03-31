@@ -26,6 +26,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const [techFilter, setTechFilter] = useState<string>('ALL');
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
   const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('scheduled');
+  const [showFilters, setShowFilters] = useState(false);
   const [slaTarget, setSlaTarget] = useState<number>(85);
 
   const filteredOrders = useMemo(() => {
@@ -285,8 +286,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[280px]">
+        <div className="flex flex-col xl:flex-row gap-3 items-center">
+          <div className="relative flex-1 w-full">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
@@ -297,32 +298,75 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             />
           </div>
 
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm h-10 min-w-[180px]">
-            <UserCheck size={14} className="text-slate-400 mr-2" />
-            <select className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none w-full cursor-pointer" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
-              <option value="ALL">Todos Técnicos</option>
-              {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-            </select>
+          <div className="flex items-center gap-2 w-full xl:w-auto justify-end">
+            <button
+               onClick={() => setShowFilters(!showFilters)}
+               className={`flex items-center gap-2 px-4 h-11 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+            >
+               <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros Avançados'}
+            </button>
           </div>
-
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm h-10 min-w-[180px]">
-            <Users size={14} className="text-slate-400 mr-2" />
-            <select className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none w-full cursor-pointer" value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}>
-              <option value="ALL">Todos Clientes</option>
-              {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
-          </div>
-
-          <button
-            onClick={() => {
-              setSearchTerm(''); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
-              onDateChange('', '');
-            }}
-            className="px-5 h-10 text-[10px] font-bold  text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all border border-slate-200 hover:border-rose-200 shadow-sm"
-          >
-            Limpar Filtros
-          </button>
         </div>
+
+        {showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
+             <div className="flex flex-col gap-1.5">
+               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Período Analítico</label>
+               <div className="flex flex-col bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
+                  <div className="flex items-center gap-2 mb-1.5 border-b border-slate-50 pb-1.5 px-1">
+                    <select
+                      value={dateTypeFilter}
+                      onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
+                      className="bg-slate-50 text-[10px] font-bold text-slate-600 px-2 py-1 rounded border border-slate-100 outline-none cursor-pointer w-full"
+                    >
+                      <option value="scheduled">Agenda</option>
+                      <option value="created">Abertura</option>
+                      <option value="completed">Conclusão</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2 px-1">
+                    <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent text-[10px] font-bold text-slate-700 outline-none w-full" />
+                    <span className="text-[9px] font-bold text-slate-300">ATÉ</span>
+                    <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent text-[10px] font-bold text-slate-700 outline-none w-full" />
+                  </div>
+               </div>
+             </div>
+
+             <div className="flex flex-col gap-1.5">
+               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Responsável</label>
+               <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-[58px] shadow-sm">
+                 <UserCheck size={14} className="text-slate-400 mr-2" />
+                 <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
+                   <option value="ALL">Todos Técnicos</option>
+                   {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                 </select>
+               </div>
+             </div>
+
+             <div className="flex flex-col gap-1.5">
+               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Carteira de Clientes</label>
+               <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-[58px] shadow-sm">
+                 <Users size={14} className="text-slate-400 mr-2" />
+                 <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer" value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}>
+                   <option value="ALL">Todos Clientes</option>
+                   {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                 </select>
+               </div>
+             </div>
+
+             <div className="flex items-end pb-1.5">
+               <button
+                 onClick={() => {
+                   setSearchTerm(''); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
+                   onDateChange('', '');
+                 }}
+                 className="w-full h-10 text-[9px] font-bold uppercase tracking-widest text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-slate-200 hover:border-rose-200 shadow-sm"
+               >
+                 Limpar Tudo
+               </button>
+             </div>
+          </div>
+        )}
       </div>
 
       {/* KPI GRID */}
