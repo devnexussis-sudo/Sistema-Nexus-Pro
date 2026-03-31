@@ -630,6 +630,44 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         ) : null}
 
+        {/* ── Evidências Fotográficas Adicionais (print) ── */}
+        {(() => {
+          const extractExtras = (fData: any) => {
+            const extras = fData.extra_photos || fData.extraPhotos || fData.photos || [];
+            const photosArr = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
+            return photosArr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
+          };
+          
+          let allValidExtrasPrint: string[] = extractExtras(formDataPrint);
+          linkedEquipments.forEach(eq => {
+              let eqFd: any = typeof eq.form_data === 'string' ? (() => { try { return JSON.parse(eq.form_data); } catch { return {}; } })() : (eq.form_data || {});
+              allValidExtrasPrint.push(...extractExtras(eqFd));
+          });
+          allValidExtrasPrint = Array.from(new Set(allValidExtrasPrint));
+
+          if (!order.videoUrl && !formDataPrint.videoUrl && !formDataPrint.video_url && allValidExtrasPrint.length === 0) return null;
+
+          return (
+            <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
+              <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Evidências Fotográficas e de Conclusão</div>
+              <div className="p-3 bg-white flex flex-wrap gap-3">
+                {(order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url) && (
+                  <div className="border border-slate-200 rounded p-1 w-[200px] h-[150px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid shadow-inner relative">
+                    <Video size={18} className="absolute text-slate-400 opacity-50 z-10" />
+                    <video src={order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url} className="w-full h-full object-cover opacity-60 mix-blend-multiply" />
+                    <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1.5 py-0.5 rounded uppercase">Vídeo anexado</span>
+                  </div>
+                )}
+                {allValidExtrasPrint.map((url: string, i: number) => (
+                  <div key={i} className="border border-slate-200 rounded p-1 w-[200px] h-[150px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
+                    <img src={url} className="w-full h-full object-contain" alt={`Evidência Adicional ${i + 1}`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
           <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
           <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
@@ -1037,11 +1075,20 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             const cDoc = fd.clientDoc || '';
             const completedAt = fd.completedAt || order.endDate || '';
             
-            const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
-            const photos = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
-            const validPhotos = photos.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
+            const extractExtras = (fData: any) => {
+              const extras = fData.extra_photos || fData.extraPhotos || fData.photos || [];
+              const photosArr = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
+              return photosArr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
+            };
 
-            if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl && !fd.videoUrl && !fd.video_url && validPhotos.length === 0) return null;
+            let allValidPhotos: string[] = extractExtras(fd);
+            linkedEquipments.forEach((eq: any) => {
+                let eqFd: any = typeof eq.form_data === 'string' ? (() => { try { return JSON.parse(eq.form_data); } catch { return {}; } })() : (eq.form_data || {});
+                allValidPhotos.push(...extractExtras(eqFd));
+            });
+            allValidPhotos = Array.from(new Set(allValidPhotos));
+
+            if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl && !fd.videoUrl && !fd.video_url && allValidPhotos.length === 0) return null;
             return (
               <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-6 sm:px-8 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100">
@@ -1092,7 +1139,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       )}
                     </div>
                   )}
-                  {(order.videoUrl || fd.videoUrl || fd.video_url || validPhotos.length > 0) && (
+                  {(order.videoUrl || fd.videoUrl || fd.video_url || allValidPhotos.length > 0) && (
                     <div className="pt-4 border-t border-indigo-100">
                       <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-3">Evidências de Conclusão</p>
                       <div className="flex flex-wrap gap-3 mt-1">
@@ -1111,7 +1158,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                             </div>
                           </div>
                         )}
-                        {validPhotos.map((url: string, i: number) => (
+                        {allValidPhotos.map((url: string, i: number) => (
                           <div
                             key={i}
                             className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] shrink-0 rounded-xl overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
