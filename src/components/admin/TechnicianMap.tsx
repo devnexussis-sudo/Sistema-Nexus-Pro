@@ -226,10 +226,10 @@ export const TechnicianMap: React.FC = () => {
     const loadHistoryPath = async (techId: string, date: string) => {
         setIsLoadingHistory(true);
         try {
-            const startDateObj = new Date(date);
-            startDateObj.setHours(0, 0, 0, 0);
-            const endDateObj = new Date(date);
-            endDateObj.setHours(23, 59, 59, 999);
+            // Fix: parse year, month, day natively to avoid UTC shifting by -3 hours in GMT-3
+            const [year, month, day] = date.split('-');
+            const startDateObj = new Date(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0);
+            const endDateObj = new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999);
 
             const { data, error } = await DataService.getServiceClient()
                 .from('technician_location_history')
