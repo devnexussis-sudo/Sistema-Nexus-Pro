@@ -82,6 +82,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
+  const [ordersToPrint, setOrdersToPrint] = useState<ServiceOrder[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
    const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
    const [orderVisits, setOrderVisits] = useState<any[]>([]);
@@ -193,7 +194,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   };
 
-  const handleBatchPrint = () => {
+  const handleBatchPrint = async () => {
+    let toPrint: ServiceOrder[] = [];
+    if (selectedOrderIds.length > 0) {
+       const local = pagedOrders.filter(o => selectedOrderIds.includes(o.id));
+       if (local.length === selectedOrderIds.length) {
+         toPrint = local;
+       } else {
+         try {
+           const chunks = [];
+           for(let i=0; i<selectedOrderIds.length; i+=100) chunks.push(selectedOrderIds.slice(i, i+100));
+           let allFetched: ServiceOrder[] = [];
+           const { OrderService } = await import('../../services/orderService');
+           for(const chunk of chunks) {
+             const { data } = await supabase.from('orders').select('*').in('id', chunk);
+             if (data) {
+                allFetched = [...allFetched, ...data.map((d: any) => OrderService._mapOrderFromDB(d))];
+             }
+           }
+           if (allFetched.length > 0) {
+             toPrint = allFetched;
+           } else {
+             toPrint = local;
+           }
+         } catch {
+           toPrint = local;
+         }
+       }
+    } else {
+      toPrint = pagedOrders;
+    }
+
+    setOrdersToPrint(toPrint);
     setIsBatchPrinting(true);
     document.body.classList.add('is-printing');
     // Tempo maior para garantir renderização de imagens e componentes
@@ -202,6 +234,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       // Em alguns browsers o print é non-blocking, então usamos listener para garantir
       const cleanup = () => {
         setIsBatchPrinting(false);
+        setOrdersToPrint([]);
         document.body.classList.remove('is-printing');
         window.removeEventListener('afterprint', cleanup);
       };
@@ -216,13 +249,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handlePrintOrder = (orderId: string) => {
+    const orderToPrint = pagedOrders.find(o => o.id === orderId) || selectedOrder;
+    if (!orderToPrint) return;
+    
     setSelectedOrderIds([orderId]);
+    setOrdersToPrint([orderToPrint as ServiceOrder]);
     setIsBatchPrinting(true);
     document.body.classList.add('is-printing');
     setTimeout(() => {
       window.print();
       const cleanup = () => {
         setIsBatchPrinting(false);
+        setOrdersToPrint([]);
         document.body.classList.remove('is-printing');
         window.removeEventListener('afterprint', cleanup);
       };
@@ -2770,13 +2808,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )
       }
 
-      {/* Batch Print Container — usa os dados da página atual */}
+      {/* Batch Print Container — renderiza ordersToPrint completas inclusive de outras páginas */}
       {
-        isBatchPrinting && createPortal(
+        isBatchPrinting && ordersToPrint && createPortal(
           <div id="batch-print-root" className="bg-white">
-            {pagedOrders
-              .filter(o => selectedOrderIds.includes(o.id))
-              .map((order) => (
+            {ordersToPrint.map((order) => (
                 <div key={order.id} className="print:break-after-page last:print:break-after-auto w-full">
                   <PublicOrderView order={order} techs={techs} isPrint={true} />
                 </div>
