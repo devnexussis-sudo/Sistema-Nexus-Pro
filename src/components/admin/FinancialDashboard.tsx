@@ -58,10 +58,44 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         setIsProcessing(true);
         try {
             const currentLinks = selectedItem.original.linkedQuotes || [];
+            const isOrderPaid = selectedItem.status === 'PAID';
+            const paidAt = selectedItem.original.paidAt || new Date().toISOString();
+            const paymentMethod = selectedItem.original.paymentMethod || 'Vinculado a O.S. Faturada';
+
+            // 1. Atualiza a O.S. com o novo vínculo
             await DataService.updateOrder({
                 ...selectedItem.original,
                 linkedQuotes: [...currentLinks, quoteId]
             });
+
+            // 2. Se a O.S. já estiver faturada, fatura o orçamento automaticamente
+            if (isOrderPaid) {
+                const qOrigin = quotes.find(q => q.id === quoteId);
+                if (qOrigin) {
+                    await DataService.updateQuote({
+                        ...qOrigin,
+                        billingStatus: 'PAID',
+                        paymentMethod: paymentMethod,
+                        billingNotes: `Faturado via vínculo automático (O.S. ${selectedItem.displayId || selectedItem.id.slice(0,8)} já estava paga)`,
+                        paidAt: paidAt
+                    });
+
+                    // Registra no fluxo de caixa o valor do orçamento vinculado
+                    try {
+                        await DataService.registerCashFlow({
+                            type: 'INCOME',
+                            category: 'Venda (Orçamento)',
+                            amount: Number(qOrigin.totalValue) || 0,
+                            description: `Faturamento automático (Vínculo) - Orçamento ${qOrigin.displayId || qOrigin.id.slice(0,8)} na O.S. ${selectedItem.displayId || selectedItem.id.slice(0,8)}`,
+                            referenceId: qOrigin.id,
+                            referenceType: 'QUOTE',
+                            paymentMethod: paymentMethod,
+                            entryDate: paidAt
+                        });
+                    } catch (e) { console.warn('Cash flow error (non-blocking):', e); }
+                }
+            }
+
             await onRefresh();
             setSelectedItem((prev: any) => ({
                 ...prev,
