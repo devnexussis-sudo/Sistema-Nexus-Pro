@@ -240,9 +240,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 } catch (e) { console.warn('Cash flow error (non-blocking):', e); }
             }
 
+            // Atualiza UI imediatamente
+            if (selectedItem && selectedIds.includes(selectedItem.id)) {
+                setSelectedItem((prev: any) => prev ? ({
+                    ...prev,
+                    status: 'PAID',
+                    original: { ...prev.original, billingStatus: 'PAID', paymentMethod: finalMethod, paidAt: new Date().toISOString() }
+                }) : null);
+            }
+
             setSelectedIds([]);
             setIsInvoiceModalOpen(false);
-            setIsSidebarOpen(false);
             setPaymentMethod('Dinheiro');
             setBillingNotes('');
             await onRefresh();
