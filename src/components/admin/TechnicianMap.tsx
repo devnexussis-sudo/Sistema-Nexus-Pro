@@ -334,10 +334,10 @@ export const TechnicianMap: React.FC = () => {
 
     const tileLayerUrl = mapType === 'SATELLITE'
         ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+        : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
     const tileAttribution = mapType === 'SATELLITE'
         ? "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
-        : "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors &copy; <a href='https://carto.com/attributions'>CARTO</a>";
+        : "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors";
 
 
     return (
@@ -349,7 +349,7 @@ export const TechnicianMap: React.FC = () => {
                 <div className="flex flex-col gap-2 pointer-events-auto shrink-0">
                     <div className="bg-[#1c2d4f]/95 backdrop-blur-xl rounded-2xl p-2 px-3 shadow-2xl border border-white/10 flex items-center gap-3">
                         <div className="flex flex-col">
-                            <h2 className="text-xs font-black text-white italic tracking-tighter leading-tight">Nexus<span className="text-primary-400">Map</span></h2>
+                            <h2 className="text-xs font-black text-white italic tracking-tighter leading-tight">Duno<span className="text-primary-400">MAP</span></h2>
                             <div className="flex items-center gap-1">
                                 <div className={`w-1 h-1 rounded-full ${isAutoRefresh ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`}></div>
                                 <span className="text-[7px] font-black text-white/40 uppercase tracking-widest">{isAutoRefresh ? 'Live' : 'Standby'}</span>
