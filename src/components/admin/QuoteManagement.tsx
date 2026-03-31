@@ -6,7 +6,7 @@ import {
     ChevronRight, CreditCard, User, MapPin, Briefcase,
     ArrowUpRight, Loader2, ListPlus, Calculator, Inbox, Calendar, Link2, Share2,
     Eye, Link, ExternalLink, Globe, ClipboardCheck, ShieldCheck, Box, Signature as SignatureIcon,
-    AlertCircle, ChevronLeft, Filter
+    AlertCircle, ChevronLeft, Filter, FileSpreadsheet, X
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { Customer, OrderStatus, OrderPriority, ServiceOrder, StockItem, Quote, QuoteItem } from '../../types';
@@ -35,6 +35,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [showFilters, setShowFilters] = useState(false);
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
     const [viewQuote, setViewQuote] = useState<Quote | null>(null);
+    const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
 
     const [currentPage, setCurrentPage] = useState(1);
     const PAGE_SIZE = 20;
@@ -231,6 +232,148 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     // pagedQuotes e totalPages vêm do hook server-side acima
 
+    const toggleSelectAll = () => {
+        const pageIds = pagedQuotes.map((q: any) => q.id);
+        const allSelected = pageIds.length > 0 && pageIds.every((id: string) => selectedQuoteIds.includes(id));
+        if (allSelected) {
+            setSelectedQuoteIds((prev: string[]) => prev.filter(id => !pageIds.includes(id)));
+        } else {
+            setSelectedQuoteIds((prev: string[]) => Array.from(new Set([...prev, ...pageIds])));
+        }
+    };
+
+    const handleExportExcel = async () => {
+        let itemsToExport: Quote[] = [];
+        if (selectedQuoteIds.length > 0) {
+            const localQuotes = pagedQuotes.filter((q: Quote) => selectedQuoteIds.includes(q.id));
+            if (localQuotes.length === selectedQuoteIds.length) {
+                itemsToExport = localQuotes;
+            } else {
+                try {
+                    const { supabase } = await import('../../lib/supabase');
+                    const { data } = await supabase.from('quotes').select('*').in('id', selectedQuoteIds);
+                    if (data) {
+                        itemsToExport = data.map((q: any) => ({
+                            id: q.id,
+                            displayId: q.display_id,
+                            customerName: q.customer_name,
+                            customerAddress: q.customer_address,
+                            customerDocument: q.customer_document,
+                            title: q.title,
+                            description: q.description,
+                            items: q.items,
+                            totalValue: q.total_value,
+                            notes: q.notes,
+                            validUntil: q.valid_until,
+                            status: q.status,
+                            publicToken: q.public_token,
+                            billingStatus: q.billing_status,
+                            paymentMethod: q.payment_method,
+                            paidAt: q.paid_at,
+                            createdAt: q.created_at,
+                            updatedAt: q.updated_at,
+                            linkedOrderId: q.linked_order_id,
+                            tenantId: q.tenant_id
+                        }));
+                    } else {
+                        itemsToExport = localQuotes;
+                    }
+                } catch {
+                    itemsToExport = localQuotes;
+                }
+            }
+        } else {
+            itemsToExport = pagedQuotes;
+        }
+
+        if (itemsToExport.length === 0) return;
+
+        const XLSX = (await import('xlsx-js-style')).default;
+
+        const formatDateTime = (dateStr?: string) => {
+            if (!dateStr || dateStr === 'N/A') return 'N/A';
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        };
+        const formatDate = (dateStr?: string) => {
+            if (!dateStr || dateStr === 'N/A') return 'N/A';
+            const d = new Date(dateStr + (dateStr.length === 10 ? 'T12:00:00' : ''));
+            if (isNaN(d.getTime())) return dateStr;
+            return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+        };
+
+        const headers = [
+            'ID / Protocolo',
+            'Tipo do Documento',
+            'Data de Criação',
+            'Cliente',
+            'Título',
+            'Descrição',
+            'Validade',
+            'Vínculo O.S.',
+            'Valor Total',
+            'Status',
+            'Status Financeiro',
+        ];
+
+        const headerStyle = {
+            font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+            fill: { fgColor: { rgb: '1C2D4F' } },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            border: {
+                top: { style: 'thin', color: { rgb: 'FFFFFF' } },
+                bottom: { style: 'thin', color: { rgb: 'FFFFFF' } },
+                left: { style: 'thin', color: { rgb: 'FFFFFF' } },
+                right: { style: 'thin', color: { rgb: 'FFFFFF' } }
+            }
+        };
+
+        const rows = itemsToExport.map((item: Quote) => {
+            return [
+                getQuoteDisplayId(item),
+                'Orçamento',
+                formatDateTime(item.createdAt),
+                item.customerName || 'N/A',
+                item.title || 'N/A',
+                item.description || 'N/A',
+                formatDate(item.validUntil),
+                item.linkedOrderId || 'Sem Vínculo',
+                item.totalValue || 0,
+                item.status || 'N/A',
+                item.billingStatus === 'PAID' ? 'Faturado' : 'Pendente'
+            ];
+        });
+
+        const wsData = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+        ws['!cols'] = [
+            { wch: 15 }, // ID
+            { wch: 18 }, // Tipo Documento
+            { wch: 20 }, // Data Criacao
+            { wch: 30 }, // Cliente
+            { wch: 30 }, // Título
+            { wch: 40 }, // Descrição
+            { wch: 15 }, // Validade
+            { wch: 20 }, // Vínculo OS
+            { wch: 15 }, // Valor Final
+            { wch: 18 }, // Status
+            { wch: 18 }, // Status Financeiro
+        ];
+
+        const range = XLSX.utils.decode_range(ws['!ref'] || "A1:A1");
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const address = XLSX.utils.encode_cell({ r: 0, c: C });
+            if (!ws[address]) continue;
+            ws[address].s = headerStyle;
+        }
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Orçamentos");
+        XLSX.writeFile(wb, `Nexus_Orcamentos_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     return (
         <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
             {/* Toolbar (Moved Outside) */}
@@ -245,7 +388,46 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
                     />
                 </div>
-                <div className="flex items-center gap-2">
+
+                {selectedQuoteIds.length === 0 && (
+                    <div className="flex items-center gap-2 mr-auto" style={{ marginLeft: '1rem' }}>
+                        <button
+                            onClick={handleExportExcel}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100/50"
+                            title="Exportar Filtrados para Excel"
+                        >
+                            <FileSpreadsheet size={14} /> Exportar Excel
+                        </button>
+                    </div>
+                )}
+
+                {selectedQuoteIds.length > 0 && (
+                    <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-900 rounded-[1.5rem] shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100 mr-auto" style={{ marginLeft: '1rem' }}>
+                        <div className="flex flex-col pr-3 border-r border-slate-700">
+                            <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
+                            <span className="text-xs font-black text-white leading-none">{selectedQuoteIds.length}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleExportExcel}
+                                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                                title="Exportar Seleção para Excel"
+                            >
+                                <FileSpreadsheet size={14} /> Excel
+                            </button>
+                            <div className="w-px h-6 bg-slate-700 mx-1" />
+                            <button
+                                onClick={() => setSelectedQuoteIds([])}
+                                className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
+                                title="Limpar Seleção"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex items-center gap-2 ml-auto">
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         className={`flex items-center gap-2 px-4 h-[46px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
@@ -266,6 +448,15 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                     <table className="w-full border-separate border-spacing-y-0 text-left">
                         <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
                             <tr className="border-b border-slate-100">
+                                <th className="px-3 py-2 w-12 text-center text-slate-400">
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                                        checked={pagedQuotes.length > 0 && pagedQuotes.every((q: any) => selectedQuoteIds.includes(q.id))}
+                                        onChange={toggleSelectAll}
+                                        title="Selecionar página atual"
+                                    />
+                                </th>
                                 <th className="px-4 py-2">Orçamento ID</th>
                                 <th className="px-4 py-2">Criado em</th>
                                 <th className="px-4 py-2">Cliente</th>
@@ -287,7 +478,15 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     </td>
                                 </tr>
                             ) : pagedQuotes.map(quote => (
-                                <tr key={quote.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
+                                <tr key={quote.id} className={`bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md ${selectedQuoteIds.includes(quote.id) ? 'bg-indigo-50/40' : ''}`}>
+                                    <td className="px-3 py-2 text-center shrink-0 w-12" onClick={(e) => { e.stopPropagation(); setSelectedQuoteIds(prev => prev.includes(quote.id) ? prev.filter(id => id !== quote.id) : [...prev, quote.id]); }}>
+                                        <input
+                                            type="checkbox"
+                                            className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                                            checked={selectedQuoteIds.includes(quote.id)}
+                                            readOnly
+                                        />
+                                    </td>
                                     <td className="px-4 py-1.5">
                                         <div className="flex flex-col truncate max-w-[140px]">
                                             {/* getQuoteDisplayId: retorna ORC-... para soberanos, #XXXXXXXX... para UUIDs legados */}
