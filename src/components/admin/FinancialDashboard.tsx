@@ -116,7 +116,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         orders.forEach(o => o.linkedQuotes?.forEach(id => linkedQuoteIds.add(id)));
 
         const approvedQuotes = quotes
-            .filter(q => (q.status === 'APROVADO' || q.status === 'CONVERTIDO') && !linkedQuoteIds.has(q.id))
+            .filter(q => (q.billingStatus === 'PAID' || q.status === 'APROVADO' || q.status === 'CONVERTIDO') && !linkedQuoteIds.has(q.id))
             .map(q => ({
                 type: 'QUOTE' as const,
                 id: q.id,
