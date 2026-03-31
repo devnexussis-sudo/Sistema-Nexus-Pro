@@ -112,11 +112,32 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     // 1. Preparar Dados Unificados
     const allItems = useMemo(() => {
-        const linkedQuoteIds = new Set<string>();
-        orders.forEach(o => o.linkedQuotes?.forEach(id => linkedQuoteIds.add(id)));
+        // Coletar apenas vínculos de O.S. que já constam na lista de faturamento (Concluídas)
+        // Isso permite que os orçamentos apareçam "soltos" enquanto a O.S. estiver em andamento.
+        const linkedToCompletedOrders = new Set<string>();
+        orders.forEach(o => {
+            if (o.status === OrderStatus.COMPLETED && o.linkedQuotes) {
+                o.linkedQuotes.forEach(id => linkedToCompletedOrders.add(id));
+            }
+        });
 
         const approvedQuotes = quotes
-            .filter(q => (q.billingStatus === 'PAID' || q.status === 'APROVADO' || q.status === 'CONVERTIDO') && !linkedQuoteIds.has(q.id))
+            .filter(q => {
+                const bSt = q.billingStatus?.toUpperCase() || '';
+                const st = q.status?.toUpperCase() || '';
+                
+                // Exibe incondicionalmente se já foi liquidado
+                if (bSt === 'PAID') return true;
+                
+                // Se não foi liquidado, exige status adequado (aprovado/convertido)
+                if (st !== 'APROVADO' && st !== 'CONVERTIDO') return false;
+
+                // Esconde apenas se a O.S. vinculada já for uma O.S. concluída visível na tabela
+                // para não causar dupla contagem de valores simultâneos e pendentes
+                if (linkedToCompletedOrders.has(q.id)) return false;
+
+                return true;
+            })
             .map(q => ({
                 type: 'QUOTE' as const,
                 id: q.id,
@@ -143,6 +164,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 if (order.linkedQuotes && order.linkedQuotes.length > 0) {
                     value += order.linkedQuotes.reduce((acc, qId) => {
                         const q = quotes.find(q => q.id === qId);
+                        
+                        // Proteção contra cobrança dupla: 
+                        // Se a O.S. ainda está PENDENTE financeiramente, mas o orçamento já foi PAGO,
+                        // não agregamos o valor dele aqui.
+                        if (order.billingStatus !== 'PAID' && q?.billingStatus === 'PAID') {
+                            return acc;
+                        }
+                        
                         return acc + (Number(q?.totalValue) || 0);
                     }, 0);
                 }
