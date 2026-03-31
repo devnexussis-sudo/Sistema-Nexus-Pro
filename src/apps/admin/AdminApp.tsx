@@ -285,7 +285,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                 <Route path="/forms" element={<FormManagement />} />
                 <Route path="/users" element={<UserManagement />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/financial" element={<FinancialDashboard orders={fullOrders} quotes={quotes} techs={techs} onRefresh={fetchGlobalData} />} />
+                <Route path="/financial" element={<FinancialDashboard orders={fullOrders} quotes={quotes} techs={techs} tenant={tenantData} onRefresh={fetchGlobalData} />} />
                 <Route path="/calendar" element={<OrderCalendar orders={fullOrders} techs={techs} customers={customers} />} />
 
                 {/* Fallback */}

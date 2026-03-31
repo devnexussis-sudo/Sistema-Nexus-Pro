@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { ServiceOrder, OrderStatus, User, Quote } from '../../types';
+import type { DbTenant } from '../../types/database';
 import {
     Search, X, DollarSign, Calendar, Users,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
@@ -15,10 +16,12 @@ interface FinancialDashboardProps {
     orders: ServiceOrder[];
     quotes: Quote[];
     techs: User[];
+    tenant?: DbTenant | null;
     onRefresh: () => Promise<void>;
 }
 
-export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, onRefresh }) => {
+export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, tenant, onRefresh }) => {
+    const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -29,6 +32,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     // Form de Baixa
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+    const [printItem, setPrintItem] = useState<any | null>(null);
     const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
     const [installments, setInstallments] = useState(2);
     const [billingNotes, setBillingNotes] = useState('');
@@ -184,34 +189,50 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const confirmInvoice = async () => {
         setIsProcessing(true);
         const finalMethod = getPaymentMethodLabel();
+        const paidAt = new Date().toISOString();
         try {
             for (const id of selectedIds) {
-                const item = filteredItems.find(i => i.id === id);
-                if (!item) continue;
+                // ─── Prioridade: usa selectedItem (estado mais atualizado) quando possível ───
+                // Isso garante que orçamentos recém-vinculados via handleLinkQuote sejam incluídos
+                // mesmo antes do onRefresh() reconstruir filteredItems.
+                const rawItem = filteredItems.find(i => i.id === id);
+                if (!rawItem) continue;
+
+                // Mescla linkedQuotes do selectedItem se este for o item sendo faturado
+                const item = (selectedItem && selectedItem.id === id)
+                    ? {
+                        ...rawItem,
+                        value: selectedItem.value,
+                        original: {
+                            ...rawItem.original,
+                            linkedQuotes: selectedItem.original?.linkedQuotes ?? rawItem.original?.linkedQuotes
+                        }
+                    }
+                    : rawItem;
 
                 if (item.type === 'ORDER') {
-                    // Update main Order
+                    // Atualiza O.S. principal
                     await DataService.updateOrder({
                         ...item.original,
                         billingStatus: 'PAID',
                         paymentMethod: finalMethod,
                         billingNotes: billingNotes,
-                        paidAt: new Date().toISOString()
+                        paidAt
                     });
 
-                    // Atualiza orçamentos vinculados
-                    if (item.original.linkedQuotes?.length > 0) {
-                        for (const qId of item.original.linkedQuotes) {
-                            const qOrigin = quotes.find(q => q.id === qId);
-                            if (qOrigin) {
-                                await DataService.updateQuote({
-                                    ...qOrigin,
-                                    billingStatus: 'PAID',
-                                    paymentMethod: finalMethod,
-                                    billingNotes: `Faturado via O.S. ${item.displayId || '#' + item.id.slice(0, 8)}`,
-                                    paidAt: new Date().toISOString()
-                                });
-                            }
+                    // Atualiza TODOS os orçamentos vinculados (incluindo os recém-linkados)
+                    const linkedQuoteIds: string[] = item.original.linkedQuotes ?? [];
+                    console.log(`[FinancialDashboard] Faturando O.S. ${item.displayId} com ${linkedQuoteIds.length} orçamento(s) vinculado(s):`, linkedQuoteIds);
+                    for (const qId of linkedQuoteIds) {
+                        const qOrigin = quotes.find(q => q.id === qId);
+                        if (qOrigin) {
+                            await DataService.updateQuote({
+                                ...qOrigin,
+                                billingStatus: 'PAID',
+                                paymentMethod: finalMethod,
+                                billingNotes: `Faturado via O.S. ${item.displayId || '#' + item.id.slice(0, 8)}`,
+                                paidAt
+                            });
                         }
                     }
                 } else {
@@ -221,7 +242,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         billingStatus: 'PAID',
                         paymentMethod: finalMethod,
                         billingNotes: billingNotes,
-                        paidAt: new Date().toISOString()
+                        paidAt
                     });
                 }
 
@@ -235,7 +256,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         referenceId: item.id,
                         referenceType: item.type,
                         paymentMethod: finalMethod,
-                        entryDate: new Date().toISOString()
+                        entryDate: paidAt
                     });
                 } catch (e) { console.warn('Cash flow error (non-blocking):', e); }
             }
@@ -245,7 +266,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 setSelectedItem((prev: any) => prev ? ({
                     ...prev,
                     status: 'PAID',
-                    original: { ...prev.original, billingStatus: 'PAID', paymentMethod: finalMethod, paidAt: new Date().toISOString() }
+                    original: { ...prev.original, billingStatus: 'PAID', paymentMethod: finalMethod, paidAt }
                 }) : null);
             }
 
@@ -259,6 +280,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         } finally {
             setIsProcessing(false);
         }
+    };
+
+    // ── Handler de Impressão ──────────────────────────────────────────────────
+    const handlePrint = (item: any) => {
+        setPrintItem(item);
+        setIsPrintModalOpen(true);
+    };
+
+    const executePrint = () => {
+        window.print();
     };
 
     const handleExportExcel = () => {
@@ -598,7 +629,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     <span className="text-[10px] font-black uppercase tracking-wide">Link Público</span>
                                     <ArrowUpRight size={16} />
                                 </button>
-                                <button onClick={() => window.print()} className="py-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between px-5 text-slate-600 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+                                <button
+                                    onClick={() => handlePrint(selectedItem)}
+                                    className="py-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between px-5 text-slate-600 hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+                                >
                                     <span className="text-[10px] font-black uppercase tracking-wide">Imprimir</span>
                                     <Printer size={16} />
                                 </button>
@@ -739,12 +773,203 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 </div>
             )}
 
+            {/* ── MODAL DE IMPRESSÃO / RECIBO DE FATURAMENTO ── */}
+            {isPrintModalOpen && printItem && (
+                <div className="fixed inset-0 z-[3000] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in print:bg-white print:p-0 print:fixed print:inset-0">
+                    <div className="bg-white w-full max-w-3xl max-h-[95vh] overflow-y-auto rounded-3xl shadow-2xl border border-slate-100 print:rounded-none print:max-w-none print:max-h-none print:overflow-visible print:shadow-none print:border-0">
+
+                        {/* Barra de ação — oculta na impressão */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 print:hidden">
+                            <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Pré-visualização do Recibo</p>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={executePrint}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs font-black uppercase shadow-md hover:bg-[#253a66] transition-all"
+                                >
+                                    <Printer size={14} /> Imprimir
+                                </button>
+                                <button
+                                    onClick={() => { setIsPrintModalOpen(false); setPrintItem(null); }}
+                                    className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ─── Conteúdo do Recibo (imprimível) ─── */}
+                        <div id="printable-receipt" ref={printRef} className="p-10 space-y-8">
+
+                            {/* Cabeçalho com branding da empresa */}
+                            <div className="flex items-start justify-between pb-8 border-b-2 border-[#1c2d4f]">
+                                <div className="flex items-center gap-5">
+                                    {(tenant?.logo_url || tenant?.logoUrl) ? (
+                                        <img
+                                            src={tenant.logo_url || tenant.logoUrl}
+                                            alt={tenant.company_name || tenant.name || 'Logo'}
+                                            className="h-16 w-auto object-contain"
+                                        />
+                                    ) : (
+                                        <div className="w-16 h-16 bg-[#1c2d4f] rounded-2xl flex items-center justify-center">
+                                            <Wallet size={28} className="text-white" />
+                                        </div>
+                                    )}
+                                    <div>
+                                        <h1 className="text-2xl font-black text-[#1c2d4f] uppercase tracking-tight leading-none">
+                                            {tenant?.company_name || tenant?.trading_name || tenant?.name || 'Empresa'}
+                                        </h1>
+                                        {tenant?.cnpj || tenant?.document ? (
+                                            <p className="text-xs text-slate-500 font-bold mt-1 uppercase">
+                                                CNPJ: {tenant.cnpj || tenant.document}
+                                            </p>
+                                        ) : null}
+                                        {(tenant?.address || tenant?.street) ? (
+                                            <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                                {tenant.street
+                                                    ? `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' — ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}`
+                                                    : tenant.address
+                                                }
+                                            </p>
+                                        ) : null}
+                                        {tenant?.phone && (
+                                            <p className="text-xs text-slate-400 font-medium">{tenant.phone}</p>
+                                        )}
+                                        {tenant?.email && (
+                                            <p className="text-xs text-slate-400 font-medium">{tenant.email}</p>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Recibo de Faturamento</p>
+                                    <p className="text-3xl font-black text-[#1c2d4f] italic tracking-tighter">
+                                        #{getDocLabel(printItem)}
+                                    </p>
+                                    <p className="text-xs text-slate-400 font-bold mt-1">
+                                        {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Dados do cliente */}
+                            <div className="grid grid-cols-2 gap-8">
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Users size={10} /> Dados do Cliente</p>
+                                    <p className="text-base font-black text-slate-800 capitalize">{printItem.customerName?.toLowerCase()}</p>
+                                    {printItem.customerAddress && (
+                                        <p className="text-xs text-slate-500 font-medium mt-1">{printItem.customerAddress}</p>
+                                    )}
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Tipo de Documento</p>
+                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase ${
+                                        printItem.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-700'
+                                    }`}>
+                                        {printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}
+                                    </span>
+                                    {printItem.original?.paymentMethod && (
+                                        <p className="text-xs text-slate-500 font-bold mt-2 uppercase">
+                                            Pagamento: {printItem.original.paymentMethod}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Descrição do serviço */}
+                            {printItem.title && (
+                                <div className="bg-slate-50 rounded-2xl p-5">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Descrição do Serviço</p>
+                                    <p className="text-sm font-bold text-slate-800 uppercase">{printItem.title}</p>
+                                    {printItem.description && (
+                                        <p className="text-xs text-slate-500 mt-1 italic">{printItem.description}</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Orçamentos vinculados (se OS) */}
+                            {printItem.type === 'ORDER' && printItem.original?.linkedQuotes?.length > 0 && (() => {
+                                const linkedQts = (printItem.original.linkedQuotes as string[]).map((qId: string) => quotes.find(q => q.id === qId)).filter(Boolean);
+                                if (!linkedQts.length) return null;
+                                return (
+                                    <div className="space-y-2">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Layer size={10} /> Orçamentos Vinculados</p>
+                                        {linkedQts.map((q: any) => (
+                                            <div key={q.id} className="flex justify-between items-center px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                                                <div>
+                                                    <span className="text-[9px] font-black text-[#1c2d4f] uppercase">{q.displayId || 'ORC-' + q.id.slice(0, 8).toUpperCase()}</span>
+                                                    <p className="text-xs text-slate-600 font-bold">{q.title}</p>
+                                                </div>
+                                                <span className="text-sm font-black text-slate-800">{formatCurrency(q.totalValue)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Linha de Total */}
+                            <div className="bg-[#1c2d4f] rounded-2xl px-8 py-6 flex items-center justify-between">
+                                <div>
+                                    <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Valor Total Faturado</p>
+                                    {printItem.original?.paymentMethod && (
+                                        <p className="text-xs text-white/70 font-bold">
+                                            {printItem.original.paymentMethod}
+                                            {printItem.original.paidAt && ` — ${new Date(printItem.original.paidAt).toLocaleDateString('pt-BR')}`}
+                                        </p>
+                                    )}
+                                </div>
+                                <p className="text-4xl font-black text-white tracking-tighter italic">
+                                    {formatCurrency(printItem.value)}
+                                </p>
+                            </div>
+
+                            {/* Status */}
+                            <div className="flex items-center justify-between">
+                                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase ${
+                                    printItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}>
+                                    <span className={`w-2 h-2 rounded-full ${
+                                        printItem.status === 'PAID' ? 'bg-emerald-500' : 'bg-amber-500'
+                                    }`} />
+                                    {printItem.status === 'PAID' ? 'Faturado / Liquidado' : 'Pendente'}
+                                </div>
+                                <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">
+                                    Gerado em {new Date().toLocaleString('pt-BR')}
+                                </p>
+                            </div>
+
+                            {/* Rodapé */}
+                            <div className="pt-6 border-t border-slate-100 text-center">
+                                <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">
+                                    {tenant?.company_name || tenant?.name || 'Nexus Pro'} — Sistema de Gestão de Serviços
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style>{`
                 @keyframes slideInRight {
                     from { transform: translateX(100%); opacity: 0; }
                     to { transform: translateX(0); opacity: 1; }
                 }
                 .animate-slide-in-right { animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+                @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    #printable-receipt, #printable-receipt * {
+                        visibility: visible;
+                    }
+                    #printable-receipt {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .print\\:hidden { visibility: hidden !important; display: none !important; }
+                }
             `}</style>
         </div>
     );
