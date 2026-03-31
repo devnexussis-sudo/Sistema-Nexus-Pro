@@ -190,32 +190,39 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 if (!item) continue;
 
                 if (item.type === 'ORDER') {
-                    await DataService.getServiceClient().from('orders').update({
-                        billing_status: 'PAID',
-                        payment_method: finalMethod,
-                        billing_notes: billingNotes,
-                        paid_at: new Date().toISOString()
-                    }).eq('id', item.id);
+                    // Update main Order
+                    await DataService.updateOrder({
+                        ...item.original,
+                        billingStatus: 'PAID',
+                        paymentMethod: finalMethod,
+                        billingNotes: billingNotes,
+                        paidAt: new Date().toISOString()
+                    });
 
                     // Atualiza orçamentos vinculados
                     if (item.original.linkedQuotes?.length > 0) {
                         for (const qId of item.original.linkedQuotes) {
-                            await DataService.getServiceClient().from('quotes').update({
-                                billing_status: 'PAID',
-                                payment_method: finalMethod,
-                                billing_notes: `Faturado via O.S. ${item.displayId || '#' + item.id.slice(0, 8)}`,
-                                paid_at: new Date().toISOString()
-                            }).eq('id', qId);
+                            const qOrigin = quotes.find(q => q.id === qId);
+                            if (qOrigin) {
+                                await DataService.updateQuote({
+                                    ...qOrigin,
+                                    billingStatus: 'PAID',
+                                    paymentMethod: finalMethod,
+                                    billingNotes: `Faturado via O.S. ${item.displayId || '#' + item.id.slice(0, 8)}`,
+                                    paidAt: new Date().toISOString()
+                                });
+                            }
                         }
                     }
                 } else {
-                    // Orçamento autônomo faturado → atualiza billing_status no quotes
-                    await DataService.getServiceClient().from('quotes').update({
-                        billing_status: 'PAID',
-                        payment_method: finalMethod,
-                        billing_notes: billingNotes,
-                        paid_at: new Date().toISOString()
-                    }).eq('id', item.id);
+                    // Orçamento autônomo faturado
+                    await DataService.updateQuote({
+                        ...item.original,
+                        billingStatus: 'PAID',
+                        paymentMethod: finalMethod,
+                        billingNotes: billingNotes,
+                        paidAt: new Date().toISOString()
+                    });
                 }
 
                 // Registra no fluxo de caixa
@@ -282,7 +289,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     ];
 
     return (
-        <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden relative">
+        <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden relative font-sans">
 
             {/* ── FILTROS + STATS ── */}
             <div className="flex-shrink-0 space-y-4 mb-4">
@@ -428,10 +435,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 </div>
             )}
 
-            {/* ── PAINEL DE DETALHES (padrão OS) ── */}
+            {/* ── PAINEL DE DETALHES (Centrado no meio) ── */}
             {isSidebarOpen && selectedItem && (
-                <div className="fixed inset-0 z-[1200] bg-slate-900/70 backdrop-blur-md flex justify-end animate-fade-in" onClick={() => setIsSidebarOpen(false)}>
-                    <div className="bg-[#F0F2F5] w-full max-w-4xl h-full shadow-2xl flex flex-col animate-slide-in-right overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-[1200] bg-slate-900/60 backdrop-blur-sm flex justify-center items-center py-4 px-4 overflow-y-auto animate-fade-in" onClick={() => setIsSidebarOpen(false)}>
+                    <div className="bg-slate-50 w-full max-w-2xl min-h-[500px] max-h-full rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden relative" onClick={e => e.stopPropagation()}>
 
                         {/* Hero Header — padrão OS */}
                         <div className={`${selectedItem.status === 'PAID' ? 'bg-emerald-700' : 'bg-[#1c2d4f]'} transition-colors`}>
@@ -441,9 +448,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         {selectedItem.type === 'QUOTE' ? <FileText size={22} className="text-white" /> : <Wrench size={22} className="text-white" />}
                                     </div>
                                     <div>
-                                        <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em] leading-none mb-1">{selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</p>
-                                        <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none">#{getDocLabel(selectedItem)}</h2>
-                                        {selectedItem.title && <p className="text-[10px] font-bold text-white/50 uppercase mt-1">{selectedItem.title}</p>}
+                                        <p className="text-[10px] font-bold text-white/50 tracking-wider mb-1 capitalize">{selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</p>
+                                        <h2 className="text-xl font-black text-white uppercase tracking-tight leading-none">#{getDocLabel(selectedItem)}</h2>
+                                        {selectedItem.title && <p className="text-xs font-medium text-white/80 mt-1 capitalize">{selectedItem.title}</p>}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -467,13 +474,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                                     <div className="flex items-center gap-2 pb-3 border-b border-slate-50 mb-4">
                                         <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center text-[#1c2d4f]"><Users size={13} /></div>
-                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#1c2d4f]">Dados do Cliente</h3>
+                                        <h3 className="text-xs font-black text-[#1c2d4f] tracking-wide">Dados do cliente</h3>
                                     </div>
-                                    <p className="text-base font-black text-slate-900 uppercase">{selectedItem.customerName}</p>
+                                    <p className="text-base font-bold text-slate-800 capitalize">{selectedItem.customerName?.toLowerCase()}</p>
                                     {selectedItem.customerAddress && (
                                         <div className="flex items-start gap-1.5 mt-2">
                                             <MapPin size={11} className="text-slate-400 mt-0.5 shrink-0" />
-                                            <p className="text-xs text-slate-500 font-medium">{selectedItem.customerAddress}</p>
+                                            <p className="text-[11px] text-slate-500 font-medium capitalize">{selectedItem.customerAddress?.toLowerCase()}</p>
                                         </div>
                                     )}
                                 </div>
@@ -481,11 +488,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 {/* Valor */}
                                 <div className="bg-[#1c2d4f] rounded-2xl p-5 text-white relative overflow-hidden">
                                     <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/5 rounded-full blur-2xl" />
-                                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-1">Valor Total</p>
-                                    <p className="text-3xl font-black tracking-tighter">{formatCurrency(selectedItem.value)}</p>
-                                    <div className="flex items-center gap-2 mt-3">
+                                    <p className="text-xs font-bold text-white/60 tracking-wider mb-1">Valor total</p>
+                                    <p className="text-3xl font-black tracking-tight">{formatCurrency(selectedItem.value)}</p>
+                                    <div className="flex items-center gap-2 mt-4">
                                         <div className="w-6 h-6 bg-[#1c2d4f]/60 border border-white/10 rounded-lg flex items-center justify-center"><Calendar size={12} className="text-white/60" /></div>
-                                        <p className="text-[9px] font-bold text-white/50 uppercase">{new Date(selectedItem.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                        <p className="text-[10px] font-bold text-white/70">{new Date(selectedItem.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                                     </div>
                                 </div>
                             </div>
@@ -494,15 +501,15 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                                 <div className="flex items-center gap-2 pb-3 border-b border-slate-50 mb-4">
                                     <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center text-[#1c2d4f]"><Info size={13} /></div>
-                                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#1c2d4f]">Descrição do Atendimento</h3>
+                                    <h3 className="text-xs font-black text-[#1c2d4f] tracking-wide">Descrição do atendimento</h3>
                                 </div>
-                                <div className="flex items-center gap-3 mb-4 p-3 bg-[#1c2d4f]/5 rounded-xl">
-                                    <div className="w-8 h-8 bg-[#1c2d4f] rounded-xl flex items-center justify-center">
-                                        <UserCheck size={15} className="text-white" />
+                                <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 rounded-xl">
+                                    <div className="w-8 h-8 bg-slate-200 rounded-xl flex items-center justify-center">
+                                        <UserCheck size={15} className="text-[#1c2d4f]" />
                                     </div>
                                     <div>
-                                        <p className="text-[8px] font-black text-[#1c2d4f]/50 uppercase tracking-widest">Técnico</p>
-                                        <p className="text-xs font-black text-slate-800 uppercase">{selectedItem.technician}</p>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Técnico designado</p>
+                                        <p className="text-xs font-bold text-slate-700 capitalize">{selectedItem.technician?.toLowerCase()}</p>
                                     </div>
                                 </div>
                                 {selectedItem.description && <p className="text-xs text-slate-500 font-medium leading-relaxed italic">{selectedItem.description}</p>}
@@ -591,20 +598,20 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         </div>
 
                         {/* Footer de Ação */}
-                        <div className="p-5 border-t border-slate-200 bg-white flex gap-3">
-                            <button onClick={() => setIsSidebarOpen(false)} className="px-6 py-3.5 border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-400 hover:text-slate-700 tracking-widest transition-all">
-                                Fechar
+                        <div className="p-4 bg-white/80 backdrop-blur-md flex gap-3 z-10 sticky bottom-0 border-t border-slate-100 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] rounded-b-3xl">
+                            <button onClick={() => setIsSidebarOpen(false)} className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-800 transition-all hover:bg-slate-50">
+                                Fechar Painel
                             </button>
                             {selectedItem.status !== 'PAID' ? (
                                 <button
                                     onClick={() => { setSelectedIds([selectedItem.id]); setIsInvoiceModalOpen(true); }}
-                                    className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-2"
+                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
                                 >
-                                    <DollarSign size={16} /> Confirmar Recebimento
+                                    <DollarSign size={18} /> Confirmar Lançamento Financeiro
                                 </button>
                             ) : (
-                                <div className="flex-1 py-3.5 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-xl font-black uppercase text-xs tracking-widest text-center flex items-center justify-center gap-2">
-                                    <CheckCircle2 size={16} /> Registro Liquidado
+                                <div className="flex-1 py-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl font-bold text-sm text-center flex items-center justify-center gap-2">
+                                    <CheckCircle2 size={18} /> Lançamento Liquidado
                                 </div>
                             )}
                         </div>
