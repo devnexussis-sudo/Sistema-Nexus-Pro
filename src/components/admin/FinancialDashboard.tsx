@@ -64,7 +64,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             await onRefresh();
             setSelectedItem((prev: any) => ({
                 ...prev,
-                value: prev.value + (quotes.find(q => q.id === quoteId)?.totalValue || 0),
+                value: Number(prev.value) + Number(quotes.find(q => q.id === quoteId)?.totalValue || 0),
                 original: { ...prev.original, linkedQuotes: [...currentLinks, quoteId] }
             }));
         } catch (error) {
@@ -172,8 +172,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
     };
     const selectedTotal = useMemo(() => {
-        return filteredItems.filter(i => selectedIds.includes(i.id)).reduce((acc, i) => acc + i.value, 0);
-    }, [filteredItems, selectedIds]);
+        return filteredItems.filter(i => selectedIds.includes(i.id)).reduce((acc, i) => {
+            if (selectedItem && selectedItem.id === i.id) return acc + Number(selectedItem.value);
+            return acc + Number(i.value);
+        }, 0);
+    }, [filteredItems, selectedIds, selectedItem]);
 
     // 5. Handlers
     const handleInvoiceBatch = () => {
@@ -663,112 +666,129 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
             {/* ── MODAL DE FATURAMENTO ── */}
             {isInvoiceModalOpen && (
-                <div className="fixed inset-0 z-[2000] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
-
-                        {/* Header do modal */}
-                        <div className="bg-[#1c2d4f] p-6 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
-                                    <Wallet size={22} className="text-white" />
+                <div className="fixed inset-0 z-[2000] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col md:flex-row h-auto max-h-[90vh]">
+                        
+                        {/* ── ALINHAMENTO ESQUERDO: RESUMO DA FATURA ── */}
+                        <div className="w-full md:w-5/12 bg-[#1c2d4f] p-8 md:p-10 flex flex-col justify-between text-white border-r border-[#ffffff]/10">
+                            <div>
+                                <div className="w-14 h-14 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-6">
+                                    <Wallet size={26} className="text-white" />
                                 </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest">Faturamento</p>
-                                    <h2 className="text-xl font-black text-white tracking-tight">Confirmar Recebimento</h2>
+                                <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-2">Checkout Faturamento</p>
+                                <h2 className="text-3xl font-black text-white tracking-tight leading-tight">Liquidação de<br />Recebíveis</h2>
+                                <p className="text-sm text-white/60 mt-4 leading-relaxed font-medium">Confirme o recebimento deste faturamento para gerar o recibo oficial e atualizar o caixa.</p>
+
+                                <div className="mt-8 space-y-4">
+                                    <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-5 border border-white/10 transition-all hover:bg-white/10">
+                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                                            <Layers size={12}/> Documentos a faturar
+                                        </p>
+                                        <p className="text-base font-black text-white uppercase">{selectedIds.length === 1 ? (selectedItem ? getDocLabel(selectedItem) : '—') : `${selectedIds.length} Itens Lançados`}</p>
+                                        <p className="text-xs text-white/50 font-medium mt-1 uppercase tracking-wide">{selectedIds.length === 1 ? selectedItem?.customerName : 'Múltiplos clientes'}</p>
+                                    </div>
                                 </div>
                             </div>
-                            <button onClick={() => setIsInvoiceModalOpen(false)} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all hover:rotate-90">
-                                <X size={20} />
-                            </button>
+
+                            <div className="mt-10 pt-8 border-t border-white/10">
+                                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                    <DollarSign size={12}/> Valor Total a Receber
+                                </p>
+                                <p className="text-5xl font-black text-white italic tracking-tighter">
+                                    {formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}
+                                </p>
+                            </div>
                         </div>
 
-                        <div className="p-6 space-y-5">
-                            {/* Resumo */}
-                            <div className="bg-slate-50 rounded-2xl p-5 flex items-center justify-between">
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{selectedIds.length === 1 ? 'Documento' : 'Documentos'}</p>
-                                    <p className="text-sm font-black text-slate-800 uppercase">{selectedIds.length === 1 ? (selectedItem ? getDocLabel(selectedItem) : '—') : `${selectedIds.length} Itens`}</p>
-                                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">{selectedIds.length === 1 ? selectedItem?.customerName : 'Múltiplos clientes'}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
-                                    <p className="text-2xl font-black text-[#1c2d4f]">{formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}</p>
-                                </div>
+                        {/* ── ALINHAMENTO DIREITO: FORMULÁRIO ── */}
+                        <div className="w-full md:w-7/12 bg-white p-8 md:p-10 flex flex-col h-full overflow-y-auto">
+                            
+                            <div className="flex justify-between items-center mb-8">
+                                <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                    <CreditCard size={20} className="text-[#1c2d4f]"/> Detalhes do Pagamento
+                                </h3>
+                                <button onClick={() => setIsInvoiceModalOpen(false)} className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full text-slate-400 hover:text-slate-700 transition-all hover:rotate-90">
+                                    <X size={18} />
+                                </button>
                             </div>
 
-                            {/* Formas de Pagamento */}
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                    <CreditCard size={12} /> Forma de Pagamento
-                                </p>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {paymentMethods.map(method => (
-                                        <button
-                                            key={method.id}
-                                            onClick={() => setPaymentMethod(method.id)}
-                                            className={`flex flex-col items-center justify-center p-3.5 border rounded-2xl transition-all h-20 ${paymentMethod === method.id
-                                                ? 'border-[#1c2d4f] bg-[#1c2d4f]/5 text-[#1c2d4f] ring-1 ring-[#1c2d4f]/20 shadow-sm scale-[1.02]'
-                                                : 'border-slate-100 hover:border-slate-300 text-slate-400 hover:text-slate-700 bg-slate-50'}`}
-                                        >
-                                            <div className="mb-1.5 opacity-80">{method.icon}</div>
-                                            <span className="text-[9px] font-black uppercase tracking-wide leading-tight text-center">{method.label}</span>
-                                        </button>
-                                    ))}
-                                </div>
+                            <div className="space-y-8 flex-1">
+                                {/* Formas de Pagamento */}
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Meio de Pagamento</p>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {paymentMethods.map(method => (
+                                            <button
+                                                key={method.id}
+                                                onClick={() => setPaymentMethod(method.id)}
+                                                className={`flex flex-col items-center justify-center p-4 border rounded-2xl transition-all ${paymentMethod === method.id
+                                                    ? 'border-[#1c2d4f] bg-[#1c2d4f]/5 text-[#1c2d4f] ring-2 ring-[#1c2d4f]/20 shadow-sm scale-[1.02]'
+                                                    : 'border-slate-200 hover:border-slate-300 text-slate-400 hover:text-slate-800 bg-white hover:bg-slate-50'}`}
+                                            >
+                                                <div className="mb-2 opacity-80">{method.icon}</div>
+                                                <span className="text-[10px] font-black uppercase tracking-wider leading-tight text-center">{method.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
 
-                                {/* Parcelas — só aparece quando Cartão Crédito selecionado */}
-                                {paymentMethod === 'Cartão Crédito' && (
-                                    <div className="mt-4 p-4 bg-[#1c2d4f]/5 border border-[#1c2d4f]/10 rounded-2xl">
-                                        <p className="text-[9px] font-black text-[#1c2d4f] uppercase tracking-widest mb-3">Número de Parcelas</p>
-                                        <div className="flex items-center gap-3">
-                                            <div className="grid grid-cols-6 gap-2 flex-1">
+                                    {/* Parcelas */}
+                                    {paymentMethod === 'Cartão Crédito' && (
+                                        <div className="mt-6 p-6 bg-slate-50 border border-slate-200/60 rounded-3xl animate-fade-in">
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2"><Layers size={12}/> Numero de Parcelas</p>
+                                            <div className="grid grid-cols-6 gap-2">
                                                 {[2, 3, 4, 5, 6, 12].map(n => (
                                                     <button
                                                         key={n}
                                                         onClick={() => setInstallments(n)}
-                                                        className={`py-2 rounded-xl text-xs font-black transition-all ${installments === n ? 'bg-[#1c2d4f] text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:border-[#1c2d4f]'}`}
+                                                        className={`py-2.5 rounded-xl text-[11px] font-black transition-all ${installments === n ? 'bg-[#1c2d4f] text-white shadow-md scale-105' : 'bg-white border border-slate-200 text-slate-500 hover:border-[#1c2d4f]/50 hover:text-slate-800'}`}
                                                     >
                                                         {n}x
                                                     </button>
                                                 ))}
                                             </div>
+                                            <div className="mt-5 pt-4 border-t border-slate-200 flex items-center justify-between">
+                                                <span className="text-xs font-bold text-slate-400 uppercase">Valor da parcela</span>
+                                                <span className="text-sm font-black text-[#1c2d4f] uppercase tracking-wide">
+                                                    {installments}x de {formatCurrency((selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) / installments)}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <p className="text-[9px] text-[#1c2d4f]/60 font-bold mt-3 text-center uppercase tracking-wide">
-                                            {installments}x de {formatCurrency((selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) / installments)}
-                                        </p>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
+
+                                {/* Observações */}
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <FileText size={12}/> Referência Legal / Comprovante
+                                    </p>
+                                    <textarea
+                                        className="w-full min-h-[100px] bg-slate-50 border border-slate-200 rounded-3xl p-5 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f]/30 transition-all resize-none placeholder:font-medium placeholder:text-slate-400"
+                                        placeholder="Ex: Nº do comprovante transacional, código de autenticação Pix, NSU da maquineta..."
+                                        value={billingNotes}
+                                        onChange={e => setBillingNotes(e.target.value)}
+                                    />
+                                </div>
                             </div>
 
-                            {/* Observações */}
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Observações / Comprovante</p>
-                                <textarea
-                                    className="w-full min-h-[70px] bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f]/30 transition-all resize-none"
-                                    placeholder="Opcional: nº do comprovante, código Pix, ou observações..."
-                                    value={billingNotes}
-                                    onChange={e => setBillingNotes(e.target.value)}
-                                />
-                            </div>
-
-                            {/* Botão Finalizar */}
-                            <div className="flex gap-3 pt-2">
-                                <button onClick={() => setIsInvoiceModalOpen(false)} className="px-6 py-3.5 border border-slate-200 rounded-xl text-[11px] font-black uppercase text-slate-500 hover:text-slate-800 hover:border-slate-300 tracking-widest transition-all">
+                            {/* Botões Ação */}
+                            <div className="flex gap-4 pt-8 mt-6 border-t border-slate-100">
+                                <button onClick={() => setIsInvoiceModalOpen(false)} className="px-8 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase text-slate-500 hover:text-slate-800 hover:bg-white hover:border-slate-300 tracking-widest transition-all">
                                     Cancelar
                                 </button>
                                 <button
                                     onClick={confirmInvoice}
                                     disabled={isProcessing}
-                                    className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-sm font-black uppercase tracking-widest shadow-lg shadow-emerald-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                                    className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-500 hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 disabled:cursor-not-allowed text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                                 >
                                     {isProcessing ? (
-                                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processando...</>
+                                        <><div className="w-5 h-5 border-[3px] border-white/30 border-t-white rounded-full animate-spin" /> Concluindo Baixa...</>
                                     ) : (
-                                        <><ShieldCheck size={18} /> Confirmar e Finalizar</>
+                                        <><ShieldCheck size={20} /> Liquidar Recebíveis</>
                                     )}
                                 </button>
                             </div>
                         </div>
+
                     </div>
                 </div>
             )}
@@ -802,49 +822,49 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                             {/* Cabeçalho com branding da empresa */}
                             <div className="flex items-start justify-between pb-8 border-b-2 border-[#1c2d4f]">
-                                <div className="flex items-center gap-5">
+                                <div className="flex items-center gap-4">
                                     {(tenant?.logo_url || tenant?.logoUrl) ? (
                                         <img
                                             src={tenant.logo_url || tenant.logoUrl}
                                             alt={tenant.company_name || tenant.name || 'Logo'}
-                                            className="h-16 w-auto object-contain"
+                                            className="h-12 w-auto object-contain"
                                         />
                                     ) : (
-                                        <div className="w-16 h-16 bg-[#1c2d4f] rounded-2xl flex items-center justify-center">
-                                            <Wallet size={28} className="text-white" />
+                                        <div className="w-12 h-12 bg-[#1c2d4f] rounded-xl flex items-center justify-center">
+                                            <Wallet size={20} className="text-white" />
                                         </div>
                                     )}
                                     <div>
-                                        <h1 className="text-2xl font-black text-[#1c2d4f] uppercase tracking-tight leading-none">
+                                        <h1 className="text-xl font-black text-[#1c2d4f] uppercase tracking-tight leading-none">
                                             {tenant?.company_name || tenant?.trading_name || tenant?.name || 'Empresa'}
                                         </h1>
                                         {tenant?.cnpj || tenant?.document ? (
-                                            <p className="text-xs text-slate-500 font-bold mt-1 uppercase">
+                                            <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase">
                                                 CNPJ: {tenant.cnpj || tenant.document}
                                             </p>
                                         ) : null}
                                         {(tenant?.address || tenant?.street) ? (
-                                            <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                            <p className="text-[10px] text-slate-400 font-medium leading-tight">
                                                 {tenant.street
-                                                    ? `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' — ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}`
+                                                    ? `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' - ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}`
                                                     : tenant.address
                                                 }
                                             </p>
                                         ) : null}
                                         {tenant?.phone && (
-                                            <p className="text-xs text-slate-400 font-medium">{tenant.phone}</p>
+                                            <p className="text-[10px] text-slate-400 font-medium">{tenant.phone}</p>
                                         )}
                                         {tenant?.email && (
-                                            <p className="text-xs text-slate-400 font-medium">{tenant.email}</p>
+                                            <p className="text-[10px] text-slate-400 font-medium">{tenant.email}</p>
                                         )}
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Recibo de Faturamento</p>
-                                    <p className="text-3xl font-black text-[#1c2d4f] italic tracking-tighter">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Recibo de Faturamento</p>
+                                    <p className="text-2xl font-black text-[#1c2d4f] italic tracking-tighter">
                                         #{getDocLabel(printItem)}
                                     </p>
-                                    <p className="text-xs text-slate-400 font-bold mt-1">
+                                    <p className="text-[11px] text-slate-400 font-bold mt-1">
                                         {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
                                     </p>
                                 </div>
@@ -916,7 +936,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         </p>
                                     )}
                                 </div>
-                                <p className="text-4xl font-black text-white tracking-tighter italic">
+                                <p className="text-3xl font-black text-white tracking-tighter italic">
                                     {formatCurrency(printItem.value)}
                                 </p>
                             </div>
