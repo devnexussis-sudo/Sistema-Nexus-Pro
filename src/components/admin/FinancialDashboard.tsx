@@ -10,7 +10,7 @@ import {
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
 import { DataService } from '../../services/dataService';
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 
 interface FinancialDashboardProps {
     orders: ServiceOrder[];
@@ -154,7 +154,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 description: q.description,
                 date: q.createdAt,
                 createdAt: q.createdAt,
-                updatedAt: q.updatedAt || q.createdAt,
+                updatedAt: (q as any).updatedAt || q.createdAt,
                 paidAt: q.paidAt || null,
                 value: Number(q.totalValue) || 0,
                 status: (q.billingStatus || 'PENDING').toUpperCase(),
@@ -330,7 +330,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         value: selectedItem.value,
                         original: {
                             ...rawItem.original,
-                            linkedQuotes: selectedItem.original?.linkedQuotes ?? rawItem.original?.linkedQuotes
+                            linkedQuotes: (selectedItem.original as any)?.linkedQuotes ?? (rawItem.original as any)?.linkedQuotes
                         }
                     }
                     : rawItem;
@@ -338,7 +338,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 if (item.type === 'ORDER') {
                     // Atualiza O.S. principal
                     await DataService.updateOrder({
-                        ...item.original,
+                        ...(item.original as ServiceOrder),
                         billingStatus: 'PAID',
                         paymentMethod: finalMethod,
                         billingNotes: billingNotes,
@@ -418,21 +418,117 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     };
 
     const handleExportExcel = () => {
-        if (filteredItems.length === 0) return;
-        const exportData = filteredItems.map(item => ({
-            ID: item.displayId || item.id,
-            Tipo: item.type === 'ORDER' ? 'O.S.' : 'Orçamento',
-            Data: new Date(item.date).toLocaleDateString('pt-BR'),
-            Cliente: item.customerName,
-            Título: item.title,
-            Técnico: item.technician,
-            Valor: item.value,
-            Status: item.status === 'PAID' ? 'Faturado' : 'Pendente'
-        }));
-        const ws = XLSX.utils.json_to_sheet(exportData);
+        const itemsToExport = selectedIds.length > 0 
+            ? filteredItems.filter(i => selectedIds.includes(i.id)) 
+            : filteredItems;
+
+        if (itemsToExport.length === 0) return;
+
+        const formatDateTime = (dateStr?: string) => {
+            if (!dateStr || dateStr === 'N/A') return 'N/A';
+            try {
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr;
+                return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            } catch {
+                return dateStr;
+            }
+        };
+
+        const formatDate = (dateStr?: string) => {
+            if (!dateStr || dateStr === 'N/A') return 'N/A';
+            try {
+                const d = new Date(dateStr + (dateStr.length === 10 ? 'T12:00:00' : ''));
+                if (isNaN(d.getTime())) return dateStr;
+                return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+            } catch {
+                return dateStr;
+            }
+        };
+
+        const headers = [
+            'ID / Protocolo',
+            'Tipo do Documento',
+            'Data Agendada',
+            'Hora Agendada',
+            'Cliente',
+            'Título',
+            'Descrição',
+            'Tipo de Atendimento',
+            'Técnico',
+            'Status Operacional',
+            'Prioridade',
+            'Valor Total',
+            'Status Financeiro',
+            'Data de Abertura',
+            'Data de Conclusão / Baixa'
+        ];
+
+        const headerStyle = {
+            font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+            fill: { fgColor: { rgb: '1C2D4F' } },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            border: {
+                top: { style: 'thin', color: { rgb: 'FFFFFF' } },
+                bottom: { style: 'thin', color: { rgb: 'FFFFFF' } },
+                left: { style: 'thin', color: { rgb: 'FFFFFF' } },
+                right: { style: 'thin', color: { rgb: 'FFFFFF' } }
+            }
+        };
+
+        const rows = itemsToExport.map(item => {
+            const isOrder = item.type === 'ORDER';
+            const orig: any = item.original || {};
+            return [
+                item.displayId || item.id.slice(0, 8).toUpperCase(),
+                isOrder ? 'O.S.' : 'Orçamento',
+                formatDate(orig.scheduledDate),
+                orig.scheduledTime || 'N/A',
+                item.customerName || 'N/A',
+                item.title || 'N/A',
+                item.description || 'N/A',
+                orig.operationType || 'Não informado',
+                item.technician || 'N/A',
+                orig.status || 'N/A',
+                orig.priority || 'N/A',
+                item.value || 0,
+                item.status === 'PAID' ? 'Faturado' : 'Pendente',
+                formatDateTime(item.createdAt),
+                formatDateTime(item.paidAt || item.updatedAt)
+            ];
+        });
+
+        const wsData = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+        ws['!cols'] = [
+            { wch: 15 }, // ID
+            { wch: 18 }, // Tipo Documento
+            { wch: 15 }, // Data Agendada
+            { wch: 15 }, // Hora Agendada
+            { wch: 30 }, // Cliente
+            { wch: 30 }, // Título
+            { wch: 40 }, // Descrição
+            { wch: 20 }, // Tipo Atendimento
+            { wch: 20 }, // Técnico
+            { wch: 18 }, // Status Operacional
+            { wch: 15 }, // Prioridade
+            { wch: 15 }, // Valor Final
+            { wch: 18 }, // Status Financeiro
+            { wch: 20 }, // Abertura
+            { wch: 20 }  // Conclusão
+        ];
+
+        const range = XLSX.utils.decode_range(ws['!ref'] || "A1:A1");
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const address = XLSX.utils.encode_cell({ r: 0, c: C });
+            if (!ws[address]) continue;
+            ws[address].s = headerStyle;
+        }
+
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Financeiro');
-        XLSX.writeFile(wb, `financeiro_nexus_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "Financeiro");
+        XLSX.writeFile(wb, `Nexus_Financeiro_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     const formatCurrency = (val: number) =>
@@ -472,24 +568,80 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
             {/* ── FILTROS + STATS ── */}
             <div className="flex-shrink-0 space-y-4 mb-4">
-                {/* Row 1: Search & Toggle */}
-                <div className="flex flex-col lg:flex-row gap-3 items-center">
-                    <div className="relative flex-1 group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1c2d4f] transition-colors" size={15} />
-                        <input
-                            type="text"
-                            placeholder="Pesquisar por cliente, protocolo ou ORC..."
-                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all shadow-sm"
-                            value={searchTerm}
-                            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                        />
+                {/* Row 1: Search & Toggle & Export */}
+                <div className="flex flex-col xl:flex-row gap-3 items-center w-full">
+                    <div className="flex w-full xl:w-auto flex-1 gap-3">
+                        <div className="relative flex-1 group">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1c2d4f] transition-colors" size={15} />
+                            <input
+                                type="text"
+                                placeholder="Pesquisar por cliente, protocolo ou ORC..."
+                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all shadow-sm"
+                                value={searchTerm}
+                                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            />
+                        </div>
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`flex items-center gap-2 px-4 h-11 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+                        >
+                            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
+                        </button>
                     </div>
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-2 px-4 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
-                    >
-                        <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
-                    </button>
+
+                    <div className="flex items-center gap-3 ml-auto w-full xl:w-auto justify-end">
+                        {selectedIds.length === 0 && (
+                            <button
+                                onClick={handleExportExcel}
+                                className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100/50 h-10"
+                                title="Exportar Filtrados para Excel"
+                            >
+                                <FileSpreadsheet size={14} /> Exportar Excel
+                            </button>
+                        )}
+
+                        {/* Ações em Lote (Seleção) - Realocado para o Header */}
+                        {selectedIds.length > 0 && (
+                            <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-900 rounded-[1.5rem] shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100/50 h-11">
+                                <div className="flex flex-col pr-3 border-r border-slate-700 justify-center">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
+                                    <span className="text-xs font-black text-white leading-none tracking-wider">{selectedIds.length}</span>
+                                </div>
+                                <div className="flex flex-col pr-3 border-r border-slate-700 justify-center">
+                                    <span className="text-[9px] font-black text-emerald-500 uppercase leading-none mb-0.5">Total</span>
+                                    <span className="text-[11px] font-black text-emerald-400 leading-none tracking-wide">{formatCurrency(selectedTotal)}</span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={handleExportExcel}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
+                                        title="Exportar Seleção para Excel"
+                                    >
+                                        <FileSpreadsheet size={14} /> Excel
+                                    </button>
+
+                                    <button
+                                        onClick={handleInvoiceBatch}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white rounded-lg text-[10px] font-black uppercase transition-all shadow-lg shadow-primary-500/20 active:scale-95 whitespace-nowrap"
+                                        title="Faturar Seleção"
+                                    >
+                                        <DollarSign size={14} /> Faturar
+                                    </button>
+
+                                    <div className="w-px h-5 bg-slate-700 mx-1" />
+
+                                    <button
+                                        onClick={() => setSelectedIds([])}
+                                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all ring-1 ring-transparent hover:ring-rose-200"
+                                        title="Limpar Seleção"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Collapsible Filters */}
@@ -552,17 +704,20 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
             {/* ── TABELA ── */}
             <div className="bg-white border border-slate-100 rounded-2xl flex flex-col overflow-hidden flex-1 min-h-0 shadow-xl shadow-slate-200/30 relative">
-                <div className="absolute top-4 right-4 z-20">
-                    <button onClick={handleExportExcel} className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100">
-                        <FileSpreadsheet size={14} /> Excel
-                    </button>
-                </div>
                 <div className="flex-1 overflow-auto">
                     <table className="w-full text-left">
                         <thead className="sticky top-0 bg-white/95 backdrop-blur-md z-10 border-b border-slate-100">
                             <tr className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">
                                 <th className="px-3 py-3 w-10 text-center">
-                                    <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-200 text-[#1c2d4f] cursor-pointer" checked={filteredItems.length > 0 && selectedIds.length === filteredItems.length} onChange={() => { if (selectedIds.length === filteredItems.length) setSelectedIds([]); else setSelectedIds(filteredItems.map(i => i.id)); }} />
+                                    <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-200 text-[#1c2d4f] cursor-pointer" checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedIds.includes(i.id))} onChange={() => { 
+                                        const pageIds = paginatedItems.map(i => i.id);
+                                        const allSelected = pageIds.every(id => selectedIds.includes(id));
+                                        if (allSelected) {
+                                            setSelectedIds(prev => prev.filter(id => !pageIds.includes(id)));
+                                        } else {
+                                            setSelectedIds(prev => Array.from(new Set([...prev, ...pageIds])));
+                                        }
+                                     }} title="Selecionar página atual" />
                                 </th>
                                 <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('displayId')}>
                                     <div className="flex items-center">Protocolo {getSortIcon('displayId')}</div>
@@ -656,28 +811,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 <Pagination currentPage={currentPage} totalPages={totalPages} totalItems={filteredItems.length} itemsPerPage={ITEMS_PER_PAGE} onPageChange={setCurrentPage} />
             </div>
 
-            {/* ── SOMATÓRIO FLUTUANTE ── */}
-            {selectedIds.length > 0 && (
-                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-up">
-                    <div className="bg-slate-900/95 backdrop-blur-xl border border-white/10 px-8 py-4 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.4)] flex items-center gap-8">
-                        <div>
-                            <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-0.5">Selecionados</p>
-                            <p className="text-base font-black text-white">{selectedIds.length} Itens</p>
-                        </div>
-                        <div className="h-8 w-px bg-white/10" />
-                        <div>
-                            <p className="text-[9px] font-black text-emerald-400/70 uppercase tracking-widest mb-0.5">Total</p>
-                            <p className="text-xl font-black text-emerald-400">{formatCurrency(selectedTotal)}</p>
-                        </div>
-                        <button onClick={handleInvoiceBatch} className="bg-emerald-500 hover:bg-emerald-400 text-white px-8 py-3 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-emerald-500/30 transition-all hover:scale-105 flex items-center gap-2">
-                            Faturar <ChevronRight size={16} />
-                        </button>
-                        <button onClick={() => setSelectedIds([])} className="p-2 text-white/30 hover:text-white transition-all">
-                            <X size={20} />
-                        </button>
-                    </div>
-                </div>
-            )}
+
 
             {/* ── PAINEL DE DETALHES (Centrado no meio) ── */}
             {isSidebarOpen && selectedItem && (
