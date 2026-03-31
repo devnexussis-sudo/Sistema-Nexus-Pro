@@ -15,7 +15,7 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
     showText = true,
     variant = 'dark',
     logoUrl,
-    companyName = 'DUNO'
+    companyName = 'duno'
 }) => {
     const [imageLoaded, setImageLoaded] = React.useState(false);
 
@@ -54,8 +54,8 @@ export const NexusBranding: React.FC<NexusBrandingProps> = ({
             </div>
             {showText && !imageLoaded && (
                 <div className="flex flex-col leading-none">
-                    <h1 className={`${current.text} font-bold tracking-tight ${variant === 'light' ? 'text-white' : 'text-slate-900'} uppercase`}>
-                        DUNO
+                    <h1 className={`${current.text} font-bold tracking-tight ${variant === 'light' ? 'text-white' : 'text-slate-900'} `}>
+                        duno
                     </h1>
                 </div>
             )}

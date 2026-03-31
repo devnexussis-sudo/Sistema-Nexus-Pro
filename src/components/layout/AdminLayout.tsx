@@ -85,8 +85,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     </div>
 
                     <div className="flex items-center gap-6 border-l border-slate-100 pl-6 h-8 ml-4">
-                        <h2 className="text-sm font-semibold text-slate-900 capitalize tracking-tight">
-                            {activeItem?.label || 'Dashboard'}
+                        <h2 className="text-sm font-semibold text-slate-900 lowercase tracking-tight">
+                            {activeItem?.label || 'dashboard'}
                         </h2>
                     </div>
                 </div>
@@ -94,7 +94,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 <div className="flex items-center gap-6 pr-4">
                     <div className="flex flex-col items-end border-r border-slate-100 pr-6">
                         <span className="text-sm font-semibold text-slate-900 tracking-tight">{user?.name}</span>
-                        <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">Administrador</span>
+                        <span className="text-[10px] font-medium text-slate-400  tracking-tighter">administrador</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all relative">
@@ -154,8 +154,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                     </div>
                                     {!isSidebarCollapsed && (
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-100/90 group-hover:text-white">Suporte</span>
-                                            <span className="text-[8px] font-bold text-emerald-500/80 group-hover:text-emerald-400">Online Agora</span>
+                                            <span className="text-[10px] font-bold   text-emerald-100/90 group-hover:text-white">suporte</span>
+                                            <span className="text-[8px] font-bold text-emerald-500/80 group-hover:text-emerald-400">online agora</span>
                                         </div>
                                     )}
                                 </div>
@@ -174,9 +174,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         )}
                         <button
                             onClick={onLogout}
-                            className="w-full py-2 text-white/40 hover:text-rose-400 hover:bg-rose-500/5 rounded-md text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+                            className="w-full py-2 text-white/40 hover:text-rose-400 hover:bg-rose-500/5 rounded-md text-[10px] font-bold   flex items-center justify-center gap-2 transition-all"
                         >
-                            <LogOut size={14} /> {!isSidebarCollapsed && "Sair da Conta"}
+                            <LogOut size={14} /> {!isSidebarCollapsed && "sair da conta"}
                         </button>
                     </div>
                 </aside>

@@ -454,8 +454,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">
                 {initialData ? `Editar Protocolo #${initialData.displayId || initialData.id}` : 'Novo Atendimento'}
               </h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                Nexus Operacional • Registro Técnico
+              <p className="text-[10px] font-bold text-slate-400   mt-0.5">
+                Nexus Operacional • registro técnico
               </p>
             </div>
           </div>
@@ -510,7 +510,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               )}
 
               <div className="space-y-4">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
+                <label className="text-[10px] font-bold text-slate-400   px-1 flex items-center gap-2">
                   {searchMode === 'client' ? <Building2 size={12} /> : <Hash size={12} />}
                   Localizar Unidade Técnico
                 </label>
@@ -572,7 +572,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
               {(selectedClientId || initialData) && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
+                  <label className="text-[10px] font-bold text-slate-400   px-1 flex items-center gap-2">
                     <Box size={12} /> Ativos Vinculados
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -618,11 +618,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 {/* CONFIGURAÇÃO DA AGENDA */}
                 <div className="md:col-span-2 space-y-8">
                   <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-                    <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">Programação e Prioridade</h3>
+                    <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">programação e prioridade</h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Data Agendada</label>
+                        <label className="text-[10px] font-bold text-slate-400   ml-1">data agendada</label>
                         <Input
                           type="date"
                           required
@@ -634,7 +634,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Horário Previsto</label>
+                        <label className="text-[10px] font-bold text-slate-400   ml-1">horário previsto</label>
                         <Input
                           type="time"
                           disabled={isReadOnly}
@@ -647,7 +647,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Modalidade</label>
+                        <label className="text-[10px] font-bold text-slate-400   ml-1">modalidade</label>
                         <select
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer disabled:opacity-50"
                           value={formData.operationType}
@@ -660,7 +660,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                         </select>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nível de Prioridade</label>
+                        <label className="text-[10px] font-bold text-slate-400   ml-1">nível de prioridade</label>
                         <select
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all outline-none cursor-pointer disabled:opacity-50"
                           value={formData.priority}
@@ -680,7 +680,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 {/* ALOCAÇÃO DE TÉCNICO */}
                 <div className="space-y-6">
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full">
-                    <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3 mb-6">Responsável Técnico</h3>
+                    <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3 mb-6">responsável técnico</h3>
 
                     <div className="relative mb-4">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -743,7 +743,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               {/* HEADER DA ETAPA */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">Composição de Valores</h3>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">composição de valores</h3>
                   <p className="text-xs text-slate-500 font-medium mt-1">Vincule peças do estoque ou adicione serviços manuais</p>
                 </div>
 
@@ -763,12 +763,12 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                      <th className="px-4 py-1.5">Item / Descrição</th>
-                      <th className="px-4 py-1.5 w-28 text-center">Qtd</th>
-                      <th className="px-4 py-1.5 w-32">Unitário (R$)</th>
-                      <th className="px-4 py-1.5 w-36">Subtotal</th>
-                      <th className="px-4 py-1.5 text-center w-20">Ações</th>
+                    <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400   border-b border-slate-200">
+                      <th className="px-4 py-1.5">item / descrição</th>
+                      <th className="px-4 py-1.5 w-28 text-center">qtd</th>
+                      <th className="px-4 py-1.5 w-32">unitário (r$)</th>
+                      <th className="px-4 py-1.5 w-36">subtotal</th>
+                      <th className="px-4 py-1.5 text-center w-20">ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -804,7 +804,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                           />
                         </td>
                         <td className="px-4 py-1.5">
-                          <span className="text-[12px] font-black text-slate-900 whitespace-nowrap">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-[12px] font-bold text-slate-900 whitespace-nowrap">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </td>
                         <td className="px-4 py-1.5 text-center">
                           <button
@@ -837,7 +837,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* BUSCA NO ESTOQUE */}
                     <div className="space-y-3 relative">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Buscar no Estoque</label>
+                      <label className="text-[10px] font-bold text-slate-400   px-1">buscar no estoque</label>
                       <div className="relative">
                         <div className="relative">
                           <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -883,12 +883,12 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
                     {/* ADIÇÃO MANUAL */}
                     <div className="space-y-3">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Adição Manual</label>
+                      <label className="text-[10px] font-bold text-slate-400   px-1">adição manual</label>
                       <button
                         type="button"
                         onClick={() => !isReadOnly && addItem({ description: 'DESCREVA O SERVIÇO OU PEÇA...', unitPrice: 0 })}
                         disabled={isReadOnly}
-                        className="w-full h-[46px] border-2 border-dashed border-slate-200 text-slate-400 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 hover:border-[#1c2d4f] hover:text-[#1c2d4f] hover:bg-[#1c2d4f05] transition-all disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
+                        className="w-full h-[46px] border-2 border-dashed border-slate-200 text-slate-400 rounded-xl text-xs font-bold  flex items-center justify-center gap-2 hover:border-[#1c2d4f] hover:text-[#1c2d4f] hover:bg-[#1c2d4f05] transition-all disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
                       >
                         <Plus size={16} /> Novo Item Personalizado
                       </button>
@@ -901,14 +901,14 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   <div>
                     <div className="flex items-center gap-3 opacity-60 mb-2">
                       <DollarSign size={18} />
-                      <h4 className="text-[10px] font-bold uppercase tracking-widest">Valor Total Previsto</h4>
+                      <h4 className="text-[10px] font-bold  ">Valor Total Previsto</h4>
                     </div>
                     <p className="text-4xl font-bold tracking-tight">
                       R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </p>
                   </div>
                   <div className="mt-6 pt-6 border-t border-white/10">
-                    <p className="text-[10px] font-medium text-white/50 leading-relaxed uppercase">
+                    <p className="text-[10px] font-medium text-white/50 leading-relaxed ">
                       Estimativa sujeita à disponibilidade técnica e variação de insumos.
                     </p>
                   </div>
@@ -932,7 +932,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
               <form id="os-form" onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 ml-1">Título do Atendimento</label>
+                  <label className="text-[10px] font-bold text-slate-400   px-1 ml-1">título do atendimento</label>
                   <Input
                     placeholder="Ex: Manutenção Preventiva do Sistema Central..."
                     required
@@ -944,7 +944,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 ml-1">Descrição Técnico-Operacional</label>
+                  <label className="text-[10px] font-bold text-slate-400   px-1 ml-1">descrição técnico-operacional</label>
                   <TextArea
                     placeholder="Relate detalhadamente a necessidade do cliente e o escopo do trabalho..."
                     rows={6}
@@ -986,7 +986,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               {/* Histórico completo de visitas (lazy-loaded, sempre ativo no step 5) */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Histórico de Visitas</span>
+                  <span className="text-[10px] font-bold   text-slate-500">Histórico de Visitas</span>
                 </div>
                 <VisitHistoryTab
                   orderId={initialData.id}
@@ -997,7 +997,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               {/* Timeline de Eventos do Sistema (legado — mantido para compatibilidade) */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-3.5 border-b border-slate-100">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Linha do Tempo do Sistema</span>
+                  <span className="text-[10px] font-bold   text-slate-500">Linha do Tempo do Sistema</span>
                 </div>
                 <div className="p-4">
                   <OrderTimeline key={`timeline-${timelineKey}`} orderId={initialData.id} />
@@ -1013,7 +1013,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
             type="button"
             key="back-btn"
             onClick={step > 1 ? () => setStep((step - 1) as any) : onClose}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest"
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors  "
           >
             {step === 1 ? 'Cancelar Registro' : 'Voltar Etapa'}
           </button>
@@ -1023,7 +1023,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               <Button
                 type="button"
                 key={`next-btn-${step}`}
-                className="bg-[#1c2d4f] hover:bg-[#2a3e66] text-white rounded-xl px-10 py-3 font-bold text-xs uppercase tracking-widest shadow-lg shadow-[#1c2d4f20] transition-all flex items-center gap-2"
+                className="bg-[#1c2d4f] hover:bg-[#2a3e66] text-white rounded-xl px-10 py-3 font-bold text-xs   shadow-lg shadow-[#1c2d4f20] transition-all flex items-center gap-2"
                 onClick={() => {
                   if (step === 1) goToStep2();
                   else if (step === 2) setStep(3);
@@ -1037,7 +1037,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               <Button
                 type="button"
                 key="submit-btn"
-                className="bg-slate-200 text-slate-500 rounded-xl px-12 py-3 font-bold text-xs uppercase tracking-widest shadow-none cursor-not-allowed flex items-center gap-2"
+                className="bg-slate-200 text-slate-500 rounded-xl px-12 py-3 font-bold text-xs   shadow-none cursor-not-allowed flex items-center gap-2"
                 title="Protocolo finalizado ou cancelado. Apenas visualização."
                 disabled
               >
@@ -1050,7 +1050,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 form={step === 5 ? undefined : "os-form"}
                 onClick={step === 5 ? () => handleSubmit() : undefined}
                 isLoading={loading}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-12 py-3 font-bold text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-12 py-3 font-bold text-xs   shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
               >
                 <Save size={18} /> {initialData ? 'Salvar Alterações' : 'Emitir Protocolo'}
               </Button>
@@ -1072,7 +1072,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Técnico Designado *</label>
+                  <label className="block text-xs font-bold text-slate-700  mb-1">técnico designado *</label>
                   <select
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
                     value={newVisitData.assignedTo}
@@ -1087,7 +1087,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Data *</label>
+                    <label className="block text-xs font-bold text-slate-700  mb-1">data *</label>
                     <input
                       type="date"
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
@@ -1096,7 +1096,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Horário (Opcional)</label>
+                    <label className="block text-xs font-bold text-slate-700  mb-1">horário (opcional)</label>
                     <input
                       type="time"
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm font-semibold outline-none focus:border-[#1c2d4f]"
@@ -1107,7 +1107,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Observações da Visita / Motivo</label>
+                  <label className="block text-xs font-bold text-slate-700  mb-1">observações da visita / motivo</label>
                   <TextArea
                     placeholder="Instruções para o técnico..."
                     value={newVisitData.notes}

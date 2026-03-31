@@ -1187,14 +1187,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {/* TABS */}
             <div className="px-6 border-b border-slate-100 bg-white flex gap-6 shrink-0 overflow-x-auto">
               {[
-                { id: 'overview', label: 'Dados Gerais', icon: LayoutDashboard },
-                { id: 'equipments', label: `Equipamentos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
-                { id: 'forms', label: 'Formulários', icon: ClipboardList },
-                { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
-                { id: 'history', label: `Histórico${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: History },
-                { id: 'media', label: 'Galeria', icon: Camera },
-                { id: 'costs', label: 'Peças e Custos', icon: DollarSign },
-                { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
+                { id: 'overview', label: 'dados gerais', icon: LayoutDashboard },
+                { id: 'equipments', label: `ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
+                { id: 'forms', label: 'formulários', icon: ClipboardList },
+                { id: 'visits', label: `visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
+                { id: 'history', label: `histórico${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: History },
+                { id: 'media', label: 'galeria', icon: Camera },
+                { id: 'costs', label: 'peças e custos', icon: DollarSign },
+                { id: 'audit', label: 'assinaturas', icon: ShieldCheck }
               ].map(tab => (
                 <button
                   key={tab.id}

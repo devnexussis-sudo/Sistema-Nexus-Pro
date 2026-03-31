@@ -334,7 +334,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
           <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
             <Filter size={14} className="text-slate-400 mr-2" />
             <select
-              className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer"
+              className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
             >
@@ -346,7 +346,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
           <Button
             onClick={() => setIsModalOpen(true)}
-            className="rounded-xl px-6 h-[42px] font-bold uppercase text-[10px] tracking-widest shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
+            className="rounded-xl px-6 h-[42px] font-bold  text-[10px]  shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
           >
             <Plus size={16} className="mr-2" /> Novo Cliente
           </Button>
@@ -358,13 +358,13 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           <table className="w-full border-separate border-spacing-y-1">
             <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-              <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
+              <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-left lowercase">
                 <th className="px-3 py-2 w-8"></th>
-                <th className="px-4 py-2">Cliente / Documento</th>
-                <th className="px-4 py-2">Contato Principal</th>
-                <th className="px-4 py-2">Localização</th>
-                <th className="px-4 py-2 text-center">Status</th>
-                <th className="px-4 py-2 text-right pr-6">Ações</th>
+                <th className="px-4 py-2">cliente / documento</th>
+                <th className="px-4 py-2">contato principal</th>
+                <th className="px-4 py-2">localização</th>
+                <th className="px-4 py-2 text-center">status</th>
+                <th className="px-4 py-2 text-right pr-6">ações</th>
               </tr>
             </thead>
             <tbody>
@@ -379,31 +379,31 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       <td className="px-3 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0 text-slate-300">
                         {isSelected ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100 font-black text-xs">
+                      <td className="px-4 py-1.5 border-y border-slate-100 font-bold text-xs">
                         <div className="flex items-center gap-3">
                           <div className={`p-2.5 rounded-xl border-2 shrink-0 ${c.type === 'PJ' ? 'bg-primary-50 border-primary-100 text-primary-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
                             {c.type === 'PJ' ? <Building2 size={16} /> : <User size={16} />}
                           </div>
                           <div className="truncate">
-                            <p className="text-slate-800 uppercase font-bold tracking-tight truncate max-w-[180px]">{c.name}</p>
-                            <p className="text-[9px] text-slate-400 font-bold mt-0.5 uppercase tracking-widest truncate">{c.document}</p>
+                            <p className="text-slate-800  font-bold tracking-tight truncate max-w-[180px]">{c.name}</p>
+                            <p className="text-[9px] text-slate-400 font-bold mt-0.5   truncate">{c.document}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-1.5 border-y border-slate-100">
                         <div className="space-y-0.5">
-                          <p className="text-[10px] font-black text-slate-600 flex items-center gap-1.5 truncate max-w-[150px]"><Mail size={12} className="text-primary-400" /> {c.email}</p>
-                          <p className="text-[10px] font-black text-emerald-500 flex items-center gap-1.5 uppercase tracking-tighter"><Phone size={12} /> {c.whatsapp || c.phone}</p>
+                          <p className="text-[10px] font-bold text-slate-600 flex items-center gap-1.5 truncate max-w-[150px]"><Mail size={12} className="text-primary-400" /> {c.email}</p>
+                          <p className="text-[10px] font-bold text-emerald-500 flex items-center gap-1.5  tracking-tighter"><Phone size={12} /> {c.whatsapp || c.phone}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100 font-black text-[10px] uppercase text-slate-500 italic truncate max-w-[120px]">
+                      <td className="px-4 py-1.5 border-y border-slate-100 font-bold text-[10px]  text-slate-500 italic truncate max-w-[120px]">
                         <div className="flex items-center gap-1.5">
                           <MapPin size={14} className="text-primary-400" />
                           <span className="truncate">{c.city} • {c.state}</span>
                         </div>
                       </td>
                       <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
-                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${c.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold   border ${c.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                           {c.active ? 'Ativo' : 'Suspenso'}
                         </span>
                       </td>
@@ -432,14 +432,14 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                             <div className="flex items-center justify-between mb-8 border-b border-primary-100 pb-5">
                               <div className="flex items-center gap-4">
                                 <div className="p-3 bg-white rounded-2xl text-primary-600 shadow-sm"><Box size={20} /></div>
-                                <h3 className="text-xs font-black text-primary-600 uppercase tracking-widest italic">Inventário de Ativos Vinculados</h3>
+                                <h3 className="text-xs font-bold text-primary-600   italic">Inventário de Ativos Vinculados</h3>
                               </div>
                               <button
                                 onClick={() => {
                                   // Atalho para adicionar ativo já vinculado a este cliente
                                   if (onSwitchView) onSwitchView('equip', { customerId: c.id });
                                 }}
-                                className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary-700 transition-all shadow-lg shadow-primary-600/20"
+                                className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-xl text-[9px] font-bold   hover:bg-primary-700 transition-all shadow-lg shadow-primary-600/20"
                               >
                                 <Plus size={14} /> Novo Ativo
                               </button>
@@ -450,13 +450,13 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                                 <div key={eq.id} className="bg-white p-6 rounded-[2rem] border border-primary-100/50 shadow-sm flex items-center gap-5 group/item transition-all hover:scale-[1.03]">
                                   <div className="p-3 bg-primary-50 text-primary-400 rounded-xl group-hover/item:bg-primary-600 group-hover/item:text-white transition-colors"><Laptop size={18} /></div>
                                   <div>
-                                    <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{eq.model}</p>
-                                    <p className="text-[9px] text-slate-400 font-black uppercase mt-1 italic tracking-widest">SN: {eq.serialNumber}</p>
+                                    <p className="text-xs font-bold text-slate-800  tracking-tight">{eq.model}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold  mt-1 italic ">SN: {eq.serialNumber}</p>
                                   </div>
                                 </div>
                               ))}
                               {(!mockEquipments[c.id] || mockEquipments[c.id].length === 0) && (
-                                <div className="col-span-full py-10 text-center text-[10px] font-black text-slate-300 uppercase italic tracking-widest">Nenhum ativo registrado para esta unidade.</div>
+                                <div className="col-span-full py-10 text-center text-[10px] font-bold text-slate-300  italic ">Nenhum ativo registrado para esta unidade.</div>
                               )}
                             </div>
                           </div>
@@ -486,8 +486,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                 <div className="flex items-center gap-6">
                   <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><Building2 size={32} /></div>
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingId ? 'Atualizar Cliente' : 'Novo Cadastro Corporativo'}</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Provisionamento de base operacional</p>
+                    <h2 className="text-2xl font-bold text-slate-900  tracking-tight leading-none lowercase">{editingId ? 'atualizar cliente' : 'novo cadastro corporativo'}</h2>
+                    <p className="text-[10px] text-slate-400 font-bold  tracking-[0.2em] mt-2 lowercase">provisionamento de base operacional</p>
                   </div>
                 </div>
                 <button onClick={closeModal} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all"><X size={28} /></button>
@@ -495,8 +495,8 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
               <form onSubmit={handleSubmit} className="p-12 space-y-12 overflow-y-auto custom-scrollbar flex-1">
                 <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
-                  <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })} className={`px-10 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Empresa (PJ)</button>
-                  <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })} className={`px-10 py-3 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all ${formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Individual (PF)</button>
+                  <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })} className={`px-10 py-3 text-[10px] font-bold   rounded-xl transition-all ${formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Empresa (PJ)</button>
+                  <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })} className={`px-10 py-3 text-[10px] font-bold   rounded-xl transition-all ${formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Individual (PF)</button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -519,7 +519,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       <div className="mt-2 p-3 bg-red-100 border border-red-300 rounded-xl flex items-start gap-2 animate-pulse">
                         <span className="text-red-600 font-bold text-lg">⚠️</span>
                         <p className="text-red-700 text-xs font-bold">
-                          {formData.type === 'PJ' ? 'CNPJ' : 'CPF'} já cadastrado para: <span className="font-black uppercase">{documentDuplicate}</span>
+                          {formData.type === 'PJ' ? 'CNPJ' : 'CPF'} já cadastrado para: <span className="font-bold ">{documentDuplicate}</span>
                         </p>
                       </div>
                     )}
@@ -545,30 +545,30 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                 </div>
 
                 <div className="pt-10 border-t border-slate-100 space-y-10">
-                  <div className="flex items-center gap-3 text-primary-600 font-black text-xs uppercase tracking-[0.2em] italic"><MapPin size={20} /> Localização e Atendimento</div>
+                  <div className="flex items-center gap-3 text-primary-600 font-bold text-xs  tracking-[0.2em] italic"><MapPin size={20} /> localização e atendimento</div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <Input label="CEP" onBlur={handleZipBlur} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} />
-                    <Input label="Estado (UF)" value={formData.state || ''} className="rounded-2xl py-4 border-slate-200 font-black text-primary-600" onChange={e => setFormData({ ...formData, state: e.target.value })} />
-                    <Input label="Cidade" value={formData.city || ''} className="rounded-2xl py-4 border-slate-200 font-black text-slate-700" onChange={e => setFormData({ ...formData, city: e.target.value })} />
+                    <Input label="Estado (UF)" value={formData.state || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-primary-600" onChange={e => setFormData({ ...formData, state: e.target.value })} />
+                    <Input label="Cidade" value={formData.city || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-slate-700" onChange={e => setFormData({ ...formData, city: e.target.value })} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                    <div className="md:col-span-2"><Input label="Logradouro" value={formData.address || ''} className="rounded-2xl py-4 border-slate-200 font-black text-slate-700" onChange={e => setFormData({ ...formData, address: e.target.value })} /></div>
+                    <div className="md:col-span-2"><Input label="Logradouro" value={formData.address || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-slate-700" onChange={e => setFormData({ ...formData, address: e.target.value })} /></div>
                     <div className="md:col-span-1"><Input label="Número" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} /></div>
                     <div className="md:col-span-1"><Input label="Bairro" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} /></div>
                   </div>
                   <Input label="Ponto de Referência / Complemento" icon={<Info size={18} />} className="rounded-2xl py-4 font-bold border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50 p-6 rounded-3xl border border-slate-100">
                     <div className="col-span-full">
-                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Geolocalização Customizada (Opcional)</h4>
+                      <h4 className="text-[10px] font-bold  text-slate-400 ">Geolocalização Customizada (Opcional)</h4>
                       <p className="text-[9px] text-slate-400 mt-1">Preenchido automaticamente via CEP. Só altere se a posição do pino estiver incorreta.</p>
                     </div>
-                    <Input label="Latitude" type="number" step="any" value={formData.latitude || ''} className="rounded-2xl py-4 border-slate-200 font-black text-primary-600" onChange={e => setFormData({ ...formData, latitude: parseFloat(e.target.value) || undefined })} />
-                    <Input label="Longitude" type="number" step="any" value={formData.longitude || ''} className="rounded-2xl py-4 border-slate-200 font-black text-primary-600" onChange={e => setFormData({ ...formData, longitude: parseFloat(e.target.value) || undefined })} />
+                    <Input label="Latitude" type="number" step="any" value={formData.latitude || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-primary-600" onChange={e => setFormData({ ...formData, latitude: parseFloat(e.target.value) || undefined })} />
+                    <Input label="Longitude" type="number" step="any" value={formData.longitude || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-primary-600" onChange={e => setFormData({ ...formData, longitude: parseFloat(e.target.value) || undefined })} />
                   </div>
                 </div>
 
                 {errorMessage && (
-                  <div className="mx-auto w-full p-4 bg-red-100 border border-red-200 text-red-600 rounded-2xl text-center font-bold text-xs uppercase animate-pulse">
+                  <div className="mx-auto w-full p-4 bg-red-100 border border-red-200 text-red-600 rounded-2xl text-center font-bold text-xs  animate-pulse">
                     Erro: {errorMessage}
                   </div>
                 )}
@@ -579,7 +579,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                 <Button
                   onClick={handleSubmit}
                   disabled={!!documentDuplicate}
-                  className={`rounded-2xl px-20 shadow-sm font-bold uppercase transition-all ${documentDuplicate
+                  className={`rounded-2xl px-20 shadow-sm font-bold  transition-all ${documentDuplicate
                     ? 'bg-gray-400 cursor-not-allowed opacity-50'
                     : 'bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]'
                     }`}

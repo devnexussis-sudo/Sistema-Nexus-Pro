@@ -222,8 +222,8 @@ export const UserManagement: React.FC = () => {
               <ArrowLeft size={24} />
             </button>
             <div>
-              <h1 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{title}</h1>
-              <p className="text-[10px] font-black text-primary-500 uppercase tracking-widest mt-2 italic shadow-sm">{subtitle}</p>
+              <h1 className="text-2xl font-bold text-slate-900  italic tracking-tighter leading-none">{title}</h1>
+              <p className="text-[10px] font-bold text-primary-500   mt-2 italic shadow-sm">{subtitle}</p>
             </div>
           </div>
         </div>
@@ -234,7 +234,7 @@ export const UserManagement: React.FC = () => {
               <div key={mod.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
                 <div className="p-8 border-b border-slate-50 bg-slate-50/30 flex items-center gap-4">
                   <div className="p-3 bg-primary-600 rounded-2xl text-white shadow-lg"><mod.icon size={20} /></div>
-                  <h3 className="font-black text-slate-900 uppercase italic tracking-tight text-sm">{mod.label}</h3>
+                  <h3 className="font-bold text-slate-900  italic tracking-tight text-sm">{mod.label}</h3>
                 </div>
                 <div className="p-8 grid grid-cols-2 gap-4">
                   {[
@@ -261,7 +261,7 @@ export const UserManagement: React.FC = () => {
                           : 'bg-white border-slate-100 text-slate-400 opacity-60'
                           }`}
                       >
-                        <span className="text-[10px] font-black uppercase italic tracking-widest">{action.label}</span>
+                        <span className="text-[10px] font-bold  italic ">{action.label}</span>
                         <div className={`w-8 h-4 rounded-full relative transition-all ${isChecked ? 'bg-primary-600' : 'bg-slate-200'}`}>
                           <div className={`absolute top-1 w-2 h-2 rounded-full bg-white transition-all ${isChecked ? 'left-5' : 'left-1'}`} />
                         </div>
@@ -275,7 +275,7 @@ export const UserManagement: React.FC = () => {
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 p-8 space-y-6 lg:col-span-2">
               <div className="flex items-center gap-4 border-b border-slate-50 pb-6 mb-2">
                 <div className="p-3 bg-emerald-500 rounded-2xl text-white shadow-lg"><Building2 size={20} /></div>
-                <h3 className="font-black text-slate-900 uppercase italic tracking-tight text-sm">Financeiro e Custos</h3>
+                <h3 className="font-bold text-slate-900  italic tracking-tight text-sm">Financeiro e Custos</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {[
@@ -297,7 +297,7 @@ export const UserManagement: React.FC = () => {
                         : 'bg-slate-50 border-slate-100 text-slate-400 opacity-60'
                         }`}
                     >
-                      <span className="text-[10px] font-black uppercase italic tracking-widest leading-tight text-left">{action.label}</span>
+                      <span className="text-[10px] font-bold  italic  leading-tight text-left">{action.label}</span>
                       <div className={`w-8 h-4 rounded-full relative transition-all ${isChecked ? 'bg-emerald-600' : 'bg-slate-200'}`}>
                         <div className={`absolute top-1 w-2 h-2 rounded-full bg-white transition-all ${isChecked ? 'left-5' : 'left-1'}`} />
                       </div>
@@ -310,7 +310,7 @@ export const UserManagement: React.FC = () => {
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 p-8 space-y-6 lg:col-span-2">
               <div className="flex items-center gap-4 border-b border-slate-50 pb-6 mb-2">
                 <div className="p-3 bg-amber-500 rounded-2xl text-white shadow-lg"><ShieldAlert size={20} /></div>
-                <h3 className="font-black text-slate-900 uppercase italic tracking-tight text-sm">Privilégios de Sistema e Governança</h3>
+                <h3 className="font-bold text-slate-900  italic tracking-tight text-sm">Privilégios de Sistema e Governança</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
@@ -329,7 +329,7 @@ export const UserManagement: React.FC = () => {
                       }`}
                   >
                     <item.icon size={20} />
-                    <span className="text-[10px] font-black uppercase italic tracking-tighter text-left leading-tight">{item.label}</span>
+                    <span className="text-[10px] font-bold  italic tracking-tighter text-left leading-tight">{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -376,13 +376,13 @@ export const UserManagement: React.FC = () => {
         <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm flex-shrink-0">
           <button
             onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold  transition-all ${activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Users size={14} /> Usuários
           </button>
           <button
             onClick={() => setActiveTab('groups')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${activeTab === 'groups' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold  transition-all ${activeTab === 'groups' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <FolderTree size={14} /> Grupos
           </button>
@@ -405,7 +405,7 @@ export const UserManagement: React.FC = () => {
           <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
             <Filter size={14} className="text-slate-400 mr-2" />
             <select
-              className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer"
+              className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
             >
@@ -421,7 +421,7 @@ export const UserManagement: React.FC = () => {
               setFormData({ name: '', email: '', password: '', active: true, groupId: '', permissions: { ...DEFAULT_PERMISSIONS } });
               setIsModalOpen(true);
             }}
-              className="rounded-xl px-6 h-[42px] font-bold uppercase text-[10px] tracking-widest shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
+              className="rounded-xl px-6 h-[42px] font-bold  text-[10px]  shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
             >
               <UserPlus size={16} className="mr-2" /> Novo Usuário
             </Button>
@@ -431,7 +431,7 @@ export const UserManagement: React.FC = () => {
               setGroupFormData({ name: '', description: '', active: true, permissions: { ...DEFAULT_PERMISSIONS } });
               setIsGroupModalOpen(true);
             }}
-              className="rounded-xl px-6 h-[42px] font-bold uppercase text-[10px] tracking-widest shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
+              className="rounded-xl px-6 h-[42px] font-bold  text-[10px]  shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
             >
               <UserPlus size={16} className="mr-2" /> Novo Grupo
             </Button>
@@ -444,11 +444,11 @@ export const UserManagement: React.FC = () => {
           {activeTab === 'users' ? (
             <table className="w-full border-separate border-spacing-y-1">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-                <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                  <th className="px-4 py-2">Administrador / Identidade</th>
-                  <th className="px-4 py-2">Grupo de Acesso</th>
-                  <th className="px-4 py-2 text-center">Status</th>
-                  <th className="px-4 py-2 text-right pr-6">Ações</th>
+                <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-left">
+                  <th className="px-4 py-2">administrador / identidade</th>
+                  <th className="px-4 py-2">grupo de acesso</th>
+                  <th className="px-4 py-2 text-center">status</th>
+                  <th className="px-4 py-2 text-right pr-6">ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -460,19 +460,19 @@ export const UserManagement: React.FC = () => {
                           <img src={user.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.name) + '&background=10b981&color=fff'} className="w-10 h-10 rounded-xl border-2 border-white shadow-xl bg-slate-50 grayscale group-hover:grayscale-0 transition-all group-hover/avatar:scale-105" alt="" />
                         </div>
                         <div className="truncate">
-                          <p className="font-black text-slate-900 uppercase italic tracking-tighter text-xs truncate max-w-[150px]">{user.name}</p>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 italic truncate max-w-[180px]">{user.email}</p>
+                          <p className="font-bold text-slate-900  italic tracking-tighter text-xs truncate max-w-[150px]">{user.name}</p>
+                          <p className="text-[9px] font-bold text-slate-400   mt-0.5 italic truncate max-w-[180px]">{user.email}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-1.5 border-y border-slate-100">
-                      <span className="flex items-center gap-1.5 text-[9px] font-black text-primary-500 uppercase italic truncate max-w-[120px]">
+                      <span className="flex items-center gap-1.5 text-[9px] font-bold text-primary-500  italic truncate max-w-[120px]">
                         <ShieldCheck size={12} className="shrink-0" />
                         <span className="truncate">{groups.find(g => g.id === user.groupId)?.name || 'Sem Grupo (Padrão)'}</span>
                       </span>
                     </td>
                     <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
-                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${user.active ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold   border transition-all ${user.active ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                         {user.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
@@ -488,7 +488,7 @@ export const UserManagement: React.FC = () => {
                   <tr>
                     <td colSpan={4} className="py-24 text-center">
                       <Users size={48} className="mx-auto text-slate-200 mb-4" />
-                      <p className="text-[10px] font-black text-slate-300 uppercase italic tracking-[0.2em]">Nenhum usuário localizado</p>
+                      <p className="text-[10px] font-bold text-slate-300  italic tracking-[0.2em]">Nenhum usuário localizado</p>
                     </td>
                   </tr>
                 )}
@@ -517,10 +517,10 @@ export const UserManagement: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <h3 className="font-black text-slate-900 uppercase italic tracking-tighter text-lg mb-2">{group.name}</h3>
+                  <h3 className="font-bold text-slate-900  italic tracking-tighter text-lg mb-2">{group.name}</h3>
                   <p className="text-[11px] text-slate-400 font-bold mb-6 line-clamp-2 h-8 leading-tight">{group.description}</p>
                   <div className="flex items-center justify-between border-t border-slate-50 pt-6">
-                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
+                    <span className="text-[9px] font-bold text-slate-300  ">
                       {group.isSystem ? 'Perfil Master Protegido' : 'Grupo Customizado'}
                     </span>
                     <div className="flex -space-x-3">
@@ -528,7 +528,7 @@ export const UserManagement: React.FC = () => {
                         <img key={u.id} src={u.avatar} className="w-8 h-8 rounded-xl border-2 border-white shadow-sm" alt="" />
                       ))}
                       {users.filter(u => u.groupId === group.id).length > 3 && (
-                        <div className="w-8 h-8 rounded-xl bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] font-black text-slate-400">
+                        <div className="w-8 h-8 rounded-xl bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-slate-400">
                           +{users.filter(u => u.groupId === group.id).length - 3}
                         </div>
                       )}
@@ -559,8 +559,8 @@ export const UserManagement: React.FC = () => {
                 <div className="flex items-center gap-6">
                   <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><UserPlus size={32} /></div>
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingUser ? 'Atualizar Identidade' : 'Registrar Novo Gestor'}</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Acesso e Privilégios Corporativos</p>
+                    <h2 className="text-2xl font-bold text-slate-900  tracking-tight leading-none">{editingUser ? 'atualizar identidade' : 'registrar novo gestor'}</h2>
+                    <p className="text-[10px] text-slate-400 font-bold  tracking-[0.2em] mt-2">acesso e privilégios corporativos</p>
                   </div>
                 </div>
                 <button onClick={() => setIsModalOpen(false)} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>
@@ -572,7 +572,7 @@ export const UserManagement: React.FC = () => {
                   <Input label="Senha Temporária" type="password" required={!editingUser} icon={<Lock size={18} />} className="rounded-2xl py-4 font-bold" value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} autoComplete="new-password" />
 
                   <div className="relative">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-3 block italic flex items-center gap-2">
+                    <label className="text-[10px] font-bold text-slate-400   px-2 mb-3 block italic flex items-center gap-2">
                       Grupo de Permissões
                       {editingUser && groups.find(g => g.id === editingUser.groupId)?.isSystem && (
                         <span className="text-[8px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full ring-1 ring-amber-200 animate-pulse">Protegido</span>
@@ -602,7 +602,7 @@ export const UserManagement: React.FC = () => {
                     <div className={`w-10 h-6 rounded-full relative transition-all ${formData.active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
                       <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.active ? 'left-5' : 'left-1'}`} />
                     </div>
-                    <span className={`text-[10px] font-black uppercase italic ${formData.active ? 'text-emerald-700' : 'text-slate-500'}`}>Status: {formData.active ? 'Ativo' : 'Bloqueado'}</span>
+                    <span className={`text-[10px] font-bold  italic ${formData.active ? 'text-emerald-700' : 'text-slate-500'}`}>Status: {formData.active ? 'Ativo' : 'Bloqueado'}</span>
                   </div>
                 </div>
                 <div className="pt-4 flex justify-end gap-4">
@@ -626,8 +626,8 @@ export const UserManagement: React.FC = () => {
                 <div className="flex items-center gap-6">
                   <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><FolderTree size={32} /></div>
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">{editingGroup ? 'Editar Grupo' : 'Novo Grupo de Acesso'}</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-2">Categorização de Regras de Negócio</p>
+                    <h2 className="text-2xl font-bold text-slate-900  tracking-tight leading-none">{editingGroup ? 'editar grupo' : 'novo grupo de acesso'}</h2>
+                    <p className="text-[10px] text-slate-400 font-bold  tracking-[0.2em] mt-2">categorização de regras de negócio</p>
                   </div>
                 </div>
                 <button onClick={() => setIsGroupModalOpen(false)} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>
@@ -635,7 +635,7 @@ export const UserManagement: React.FC = () => {
               <form onSubmit={handleSaveGroup} className="p-10 space-y-6">
                 <Input label="Nome do Grupo (Ex: Supervisão de Campo)" required icon={<Building2 size={18} />} className="rounded-2xl py-4 font-bold" value={groupFormData.name || ''} onChange={e => setGroupFormData({ ...groupFormData, name: e.target.value })} />
                 <div className="flex flex-col">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-3 block italic">Descrição e Objetivo</label>
+                  <label className="text-[10px] font-bold text-slate-400   px-2 mb-3 block italic">Descrição e Objetivo</label>
                   <textarea
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all min-h-[100px]"
                     placeholder="Descreva quais responsabilidades este grupo possui..."
@@ -666,11 +666,11 @@ export const UserManagement: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <h3 className="text-3xl font-black italic uppercase tracking-tighter text-slate-900 leading-none">Excluir Grupo</h3>
+                  <h3 className="text-3xl font-bold italic  tracking-tighter text-slate-900 leading-none">Excluir Grupo</h3>
                   <p className="text-slate-500 font-medium px-4">
-                    Confirmar a remoção do grupo <span className="text-slate-900 font-black">"{groupToDelete.name}"</span>?
+                    Confirmar a remoção do grupo <span className="text-slate-900 font-bold">"{groupToDelete.name}"</span>?
                   </p>
-                  <div className="bg-amber-50 text-amber-700 text-[10px] font-black uppercase p-4 rounded-2xl border border-amber-100 flex items-start gap-4 text-left">
+                  <div className="bg-amber-50 text-amber-700 text-[10px] font-bold  p-4 rounded-2xl border border-amber-100 flex items-start gap-4 text-left">
                     <ShieldAlert size={20} className="shrink-0" />
                     <span>Atenção: Usuários vinculados a este grupo perderão suas permissões de acesso até que um novo grupo seja atribuído.</span>
                   </div>
@@ -681,14 +681,14 @@ export const UserManagement: React.FC = () => {
                     variant="primary"
                     onClick={handleDeleteGroup}
                     disabled={isSaving}
-                    className="bg-red-600 hover:bg-red-700 py-6 rounded-2xl font-black uppercase tracking-widest text-xs italic shadow-2xl shadow-red-600/30 active:scale-95 transition-all text-white"
+                    className="bg-red-600 hover:bg-red-700 py-6 rounded-2xl font-bold   text-xs italic shadow-2xl shadow-red-600/30 active:scale-95 transition-all text-white"
                   >
                     {isSaving ? "Processando..." : "Sim, Confirmar Exclusão"}
                   </Button>
                   <button
                     onClick={() => setGroupToDelete(null)}
                     disabled={isSaving}
-                    className="py-4 text-slate-400 hover:text-slate-900 font-black uppercase tracking-[0.3em] text-[9px] transition-colors"
+                    className="py-4 text-slate-400 hover:text-slate-900 font-bold  tracking-[0.3em] text-[9px] transition-colors"
                   >
                     Cancelar
                   </button>

@@ -23,6 +23,21 @@ body {
     text-rendering: optimizeLegibility;
 }
 
+/* Forçar Poppins em todos os elementos para garantir padronização total */
+*, button, input, select, textarea, table, h1, h2, h3, h4, h5, h6, span, p, div, a, li, td, th, label {
+    font-family: 'Poppins', sans-serif !important;
+}
+
+/* ============================================= */
+/* 🔒 NEXUS DESIGN SYSTEM — CAIXA BAIXA GLOBAL   */
+/* Sobrescreve capitalize/uppercase do Tailwind   */
+/* ============================================= */
+:root *,
+:root *::before,
+:root *::after {
+    text-transform: none !important;
+}
+
 /* Typography Scale Fix */
 h1,
 .text-xl,
