@@ -101,7 +101,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             .filter(o => o.status === OrderStatus.COMPLETED)
             .map(order => {
                 const itemsValue = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
-                let value = itemsValue || (order.formData as any)?.totalValue || (order.formData as any)?.price || 0;
+                let value = Number(itemsValue || (order.formData as any)?.totalValue || (order.formData as any)?.price || 0);
                 if (order.linkedQuotes && order.linkedQuotes.length > 0) {
                     value += order.linkedQuotes.reduce((acc, qId) => {
                         const q = quotes.find(q => q.id === qId);
@@ -701,9 +701,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         </div>
 
                         {/* ── ALINHAMENTO DIREITO: FORMULÁRIO ── */}
-                        <div className="w-full md:w-7/12 bg-white p-8 md:p-10 flex flex-col h-full overflow-y-auto">
+                        <div className="w-full md:w-7/12 bg-white flex flex-col h-full max-h-[90vh] md:max-h-full">
                             
-                            <div className="flex justify-between items-center mb-8">
+                            <div className="p-8 md:px-10 md:pt-10 flex justify-between items-center shrink-0">
                                 <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-3">
                                     <CreditCard size={20} className="text-[#1c2d4f]"/> Detalhes do Pagamento
                                 </h3>
@@ -712,7 +712,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 </button>
                             </div>
 
-                            <div className="space-y-8 flex-1">
+                            <div className="px-8 md:px-10 pb-6 space-y-8 flex-1 overflow-y-auto">
                                 {/* Formas de Pagamento */}
                                 <div>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Meio de Pagamento</p>
@@ -771,21 +771,23 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             </div>
 
                             {/* Botões Ação */}
-                            <div className="flex gap-4 pt-8 mt-6 border-t border-slate-100">
-                                <button onClick={() => setIsInvoiceModalOpen(false)} className="px-8 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase text-slate-500 hover:text-slate-800 hover:bg-white hover:border-slate-300 tracking-widest transition-all">
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={confirmInvoice}
-                                    disabled={isProcessing}
-                                    className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-500 hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 disabled:cursor-not-allowed text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-                                >
-                                    {isProcessing ? (
-                                        <><div className="w-5 h-5 border-[3px] border-white/30 border-t-white rounded-full animate-spin" /> Concluindo Baixa...</>
-                                    ) : (
-                                        <><ShieldCheck size={20} /> Liquidar Recebíveis</>
-                                    )}
-                                </button>
+                            <div className="p-8 md:px-10 md:pb-10 pt-6 border-t border-slate-100 bg-white shrink-0">
+                                <div className="flex gap-4">
+                                    <button onClick={() => setIsInvoiceModalOpen(false)} className="px-8 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase text-slate-500 hover:text-slate-800 hover:bg-white hover:border-slate-300 tracking-widest transition-all">
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={confirmInvoice}
+                                        disabled={isProcessing}
+                                        className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-500 hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 disabled:cursor-not-allowed text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                                    >
+                                        {isProcessing ? (
+                                            <><div className="w-5 h-5 border-[3px] border-white/30 border-t-white rounded-full animate-spin" /> Concluindo Baixa...</>
+                                        ) : (
+                                            <><ShieldCheck size={20} /> Liquidar Recebíveis</>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 

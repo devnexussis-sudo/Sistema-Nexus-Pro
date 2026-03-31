@@ -92,6 +92,7 @@ export const OrderService = {
             paymentMethod: data.payment_method,
             paidAt: data.paid_at,
             billingNotes: data.billing_notes,
+            linkedQuotes: data.linked_quotes ?? [],
             timeline: data.timeline ?? {},
             checkinLocation: data.checkin_location,
             checkoutLocation: data.checkout_location,
