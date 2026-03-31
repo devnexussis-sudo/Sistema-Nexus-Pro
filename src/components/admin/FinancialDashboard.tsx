@@ -667,10 +667,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             {/* ── MODAL DE FATURAMENTO ── */}
             {isInvoiceModalOpen && (
                 <div className="fixed inset-0 z-[2000] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col md:flex-row h-auto max-h-[90vh]">
+                    <div className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl border border-slate-100 flex flex-col md:flex-row h-[95vh] md:h-auto md:max-h-[90vh] overflow-hidden">
                         
                         {/* ── ALINHAMENTO ESQUERDO: RESUMO DA FATURA ── */}
-                        <div className="w-full md:w-5/12 bg-[#1c2d4f] p-8 md:p-10 flex flex-col justify-between text-white border-r border-[#ffffff]/10">
+                        <div className="w-full md:w-5/12 bg-[#1c2d4f] p-6 md:p-10 flex flex-col justify-between text-white border-r border-[#ffffff]/10 shrink-0">
                             <div>
                                 <div className="w-14 h-14 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-6">
                                     <Wallet size={26} className="text-white" />
@@ -701,9 +701,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         </div>
 
                         {/* ── ALINHAMENTO DIREITO: FORMULÁRIO ── */}
-                        <div className="w-full md:w-7/12 bg-white flex flex-col h-full max-h-[90vh] md:max-h-full">
+                        <div className="w-full md:w-7/12 bg-white flex flex-col flex-1 min-h-0">
                             
-                            <div className="p-8 md:px-10 md:pt-10 flex justify-between items-center shrink-0">
+                            <div className="p-6 md:p-8 md:px-10 flex justify-between items-center shrink-0">
                                 <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-3">
                                     <CreditCard size={20} className="text-[#1c2d4f]"/> Detalhes do Pagamento
                                 </h3>
@@ -712,7 +712,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 </button>
                             </div>
 
-                            <div className="px-8 md:px-10 pb-6 space-y-8 flex-1 overflow-y-auto">
+                            <div className="px-6 md:px-10 pb-4 space-y-6 flex-1 overflow-y-auto min-h-0">
                                 {/* Formas de Pagamento */}
                                 <div>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Meio de Pagamento</p>
@@ -771,7 +771,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             </div>
 
                             {/* Botões Ação */}
-                            <div className="p-8 md:px-10 md:pb-10 pt-6 border-t border-slate-100 bg-white shrink-0">
+                            <div className="p-6 md:p-8 md:px-10 border-t border-slate-100 bg-white shrink-0 shadow-[0_-5px_15px_rgba(0,0,0,0.02)] z-10">
                                 <div className="flex gap-4">
                                     <button onClick={() => setIsInvoiceModalOpen(false)} className="px-8 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase text-slate-500 hover:text-slate-800 hover:bg-white hover:border-slate-300 tracking-widest transition-all">
                                         Cancelar
