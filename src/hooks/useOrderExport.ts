@@ -9,6 +9,7 @@ interface UseOrderExportProps {
     selectedOrderIds: string[];
     techs: User[];
 }
+import { supabase } from '../lib/supabase';
 
 export const useOrderExport = () => {
     const handleExportExcel = async ({ orders, filteredOrders, selectedOrderIds, techs }: UseOrderExportProps) => {
@@ -21,41 +22,28 @@ export const useOrderExport = () => {
             } else {
                 // Faltam algumas os -> Busca do servidor
                 try {
-                    const { supabase } = await import('../lib/supabase');
                     const chunks = [];
                     for (let i = 0; i < selectedOrderIds.length; i += 100) {
                         chunks.push(selectedOrderIds.slice(i, i + 100));
                     }
                     let allFetched: any[] = [];
                     for (const chunk of chunks) {
-                        const { data, error } = await supabase.from('service_orders').select('*').in('id', chunk);
-                        if (data && !error) allFetched = [...allFetched, ...data];
+                        const { data, error } = await supabase.from('orders').select('*').in('id', chunk);
+                        if (error) {
+                            console.error("Supabase Error:", error);
+                            throw new Error(error.message);
+                        }
+                        if (data) allFetched = [...allFetched, ...data];
                     }
                     if (allFetched.length > 0) {
-                        ordersToExport = allFetched.map(dbOrder => ({
-                            id: dbOrder.id,
-                            displayId: dbOrder.display_id,
-                            title: dbOrder.title,
-                            description: dbOrder.description,
-                            customerName: dbOrder.customer_name,
-                            customerAddress: dbOrder.customer_address,
-                            scheduledDate: dbOrder.scheduled_date,
-                            scheduledTime: dbOrder.scheduled_time,
-                            assignedTo: dbOrder.assigned_to,
-                            status: dbOrder.status,
-                            priority: dbOrder.priority,
-                            operationType: dbOrder.operation_type,
-                            items: dbOrder.items,
-                            formData: dbOrder.form_data,
-                            billingStatus: dbOrder.billing_status,
-                            createdAt: dbOrder.created_at,
-                            endDate: dbOrder.end_date
-                        } as ServiceOrder)); // Conversão de snake para camel case
+                        const { OrderService } = await import('../services/orderService');
+                        ordersToExport = allFetched.map(dbOrder => OrderService._mapOrderFromDB(dbOrder));
                     } else {
                         ordersToExport = localOrders;
                     }
-                } catch (e) {
+                } catch (e: any) {
                     console.error("Erro ao buscar demais ordens para exportar", e);
+                    alert("Erro ao puxar dados de todas as páginas. Exportando apenas as visíveis. Erro: " + e.message);
                     ordersToExport = localOrders;
                 }
             }
