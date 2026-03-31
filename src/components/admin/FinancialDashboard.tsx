@@ -26,6 +26,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [techFilter, setTechFilter] = useState('ALL');
+    const [statusFilter, setStatusFilter] = useState('ALL');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedItem, setSelectedItem] = useState<any | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -91,6 +92,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 title: q.title,
                 description: q.description,
                 date: q.createdAt,
+                createdAt: q.createdAt,
+                updatedAt: q.updatedAt || q.createdAt,
+                paidAt: q.paidAt || null,
                 value: Number(q.totalValue) || 0,
                 status: (q.billingStatus || 'PENDING').toUpperCase(),
                 original: q,
@@ -118,6 +122,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     title: order.title,
                     description: order.description,
                     date: order.updatedAt,
+                    createdAt: order.createdAt,
+                    updatedAt: order.updatedAt,
+                    paidAt: order.paidAt || null,
                     value: Number(value),
                     status: (order.billingStatus || 'PENDING').toUpperCase(),
                     original: order,
@@ -141,12 +148,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.displayId?.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesTech = techFilter === 'ALL' || item.technician === techFilter;
+            const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
             const matchesDate =
                 (!startDate || itemDate >= startDate) &&
                 (!endDate || itemDate <= endDate);
-            return matchesSearch && matchesTech && matchesDate;
+            return matchesSearch && matchesTech && matchesStatus && matchesDate;
         });
-    }, [allItems, searchTerm, startDate, endDate, techFilter]);
+    }, [allItems, searchTerm, startDate, endDate, techFilter, statusFilter]);
 
     const paginatedItems = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -336,8 +344,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             {/* ── FILTROS + STATS ── */}
             <div className="flex-shrink-0 space-y-4 mb-4">
                 {/* Filtros */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div className="md:col-span-2 relative group">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <div className="md:col-span-4 relative group">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1c2d4f] transition-colors" size={15} />
                         <input
                             type="text"
@@ -347,18 +355,26 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                         />
                     </div>
-                    <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2">
+                    <div className="md:col-span-4 flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2">
                         <Calendar size={13} className="text-[#1c2d4f] shrink-0" />
                         <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
                         <Slash size={10} className="text-slate-300 shrink-0" />
                         <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
                     </div>
-                    <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2">
+                    <div className="md:col-span-2 flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2">
                         <UserCheck size={13} className="text-[#1c2d4f] shrink-0" />
                         <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2.5" value={techFilter} onChange={e => { setTechFilter(e.target.value); setCurrentPage(1); }}>
-                            <option value="ALL">Todos Técnicos</option>
+                            <option value="ALL">Técnicos (Todos)</option>
                             {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                             <option value="Administrador">Admin</option>
+                        </select>
+                    </div>
+                    <div className="md:col-span-2 flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2">
+                        <Layer size={13} className="text-[#1c2d4f] shrink-0" />
+                        <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2.5" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
+                            <option value="ALL">Status (Todos)</option>
+                            <option value="PENDING">Pendente</option>
+                            <option value="PAID">Faturado</option>
                         </select>
                     </div>
                 </div>
@@ -398,9 +414,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 <th className="px-3 py-3 w-10 text-center">
                                     <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-200 text-[#1c2d4f] cursor-pointer" checked={filteredItems.length > 0 && selectedIds.length === filteredItems.length} onChange={() => { if (selectedIds.length === filteredItems.length) setSelectedIds([]); else setSelectedIds(filteredItems.map(i => i.id)); }} />
                                 </th>
-                                <th className="px-4 py-3">Protocolo / Cliente</th>
+                                <th className="px-4 py-3">Protocolo</th>
+                                <th className="px-4 py-3">Cliente</th>
                                 <th className="px-4 py-3">Descrição</th>
                                 <th className="px-4 py-3">Técnico</th>
+                                <th className="px-4 py-3">Data</th>
+                                <th className="px-4 py-3">Pgto</th>
                                 <th className="px-4 py-3">Valor</th>
                                 <th className="px-4 py-3 text-center">Status</th>
                             </tr>
@@ -408,7 +427,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         <tbody className="divide-y divide-slate-50">
                             {paginatedItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="py-16 text-center">
+                                    <td colSpan={9} className="py-16 text-center">
                                         <DollarSign size={32} className="text-slate-200 mx-auto mb-3" />
                                         <p className="text-xs font-black text-slate-300 uppercase tracking-widest">Nenhum lançamento encontrado</p>
                                     </td>
@@ -423,19 +442,36 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-[#1c2d4f] cursor-pointer" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <div className="flex flex-col gap-1">
-                                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-lg w-fit ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-600'}`}>
-                                                {getDocLabel(item)}
-                                            </span>
-                                            <p className="text-xs font-bold text-slate-800 truncate max-w-[150px]">{item.customerName}</p>
-                                        </div>
+                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg w-fit whitespace-nowrap ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-600'}`}>
+                                            {getDocLabel(item)}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                        <p className="text-[11px] font-bold text-slate-800 truncate max-w-[150px] uppercase">{item.customerName}</p>
                                     </td>
                                     <td className="px-4 py-2.5">
                                         <p className="text-[10px] text-slate-600 truncate max-w-[180px] font-bold uppercase">{item.title}</p>
-                                        <p className="text-[9px] text-slate-400 mt-0.5">{new Date(item.date).toLocaleDateString('pt-BR')}</p>
                                     </td>
                                     <td className="px-4 py-2.5">
                                         <span className="text-[10px] font-bold text-slate-700 capitalize">{item.technician?.toLowerCase()}</span>
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[10px] font-bold text-slate-600 whitespace-nowrap">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                                            <span className="text-[8px] text-slate-400 font-black uppercase tracking-wider">{item.type === 'QUOTE' ? 'Criação' : 'Conclusão'}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                        <div className="flex flex-col gap-0.5">
+                                            {item.paidAt ? (
+                                                <>
+                                                    <span className="text-[10px] font-bold text-emerald-600 whitespace-nowrap">{new Date(item.paidAt).toLocaleDateString('pt-BR')}</span>
+                                                    <span className="text-[8px] text-emerald-400 font-black uppercase tracking-wider">Faturado</span>
+                                                </>
+                                            ) : (
+                                                <span className="text-[10px] font-bold text-slate-400">—</span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-4 py-2.5">
                                         <span className="text-sm font-black text-slate-900">{formatCurrency(item.value)}</span>
