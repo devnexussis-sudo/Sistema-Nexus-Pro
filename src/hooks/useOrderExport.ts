@@ -12,10 +12,56 @@ interface UseOrderExportProps {
 
 export const useOrderExport = () => {
     const handleExportExcel = async ({ orders, filteredOrders, selectedOrderIds, techs }: UseOrderExportProps) => {
-        // Se tiver seleção, usa a seleção. Se não, usa o que está filtrado na tela.
-        const ordersToExport = selectedOrderIds.length > 0
-            ? orders.filter(o => selectedOrderIds.includes(o.id))
-            : filteredOrders;
+        // Se tiver seleção, precisa garantir que busca também as IDs de outras páginas.
+        let ordersToExport: ServiceOrder[] = [];
+        if (selectedOrderIds.length > 0) {
+            const localOrders = orders.filter(o => selectedOrderIds.includes(o.id));
+            if (localOrders.length === selectedOrderIds.length) {
+                ordersToExport = localOrders;
+            } else {
+                // Faltam algumas os -> Busca do servidor
+                try {
+                    const { supabase } = await import('../lib/supabase');
+                    const chunks = [];
+                    for (let i = 0; i < selectedOrderIds.length; i += 100) {
+                        chunks.push(selectedOrderIds.slice(i, i + 100));
+                    }
+                    let allFetched: any[] = [];
+                    for (const chunk of chunks) {
+                        const { data, error } = await supabase.from('service_orders').select('*').in('id', chunk);
+                        if (data && !error) allFetched = [...allFetched, ...data];
+                    }
+                    if (allFetched.length > 0) {
+                        ordersToExport = allFetched.map(dbOrder => ({
+                            id: dbOrder.id,
+                            displayId: dbOrder.display_id,
+                            title: dbOrder.title,
+                            description: dbOrder.description,
+                            customerName: dbOrder.customer_name,
+                            customerAddress: dbOrder.customer_address,
+                            scheduledDate: dbOrder.scheduled_date,
+                            scheduledTime: dbOrder.scheduled_time,
+                            assignedTo: dbOrder.assigned_to,
+                            status: dbOrder.status,
+                            priority: dbOrder.priority,
+                            operationType: dbOrder.operation_type,
+                            items: dbOrder.items,
+                            formData: dbOrder.form_data,
+                            billingStatus: dbOrder.billing_status,
+                            createdAt: dbOrder.created_at,
+                            endDate: dbOrder.end_date
+                        } as ServiceOrder)); // Conversão de snake para camel case
+                    } else {
+                        ordersToExport = localOrders;
+                    }
+                } catch (e) {
+                    console.error("Erro ao buscar demais ordens para exportar", e);
+                    ordersToExport = localOrders;
+                }
+            }
+        } else {
+            ordersToExport = filteredOrders;
+        }
 
         if (ordersToExport.length === 0) {
             alert("Nenhuma ordem encontrada para exportar.");
@@ -39,10 +85,34 @@ export const useOrderExport = () => {
             if (t.id && t.name) techNameMap.set(t.id, t.name);
         });
 
+        // Função para formatar Date string como SP local
+        const formatDateTime = (dateStr?: string) => {
+            if (!dateStr || dateStr === 'N/A') return 'N/A';
+            try {
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr;
+                return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            } catch {
+                return dateStr;
+            }
+        };
+
+        const formatDate = (dateStr?: string) => {
+            if (!dateStr || dateStr === 'N/A') return 'N/A';
+            try {
+                const d = new Date(dateStr + (dateStr.length === 10 ? 'T12:00:00' : ''));
+                if (isNaN(d.getTime())) return dateStr;
+                return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+            } catch {
+                return dateStr;
+            }
+        };
+
         // 1. Definir colunas do cabeçalho
         const headers = [
             'ID O.S.',
             'Data Agendada',
+            'Hora Agendada',
             'Cliente',
             'Título',
             'Descrição',
@@ -77,7 +147,8 @@ export const useOrderExport = () => {
 
             return [
                 o.displayId || o.id,
-                o.scheduledDate,
+                formatDate(o.scheduledDate),
+                o.scheduledTime || 'N/A',
                 o.customerName,
                 o.title,
                 o.description,
@@ -87,8 +158,8 @@ export const useOrderExport = () => {
                 o.priority,
                 value,
                 o.billingStatus || 'PENDENTE',
-                o.createdAt,
-                o.endDate || 'N/A'
+                formatDateTime(o.createdAt),
+                formatDateTime(o.endDate)
             ];
         });
 
@@ -100,6 +171,7 @@ export const useOrderExport = () => {
         const colWidths = [
             { wch: 15 }, // ID
             { wch: 15 }, // Data
+            { wch: 15 }, // Hora
             { wch: 30 }, // Cliente
             { wch: 30 }, // Titulo
             { wch: 40 }, // Descrição
@@ -109,8 +181,8 @@ export const useOrderExport = () => {
             { wch: 15 }, // Prioridade
             { wch: 15 }, // Valor
             { wch: 15 }, // Status Fin
-            { wch: 15 }, // Abertura
-            { wch: 15 }  // Conclusão
+            { wch: 20 }, // Abertura
+            { wch: 20 }  // Conclusão
         ];
         ws['!cols'] = colWidths;
 
