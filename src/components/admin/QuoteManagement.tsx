@@ -6,7 +6,7 @@ import {
     ChevronRight, CreditCard, User, MapPin, Briefcase,
     ArrowUpRight, Loader2, ListPlus, Calculator, Inbox, Calendar, Link2, Share2,
     Eye, Link, ExternalLink, Globe, ClipboardCheck, ShieldCheck, Box, Signature as SignatureIcon,
-    AlertCircle, ChevronLeft
+    AlertCircle, ChevronLeft, Filter
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { Customer, OrderStatus, OrderPriority, ServiceOrder, StockItem, Quote, QuoteItem } from '../../types';
