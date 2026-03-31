@@ -232,18 +232,26 @@ export const TechnicianMap: React.FC = () => {
             const endDateObj = new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999);
 
             const { data, error } = await DataService.getServiceClient()
-                .from('technician_location_history')
-                .select('latitude, longitude, recorded_at')
+                .from('technician_gps_pings')
+                .select('latitude, longitude, created_at')
                 .eq('technician_id', techId)
-                .gte('recorded_at', startDateObj.toISOString())
-                .lte('recorded_at', endDateObj.toISOString())
-                .order('recorded_at', { ascending: true });
+                .gte('created_at', startDateObj.toISOString())
+                .lte('created_at', endDateObj.toISOString())
+                .order('created_at', { ascending: true });
 
             if (error) throw error;
-            setHistoryPath(data || []);
+            
+            // Map the new created_at column back to recorded_at for component compatibility
+            const mappedData = (data || []).map((d: any) => ({
+                latitude: d.latitude,
+                longitude: d.longitude,
+                recorded_at: d.created_at
+            }));
 
-            if (data && data.length > 0 && mapInstance) {
-                const bounds = L.latLngBounds(data.map(p => [p.latitude, p.longitude]));
+            setHistoryPath(mappedData);
+
+            if (mappedData.length > 0 && mapInstance) {
+                const bounds = L.latLngBounds(mappedData.map(p => [p.latitude, p.longitude]));
                 mapInstance.fitBounds(bounds, { padding: [50, 50] });
             }
         } catch (error) {
