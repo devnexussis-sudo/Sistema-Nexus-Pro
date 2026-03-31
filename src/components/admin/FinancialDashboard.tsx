@@ -5,7 +5,7 @@ import {
     Search, X, DollarSign, Calendar, Users,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
-    TrendingUp, Clock, FileSpreadsheet, ChevronRight, Plus, Slash
+    TrendingUp, Clock, FileSpreadsheet, ChevronRight, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -42,6 +42,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 12;
+
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+        key: 'date',
+        direction: 'desc'
+    });
 
     // Orçamentos disponíveis para vincular
     const availableQuotesForClient = useMemo(() => {
@@ -219,12 +224,57 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         });
     }, [allItems, searchTerm, startDate, endDate, techFilter, statusFilter]);
 
+    const sortedItems = useMemo(() => {
+        let sortableItems = [...filteredItems];
+        if (sortConfig.key) {
+            sortableItems.sort((a, b) => {
+                let aValue: any = a[sortConfig.key as keyof typeof a];
+                let bValue: any = b[sortConfig.key as keyof typeof b];
+
+                if (sortConfig.key === 'displayId') {
+                    aValue = a.displayId || a.id;
+                    bValue = b.displayId || b.id;
+                } else if (sortConfig.key === 'customerName') {
+                    aValue = a.customerName?.toLowerCase() || '';
+                    bValue = b.customerName?.toLowerCase() || '';
+                } else if (sortConfig.key === 'title') {
+                    aValue = a.title?.toLowerCase() || '';
+                    bValue = b.title?.toLowerCase() || '';
+                } else if (sortConfig.key === 'technician') {
+                    aValue = a.technician?.toLowerCase() || '';
+                    bValue = b.technician?.toLowerCase() || '';
+                } else if (sortConfig.key === 'date') {
+                    aValue = new Date(a.date).getTime();
+                    bValue = new Date(b.date).getTime();
+                } else if (sortConfig.key === 'paidAt') {
+                    aValue = a.paidAt ? new Date(a.paidAt).getTime() : 0;
+                    bValue = b.paidAt ? new Date(b.paidAt).getTime() : 0;
+                } else if (sortConfig.key === 'value') {
+                    aValue = Number(a.value);
+                    bValue = Number(b.value);
+                } else if (sortConfig.key === 'status') {
+                    aValue = a.status;
+                    bValue = b.status;
+                }
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [filteredItems, sortConfig]);
+
     const paginatedItems = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return filteredItems.slice(start, start + ITEMS_PER_PAGE);
-    }, [filteredItems, currentPage]);
+        return sortedItems.slice(start, start + ITEMS_PER_PAGE);
+    }, [sortedItems, currentPage]);
 
-    const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(sortedItems.length / ITEMS_PER_PAGE);
 
     // 3. Estatísticas
     const stats = useMemo(() => {
@@ -401,6 +451,21 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         { id: 'Transferência', icon: <ArrowRight size={20} />, label: 'Transferência' },
     ];
 
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortIcon = (columnKey: string) => {
+        if (sortConfig.key !== columnKey) return <ArrowUpDown size={10} className="text-slate-300 ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity" />;
+        return sortConfig.direction === 'asc' 
+            ? <ArrowUp size={10} className="text-[#1c2d4f] ml-1.5" /> 
+            : <ArrowDown size={10} className="text-[#1c2d4f] ml-1.5" />;
+    };
+
     return (
         <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden relative font-sans">
 
@@ -477,14 +542,30 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 <th className="px-3 py-3 w-10 text-center">
                                     <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-200 text-[#1c2d4f] cursor-pointer" checked={filteredItems.length > 0 && selectedIds.length === filteredItems.length} onChange={() => { if (selectedIds.length === filteredItems.length) setSelectedIds([]); else setSelectedIds(filteredItems.map(i => i.id)); }} />
                                 </th>
-                                <th className="px-4 py-3">Protocolo</th>
-                                <th className="px-4 py-3">Cliente</th>
-                                <th className="px-4 py-3">Descrição</th>
-                                <th className="px-4 py-3">Técnico</th>
-                                <th className="px-4 py-3">Data</th>
-                                <th className="px-4 py-3">Pgto</th>
-                                <th className="px-4 py-3">Valor</th>
-                                <th className="px-4 py-3 text-center">Status</th>
+                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('displayId')}>
+                                    <div className="flex items-center">Protocolo {getSortIcon('displayId')}</div>
+                                </th>
+                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('customerName')}>
+                                    <div className="flex items-center">Cliente {getSortIcon('customerName')}</div>
+                                </th>
+                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('title')}>
+                                    <div className="flex items-center">Descrição {getSortIcon('title')}</div>
+                                </th>
+                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('technician')}>
+                                    <div className="flex items-center">Técnico {getSortIcon('technician')}</div>
+                                </th>
+                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('date')}>
+                                    <div className="flex items-center">Data {getSortIcon('date')}</div>
+                                </th>
+                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('paidAt')}>
+                                    <div className="flex items-center">Pgto {getSortIcon('paidAt')}</div>
+                                </th>
+                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('value')}>
+                                    <div className="flex items-center">Valor {getSortIcon('value')}</div>
+                                </th>
+                                <th className="px-4 py-3 text-center cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('status')}>
+                                    <div className="flex items-center justify-center">Status {getSortIcon('status')}</div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
