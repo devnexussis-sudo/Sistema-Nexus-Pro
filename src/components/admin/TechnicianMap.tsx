@@ -280,6 +280,56 @@ export const TechnicianMap: React.FC = () => {
 
     const isMovingTechsHistory = historyPath.length > 5; // Simulação de status de movimento para o resumo histórico
 
+    const { historyLines, historyStops, startPoint, endPoint } = React.useMemo(() => {
+        if (!historyPath || historyPath.length === 0) return { historyLines: [], historyStops: [], startPoint: null, endPoint: null };
+        
+        const getDistanceM = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+            const R = 6371e3;
+            const p1 = lat1 * Math.PI/180;
+            const p2 = lat2 * Math.PI/180;
+            const dp = (lat2-lat1) * Math.PI/180;
+            const dl = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        };
+
+        const lines = historyPath.map(p => [p.latitude, p.longitude]);
+        const start = historyPath[0];
+        const end = historyPath[historyPath.length - 1];
+        const stops: any[] = [];
+        let anchorIdx = 0;
+        
+        for (let i = 1; i < historyPath.length; i++) {
+            const dist = getDistanceM(historyPath[anchorIdx].latitude, historyPath[anchorIdx].longitude, historyPath[i].latitude, historyPath[i].longitude);
+            if (dist > 50) { // Se moveu mais que 50 metros
+                const timeDiffMins = (new Date(historyPath[i-1].recorded_at).getTime() - new Date(historyPath[anchorIdx].recorded_at).getTime()) / 60000;
+                if (timeDiffMins >= 5) { // Ficou 5+ minutos na mesma área (Parada)
+                    stops.push({
+                        latitude: historyPath[anchorIdx].latitude,
+                        longitude: historyPath[anchorIdx].longitude,
+                        startTime: historyPath[anchorIdx].recorded_at,
+                        endTime: historyPath[i-1].recorded_at,
+                        durationMins: Math.round(timeDiffMins)
+                    });
+                }
+                anchorIdx = i; // Reset Anchor
+            }
+        }
+        
+        const lastTimeDiffMins = (new Date(end.recorded_at).getTime() - new Date(historyPath[anchorIdx].recorded_at).getTime()) / 60000;
+        if (lastTimeDiffMins >= 5) {
+            stops.push({
+                latitude: historyPath[anchorIdx].latitude,
+                longitude: historyPath[anchorIdx].longitude,
+                startTime: historyPath[anchorIdx].recorded_at,
+                endTime: end.recorded_at,
+                durationMins: Math.round(lastTimeDiffMins)
+            });
+        }
+
+        return { historyLines: lines, historyStops: stops, startPoint: start, endPoint: end };
+    }, [historyPath]);
+
     const activeTechs = technicians.filter(t => {
         const hasCoords = t.last_latitude !== undefined && t.last_latitude !== null &&
             t.last_longitude !== undefined && t.last_longitude !== null;
@@ -663,37 +713,62 @@ export const TechnicianMap: React.FC = () => {
                     })}
 
                     {/* --- TECHS HISTORY MODE RENDERING --- */}
-                    {viewMode === 'TECHS' && isHistoryMode && historyPath.length > 0 && (
+                    {viewMode === 'TECHS' && isHistoryMode && historyLines.length > 0 && (
                         <>
+                            {/* Linha Contínua Típica de GPS */}
                             <Polyline
-                                positions={historyPath.map(p => [p.latitude, p.longitude]) as any}
-                                color="var(--color-primary-600, #1c2d4f)"
-                                weight={4}
-                                opacity={0.8}
-                                dashArray="5, 10"
+                                positions={historyLines as any}
+                                color="#3b82f6"
+                                weight={5}
+                                opacity={1}
                             />
-                            {historyPath.map((point, idx) => (
-                                <CircleMarker
-                                    key={`hist-${idx}`}
-                                    center={[point.latitude, point.longitude] as any}
-                                    radius={5}
-                                    pathOptions={{
-                                        fillColor: idx === 0 ? '#10b981' : (idx === historyPath.length - 1 ? '#ef4444' : '#1c2d4f'),
-                                        color: 'white',
-                                        weight: 2,
-                                        fillOpacity: 1
-                                    }}
-                                >
+                            {/* Linha Fina Branca no Meio para Destacar */}
+                            <Polyline
+                                positions={historyLines as any}
+                                color="#ffffff"
+                                weight={1.5}
+                                opacity={0.6}
+                            />
+
+                            {/* Marcador de INÍCIO */}
+                            {startPoint && (
+                                <CircleMarker center={[startPoint.latitude, startPoint.longitude] as any} radius={7} pathOptions={{ fillColor: '#10b981', color: '#fff', weight: 2, fillOpacity: 1 }}>
+                                    <Popup>
+                                        <div className="p-2 min-w-[120px]">
+                                            <p className="font-black text-[10px] text-emerald-600 uppercase">🚩 Início do Trajeto</p>
+                                            <p className="text-[10px] text-slate-600 font-bold mt-1">Partida: {format(new Date(startPoint.recorded_at), "HH:mm", { locale: ptBR })}</p>
+                                        </div>
+                                    </Popup>
+                                </CircleMarker>
+                            )}
+
+                            {/* Marcadores de PARADAS (Stops Computados) */}
+                            {historyStops.map((stop, idx) => (
+                                <CircleMarker key={`parada-${idx}`} center={[stop.latitude, stop.longitude] as any} radius={8} pathOptions={{ fillColor: '#f59e0b', color: '#fff', weight: 2, fillOpacity: 1 }}>
                                     <Popup>
                                         <div className="p-2 min-w-[150px]">
-                                            <p className="font-black text-[10px] text-slate-900 uppercase">Ponto #{idx + 1}</p>
-                                            <p className="text-[10px] text-slate-500 font-bold mt-1">
-                                                {format(new Date(point.recorded_at), "HH:mm:ss 'em' dd/MM", { locale: ptBR })}
-                                            </p>
+                                            <p className="font-black text-[10px] text-amber-600 uppercase">🛑 Parada #{idx + 1}</p>
+                                            <p className="text-[10px] text-slate-600 font-bold mt-1">Chegada: {format(new Date(stop.startTime), "HH:mm", { locale: ptBR })}</p>
+                                            <p className="text-[10px] text-slate-600 font-bold">Saída: {format(new Date(stop.endTime), "HH:mm", { locale: ptBR })}</p>
+                                            <div className="mt-2 bg-amber-50 text-amber-700 font-black text-[10px] rounded p-1 text-center">
+                                                Duração: {stop.durationMins} minutos
+                                            </div>
                                         </div>
                                     </Popup>
                                 </CircleMarker>
                             ))}
+
+                            {/* Marcador de FIM / LOCAL ATUAL */}
+                            {endPoint && endPoint !== startPoint && (
+                                <CircleMarker center={[endPoint.latitude, endPoint.longitude] as any} radius={7} pathOptions={{ fillColor: '#ef4444', color: '#fff', weight: 2, fillOpacity: 1 }}>
+                                    <Popup>
+                                        <div className="p-2 min-w-[120px]">
+                                            <p className="font-black text-[10px] text-red-600 uppercase">📍 Ponto Final</p>
+                                            <p className="text-[10px] text-slate-600 font-bold mt-1">Último Registo: {format(new Date(endPoint.recorded_at), "HH:mm", { locale: ptBR })}</p>
+                                        </div>
+                                    </Popup>
+                                </CircleMarker>
+                            )}
                         </>
                     )}
                 </MapContainer>
