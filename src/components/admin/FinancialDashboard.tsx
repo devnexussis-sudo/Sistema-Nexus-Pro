@@ -706,8 +706,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             <div className="bg-white border border-slate-100 rounded-2xl flex flex-col overflow-hidden flex-1 min-h-0 shadow-xl shadow-slate-200/30 relative">
                 <div className="flex-1 overflow-auto">
                     <table className="w-full text-left">
-                        <thead className="sticky top-0 bg-white/95 backdrop-blur-md z-10 border-b border-slate-100">
-                            <tr className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                        <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm font-poppins">
+                            <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
                                 <th className="px-3 py-3 w-10 text-center">
                                     <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-200 text-[#1c2d4f] cursor-pointer" checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedIds.includes(i.id))} onChange={() => { 
                                         const pageIds = paginatedItems.map(i => i.id);

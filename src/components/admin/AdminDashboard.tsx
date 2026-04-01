@@ -1032,11 +1032,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
                   <div className="flex items-center gap-1">Protocolo {getSortIcon('displayId')}</div>
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
-                  <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
-                </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
-                  <div className="flex items-center gap-1">Abertura {getSortIcon('createdAt')}</div>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
+                  <div className="flex items-center gap-1">Modalidade {getSortIcon('operationType')}</div>
                 </th>
                 <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
                   <div className="flex items-center gap-1">Cliente {getSortIcon('customerName')}</div>
@@ -1044,8 +1041,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('assignedTo')}>
                   <div className="flex items-center justify-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
-                  <div className="flex items-center gap-1">Modalidade {getSortIcon('operationType')}</div>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
+                  <div className="flex items-center gap-1">Abertura {getSortIcon('createdAt')}</div>
+                </th>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
+                  <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
                 </th>
                 <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('endDate')}>
                   <div className="flex items-center gap-1">Conclusão {getSortIcon('endDate')}</div>
@@ -1088,16 +1088,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {order.displayId || order.id}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
-                      {formatDateDisplay(order.scheduledDate)}
-                    </td>
-                    <td className="px-3 py-2 text-[12px] text-slate-500 tracking-wide whitespace-nowrap">
-                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
+                    <td className="px-3 py-2 text-[11px] text-slate-500 tracking-wide whitespace-nowrap">
+                      {order.operationType || '---'}
                     </td>
                     <td className="px-3 py-2 text-[13px] text-slate-800 tracking-tight truncate max-w-[160px]">
                       {order.customerName}
                     </td>
-
                     <td className="px-3 py-2">
                       <div className="flex justify-center">
                         {assignedTech ? (
@@ -1108,14 +1104,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         ) : <span className="text-[11px] text-slate-300 tracking-widest">-</span>}
                       </div>
                     </td>
-
-                    <td className="px-3 py-2 text-[11px] text-slate-500 tracking-wide whitespace-nowrap">
-                      {order.operationType || '---'}
+                    <td className="px-3 py-2 text-[12px] text-slate-500 tracking-wide whitespace-nowrap">
+                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
+                    </td>
+                    <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
+                      {formatDateDisplay(order.scheduledDate)}
                     </td>
                     <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
                       {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
                     </td>
-
                     <td className="px-3 py-2 whitespace-nowrap"><StatusBadge status={order.status} /></td>
                     <td className="px-3 py-2 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
