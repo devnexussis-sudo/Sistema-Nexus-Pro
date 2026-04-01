@@ -159,7 +159,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
 
   return (
-    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
 
       {/* TOOLBAR PADRONIZADA (Externa) */}
       <div className="mb-2 flex flex-col xl:flex-row items-center gap-3">
@@ -239,13 +239,13 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           <Box size={18} />
                         </div>
                         <div className="truncate">
-                          <p className="text-slate-900  italic tracking-tight truncate">{e.model}</p>
-                          <p className="text-[9px] font-bold text-primary-400   mt-1 italic truncate">{e.familyName}</p>
+                          <p className="text-slate-900 tracking-tight truncate text-[13px] font-medium">{e.model}</p>
+                          <p className="text-[11px] text-primary-400 mt-1 truncate">{e.familyName}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-center font-mono text-[11px] font-bold text-slate-500 tracking-tighter italic  whitespace-nowrap">#{e.serialNumber}</td>
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-[10px] font-bold  text-slate-600 italic tracking-tight truncate max-w-[150px]">
+                    <td className="px-4 py-1.5 border-y border-slate-100 text-center font-mono text-[12px] text-slate-500 tracking-tighter whitespace-nowrap">#{e.serialNumber}</td>
+                    <td className="px-4 py-1.5 border-y border-slate-100 text-[12px] text-slate-600 tracking-tight truncate max-w-[150px]">
                       {customers.find(c => c.id === e.customerId)?.name || e.customerName || 'Não vinculado'}
                     </td>
 
@@ -282,10 +282,10 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         <div className="p-2.5 rounded-xl bg-primary-50 text-primary-600 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-all shrink-0">
                           <Layers size={18} />
                         </div>
-                        <p className="text-slate-900  italic tracking-tight truncate">{f.name}</p>
+                        <p className="text-slate-900 tracking-tight truncate text-[13px] font-medium">{f.name}</p>
                       </div>
                     </td>
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-[10px] font-medium text-slate-500 italic max-w-sm truncate">{f.description}</td>
+                    <td className="px-4 py-1.5 border-y border-slate-100 text-[11px] text-slate-500 max-w-sm truncate">{f.description}</td>
                     <td className="px-4 py-1.5 border-y border-slate-100 text-center">
                       <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold   border ${f.active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                         {f.active ? 'Ativo' : 'Inativo'}

@@ -110,7 +110,7 @@ export const TechnicianManagement: React.FC = () => {
 
 
   return (
-    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
 
       {/* Toolbar */}
       <div className="mb-2 flex flex-col md:flex-row gap-3 items-center">
@@ -170,12 +170,12 @@ export const TechnicianManagement: React.FC = () => {
                         <img src={t.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(t.name) + '&background=10b981&color=fff'} className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-md bg-slate-100 transition-transform group-hover/avatar:scale-105" alt={t.name} />
                       </div>
                       <div className="truncate">
-                        <p className="font-black text-slate-900 uppercase tracking-tight text-xs truncate max-w-[150px]">{t.name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5"><Smartphone size={10} className="text-emerald-500" /><span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Mobile Ativo</span></div>
+                        <p className="text-slate-900 tracking-tight text-[13px] font-medium truncate max-w-[150px]">{t.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5"><Smartphone size={10} className="text-emerald-500" /><span className="text-[10px] text-emerald-500 tracking-widest">Mobile Ativo</span></div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-1.5 border-y border-slate-100 italic text-[11px] font-bold text-slate-500 truncate max-w-[180px]">{t.email}</td>
+                  <td className="px-4 py-1.5 border-y border-slate-100 text-[12px] text-slate-500 truncate max-w-[180px]">{t.email}</td>
                   <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
                     <StatusBadge status={t.active ? OrderStatus.COMPLETED : OrderStatus.CANCELED} />
                   </td>

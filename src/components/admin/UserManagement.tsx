@@ -370,7 +370,7 @@ export const UserManagement: React.FC = () => {
   }
 
   return (
-    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
       {/* Toolbar */}
       <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
         {/* Tabs */}
@@ -470,13 +470,13 @@ export const UserManagement: React.FC = () => {
                           <img src={user.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.name) + '&background=10b981&color=fff'} className="w-10 h-10 rounded-xl border-2 border-white shadow-xl bg-slate-50 grayscale group-hover:grayscale-0 transition-all group-hover/avatar:scale-105" alt="" />
                         </div>
                         <div className="truncate">
-                          <p className="font-bold text-slate-900  italic tracking-tighter text-xs truncate max-w-[150px]">{user.name}</p>
-                          <p className="text-[9px] font-bold text-slate-400   mt-0.5 italic truncate max-w-[180px]">{user.email}</p>
+                          <p className="text-slate-900 tracking-tighter text-[13px] font-medium truncate max-w-[150px]">{user.name}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[180px]">{user.email}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-1.5 border-y border-slate-100">
-                      <span className="flex items-center gap-1.5 text-[9px] font-bold text-primary-500  italic truncate max-w-[120px]">
+                      <span className="flex items-center gap-1.5 text-[11px] text-primary-500 truncate max-w-[120px]">
                         <ShieldCheck size={12} className="shrink-0" />
                         <span className="truncate">{groups.find(g => g.id === user.groupId)?.name || 'Sem Grupo (Padrão)'}</span>
                       </span>

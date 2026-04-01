@@ -315,7 +315,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
 
   return (
-    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
       {/* Toolbar */}
       <div className="mb-2 flex flex-col md:flex-row gap-3 items-center">
         {/* Search */}
@@ -389,24 +389,24 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       <td className="px-3 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0 text-slate-300">
                         {isSelected ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100 font-bold text-xs">
+                      <td className="px-4 py-1.5 border-y border-slate-100">
                         <div className="flex items-center gap-3">
                           <div className={`p-2.5 rounded-xl border-2 shrink-0 ${c.type === 'PJ' ? 'bg-primary-50 border-primary-100 text-primary-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
                             {c.type === 'PJ' ? <Building2 size={16} /> : <User size={16} />}
                           </div>
                           <div className="truncate">
-                            <p className="text-slate-800  font-bold tracking-tight truncate max-w-[180px]">{c.name}</p>
-                            <p className="text-[9px] text-slate-400 font-bold mt-0.5   truncate">{c.document}</p>
+                            <p className="text-slate-800 tracking-tight truncate max-w-[180px] text-[13px] font-medium">{c.name}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{c.document}</p>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-1.5 border-y border-slate-100">
                         <div className="space-y-0.5">
-                          <p className="text-[10px] font-bold text-slate-600 flex items-center gap-1.5 truncate max-w-[150px]"><Mail size={12} className="text-primary-400" /> {c.email}</p>
-                          <p className="text-[10px] font-bold text-emerald-500 flex items-center gap-1.5  tracking-tighter"><Phone size={12} /> {c.whatsapp || c.phone}</p>
+                          <p className="text-[11px] text-slate-600 flex items-center gap-1.5 truncate max-w-[150px]"><Mail size={12} className="text-primary-400" /> {c.email}</p>
+                          <p className="text-[11px] text-emerald-500 flex items-center gap-1.5 tracking-tighter"><Phone size={12} /> {c.whatsapp || c.phone}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100 font-bold text-[10px]  text-slate-500 italic truncate max-w-[120px]">
+                      <td className="px-4 py-1.5 border-y border-slate-100 text-[11px] text-slate-500 truncate max-w-[120px]">
                         <div className="flex items-center gap-1.5">
                           <MapPin size={14} className="text-primary-400" />
                           <span className="truncate">{c.city} • {c.state}</span>

@@ -471,7 +471,7 @@ export const StockManagement: React.FC = () => {
     };
 
     return (
-        <div className="p-4 pr-8 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+        <div className="p-4 pr-8 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
             {/* Toolbar Externa */}
             <div className="mb-4 flex flex-wrap gap-4 items-center justify-between pr-2">
                 {/* Tabs */}
@@ -615,33 +615,33 @@ export const StockManagement: React.FC = () => {
                                                     <tr key={item.id} className="bg-white hover:bg-primary-50/40 transition-all border-b border-slate-50 last:border-0 group">
                                                         <td className="px-4 py-1.5">
                                                             <div className="flex flex-col truncate max-w-[100px]">
-                                                                <span className="text-[10px] font-black text-primary-600 uppercase truncate">{item?.code || '---'}</span>
+                                                                <span className="text-[12px] font-medium text-primary-600 truncate">{item?.code || '---'}</span>
                                                                 {item?.externalCode && (
-                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1 truncate">
+                                                                    <span className="text-[11px] text-slate-400 flex items-center gap-1 truncate">
                                                                         <Barcode size={10} className="shrink-0" /> {item.externalCode}
                                                                     </span>
                                                                 )}
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-1.5">
-                                                            <p className="text-[11px] font-bold text-slate-700 uppercase truncate max-w-[180px]">{item?.description || 'Item sem descrição'}</p>
+                                                            <p className="text-[13px] font-medium text-slate-700 truncate max-w-[180px]">{item?.description || 'Item sem descrição'}</p>
                                                             <div className="flex gap-1.5 overflow-hidden">
-                                                                <span className="text-[9px] text-slate-400 font-bold uppercase truncate">{item?.category || '-'}</span>
-                                                                <span className="text-[9px] text-slate-300 font-bold uppercase shrink-0">•</span>
-                                                                <span className="text-[9px] text-slate-400 font-bold uppercase shrink-0">{item?.unit || 'UN'}</span>
+                                                                <span className="text-[11px] text-slate-400 truncate">{item?.category || '-'}</span>
+                                                                <span className="text-[11px] text-slate-300 shrink-0">•</span>
+                                                                <span className="text-[11px] text-slate-400 shrink-0">{item?.unit || 'UN'}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{item?.location || '-'}</td>
+                                                        <td className="px-4 py-1.5 text-[12px] text-slate-500 truncate max-w-[100px]">{item?.location || '-'}</td>
                                                         <td className="px-4 py-1.5 text-center">
                                                             <div className="flex items-center justify-center gap-1.5">
-                                                                <span className={`text-[11px] font-black ${(item?.quantity || 0) <= (item?.minQuantity || 0) ? 'text-rose-500' : 'text-slate-700'}`}>{item?.quantity || 0}</span>
+                                                                <span className={`text-[13px] font-semibold ${(item?.quantity || 0) <= (item?.minQuantity || 0) ? 'text-rose-500' : 'text-slate-700'}`}>{item?.quantity || 0}</span>
                                                                 {(item?.quantity || 0) <= (item?.minQuantity || 0) && <AlertTriangle size={12} className="text-rose-500 shrink-0" />}
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-1.5 text-[10px] font-bold text-slate-500 text-right whitespace-nowrap">R$ {totalCost.toFixed(2)}</td>
-                                                        <td className="px-4 py-1.5 text-[10px] font-bold text-slate-700 text-right whitespace-nowrap">R$ {(item?.sellPrice || 0).toFixed(2)}</td>
+                                                        <td className="px-4 py-1.5 text-[12px] text-slate-500 text-right whitespace-nowrap">R$ {totalCost.toFixed(2)}</td>
+                                                        <td className="px-4 py-1.5 text-[12px] text-slate-700 text-right whitespace-nowrap">R$ {(item?.sellPrice || 0).toFixed(2)}</td>
                                                         <td className="px-4 py-1.5">
-                                                            <div className={`flex items-center justify-center gap-1 text-[10px] font-black ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
+                                                            <div className={`flex items-center justify-center gap-1 text-[12px] font-medium ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
                                                                 {margin >= 0 ? <TrendingUp size={12} className="shrink-0" /> : <TrendingDown size={12} className="shrink-0" />}
                                                                 {margin.toFixed(1)}%
                                                             </div>

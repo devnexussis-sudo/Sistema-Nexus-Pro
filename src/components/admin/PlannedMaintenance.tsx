@@ -223,7 +223,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     const totalPages = Math.ceil(filteredContracts.length / ITEMS_PER_PAGE);
 
     return (
-        <div className="p-4 space-y-4 animate-fade-in flex flex-col h-full bg-slate-50/20">
+        <div className="p-4 space-y-4 animate-fade-in flex flex-col h-full bg-slate-50/20 font-poppins">
             <div className="flex justify-between items-center">
                 <div>
                     <div className="flex items-center gap-3"><Briefcase className="text-[#1c2d4f]" size={32} /><h1 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">Gestão de Contratos</h1></div>
@@ -317,13 +317,13 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                     <tr key={contract.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
                                         <td className="px-4 py-1.5">
                                             <div className="flex flex-col truncate max-w-[120px]">
-                                                <span className="text-[11px] font-black uppercase italic text-primary-600 tracking-tighter truncate">{contract.pmocCode}</span>
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase truncate mt-0.5 italic">{contract.title.replace('CONTRATO Master: ', '')}</span>
+                                                <span className="text-[12px] font-medium text-primary-600 tracking-tighter truncate">{contract.pmocCode}</span>
+                                                <span className="text-[11px] text-slate-400 truncate mt-0.5">{contract.title.replace('CONTRATO Master: ', '')}</span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-1.5 text-[10px] font-black uppercase italic truncate max-w-[150px]">{contract.customerName}</td>
-                                        <td className="px-4 py-1.5 text-[11px] font-black text-emerald-600 whitespace-nowrap">R$ {contract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                        <td className="px-4 py-1.5 text-center whitespace-nowrap"><span className="px-2 py-1 bg-primary-50 text-primary-600 rounded-lg text-[10px] font-black uppercase italic">{contract.maintenanceDay || '1'}º</span></td>
+                                        <td className="px-4 py-1.5 text-[12px] font-medium text-slate-900 truncate max-w-[150px]">{contract.customerName}</td>
+                                        <td className="px-4 py-1.5 text-[12px] font-semibold text-emerald-600 whitespace-nowrap">R$ {contract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                        <td className="px-4 py-1.5 text-center whitespace-nowrap"><span className="px-2 py-1 bg-primary-50 text-primary-600 rounded-lg text-[11px] font-medium">{contract.maintenanceDay || '1'}º</span></td>
                                         <td className="px-4 py-1.5 text-center whitespace-nowrap">
                                             <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase ${contract.status === OrderStatus.CANCELED ? 'bg-red-50 text-red-500 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
                                                 <span className={`w-1 h-1 rounded-full animate-pulse ${contract.status === OrderStatus.CANCELED ? 'bg-red-500' : 'bg-emerald-500'}`} />

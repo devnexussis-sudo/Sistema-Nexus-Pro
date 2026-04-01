@@ -375,7 +375,7 @@ export const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-2 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in">
+    <div className="p-2 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in font-poppins">
       {/* Toolbar */}
       <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
         {/* Tabs */}
@@ -383,21 +383,21 @@ export const SettingsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('company')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'company' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'company' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Building2 size={14} /> Organização
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('system')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'system' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'system' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Terminal size={14} /> Sistema
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('app')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${activeTab === 'app' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'app' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Smartphone size={14} /> APP do Técnico
           </button>
@@ -439,18 +439,18 @@ export const SettingsPage: React.FC = () => {
                       <Building2 size={16} />
                     </div>
                     <div>
-                      <h2 className="text-base font-black text-gray-900 uppercase italic tracking-tighter leading-none">Dados Corporativos</h2>
-                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Identidade e registros da organização.</p>
+                      <h2 className="text-base font-semibold text-gray-900 tracking-tighter leading-none">Dados Corporativos</h2>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Identidade e registros da organização.</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div className="lg:col-span-3">
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Razão Social</label>
+                      <label className="text-[11px] font-medium text-gray-400 mb-1 block px-1">Razão Social</label>
                       <Input
                         value={company.name}
                         onChange={e => setCompany({ ...company, name: e.target.value })}
-                        className="rounded-xl py-1.5 font-black text-sm border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-medium text-[13px] border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
                       />
                     </div>
                     <div className="lg:col-span-1">

@@ -211,7 +211,7 @@ export const FormManagement: React.FC = () => {
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
   return (
-    <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in">
+    <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in font-poppins">
       {/* Toolbar */}
       <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
         {/* Tabs */}
@@ -325,7 +325,7 @@ export const FormManagement: React.FC = () => {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               <Tag size={16} className="text-primary-600" />
-                              <span className="font-bold text-slate-700 text-sm">{type.name}</span>
+                              <span className="text-slate-700 text-[13px] font-medium">{type.name}</span>
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -361,7 +361,7 @@ export const FormManagement: React.FC = () => {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               <FileText size={16} className="text-primary-600" />
-                              <span className="font-bold text-slate-700 text-sm">{form.title}</span>
+                              <span className="text-slate-700 text-[13px] font-medium">{form.title}</span>
                             </div>
                           </td>
                           <td className="px-4 py-3">
@@ -404,17 +404,17 @@ export const FormManagement: React.FC = () => {
                           <td className="px-4 py-3 text-[11px] font-bold text-slate-700">
                              <div className="flex items-center gap-2">
                                <Tag size={14} className="text-slate-400" />
-                               {serviceTypes.find(t => t.id === rule.serviceTypeId || t.id === (rule as any).service_type_id)?.name || 'Desconhecido'}
+                               <span className="text-slate-700 text-[12px] font-medium">{serviceTypes.find(t => t.id === rule.serviceTypeId || t.id === (rule as any).service_type_id)?.name || 'Desconhecido'}</span>
                              </div>
                           </td>
                           <td className="px-4 py-3 text-[11px] font-bold text-slate-700">
                              <div className="flex items-center gap-2">
                                <Cpu size={14} className="text-slate-400" />
-                               {rule.equipmentFamily}
+                               <span className="text-slate-700 text-[12px] font-medium">{rule.equipmentFamily}</span>
                              </div>
                           </td>
                           <td className="px-4 py-3 text-[11px] font-bold text-primary-700">
-                             <span className="bg-primary-50 py-1 px-3 border border-primary-100 rounded-md">
+                             <span className="bg-primary-50 py-1 px-3 border border-primary-100 rounded-md text-[12px] font-medium">
                                {forms.find(f => f.id === rule.formId || f.id === (rule as any).form_id)?.title || 'Excluído'}
                              </span>
                           </td>
