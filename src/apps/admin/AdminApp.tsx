@@ -50,7 +50,15 @@ interface AdminAppProps {
     onMarkNotificationRead: (id: string) => void;
 }
 
-const getInitialDateRange = () => ({ start: '', end: '' });
+const getInitialDateRange = () => {
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 2);
+    return {
+        start: start.toISOString().split('T')[0],
+        end: end.toISOString().split('T')[0]
+    };
+};
 
 export const AdminApp: React.FC<AdminAppProps> = ({
     auth, onLogin, onLogout, isImpersonating, onToggleMaster,
@@ -60,6 +68,20 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [overviewDateRange, setOverviewDateRange] = useState(getInitialDateRange());
     const [activitiesDateRange, setActivitiesDateRange] = useState(getInitialDateRange());
+
+    const handleDateValidation = (start: string, end: string, setter: (val: {start: string, end: string}) => void) => {
+        if (start && end) {
+            const d1 = new Date(start);
+            const d2 = new Date(end);
+            if ((d2.getTime() - d1.getTime()) > 31622400000) { // 366 dias
+                alert('Atenção: O período selecionado não pode ser maior que 1 ano. A data limite foi ajustada automaticamente.');
+                const limit = new Date(d1.getTime() + 31536000000); // 365 dias
+                setter({ start, end: limit.toISOString().split('T')[0] });
+                return;
+            }
+        }
+        setter({ start, end });
+    };
 
     // 🧠 Route-Based Lazy Loading Logic
     const isDashboard = location.pathname === '/admin' || location.pathname === '/admin/';
@@ -263,6 +285,12 @@ export const AdminApp: React.FC<AdminAppProps> = ({
             onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             isSidebarCollapsed={isSidebarCollapsed}
         >
+            {isFetchingAny && (
+                <div className="absolute inset-0 z-[500] bg-slate-50/70 backdrop-blur-[2px] flex flex-col items-center justify-center">
+                    <img src="/splash-duno-v5.png" alt="Carregando DUNO" className="w-12 h-12 object-contain animate-pulse" />
+                    <p className="mt-3 text-[9px] font-black uppercase tracking-[0.3em] text-[#1c2d4f]/70 animate-pulse">Carregando...</p>
+                </div>
+            )}
             <Routes>
                 <Route path="/" element={<AdminOverview
                     orders={dashSummary?.orders || statsOrders}
@@ -271,10 +299,10 @@ export const AdminApp: React.FC<AdminAppProps> = ({
                     customers={dashSummary?.customers || customers}
                     startDate={overviewDateRange.start}
                     endDate={overviewDateRange.end}
-                    onDateChange={(start, end) => setOverviewDateRange({ start, end })}
+                    onDateChange={(start, end) => handleDateValidation(start, end, setOverviewDateRange)}
                     onSwitchView={(v) => { /* Legacy Switch: Use navigate if needed */ }}
                 />} />
-                <Route path="/orders" element={<AdminDashboard techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => setActivitiesDateRange({ start, end })} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} onCreateOrder={async (o) => { const created = await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); return created; }} />} />
+                <Route path="/orders" element={<AdminDashboard techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => handleDateValidation(start, end, setActivitiesDateRange)} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} onCreateOrder={async (o) => { const created = await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); return created; }} />} />
                 <Route path="/contracts" element={<PlannedMaintenance orders={contracts} techs={techs} customers={customers} equipments={equipments} user={auth.user} onUpdateOrders={fetchGlobalData} onEditOrder={async (c) => { await DataService.updateContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} onCreateOrder={async (c) => { await DataService.createContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} />} />
                 <Route path="/quotes" element={<QuoteManagement quotes={quotes} customers={customers} orders={fullOrders} stockItems={stockItems} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} />} />
                 <Route path="/customers" element={<CustomerManagement customers={customers} equipments={equipments} onUpdateCustomers={fetchGlobalData} onSwitchView={(v, p) => { /* Legacy Switch */ }} />} />

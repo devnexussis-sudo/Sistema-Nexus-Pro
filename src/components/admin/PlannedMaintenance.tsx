@@ -190,8 +190,32 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     // States para Filtros Unificados Nexus
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('ALL');
-    const [startDateFilter, setStartDateFilter] = useState('');
-    const [endDateFilter, setEndDateFilter] = useState('');
+    const getDefaultDates = () => {
+        const dEnd = new Date();
+        const dStart = new Date();
+        dStart.setMonth(dStart.getMonth() - 2);
+        return { start: dStart.toISOString().split('T')[0], end: dEnd.toISOString().split('T')[0] };
+    };
+    const { start: initStart, end: initEnd } = getDefaultDates();
+    const [startDateFilter, setStartDateFilter] = useState(initStart);
+    const [endDateFilter, setEndDateFilter] = useState(initEnd);
+
+    const handleDateValidation = (start: string, end: string) => {
+        if (start && end) {
+            const d1 = new Date(start);
+            const d2 = new Date(end);
+            if ((d2.getTime() - d1.getTime()) > 31622400000) { // 366 dias
+                alert('Atenção: O período selecionado não pode ser maior que 1 ano. A data limite foi ajustada.');
+                setStartDateFilter(start);
+                setEndDateFilter(new Date(d1.getTime() + 31536000000).toISOString().split('T')[0]);
+                setCurrentPage(1);
+                return;
+            }
+        }
+        setStartDateFilter(start);
+        setEndDateFilter(end);
+        setCurrentPage(1);
+    };
 
     const filteredContracts = useMemo(() => {
         return orders.filter(contract => {
@@ -203,13 +227,17 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
             const matchesStatus = statusFilter === 'ALL' || contract.status === statusFilter;
 
             let matchesTime = true;
-            if (startDateFilter && endDateFilter && contract.scheduledDate) {
-                matchesTime = contract.scheduledDate >= startDateFilter && contract.scheduledDate <= endDateFilter;
-            }
+             if (startDateFilter && endDateFilter && contract.scheduledDate) {
+                 matchesTime = contract.scheduledDate >= startDateFilter && contract.scheduledDate <= endDateFilter;
+             }
 
-            return matchesSearch && matchesStatus && matchesTime;
-        });
-    }, [orders, searchTerm, statusFilter, startDateFilter, endDateFilter]);
+             return matchesSearch && matchesStatus && matchesTime;
+         }).sort((a, b) => {
+            const dateA = new Date(a.created_at || a.scheduledDate || 0).getTime();
+            const dateB = new Date(b.created_at || b.scheduledDate || 0).getTime();
+            return dateB - dateA;
+         });
+     }, [orders, searchTerm, statusFilter, startDateFilter, endDateFilter]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -271,9 +299,9 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                   <span className="text-[9px] font-bold uppercase text-slate-400">Ciclo</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                  <input type="date" value={startDateFilter} onChange={e => setStartDateFilter(e.target.value)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
+                                  <input type="date" value={startDateFilter} onChange={e => handleDateValidation(e.target.value, endDateFilter)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
                                   <span className="text-[10px] font-bold text-slate-300">até</span>
-                                  <input type="date" value={endDateFilter} onChange={e => setEndDateFilter(e.target.value)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
+                                  <input type="date" value={endDateFilter} onChange={e => handleDateValidation(startDateFilter, e.target.value)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
                               </div>
                           </div>
 

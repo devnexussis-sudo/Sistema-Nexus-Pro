@@ -129,11 +129,30 @@ export const TechnicianMap: React.FC = () => {
     const [orders, setOrders] = useState<any[]>([]);
     const [customers, setCustomers] = useState<any[]>([]);
 
-    // 📅 Date Filter State (Padrão: Mês Vigente)
-    const [dateRange, setDateRange] = useState({
-        start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
-        end: format(endOfMonth(new Date()), 'yyyy-MM-dd')
-    });
+    const getDefaultDates = () => {
+        const dEnd = new Date();
+        const dStart = new Date();
+        dStart.setMonth(dStart.getMonth() - 2);
+        return { start: dStart.toISOString().split('T')[0], end: dEnd.toISOString().split('T')[0] };
+    };
+    const [dateRange, setDateRange] = useState(getDefaultDates());
+
+    const handleDateValidation = (field: 'start' | 'end', value: string) => {
+        setDateRange(prev => {
+            const start = field === 'start' ? value : prev.start;
+            const end = field === 'end' ? value : prev.end;
+
+            if (start && end) {
+                const d1 = new Date(start);
+                const d2 = new Date(end);
+                if ((d2.getTime() - d1.getTime()) > 31622400000) { // 366 dias
+                    alert('Atenção: O período selecionado não pode ser maior que 1 ano. A data limite foi ajustada.');
+                    return { start, end: new Date(d1.getTime() + 31536000000).toISOString().split('T')[0] };
+                }
+            }
+            return { start, end };
+        });
+    };
 
     useEffect(() => {
         // Initial load
@@ -440,14 +459,14 @@ export const TechnicianMap: React.FC = () => {
                                 <input
                                     type="date"
                                     value={dateRange.start}
-                                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                                    onChange={(e) => handleDateValidation('start', e.target.value)}
                                     className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-24"
                                 />
                                 <span className="text-slate-300 text-[10px] font-bold">→</span>
                                 <input
                                     type="date"
                                     value={dateRange.end}
-                                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                                    onChange={(e) => handleDateValidation('end', e.target.value)}
                                     className="bg-transparent text-[10px] font-black text-slate-700 outline-none w-24"
                                 />
                             </div>

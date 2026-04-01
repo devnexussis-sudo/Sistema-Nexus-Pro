@@ -23,8 +23,32 @@ interface FinancialDashboardProps {
 export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, tenant, onRefresh }) => {
     const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const getDefaultDates = () => {
+        const dEnd = new Date();
+        const dStart = new Date();
+        dStart.setMonth(dStart.getMonth() - 2);
+        return { start: dStart.toISOString().split('T')[0], end: dEnd.toISOString().split('T')[0] };
+    };
+    const { start: initStart, end: initEnd } = getDefaultDates();
+    const [startDate, setStartDate] = useState(initStart);
+    const [endDate, setEndDate] = useState(initEnd);
+
+    const handleDateValidation = (start: string, end: string) => {
+        if (start && end) {
+            const d1 = new Date(start);
+            const d2 = new Date(end);
+            if ((d2.getTime() - d1.getTime()) > 31622400000) { // 366 dias
+                alert('Atenção: O período selecionado não pode ser maior que 1 ano. A data limite foi ajustada.');
+                setStartDate(start);
+                setEndDate(new Date(d1.getTime() + 31536000000).toISOString().split('T')[0]);
+                setCurrentPage(1);
+                return;
+            }
+        }
+        setStartDate(start);
+        setEndDate(end);
+        setCurrentPage(1);
+    };
     const [techFilter, setTechFilter] = useState('ALL');
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -651,9 +675,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Período de Referência</label>
                             <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2 h-10">
                                 <Calendar size={13} className="text-[#1c2d4f] shrink-0" />
-                                <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
+                                <input type="date" value={startDate} onChange={e => handleDateValidation(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
                                 <Slash size={10} className="text-slate-300 shrink-0" />
-                                <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
+                                <input type="date" value={endDate} onChange={e => handleDateValidation(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
                             </div>
                         </div>
                         <div className="md:col-span-3 flex flex-col gap-1.5">

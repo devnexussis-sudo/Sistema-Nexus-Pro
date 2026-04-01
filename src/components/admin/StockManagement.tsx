@@ -70,8 +70,30 @@ export const StockManagement: React.FC = () => {
     const [movements, setMovements] = useState<any[]>([]);
     const [movSearch, setMovSearch] = useState('');
     const [movTypeFilter, setMovTypeFilter] = useState('ALL');
-    const [movDateFrom, setMovDateFrom] = useState('');
-    const [movDateTo, setMovDateTo] = useState('');
+    const getDefaultDates = () => {
+        const dEnd = new Date();
+        const dStart = new Date();
+        dStart.setMonth(dStart.getMonth() - 2);
+        return { start: dStart.toISOString().split('T')[0], end: dEnd.toISOString().split('T')[0] };
+    };
+    const { start: initStart, end: initEnd } = getDefaultDates();
+    const [movDateFrom, setMovDateFrom] = useState(initStart);
+    const [movDateTo, setMovDateTo] = useState(initEnd);
+
+    const handleDateValidation = (start: string, end: string) => {
+        if (start && end) {
+            const d1 = new Date(start);
+            const d2 = new Date(end);
+            if ((d2.getTime() - d1.getTime()) > 31622400000) { // 366 dias
+                alert('Atenção: O período selecionado não pode ser maior que 1 ano. A data limite foi ajustada.');
+                setMovDateFrom(start);
+                setMovDateTo(new Date(d1.getTime() + 31536000000).toISOString().split('T')[0]);
+                return;
+            }
+        }
+        setMovDateFrom(start);
+        setMovDateTo(end);
+    };
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [transferData, setTransferData] = useState({ itemId: '', techId: '', quantity: '', direction: 'transfer' });
     const [techSearch, setTechSearch] = useState('');
@@ -857,7 +879,7 @@ export const StockManagement: React.FC = () => {
                                     if (!haystack.includes(term)) return false;
                                 }
                                 return true;
-                            });
+                            }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                             return (
                                 <div className="space-y-6">
                                     <h3 className="text-xl font-black text-slate-800 uppercase flex items-center gap-3">
@@ -884,9 +906,9 @@ export const StockManagement: React.FC = () => {
                                             </select>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <input type="date" value={movDateFrom} onChange={e => setMovDateFrom(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-4 focus:ring-primary-100 shadow-sm h-[38px]" />
+                                            <input type="date" value={movDateFrom} onChange={e => handleDateValidation(e.target.value, movDateTo)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-4 focus:ring-primary-100 shadow-sm h-[38px]" />
                                             <span className="text-[9px] font-black text-slate-400">ATÉ</span>
-                                            <input type="date" value={movDateTo} onChange={e => setMovDateTo(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-4 focus:ring-primary-100 shadow-sm h-[38px]" />
+                                            <input type="date" value={movDateTo} onChange={e => handleDateValidation(movDateFrom, e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-4 focus:ring-primary-100 shadow-sm h-[38px]" />
                                         </div>
                                         {(movSearch || movTypeFilter !== 'ALL' || movDateFrom || movDateTo) && (
                                             <button onClick={() => { setMovSearch(''); setMovTypeFilter('ALL'); setMovDateFrom(''); setMovDateTo(''); }} className="px-3 py-1.5 text-[9px] font-bold uppercase text-slate-400 hover:text-rose-500 transition-colors">
