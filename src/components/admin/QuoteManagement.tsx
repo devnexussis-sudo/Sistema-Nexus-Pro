@@ -375,7 +375,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     };
 
     return (
-        <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden">
+        <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
             {/* Toolbar (Moved Outside) */}
             <div className="mb-2 flex flex-col md:flex-row items-center gap-3">
                 <div className="relative w-full md:flex-1">
@@ -446,7 +446,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
             <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
                 <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full border-separate border-spacing-y-0 text-left">
-                        <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                        <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-md z-10 text-[11px] font-semibold text-slate-600 border-b border-slate-300 font-poppins">
                             <tr className="border-b border-slate-100">
                                 <th className="px-3 py-2 w-12 text-center text-slate-400">
                                     <input
@@ -457,14 +457,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         title="Selecionar página atual"
                                     />
                                 </th>
-                                <th className="px-4 py-2">Orçamento ID</th>
-                                <th className="px-4 py-2">Criado em</th>
-                                <th className="px-4 py-2">Cliente</th>
-                                <th className="px-4 py-2">Validade</th>
-                                <th className="px-4 py-2">Valor Total</th>
-                                <th className="px-4 py-2">Vínculo O.S.</th>
-                                <th className="px-4 py-2 text-center">Status</th>
-                                <th className="px-4 py-2 text-right pr-6">Ações</th>
+                                <th className="px-4 py-3">Orçamento ID</th>
+                                <th className="px-4 py-3">Criado em</th>
+                                <th className="px-4 py-3">Cliente</th>
+                                <th className="px-4 py-3">Validade</th>
+                                <th className="px-4 py-3 text-right">Valor Total</th>
+                                <th className="px-4 py-3">Vínculo O.S.</th>
+                                <th className="px-4 py-3 text-center">Status</th>
+                                <th className="px-4 py-3 text-right pr-6">Ações</th>
                             </tr>
                         </thead>
                         <tbody>

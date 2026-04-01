@@ -153,12 +153,12 @@ export const TechnicianManagement: React.FC = () => {
       <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           <table className="w-full border-separate border-spacing-y-1">
-            <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-              <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                <th className="px-4 py-2">Identidade Visual</th>
-                <th className="px-4 py-2 font-bold uppercase tracking-[0.3em]">Credencial (E-mail)</th>
-                <th className="px-4 py-2 text-center">Status App</th>
-                <th className="px-4 py-2 text-right pr-6">Ações</th>
+            <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
+              <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left font-poppins">
+                <th className="px-4 py-3">Identidade Visual</th>
+                <th className="px-4 py-3">Credencial (E-mail)</th>
+                <th className="px-4 py-3 text-center">Status App</th>
+                <th className="px-4 py-3 text-right pr-6">Ações</th>
               </tr>
             </thead>
             <tbody>

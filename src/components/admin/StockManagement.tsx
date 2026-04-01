@@ -561,8 +561,8 @@ export const StockManagement: React.FC = () => {
                         {/* Items Table */}
                         <div className="flex-1 overflow-auto custom-scrollbar">
                             <table className="w-full border-separate border-spacing-y-0">
-                                <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 border-b border-slate-100 shadow-sm">
-                                    <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
+                                <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
+                                    <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left font-poppins">
                                         <th className="px-4 py-2">Item</th>
                                         <th className="px-4 py-2">Descrição</th>
                                         <th className="px-4 py-2">Localização</th>
@@ -570,7 +570,7 @@ export const StockManagement: React.FC = () => {
                                         <th className="px-4 py-2 text-right whitespace-nowrap">Custo Total</th>
                                         <th className="px-4 py-2 text-right">Venda</th>
                                         <th className="px-4 py-2 text-center">Margem</th>
-                                        <th className="px-4 py-2 text-right pr-6">Ações</th>
+                                        <th className="px-4 py-3 text-right pr-6">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -788,10 +788,10 @@ export const StockManagement: React.FC = () => {
                                                 <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
                                                     <table className="w-full text-left">
                                                         <thead className="bg-slate-50 border-b border-slate-200">
-                                                            <tr className="text-[10px] font-black text-slate-500 uppercase">
+                                                            <tr className="text-[11px] font-semibold text-slate-600 tracking-tight font-poppins">
                                                                 <th className="px-6 py-4">Item Patrimonial</th>
                                                                 <th className="px-6 py-4 text-center">Quantidade</th>
-                                                                <th className="px-6 py-4 text-right">Avaliação Unit.</th>
+                                                                <th className="px-6 py-3 text-right">Avaliação Unit.</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100">

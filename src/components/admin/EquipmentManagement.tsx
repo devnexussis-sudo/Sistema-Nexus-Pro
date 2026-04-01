@@ -222,12 +222,12 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
           {activeTab === 'list' ? (
             <table className="w-full border-separate border-spacing-y-1">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-                <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-left">
+                <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left font-poppins">
                   <th className="px-4 py-2">equipamento / modelo</th>
                   <th className="px-4 py-2 text-center whitespace-nowrap">nº de série</th>
                   <th className="px-4 py-2">proprietário</th>
                   <th className="px-4 py-2 text-center">status</th>
-                  <th className="px-4 py-2 text-right pr-6">ações</th>
+                  <th className="px-4 py-3 text-right pr-6">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -267,7 +267,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
           ) : (
             <table className="w-full border-separate border-spacing-y-1">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-                <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-left">
+                <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left font-poppins">
                   <th className="px-4 py-2">nome da família</th>
                   <th className="px-4 py-2">descrição técnica de escopo</th>
                   <th className="px-4 py-2 text-center">status</th>
@@ -324,7 +324,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                     {activeTab === 'list' ? <Box size={32} /> : <Layers size={32} />}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900  tracking-tight leading-none">
+                    <h2 className="text-2xl font-semibold text-slate-900 tracking-tight leading-none font-poppins">
                       {activeTab === 'list' ? (editingId ? 'Atualizar Ativo' : 'Novo Registro de Ativo') : (editingId ? 'Editar Categoria' : 'Nova Categoria Técnica')}
                     </h2>
                     <p className="text-[10px] text-slate-400 font-bold  tracking-[0.2em] mt-2">Controle técnico de inventário</p>
@@ -351,7 +351,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                       <Input label="Modelo do Ativo" required icon={<Laptop size={16} />} className="rounded-2xl py-4 font-bold border-slate-200" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
                       <Input label="Número de Série (Serial)" required icon={<Hash size={16} />} className="rounded-2xl py-4 font-bold border-slate-200" value={eqFormData.serialNumber || ''} onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })} />
                       <div className="w-full">
-                        <label className="text-[10px] font-bold text-slate-400   px-2 mb-2 block italic">Família Técnica</label>
+                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Família Técnica</label>
                         <select
                           className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold  text-slate-900 focus:ring-4 focus:ring-primary-100 transition-all"
                           required
@@ -363,7 +363,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                         </select>
                       </div>
                       <div className="w-full">
-                        <label className="text-[10px] font-bold text-slate-400   px-2 mb-2 block italic">Cliente Proprietário</label>
+                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Cliente Proprietário</label>
                         <select
                           className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold  text-slate-900 focus:ring-4 focus:ring-primary-100 transition-all"
                           required

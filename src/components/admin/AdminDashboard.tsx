@@ -1018,8 +1018,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <div className="bg-white border border-slate-200/60 rounded-xl shadow-sm flex flex-col overflow-hidden flex-1 ring-1 ring-slate-100">
         <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 shadow-sm">
-              <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-left">
+            <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
+              <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
                 <th className="px-3 py-2 w-12 text-center text-slate-400">
                   <input
                     type="checkbox"
@@ -1189,7 +1189,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-3">
-                    <h2 className="text-base font-bold text-slate-900">Ordem de Serviço #{selectedOrder.displayId || selectedOrder.id}</h2>
+                    <h2 className="text-base font-semibold text-slate-900 font-poppins">Ordem de Serviço #{selectedOrder.displayId || selectedOrder.id}</h2>
                     <StatusBadge status={selectedOrder.status} />
                     {isEditing && (
                       <span className="text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
@@ -1275,8 +1275,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 py-4 text-xs font-semibold border-b-2 transition-all whitespace-nowrap
-                    ${activeTab === tab.id ? 'border-primary-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                  className={`flex items-center gap-2 py-4 text-xs font-medium border-b-2 transition-all whitespace-nowrap font-poppins
+                    ${activeTab === tab.id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                 >
                   <tab.icon size={15} /> {tab.label}
                 </button>
@@ -1299,19 +1299,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
                         <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cliente / Razão Social</label>
+                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Cliente / Razão Social</label>
                           {/* Cliente é estruturalmente fixo — não pode ser alterado */}
                           <div className="text-sm font-semibold text-slate-900">{selectedOrder.customerName}</div>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Endereço de Atendimento</label>
+                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Endereço de Atendimento</label>
                           {isEditing
                             ? <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
                             : <div className="text-sm text-slate-600 font-medium leading-relaxed">{selectedOrder.customerAddress || 'Não informado'}</div>
                           }
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Agendamento (Visita)</label>
+                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Agendamento (Visita)</label>
                           <div className="text-sm text-slate-400 font-medium italic flex items-center gap-2">
                             <Clock size={14} /> Gerenciado na aba Visitas
                           </div>
@@ -1321,7 +1321,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <div className="text-sm text-slate-600 font-bold">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</div>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Modalidade do Atendimento</label>
+                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Modalidade do Atendimento</label>
                           {isEditing
                             ? (
                               <select
@@ -1350,14 +1350,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </h3>
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Descrição das Atividades</label>
+                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Descrição das Atividades</label>
                           {isEditing
                             ? <textarea rows={5} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
                             : <div className="p-4 bg-slate-50/50 rounded-md border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[120px] font-medium">{selectedOrder.description || "Nenhuma observação técnica registrada."}</div>
                           }
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Notas Internas</label>
+                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Notas Internas</label>
                           {isEditing
                             ? <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" placeholder="Notas opcionais..." value={editDraft.notes ?? ''} onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))} />
                             : selectedOrder.notes && (
@@ -2397,7 +2397,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                   <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
                     <table className="w-full text-left">
-                      <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                      <thead className="bg-slate-100/80 text-[11px] font-semibold text-slate-600 border-b border-slate-300 font-poppins">
                         <tr>
                           <th className="px-6 py-3">Item / Serviço</th>
                           <th className="px-4 py-3 text-center">Quant.</th>

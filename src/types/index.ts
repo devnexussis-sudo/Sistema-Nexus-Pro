@@ -412,6 +412,7 @@ export interface EquipmentFamily {
 export interface Equipment {
   id: string;
   tenantId?: string; // Multi-tenancy
+  name?: string; // Nome descritivo amigável
   serialNumber: string;
   model: string;
   familyId: string;
