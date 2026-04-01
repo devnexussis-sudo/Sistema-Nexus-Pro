@@ -40,14 +40,14 @@ interface OrderCalendarProps {
 
 const getStatusHexColor = (status: OrderStatus) => {
   switch (status) {
-    case OrderStatus.PENDING:    return '#6366f1'; // Indigo
-    case OrderStatus.ASSIGNED:   return '#3b82f6'; // Azul
-    case OrderStatus.TRAVELING:  return '#f59e0b'; // Âmbar
-    case OrderStatus.IN_PROGRESS: return '#eab308'; // Amarelo
-    case OrderStatus.COMPLETED:  return '#10b981'; // Verde
-    case OrderStatus.CANCELED:   return '#d946ef'; // Rosa/Magenta
-    case OrderStatus.BLOCKED:    return '#ef4444'; // Vermelho
-    default:                     return '#94a3b8'; // Cinza
+    case OrderStatus.PENDING:     return '#94a3b8'; // bg-slate-400
+    case OrderStatus.ASSIGNED:    return '#7391b4'; // bg-primary-400
+    case OrderStatus.TRAVELING:   return '#0ea5e9'; // bg-sky-500
+    case OrderStatus.IN_PROGRESS: return '#6366f1'; // bg-indigo-500
+    case OrderStatus.COMPLETED:   return '#10b981'; // bg-emerald-500
+    case OrderStatus.CANCELED:    return '#f43f5e'; // bg-rose-500
+    case OrderStatus.BLOCKED:     return '#f59e0b'; // bg-amber-500
+    default:                      return '#94a3b8'; // bg-slate-400
   }
 };
 
