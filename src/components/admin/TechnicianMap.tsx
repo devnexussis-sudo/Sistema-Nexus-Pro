@@ -611,7 +611,7 @@ export const TechnicianMap: React.FC = () => {
 
                         {showLegend ? (
                             <div className="space-y-3">
-                                <h4 className="text-[8px] font-black text-[#1c2d4f] uppercase tracking-[0.2em] border-b border-slate-100 pb-2">Status Operacional</h4>
+                                <h4 className="text-[8px] font-black text-[#1c2d4f] uppercase tracking-[0.2em] border-b border-slate-200 pb-2">Status Operacional</h4>
                                 <div className="grid grid-cols-1 gap-2">
                                     {Object.values(OrderStatus).map(status => (
                                         <div key={status} className="flex items-center gap-2.5 group">

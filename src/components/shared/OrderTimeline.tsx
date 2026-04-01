@@ -89,12 +89,12 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
                 {events.map((event, index) => (
                     <div key={event.eventId || index} className="relative pl-6 animate-in fade-in slide-in-from-bottom-2">
                         {/* Bullet Marker */}
-                        <div className="absolute -left-[11px] top-1 w-5 h-5 bg-white border-2 border-slate-100 rounded-full flex items-center justify-center">
+                        <div className="absolute -left-[11px] top-1 w-5 h-5 bg-white border-2 border-slate-200 rounded-full flex items-center justify-center">
                             {getIcon(event.eventType)}
                         </div>
 
                         {/* Content */}
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-md shadow-slate-200/40 hover:shadow-md transition-shadow">
                             <div className="flex justify-between items-start mb-2">
                                 <div>
                                     <h4 className="text-xs font-bold text-slate-800">

@@ -340,7 +340,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
           </button>
 
           {showFilters && (
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
               <Filter size={14} className="text-slate-400 mr-2" />
               <select
                 className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
@@ -363,7 +363,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+      <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         {/* TABELA PADRONIZADA */}
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           <table className="w-full border-separate border-spacing-y-1">
@@ -457,7 +457,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                               {mockEquipments[c.id] && mockEquipments[c.id].map(eq => (
-                                <div key={eq.id} className="bg-white p-6 rounded-[2rem] border border-primary-100/50 shadow-sm flex items-center gap-5 group/item transition-all hover:scale-[1.03]">
+                                <div key={eq.id} className="bg-white p-6 rounded-[2rem] border border-primary-100/50 shadow-lg shadow-slate-200/50 flex items-center gap-5 group/item transition-all hover:scale-[1.03]">
                                   <div className="p-3 bg-primary-50 text-primary-400 rounded-xl group-hover/item:bg-primary-600 group-hover/item:text-white transition-colors"><Laptop size={18} /></div>
                                   <div>
                                     <p className="text-xs font-bold text-slate-800  tracking-tight">{eq.model}</p>
@@ -492,7 +492,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         isModalOpen && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
             <div className="bg-white rounded-[4rem] w-full max-w-4xl shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[92vh] animate-fade-in-up">
-              <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[4rem]">
+              <div className="p-10 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center rounded-t-[4rem]">
                 <div className="flex items-center gap-6">
                   <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><Building2 size={32} /></div>
                   <div>
@@ -500,7 +500,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                     <p className="text-[10px] text-slate-400 font-bold  tracking-[0.2em] mt-2 lowercase">provisionamento de base operacional</p>
                   </div>
                 </div>
-                <button onClick={closeModal} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all"><X size={28} /></button>
+                <button onClick={closeModal} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-300 hover:text-slate-900 transition-all"><X size={28} /></button>
               </div>
 
               <form onSubmit={handleSubmit} className="p-12 space-y-12 overflow-y-auto custom-scrollbar flex-1">
@@ -554,7 +554,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-10 border-t border-slate-100 space-y-10">
+                <div className="pt-10 border-t border-slate-200 space-y-10">
                   <div className="flex items-center gap-3 text-primary-600 font-bold text-xs  tracking-[0.2em] italic"><MapPin size={20} /> localização e atendimento</div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <Input label="CEP" onBlur={handleZipBlur} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} />
@@ -584,7 +584,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                 )}
               </form>
 
-              <div className="p-10 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-6 rounded-b-[4rem]">
+              <div className="p-10 border-t border-slate-200 bg-slate-50/50 flex justify-end gap-6 rounded-b-[4rem]">
                 <Button variant="secondary" className="rounded-2xl px-12" onClick={closeModal}>Descartar</Button>
                 <Button
                   onClick={handleSubmit}

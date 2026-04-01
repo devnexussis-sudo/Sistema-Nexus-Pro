@@ -196,7 +196,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
       {/* ── CALENDÁRIO ── */}
       <main className="flex-1 overflow-hidden flex flex-col p-3 min-h-0">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col h-full">
+        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-200/80 overflow-hidden flex flex-col h-full">
 
           {/* Cabeçalho dias da semana */}
           <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-200 shrink-0">
@@ -341,7 +341,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   <div
                     key={order.id}
                     onClick={() => setSelectedOrder(order)}
-                    className="flex items-center gap-3 p-3.5 bg-white rounded-2xl border border-slate-100 shadow-sm cursor-pointer hover:shadow-md hover:border-slate-200 transition-all active:scale-[0.98] group"
+                    className="flex items-center gap-3 p-3.5 bg-white rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:border-slate-200 transition-all active:scale-[0.98] group"
                   >
                     {/* Hora */}
                     <div className="flex flex-col items-center justify-center min-w-[46px] shrink-0 text-center">
@@ -436,7 +436,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Cliente */}
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex gap-4 items-start">
+                <div className="bg-white p-5 rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-200 flex gap-4 items-start">
                   <div className="w-11 h-11 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
                     <MapPin size={20} />
                   </div>
@@ -448,7 +448,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                 </div>
 
                 {/* Data */}
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex gap-4 items-start">
+                <div className="bg-white p-5 rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-200 flex gap-4 items-start">
                   <div className="w-11 h-11 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
                     <Clock size={20} />
                   </div>
@@ -468,7 +468,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Técnico */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50">
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">responsável técnico</p>
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 bg-slate-900 text-white rounded-full flex items-center justify-center font-black text-sm shrink-0">
@@ -481,7 +481,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                 </div>
 
                 {/* Equipamento */}
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50">
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">ativo vinculado</p>
                   <div className="flex items-center gap-3">
                     <div className="bg-amber-50 text-amber-600 p-2 rounded-lg shrink-0"><Box size={16} /></div>
@@ -495,7 +495,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
 
               {/* Descrição */}
               {selectedOrder.description && (
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50">
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
                     <AlertCircle size={12} /> observações
                   </p>
@@ -507,7 +507,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             </div>
 
             {/* Footer */}
-            <div className="p-5 bg-white border-t border-slate-100 flex justify-end shrink-0">
+            <div className="p-5 bg-white border-t border-slate-200 flex justify-end shrink-0">
               <button
                 onClick={() => {
                   const url = `${window.location.origin}/#/order/view/${selectedOrder.publicToken || selectedOrder.id}`;

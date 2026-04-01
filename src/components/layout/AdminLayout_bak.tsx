@@ -224,7 +224,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             {healthReport && (
                 <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-xl max-w-xl w-full border border-slate-200 overflow-hidden">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center">
                             <div>
                                 <h3 className="text-lg font-bold text-slate-900">Status do Ecossistema</h3>
                                 <p className="text-xs text-slate-500">Diagnóstico de infraestrutura e performance.</p>

@@ -487,7 +487,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           {step === 1 && (
             <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
               {!initialData && (
-                <div className="flex bg-white p-1 rounded-xl w-fit mx-auto border border-slate-200 shadow-sm">
+                <div className="flex bg-white p-1 rounded-xl w-fit mx-auto border border-slate-200 shadow-lg shadow-slate-200/50">
                   <button
                     onClick={() => setSearchMode('client')}
                     className={`px-8 py-2.5 rounded-lg text-xs font-bold transition-all ${searchMode === 'client'
@@ -534,7 +534,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   {(isClientListOpen && searchMode === 'client' && clientSearch) && (
                     <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
                       {filteredClients.length > 0 ? filteredClients.map(c => (
-                        <button key={c.id} onClick={() => handleSelectClient(c)} className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors group">
+                        <button key={c.id} onClick={() => handleSelectClient(c)} className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-200 last:border-0 transition-colors group">
                           <div>
                             <p className="text-xs font-bold text-slate-800 group-hover:text-[#1c2d4f] transition-colors">{c.name}</p>
                             <p className="text-[10px] text-slate-400 font-medium truncate max-w-sm mt-0.5">{c.address}</p>
@@ -550,7 +550,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   {(isSerialListOpen && searchMode === 'serial' && serialSearch) && (
                     <div className="absolute z-[170] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
                       {filteredSerials.length > 0 ? filteredSerials.map(e => (
-                        <button key={e.id} onClick={() => handleSelectBySerial(e)} className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors group">
+                        <button key={e.id} onClick={() => handleSelectBySerial(e)} className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-200 last:border-0 transition-colors group">
                           <div className="flex items-center gap-4">
                             <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-[#1c2d4f10] transition-colors">
                               <Laptop size={16} className="text-slate-400 group-hover:text-[#1c2d4f]" />
@@ -617,7 +617,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {/* CONFIGURAÇÃO DA AGENDA */}
                 <div className="md:col-span-2 space-y-8">
-                  <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                  <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">
                     <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">programação e prioridade</h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -679,7 +679,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
                 {/* ALOCAÇÃO DE TÉCNICO */}
                 <div className="space-y-6">
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full">
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 flex flex-col h-full">
                     <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3 mb-6">responsável técnico</h3>
 
                     <div className="relative mb-4">
@@ -760,7 +760,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               </div>
 
               {/* TABELA DE ITENS */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400   border-b border-slate-200">
@@ -860,7 +860,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                                   setStockSearch('');
                                   setIsStockListOpen(false);
                                 }}
-                                className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-50 last:border-0 group"
+                                className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-200 last:border-0 group"
                               >
                                 <div className="flex items-center gap-3">
                                   <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-[#1c2d4f10] transition-colors">
@@ -984,8 +984,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               </div>
 
               {/* Histórico completo de visitas (lazy-loaded, sempre ativo no step 5) */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
+              <div className="bg-white rounded-xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-200 flex items-center gap-2">
                   <span className="text-[10px] font-bold   text-slate-500">Histórico de Visitas</span>
                 </div>
                 <VisitHistoryTab
@@ -995,8 +995,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               </div>
 
               {/* Timeline de Eventos do Sistema (legado — mantido para compatibilidade) */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-slate-100">
+              <div className="bg-white rounded-xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-200">
                   <span className="text-[10px] font-bold   text-slate-500">Linha do Tempo do Sistema</span>
                 </div>
                 <div className="p-4">

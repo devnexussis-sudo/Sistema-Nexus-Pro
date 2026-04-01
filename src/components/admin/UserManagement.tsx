@@ -232,8 +232,8 @@ export const UserManagement: React.FC = () => {
         <div className="flex-1 overflow-auto custom-scrollbar space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
             {modules.map((mod) => (
-              <div key={mod.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
-                <div className="p-8 border-b border-slate-50 bg-slate-50/30 flex items-center gap-4">
+              <div key={mod.id} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
+                <div className="p-8 border-b border-slate-200 bg-slate-50/30 flex items-center gap-4">
                   <div className="p-3 bg-primary-600 rounded-2xl text-white shadow-lg"><mod.icon size={20} /></div>
                   <h3 className="font-bold text-slate-900  italic tracking-tight text-sm">{mod.label}</h3>
                 </div>
@@ -273,8 +273,8 @@ export const UserManagement: React.FC = () => {
               </div>
             ))}
 
-            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 p-8 space-y-6 lg:col-span-2">
-              <div className="flex items-center gap-4 border-b border-slate-50 pb-6 mb-2">
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 p-8 space-y-6 lg:col-span-2">
+              <div className="flex items-center gap-4 border-b border-slate-200 pb-6 mb-2">
                 <div className="p-3 bg-emerald-500 rounded-2xl text-white shadow-lg"><Building2 size={20} /></div>
                 <h3 className="font-bold text-slate-900  italic tracking-tight text-sm">Financeiro e Custos</h3>
               </div>
@@ -308,8 +308,8 @@ export const UserManagement: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 p-8 space-y-6 lg:col-span-2">
-              <div className="flex items-center gap-4 border-b border-slate-50 pb-6 mb-2">
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 p-8 space-y-6 lg:col-span-2">
+              <div className="flex items-center gap-4 border-b border-slate-200 pb-6 mb-2">
                 <div className="p-3 bg-amber-500 rounded-2xl text-white shadow-lg"><ShieldAlert size={20} /></div>
                 <h3 className="font-bold text-slate-900  italic tracking-tight text-sm">Privilégios de Sistema e Governança</h3>
               </div>
@@ -374,7 +374,7 @@ export const UserManagement: React.FC = () => {
       {/* Toolbar */}
       <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
         {/* Tabs */}
-        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm flex-shrink-0">
+        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-lg shadow-slate-200/50 flex-shrink-0">
           <button
             onClick={() => setActiveTab('users')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold  transition-all ${activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
@@ -411,7 +411,7 @@ export const UserManagement: React.FC = () => {
           </button>
 
           {showFilters && (
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
               <Filter size={14} className="text-slate-400 mr-2" />
               <select
                 className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
@@ -449,7 +449,7 @@ export const UserManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+      <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'users' ? (
             <table className="w-full border-separate border-spacing-y-1">
@@ -507,7 +507,7 @@ export const UserManagement: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {groups.map(group => (
-                <div key={group.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-8 hover:shadow-2xl hover:shadow-primary-500/10 transition-all group border-b-4 border-b-slate-50 hover:border-b-primary-500">
+                <div key={group.id} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:shadow-primary-500/10 transition-all group border-b-4 border-b-slate-50 hover:border-b-primary-500">
                   <div className="flex items-center justify-between mb-6">
                     <div className={`p-4 rounded-2xl ${group.isSystem ? 'bg-amber-100 text-amber-600' : 'bg-primary-100 text-primary-600'}`}>
                       <FolderTree size={24} />
@@ -529,7 +529,7 @@ export const UserManagement: React.FC = () => {
                   </div>
                   <h3 className="font-bold text-slate-900  italic tracking-tighter text-lg mb-2">{group.name}</h3>
                   <p className="text-[11px] text-slate-400 font-bold mb-6 line-clamp-2 h-8 leading-tight">{group.description}</p>
-                  <div className="flex items-center justify-between border-t border-slate-50 pt-6">
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-6">
                     <span className="text-[9px] font-bold text-slate-300  ">
                       {group.isSystem ? 'Perfil Master Protegido' : 'Grupo Customizado'}
                     </span>
@@ -565,7 +565,7 @@ export const UserManagement: React.FC = () => {
         isModalOpen && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6">
             <div className="bg-white rounded-[3rem] w-full max-w-2xl shadow-2xl border border-white/20 animate-fade-in-up">
-              <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
+              <div className="p-10 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
                 <div className="flex items-center gap-6">
                   <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><UserPlus size={32} /></div>
                   <div>
@@ -632,7 +632,7 @@ export const UserManagement: React.FC = () => {
         isGroupModalOpen && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6">
             <div className="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl border border-white/20 animate-fade-in-up">
-              <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
+              <div className="p-10 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
                 <div className="flex items-center gap-6">
                   <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><FolderTree size={32} /></div>
                   <div>

@@ -23,7 +23,7 @@ export const Pagination: React.FC<PaginationProps> = ({
     const endIdx = Math.min(currentPage * itemsPerPage, totalItems);
 
     return (
-        <div className="flex items-center justify-between px-8 py-4 bg-white border-t border-slate-50 shrink-0 select-none">
+        <div className="flex items-center justify-between px-8 py-4 bg-white border-t border-slate-200 shrink-0 select-none">
             <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
                     Total: <span className="text-slate-900">{totalItems}</span> {totalItems === 1 ? 'Registro' : 'Registros'}

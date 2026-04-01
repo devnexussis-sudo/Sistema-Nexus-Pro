@@ -164,7 +164,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
       {/* TOOLBAR PADRONIZADA (Externa) */}
       <div className="mb-2 flex flex-col xl:flex-row items-center gap-3">
         {/* Abas Compactas */}
-        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm">
+        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-lg shadow-slate-200/50">
           <button
             onClick={() => setActiveTab('list')}
             className={`px-4 py-2 rounded-lg text-[9px] font-bold   transition-all ${activeTab === 'list' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
@@ -193,7 +193,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
         {/* Filtros e Ações */}
         <div className="flex items-center gap-2 w-full xl:w-auto">
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[46px]">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[46px]">
             <Filter size={14} className="text-slate-400 mr-2" />
             <select
               className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
@@ -215,7 +215,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+      <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
 
         {/* TABELA PADRONIZADA */}
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
@@ -318,7 +318,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
         isModalOpen && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
             <div className="bg-white rounded-[4rem] w-full max-w-3xl shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[92vh] animate-fade-in-up">
-              <div className="p-10 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center rounded-t-[4rem]">
+              <div className="p-10 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center rounded-t-[4rem]">
                 <div className="flex items-center gap-6">
                   <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl">
                     {activeTab === 'list' ? <Box size={32} /> : <Layers size={32} />}
@@ -330,7 +330,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                     <p className="text-[10px] text-slate-400 font-bold  tracking-[0.2em] mt-2">Controle técnico de inventário</p>
                   </div>
                 </div>
-                <button onClick={closeModal} className="p-4 bg-white border border-slate-100 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>
+                <button onClick={closeModal} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-300 hover:text-slate-900 transition-all shadow-sm"><X size={28} /></button>
               </div>
 
               <form onSubmit={activeTab === 'list' ? handleSaveEquipment : handleSaveFamily} className="p-12 space-y-10 overflow-y-auto custom-scrollbar flex-1">
@@ -387,7 +387,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                 )}
               </form>
 
-              <div className="p-10 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-6 rounded-b-[4rem]">
+              <div className="p-10 border-t border-slate-200 bg-slate-50/50 flex justify-end gap-6 rounded-b-[4rem]">
                 <Button variant="secondary" className="rounded-2xl px-12" onClick={closeModal}>Descartar</Button>
                 <Button onClick={activeTab === 'list' ? handleSaveEquipment : handleSaveFamily} className="rounded-2xl px-20 shadow-sm font-bold  bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]">
                   <Save size={20} className="mr-3" /> Gravar Ativo

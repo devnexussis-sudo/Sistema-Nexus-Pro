@@ -680,7 +680,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-3 p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
                         <div className="md:col-span-6 flex flex-col gap-1.5">
                             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Período de Referência</label>
-                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2 h-10">
+                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 px-3 items-center gap-2 h-10">
                                 <Calendar size={13} className="text-[#1c2d4f] shrink-0" />
                                 <input type="date" value={startDate} onChange={e => handleDateValidation(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
                                 <Slash size={10} className="text-slate-300 shrink-0" />
@@ -689,7 +689,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         </div>
                         <div className="md:col-span-3 flex flex-col gap-1.5">
                             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Técnico / Responsável</label>
-                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2 h-10">
+                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 px-3 items-center gap-2 h-10">
                                 <UserCheck size={13} className="text-[#1c2d4f] shrink-0" />
                                 <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2.5" value={techFilter} onChange={e => { setTechFilter(e.target.value); setCurrentPage(1); }}>
                                     <option value="ALL">Técnicos (Todos)</option>
@@ -700,7 +700,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         </div>
                         <div className="md:col-span-3 flex flex-col gap-1.5">
                             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Estado do Lançamento</label>
-                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm px-3 items-center gap-2 h-10">
+                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 px-3 items-center gap-2 h-10">
                                 <Layer size={13} className="text-[#1c2d4f] shrink-0" />
                                 <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2.5" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
                                     <option value="ALL">Status (Todos)</option>
@@ -734,10 +734,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             </div>
 
             {/* ── TABELA ── */}
-            <div className="bg-white border border-slate-100 rounded-2xl flex flex-col overflow-hidden flex-1 min-h-0 shadow-xl shadow-slate-200/30 relative">
+            <div className="bg-white border border-slate-200 rounded-2xl flex flex-col overflow-hidden flex-1 min-h-0 shadow-xl shadow-slate-200/30 relative">
                 <div className="flex-1 overflow-auto">
                     <table className="w-full text-left">
-                        <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm font-poppins">
+                        <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm font-poppins">
                             <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
                                 <th className="px-3 py-3 w-10 text-center">
                                     <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-200 text-[#1c2d4f] cursor-pointer" checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedIds.includes(i.id))} onChange={() => { 
@@ -880,8 +880,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             {/* Cards de Informação */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {/* Cliente */}
-                                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                                    <div className="flex items-center gap-2 pb-3 border-b border-slate-50 mb-4">
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5">
+                                    <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-4">
                                         <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center text-[#1c2d4f]"><Users size={13} /></div>
                                         <h3 className="text-xs font-black text-[#1c2d4f] tracking-wide">Dados do cliente</h3>
                                     </div>
@@ -907,8 +907,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             </div>
 
                             {/* Técnico + Descrição */}
-                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                                <div className="flex items-center gap-2 pb-3 border-b border-slate-50 mb-4">
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5">
+                                <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-4">
                                     <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center text-[#1c2d4f]"><Info size={13} /></div>
                                     <h3 className="text-xs font-black text-[#1c2d4f] tracking-wide">Descrição do atendimento</h3>
                                 </div>
@@ -926,8 +926,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                             {/* Orçamentos vinculados (somente OS) */}
                             {selectedItem.type === 'ORDER' && (
-                                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                                    <div className="flex items-center gap-2 pb-3 border-b border-slate-50 mb-4">
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5">
+                                    <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-4">
                                         <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center text-[#1c2d4f]"><Layer size={13} /></div>
                                         <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#1c2d4f]">Orçamentos Vinculados</h3>
                                     </div>
@@ -950,7 +950,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                             </div>
                                         )}
                                         {availableQuotesForClient.length > 0 && selectedItem.status !== 'PAID' && (
-                                            <div className="col-span-full pt-3 border-t border-slate-100">
+                                            <div className="col-span-full pt-3 border-t border-slate-200">
                                                 <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Disponíveis para vincular:</p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {availableQuotesForClient.map(q => (
@@ -1010,7 +1010,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         </div>
 
                         {/* Footer de Ação */}
-                        <div className="p-4 bg-white/80 backdrop-blur-md flex gap-3 z-10 sticky bottom-0 border-t border-slate-100 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] rounded-b-3xl">
+                        <div className="p-4 bg-white/80 backdrop-blur-md flex gap-3 z-10 sticky bottom-0 border-t border-slate-200 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] rounded-b-3xl">
                             <button onClick={() => setIsSidebarOpen(false)} className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-800 transition-all hover:bg-slate-50">
                                 Fechar Painel
                             </button>
@@ -1034,7 +1034,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             {/* ── MODAL DE FATURAMENTO ── */}
             {isInvoiceModalOpen && (
                 <div className="fixed inset-0 z-[2000] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl border border-slate-100 flex flex-col md:flex-row h-[95vh] md:h-auto md:max-h-[90vh] overflow-hidden">
+                    <div className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl border border-slate-200 flex flex-col md:flex-row h-[95vh] md:h-auto md:max-h-[90vh] overflow-hidden">
                         
                         {/* ── ALINHAMENTO ESQUERDO: RESUMO DA FATURA ── */}
                         <div className="w-full md:w-5/12 bg-[#1c2d4f] p-6 md:p-10 flex flex-col justify-between text-white border-r border-[#ffffff]/10 shrink-0">
@@ -1138,7 +1138,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             </div>
 
                             {/* Botões Ação */}
-                            <div className="p-6 md:p-8 md:px-10 border-t border-slate-100 bg-white shrink-0 shadow-[0_-5px_15px_rgba(0,0,0,0.02)] z-10">
+                            <div className="p-6 md:p-8 md:px-10 border-t border-slate-200 bg-white shrink-0 shadow-[0_-5px_15px_rgba(0,0,0,0.02)] z-10">
                                 <div className="flex gap-4">
                                     <button onClick={() => setIsInvoiceModalOpen(false)} className="px-8 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase text-slate-500 hover:text-slate-800 hover:bg-white hover:border-slate-300 tracking-widest transition-all">
                                         Cancelar
@@ -1165,10 +1165,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             {/* ── MODAL DE IMPRESSÃO / RECIBO DE FATURAMENTO ── */}
             {isPrintModalOpen && printItem && (
                 <div className="fixed inset-0 z-[3000] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in print:bg-white print:p-0 print:fixed print:inset-0">
-                    <div className="bg-white w-full max-w-3xl max-h-[95vh] overflow-y-auto rounded-3xl shadow-2xl border border-slate-100 print:rounded-none print:max-w-none print:max-h-none print:overflow-visible print:shadow-none print:border-0">
+                    <div className="bg-white w-full max-w-3xl max-h-[95vh] overflow-y-auto rounded-3xl shadow-2xl border border-slate-200 print:rounded-none print:max-w-none print:max-h-none print:overflow-visible print:shadow-none print:border-0">
 
                         {/* Barra de ação — oculta na impressão */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 print:hidden">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 print:hidden">
                             <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Pré-visualização do Recibo</p>
                             <div className="flex items-center gap-3">
                                 <button
@@ -1326,7 +1326,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             </div>
 
                             {/* Rodapé */}
-                            <div className="pt-6 border-t border-slate-100 text-center">
+                            <div className="pt-6 border-t border-slate-200 text-center">
                                 <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">
                                     {tenant?.company_name || tenant?.name || 'Nexus Pro'} — Sistema de Gestão de Serviços
                                 </p>

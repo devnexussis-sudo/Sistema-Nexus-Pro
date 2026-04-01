@@ -128,7 +128,7 @@ export const TechnicianManagement: React.FC = () => {
 
         {/* Filters & Actions */}
         <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px]">
             <Filter size={14} className="text-slate-400 mr-2" />
             <select
               className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer"
@@ -150,10 +150,10 @@ export const TechnicianManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+      <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           <table className="w-full border-separate border-spacing-y-1">
-            <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
+            <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
               <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left font-poppins">
                 <th className="px-4 py-3">Identidade Visual</th>
                 <th className="px-4 py-3">Credencial (E-mail)</th>
@@ -200,7 +200,7 @@ export const TechnicianManagement: React.FC = () => {
         isModalOpen && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
             <div className="bg-white rounded-[3.5rem] w-full max-w-xl shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-fade-in-up">
-              <div className="flex justify-between items-center px-10 py-8 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex justify-between items-center px-10 py-8 border-b border-slate-200 bg-slate-50/50">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-emerald-600/20">
                     {editingId ? <Edit2 size={24} /> : <Plus size={24} />}
@@ -212,7 +212,7 @@ export const TechnicianManagement: React.FC = () => {
                 </div>
                 <button
                   onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', password: '', active: true, phone: '' }); }}
-                  className="p-3 bg-white text-slate-300 hover:text-slate-900 rounded-xl shadow-sm border border-slate-100 transition-all"
+                  className="p-3 bg-white text-slate-300 hover:text-slate-900 rounded-xl shadow-sm border border-slate-200 transition-all"
                 >
                   <X size={24} />
                 </button>

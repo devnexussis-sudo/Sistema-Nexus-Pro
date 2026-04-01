@@ -877,7 +877,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex flex-col gap-1.5">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Período</label>
-              <div className="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-xl shadow-sm h-11">
+              <div className="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-xl shadow-lg shadow-slate-200/50 h-11">
                 <div className="flex items-center px-3 h-full border-r border-slate-100">
                   <select
                     value={dateTypeFilter}
@@ -899,7 +899,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
-              <div className="flex items-center bg-white border border-slate-200 rounded-xl pl-3 pr-1 h-11 shadow-sm">
+              <div className="flex items-center bg-white border border-slate-200 rounded-xl pl-3 pr-1 h-11 shadow-lg shadow-slate-200/50">
                 <Filter size={14} className="text-slate-400 mr-2" />
                 <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                   <option value="ALL">Todos Status</option>
@@ -910,7 +910,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Responsável</label>
-              <div className="flex items-center bg-white border border-slate-200 rounded-xl pl-3 pr-1 h-11 shadow-sm">
+              <div className="flex items-center bg-white border border-slate-200 rounded-xl pl-3 pr-1 h-11 shadow-lg shadow-slate-200/50">
                 <UserCheck size={14} className="text-slate-400 mr-2" />
                 <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
                   <option value="ALL">Todos Técnicos</option>
@@ -1015,10 +1015,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       {/* Main Table Container - Premium Look */}
-      <div className="bg-white border border-slate-200/60 rounded-xl shadow-sm flex flex-col overflow-hidden flex-1 ring-1 ring-slate-100">
+      <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
         <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
+            <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
               <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
                 <th className="px-3 py-2 w-12 text-center text-slate-400">
                   <input
@@ -1097,7 +1097,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="px-3 py-2">
                       <div className="flex justify-center">
                         {assignedTech ? (
-                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-sm transition-all shrink-0">
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-lg shadow-slate-200/50 transition-all shrink-0">
                             <img src={assignedTech.avatar} className="w-4 h-4 rounded-full object-cover shadow-sm" />
                             <span className="text-[11px] text-slate-600 truncate max-w-[60px]">{assignedTech?.name?.split(' ')[0]}</span>
                           </div>
@@ -1138,7 +1138,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }) : (
                 <tr>
                   <td colSpan={10} className="py-32 text-center bg-slate-50/30">
-                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-lg shadow-slate-200/50">
                       <Search size={24} className="text-slate-300" />
                     </div>
                     <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Nenhuma atividade localizada</p>
@@ -1258,7 +1258,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             {/* TABS */}
-            <div className="px-6 border-b border-slate-100 bg-white flex gap-6 shrink-0 overflow-x-auto">
+            <div className="px-6 border-b border-slate-200 bg-white flex gap-6 shrink-0 overflow-x-auto">
               {[
                 { id: 'overview', label: 'dados gerais', icon: LayoutDashboard },
                 { id: 'equipments', label: `ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
@@ -1374,14 +1374,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Right Column: Metadata */}
                   <div className="col-span-12 lg:col-span-4 space-y-6">
                     {/* Dates Card */}
-                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
                       <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><Clock size={16} className="text-slate-400" /> Cronograma</h3>
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-200">
                           <span className="text-xs font-semibold text-slate-400">Abertura</span>
                           <span className="text-xs font-bold text-slate-700">{new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
                         </div>
-                        <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-200">
                           <span className="text-xs font-semibold text-slate-400">Agendamento</span>
                           <span className="text-xs font-bold text-[#1c2d4f]">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</span>
                         </div>
@@ -1404,7 +1404,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     {/* Tech Card */}
-                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
                       <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><UserCheck size={16} className="text-slate-400" /> Recursos</h3>
                       {(() => {
                         const tech = techs.find(t => t.id === selectedOrder.assignedTo);
@@ -1486,7 +1486,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           const hasFormData = Object.keys(selectedOrder.formData || {}).some(k => k.startsWith(eqPrefix)) || !!(eq.formData && Object.keys(eq.formData).length > 0);
                           const isActive = selectedOrder.status !== 'CONCLUÍDO' && selectedOrder.status !== 'CANCELADO';
                           return (
-                            <div key={eq.id || idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-primary-200 transition-all">
+                            <div key={eq.id || idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-lg shadow-slate-200/50 hover:border-primary-200 transition-all">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="w-10 h-10 bg-primary-50 border border-primary-100 rounded-lg flex items-center justify-center shrink-0">
                                   <Box size={18} className="text-primary-400" />
@@ -1694,8 +1694,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     const isMediaArray = (v: any) => Array.isArray(v) && v.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video')));
 
                     return (
-                      <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-emerald-50">
+                      <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 overflow-hidden">
+                        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-200 bg-emerald-50">
                           <div className="w-8 h-8 bg-white border border-emerald-200 rounded-lg flex items-center justify-center">
                             <ClipboardList size={14} className="text-emerald-500" />
                           </div>
@@ -1763,8 +1763,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   const isComplete = answered === fields.length && fields.length > 0;
                   const isPending = answered === 0;
                   return (
-                    <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                      <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50">
+                    <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 overflow-hidden">
+                      <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-200 bg-slate-50">
                         <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
                           <ClipboardList size={14} className="text-slate-400" />
                         </div>
@@ -2055,7 +2055,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <div className="flex flex-col gap-1.5 ml-auto">
                                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Assinatura Coletada</p>
                                     <div
-                                      className="h-12 w-32 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1 cursor-zoom-in hover:shadow-sm transition-all"
+                                      className="h-12 w-32 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1 cursor-zoom-in hover:shadow-lg shadow-slate-200/50 transition-all"
                                       onClick={() => setFullscreenImage(fd.signature)}
                                     >
                                       <img src={fd.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
@@ -2209,7 +2209,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {validVisits.map((visit, index) => {
                           const vFormData = visit.formData || {};
                           return (
-                            <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                            <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-lg shadow-slate-200/50 overflow-hidden">
                               <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                                 <div>
                                   <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -2243,7 +2243,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                         {/* 2. DADOS DO FORMULÁRIO MASTER (SE NÃO ESTIVEREM NAS VISITAS) */}
                         {osFormData && (
-                          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                          <div className="bg-white border border-slate-200 rounded-lg shadow-lg shadow-slate-200/50 overflow-hidden">
                             <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Dados Globais do Formulário (OS)</h3>
                               <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
@@ -2335,13 +2335,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }
 
                     return groupKeys.map(key => (
-                      <div key={key} className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
+                      <div key={key} className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-200 flex items-center gap-2">
                           <Camera size={16} className="text-slate-400" /> {key}
                         </h4>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {groupedMedia[key].map((p, i) => (
-                            <div key={i} className="flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm group hover:border-[#1c2d4f] transition-all">
+                            <div key={i} className="flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-lg shadow-slate-200/50 group hover:border-[#1c2d4f] transition-all">
                               <div
                                 className="aspect-[4/3] bg-slate-50 cursor-zoom-in relative"
                                 onClick={() => setFullscreenImage(p.url)}
@@ -2363,7 +2363,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 )}
                                 <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors" />
                               </div>
-                              <div className="p-3 bg-slate-50/50 border-t border-slate-100 flex-1 flex flex-col justify-between">
+                              <div className="p-3 bg-slate-50/50 border-t border-slate-200 flex-1 flex flex-col justify-between">
                                 <p className="text-[10px] leading-snug font-bold text-slate-700 uppercase tracking-tight line-clamp-2" title={key}>{key}</p>
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2 bg-slate-100 self-start px-2 py-0.5 rounded">{p.type === 'video' ? `Vídeo #${i + 1}` : `Foto #${i + 1}`}</p>
                               </div>
@@ -2392,7 +2392,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                  <div className="bg-white border border-slate-200 rounded-lg shadow-lg shadow-slate-200/50 overflow-hidden">
                     <table className="w-full text-left">
                       <thead className="bg-slate-100/80 text-[11px] font-semibold text-slate-600 border-b border-slate-300 font-poppins">
                         <tr>
@@ -2495,7 +2495,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                     <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Validação Técnica</h3>
                     <p className="text-xs text-slate-500 mt-2 mb-8 font-medium">Revisado e assinado eletronicamente pelo responsável de campo</p>
-                    <div className="w-full pt-8 border-t border-slate-100">
+                    <div className="w-full pt-8 border-t border-slate-200">
                       <div className="text-base font-bold text-slate-800">{techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Técnico Não Identificado'}</div>
                       <div className="text-[10px] text-slate-400 font-mono mt-2 break-all bg-slate-50 p-2 rounded border border-slate-100 select-all">
                         {selectedOrder.displayId || selectedOrder.id}-VALID-{new Date(selectedOrder.createdAt).getTime()}
@@ -2542,7 +2542,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       return signatureUrl ? (
                         <div className="w-full">
                           <img src={signatureUrl} className="h-28 mx-auto object-contain mix-blend-multiply mb-6" alt="Assinatura" />
-                          <div className="pt-6 border-t border-slate-100">
+                          <div className="pt-6 border-t border-slate-200">
                             <div className="text-base font-bold text-slate-900 uppercase text-center">{name}</div>
                             {signatureDoc && <div className="text-xs font-semibold text-slate-500 font-mono text-center mt-1">CPF/Doc: {signatureDoc}</div>}
                             <div className="text-center">
@@ -2551,7 +2551,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         </div>
                       ) : (
-                        <div className="py-8 w-full border-t border-slate-100 text-center">
+                        <div className="py-8 w-full border-t border-slate-200 text-center">
                           <p className="text-xs text-slate-400 font-bold uppercase bg-slate-50 py-4 rounded-md border border-dashed border-slate-200 tracking-widest">Assinatura Pendente</p>
                         </div>
                       );
@@ -2603,7 +2603,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                   {/* Formulário de nova visita (inline) */}
                   {showNewVisitForm && (
-                    <div className="bg-white border border-primary-200 rounded-xl shadow-sm p-6 space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="bg-white border border-primary-200 rounded-xl shadow-lg shadow-slate-200/50 p-6 space-y-4 animate-in fade-in slide-in-from-top-2">
                       <h4 className="text-xs font-black uppercase tracking-widest text-primary-700">Agendar Nova Visita</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
@@ -2829,7 +2829,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                   {/* Histórico detalhado de visitas */}
                   <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100">
+                    <div className="px-6 py-4 border-b border-slate-200">
                       <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Histórico de Visitas</h3>
                     </div>
                     <VisitHistoryTab orderId={selectedOrder.id} isActive={activeTab === 'history'} />
@@ -2891,7 +2891,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {isStockPickerOpen && (
         <div className="fixed inset-0 z-[1000] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center text-primary-600">
                   <PackageSearch size={18} />
@@ -2962,7 +2962,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
               <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2">
                 <Box size={12} /> {allStockItems.length} Itens no catálogo
               </p>

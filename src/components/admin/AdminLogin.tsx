@@ -71,7 +71,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
     if (resetEmailSent) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-8">
-                <div className="w-full max-w-sm bg-white p-10 rounded-3xl shadow-2xl border border-slate-50 text-center space-y-6">
+                <div className="w-full max-w-sm bg-white p-10 rounded-3xl shadow-2xl border border-slate-200 text-center space-y-6">
                     <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto text-emerald-500">
                         <Mail size={40} />
                     </div>
@@ -134,7 +134,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onToggleMaster 
                 <div className="w-full max-w-sm space-y-10">
                     {/* Logo Destacada (Desktop) */}
                     <div className="hidden md:flex flex-col items-center mb-4">
-                        <div className="p-6 bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-50 mb-8 transition-transform hover:scale-105 duration-500">
+                        <div className="p-6 bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-200 mb-8 transition-transform hover:scale-105 duration-500">
                             <img src="/nexus-logo.png" alt="DUNO Logo" className="h-16 w-auto max-w-[180px] object-contain" />
                         </div>
                         <div className="text-center">

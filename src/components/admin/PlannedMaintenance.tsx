@@ -265,9 +265,9 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                 }} className="px-6 py-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm transition-all border border-[#1c2d4f]">Novo Contrato</button>
             </div>
 
-            <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
+            <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
                 {/* Toolbar de Filtros Unificada */}
-                <div className="p-6 border-b border-slate-50 bg-slate-50/30 space-y-4">
+                <div className="p-6 border-b border-slate-200 bg-slate-50/30 space-y-4">
                     <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
                         <div className="relative w-full max-w-xl">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -293,7 +293,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                     {showFilters && (
                       <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
                         <div className="flex flex-col lg:flex-row gap-4">
-                          <div className="flex items-center gap-3 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
+                          <div className="flex items-center gap-3 bg-white border border-slate-200 p-1.5 rounded-xl shadow-lg shadow-slate-200/50">
                               <div className="flex items-center gap-2 px-2 border-r border-slate-100">
                                   <Calendar size={16} className="text-[#1c2d4f]" />
                                   <span className="text-[9px] font-bold uppercase text-slate-400">Ciclo</span>
@@ -305,7 +305,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                               </div>
                           </div>
 
-                          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-10">
+                          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-10">
                               <ListFilter size={14} className="text-slate-400 mr-2" />
                               <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                                   <option value="ALL">Todos Status</option>
@@ -330,7 +330,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                 <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full border-separate border-spacing-y-0">
                         <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
-                            <tr className="border-b border-slate-100">
+                            <tr className="border-b border-slate-200">
                                 <th className="px-4 py-2">Código / PMOC</th>
                                 <th className="px-4 py-2">Cliente</th>
                                 <th className="px-4 py-2 font-black uppercase">Mensalidade</th>
@@ -342,7 +342,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                         <tbody>
                             {paginatedContracts.length > 0 ? (
                                 paginatedContracts.map(contract => (
-                                    <tr key={contract.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md">
+                                    <tr key={contract.id} className="bg-white hover:bg-primary-50/40 border-b border-slate-200 transition-all group last:border-0 shadow-sm hover:shadow-md">
                                         <td className="px-4 py-1.5">
                                             <div className="flex flex-col truncate max-w-[120px]">
                                                 <span className="text-[12px] font-medium text-primary-600 tracking-tighter truncate">{contract.pmocCode}</span>
@@ -360,7 +360,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                         </td>
                                         <td className="px-6 py-2 text-right pr-6">
                                             <div className="flex justify-end gap-2 transition-all">
-                                                <button onClick={() => { setSelectedContract(contract); setViewTab('details'); setIsViewModalOpen(true); }} className="p-3 bg-slate-50/50 text-slate-400 rounded-xl hover:text-slate-900 hover:bg-white shadow-sm border border-transparent hover:border-slate-100 transition-all active:scale-95" title="Detalhes"><Eye size={16} /></button>
+                                                <button onClick={() => { setSelectedContract(contract); setViewTab('details'); setIsViewModalOpen(true); }} className="p-3 bg-slate-50/50 text-slate-400 rounded-xl hover:text-slate-900 hover:bg-white shadow-sm border border-transparent hover:border-slate-200 transition-all active:scale-95" title="Detalhes"><Eye size={16} /></button>
                                                 <button onClick={() => handleOpenEdit(contract)} className="p-3 bg-primary-50/50 text-primary-400 rounded-xl hover:text-primary-600 hover:bg-white shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar"><Edit3 size={16} /></button>
                                                 <button onClick={() => initToggleStatus(contract)} className={`p-3 rounded-xl shadow-sm border border-transparent transition-all active:scale-95 ${contract.status === OrderStatus.CANCELED ? 'bg-emerald-50/50 text-emerald-500 hover:text-emerald-700 hover:bg-white hover:border-emerald-100' : 'bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white hover:border-rose-100'}`} title={contract.status === OrderStatus.CANCELED ? 'Reativar' : 'Suspender'}>
                                                     <ShieldAlert size={16} />
@@ -387,7 +387,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
             {isModalOpen && (
                 <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-6">
                     <div className="bg-white rounded-[3.5rem] w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in-up">
-                        <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div className="px-10 py-8 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
                             <div className="flex items-center gap-4"><div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center text-white shadow-xl"><Layers size={24} /></div><div><h2 className="text-xl font-black text-slate-900 uppercase italic">Etapa {modalStep} de 3</h2><p className="text-[9px] text-slate-400 font-black uppercase tracking-widest leading-loose">{modalStep === 1 ? 'Configuração Técnica' : modalStep === 2 ? 'Comercial e Acordos' : 'Monitoramento Nexus'}</p></div></div>
                             <button onClick={() => setIsModalOpen(false)}><X size={24} className="text-slate-400" /></button>
                         </div>
@@ -441,7 +441,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                         </div>
                                         <div className="p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] shadow-sm flex flex-col justify-center items-center">
                                             <label className="text-[9px] font-black text-slate-400 uppercase mb-3 block italic tracking-widest">Peças Inclusas?</label>
-                                            <div className="flex gap-2 p-1.5 bg-white rounded-2xl border border-slate-100">
+                                            <div className="flex gap-2 p-1.5 bg-white rounded-2xl border border-slate-200">
                                                 <button onClick={() => setIncludesParts(true)} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${includesParts ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-400'}`}>SIM</button>
                                                 <button onClick={() => setIncludesParts(false)} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${!includesParts ? 'bg-red-500 text-white shadow-lg' : 'text-slate-400'}`}>NÃO</button>
                                             </div>
@@ -466,7 +466,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                             )}
                         </div>
 
-                        <div className="px-10 py-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                        <div className="px-10 py-8 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
                             <button onClick={() => setModalStep(modalStep - 1)} disabled={modalStep === 1} className={`flex items-center gap-2 px-6 py-4 text-[10px] font-black uppercase transition-all ${modalStep === 1 ? 'opacity-0' : 'text-slate-400 hover:text-primary-600'}`}><ArrowLeft size={16} /> Passo Anterior</button>
                             <div className="flex gap-4">
                                 <button onClick={() => setIsModalOpen(false)} className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Cancelar</button>
@@ -523,14 +523,14 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                         <div className="grid grid-cols-2 gap-4">
                                             {selectedContract.equipmentIds?.map((id: string) => {
                                                 const eq = equipments.find(e => e.id === id);
-                                                return <div key={id} className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 flex items-center gap-5 transition-all hover:bg-white hover:shadow-xl group"><div className="p-3 bg-white rounded-2xl shadow-sm group-hover:bg-primary-50 transition-colors"><Box size={20} className="text-primary-400" /></div><div><p className="text-[12px] font-black text-slate-900 uppercase italic">{eq?.model}</p><p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">S/N: {eq?.serialNumber}</p></div></div>
+                                                return <div key={id} className="p-6 bg-slate-50/50 rounded-3xl border border-slate-300 flex items-center gap-5 transition-all hover:bg-white hover:shadow-xl group"><div className="p-3 bg-white rounded-2xl shadow-lg shadow-slate-200/50 group-hover:bg-primary-50 transition-colors"><Box size={20} className="text-primary-400" /></div><div><p className="text-[12px] font-black text-slate-900 uppercase italic">{eq?.model}</p><p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">S/N: {eq?.serialNumber}</p></div></div>
                                             })}
                                         </div>
                                     </div>
                                 </div>
                             ) : viewTab === 'terms' ? (
                                 <div className="space-y-8 animate-fade-in">
-                                    <div className="flex items-center gap-4 border-b border-slate-100 pb-8"><FileSignature className="text-primary-600" size={24} /><h4 className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Termos e Condições do Acordo</h4></div>
+                                    <div className="flex items-center gap-4 border-b border-slate-200 pb-8"><FileSignature className="text-primary-600" size={24} /><h4 className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Termos e Condições do Acordo</h4></div>
                                     <div className="bg-slate-50 p-12 rounded-[4rem] border border-slate-100 shadow-inner">
                                         <div className="bg-white p-16 rounded-[3rem] shadow-xl min-h-[400px] text-sm text-slate-700 font-medium leading-loose italic">
                                             {selectedContract.contractTerms || 'Nenhum termo adicional registrado para este contrato.'}
@@ -539,16 +539,16 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                 </div>
                             ) : (
                                 <div className="space-y-12 animate-fade-in">
-                                    <div className="flex items-center gap-4 border-b border-slate-100 pb-8"><Activity className="text-primary-600" size={24} /><h4 className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Timeline de Auditoria Nexus</h4></div>
+                                    <div className="flex items-center gap-4 border-b border-slate-200 pb-8"><Activity className="text-primary-600" size={24} /><h4 className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Timeline de Auditoria Nexus</h4></div>
                                     <div className="relative border-l-2 border-slate-100 ml-6 space-y-12 pb-10">
                                         {(selectedContract.logs || []).slice().reverse().map((log: AuditLog, i: number) => (
                                             <div key={i} className="relative pl-12 animate-fade-in-up">
                                                 <div className="absolute -left-[11px] top-1 w-5 h-5 bg-white border-2 border-primary-600 rounded-full flex items-center justify-center shadow-md"><div className="w-2 h-2 bg-primary-600 rounded-full" /></div>
                                                 <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-200 shadow-sm transition-all hover:border-primary-200">
-                                                    <div className="flex justify-between items-center mb-5"><span className="px-3 py-1 bg-primary-600 text-white text-[9px] font-black uppercase italic rounded-lg tracking-widest">{log.action.replace(/_/g, ' ')}</span><span className="text-[9px] font-bold text-slate-400 bg-white border border-slate-100 px-3 py-1 rounded-xl">{new Date(log.timestamp).toLocaleString()}</span></div>
+                                                    <div className="flex justify-between items-center mb-5"><span className="px-3 py-1 bg-primary-600 text-white text-[9px] font-black uppercase italic rounded-lg tracking-widest">{log.action.replace(/_/g, ' ')}</span><span className="text-[9px] font-bold text-slate-400 bg-white border border-slate-200 px-3 py-1 rounded-xl">{new Date(log.timestamp).toLocaleString()}</span></div>
                                                     <p className="text-[13px] font-black text-slate-900 leading-snug mb-5 uppercase italic tracking-tighter">{log.details}</p>
                                                     <div className="p-6 bg-white rounded-[2rem] border border-primary-50 shadow-inner"><p className="text-[8px] font-black text-primary-500 uppercase mb-2 italic">Justificativa Operacional:</p><p className="text-[12px] font-bold text-slate-600 italic leading-relaxed">"{log.reason}"</p></div>
-                                                    <div className="flex items-center gap-3 mt-8 pt-6 border-t border-slate-100"><div className="w-8 h-8 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center shadow-sm"><UserIcon size={16} /></div><span className="text-[10px] font-black text-slate-900 uppercase italic tracking-widest">{log.user}</span></div>
+                                                    <div className="flex items-center gap-3 mt-8 pt-6 border-t border-slate-200"><div className="w-8 h-8 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center shadow-sm"><UserIcon size={16} /></div><span className="text-[10px] font-black text-slate-900 uppercase italic tracking-widest">{log.user}</span></div>
                                                 </div>
                                             </div>
                                         ))}

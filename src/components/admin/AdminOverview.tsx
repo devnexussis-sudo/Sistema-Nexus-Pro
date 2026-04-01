@@ -250,7 +250,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm">
+            <div className="flex items-center bg-white border border-slate-200 p-1.5 rounded-lg shadow-lg shadow-slate-200/50">
               <select
                 value={dateTypeFilter}
                 onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
@@ -312,8 +312,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
              <div className="flex flex-col gap-1.5">
                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Período Analítico</label>
-               <div className="flex flex-col bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
-                  <div className="flex items-center gap-2 mb-1.5 border-b border-slate-50 pb-1.5 px-1">
+               <div className="flex flex-col bg-white border border-slate-200 p-1.5 rounded-xl shadow-lg shadow-slate-200/50">
+                  <div className="flex items-center gap-2 mb-1.5 border-b border-slate-200 pb-1.5 px-1">
                     <select
                       value={dateTypeFilter}
                       onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
@@ -334,7 +334,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
              <div className="flex flex-col gap-1.5">
                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Responsável</label>
-               <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-[58px] shadow-sm">
+               <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-[58px] shadow-lg shadow-slate-200/50">
                  <UserCheck size={14} className="text-slate-400 mr-2" />
                  <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
                    <option value="ALL">Todos Técnicos</option>
@@ -345,7 +345,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
              <div className="flex flex-col gap-1.5">
                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Carteira de Clientes</label>
-               <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-[58px] shadow-sm">
+               <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-[58px] shadow-lg shadow-slate-200/50">
                  <Users size={14} className="text-slate-400 mr-2" />
                  <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer" value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}>
                    <option value="ALL">Todos Clientes</option>
@@ -469,7 +469,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         </div>
 
         {/* KPI: FILA OPERACIONAL */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-[#1c2d4f] transition-all hover:shadow-xl hover:-translate-y-1 duration-300">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-lg shadow-slate-200/50 flex flex-col justify-between group hover:border-[#1c2d4f] transition-all hover:shadow-xl hover:-translate-y-1 duration-300">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-[10px] font-bold text-slate-400  ">Fila Operacional</p>
@@ -512,11 +512,11 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <div className="p-3 bg-rose-100/50 text-rose-600 rounded-xl border border-rose-200 shadow-inner group-hover:scale-110 transition-transform"><ZapOff size={22} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3 mt-4 relative z-10">
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 border border-rose-100 shadow-sm">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 border border-rose-100 shadow-lg shadow-slate-200/50">
               <span className="block text-[9px] font-bold text-rose-400   mb-1">Canceladas</span>
               <p className="text-lg font-bold text-rose-700">{filteredOrders.filter(o => o.status === OrderStatus.CANCELED).length}</p>
             </div>
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 border border-slate-100 shadow-sm">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 border border-slate-200 shadow-lg shadow-slate-200/50">
               <span className="block text-[9px] font-bold text-slate-400   mb-1">Bloqueios</span>
               <p className="text-lg font-bold text-slate-700">{filteredOrders.filter(o => o.status === OrderStatus.BLOCKED).length}</p>
             </div>
@@ -536,7 +536,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               </h3>
               <p className="text-[11px] text-slate-500 font-bold mt-1  ">Distribuição por Status de Operação</p>
             </div>
-            <div className="text-right bg-white p-2.5 px-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="text-right bg-white p-2.5 px-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
               <div className="text-left border-r border-slate-100 pr-4">
                 <p className="text-[9px] font-bold text-slate-400  ">Concluídas</p>
                 <p className="text-lg font-bold text-emerald-600 leading-none mt-1">{statusData.find(s => s.status === OrderStatus.COMPLETED)?.count || 0}</p>
@@ -587,7 +587,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           {/* Legenda */}
           <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mt-4 relative z-10 w-full max-w-4xl mx-auto">
             {statusData.map(s => (
-              <div key={s.status} className="flex justify-between items-center p-2.5 rounded-xl bg-white border border-slate-100 hover:border-slate-300 transition-all shadow-sm hover:shadow-md group cursor-default">
+              <div key={s.status} className="flex justify-between items-center p-2.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 transition-all shadow-sm hover:shadow-md group cursor-default">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: pieColors[s.status], boxShadow: `0 0 8px ${pieColors[s.status]}80` }} />
                   <span className="text-[9px] font-bold text-slate-400  truncate max-w-[60px]">{s.status}</span>
@@ -601,12 +601,12 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* PIE CHART */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between items-center shadow-sm h-full">
+        <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between items-center shadow-lg shadow-slate-200/50 h-full">
           <div className="w-full text-center">
             <h4 className="text-[10px] font-bold text-slate-400  tracking-[0.15em] mb-6">Resumo de Qualidade</h4>
           </div>
           <div className="w-40 h-40 rounded-full relative border-[8px] border-slate-50 shadow-inner group transition-transform duration-500 hover:scale-105" style={{ background: getPieGradient() }}>
-            <div className="absolute inset-3.5 bg-white rounded-full flex flex-col items-center justify-center shadow-md border border-slate-50">
+            <div className="absolute inset-3.5 bg-white rounded-full flex flex-col items-center justify-center shadow-md border border-slate-200">
               <p className="text-2xl font-bold text-slate-900 leading-none">{(statusData.find(s => s.status === OrderStatus.COMPLETED)?.percentage || 0)}%</p>
               <p className="text-[9px] font-bold text-emerald-600  mt-1.5 ">Resolvido</p>
             </div>
@@ -623,12 +623,12 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
         </div>
 
         {/* OPERATION DISTRIBUTION PIE CHART */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col items-center shadow-sm relative overflow-hidden h-full">
+        <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col items-center shadow-lg shadow-slate-200/50 relative overflow-hidden h-full">
           <div className="w-full text-center">
             <h4 className="text-[10px] font-bold text-slate-400  tracking-[0.15em] mb-6">Tipos de Modalidade</h4>
           </div>
           <div className="w-36 h-36 rounded-full relative border-[8px] border-slate-50 shadow-sm group transition-transform duration-500 hover:scale-105 shrink-0" style={{ background: getOperationGradient() }}>
-            <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center shadow-sm border border-slate-50 z-10 transition-transform group-hover:scale-110">
+            <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center shadow-lg shadow-slate-200/50 border border-slate-200 z-10 transition-transform group-hover:scale-110">
               <PieChart size={18} className="text-slate-300 mb-1" />
             </div>
           </div>

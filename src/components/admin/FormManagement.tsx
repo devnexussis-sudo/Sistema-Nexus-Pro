@@ -215,7 +215,7 @@ export const FormManagement: React.FC = () => {
       {/* Toolbar */}
       <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
         {/* Tabs */}
-        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm flex-shrink-0">
+        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-lg shadow-slate-200/50 flex-shrink-0">
           <button
             onClick={() => setActiveTab('types')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold  transition-all ${activeTab === 'types' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
@@ -262,7 +262,7 @@ export const FormManagement: React.FC = () => {
 
           {/* Only show filters if needed (e.g. templates status) */}
           {showFilters && activeTab === 'templates' && (
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
               <Filter size={14} className="text-slate-400 mr-2" />
               <select
                 className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
@@ -299,7 +299,7 @@ export const FormManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-xl flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+      <div className="bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="overflow-auto flex-1 p-6 custom-scrollbar">
           {/* Só mostra spinner se estiver carregando E não tiver dados ainda */}
           {loading && serviceTypes.length === 0 && forms.length === 0 ? (
@@ -313,7 +313,7 @@ export const FormManagement: React.FC = () => {
               {activeTab === 'types' && (
                 <div className="flex-1 overflow-auto custom-scrollbar">
                   <table className="w-full border-collapse">
-                    <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 shadow-sm">
+                    <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
                       <tr className="text-[11px] font-bold text-slate-500 text-left">
                         <th className="px-4 py-3">tipo de atendimento</th>
                         <th className="px-4 py-3 text-right">ações</th>
@@ -348,7 +348,7 @@ export const FormManagement: React.FC = () => {
               {activeTab === 'templates' && (
                 <div className="flex-1 overflow-auto custom-scrollbar">
                   <table className="w-full border-collapse">
-                    <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 shadow-sm">
+                    <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
                       <tr className="text-[11px] font-bold text-slate-500 text-left">
                         <th className="px-4 py-3">nome do modelo</th>
                         <th className="px-4 py-3">qtd. questões</th>
@@ -390,7 +390,7 @@ export const FormManagement: React.FC = () => {
                     <h2 className="text-[10px] font-bold text-slate-400 tracking-[0.3em] lowercase">matriz de ativação automática</h2>
                   </div>
                   <table className="w-full border-collapse">
-                    <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 shadow-sm">
+                    <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
                       <tr className="text-[11px] font-bold text-slate-500 text-left">
                         <th className="px-4 py-3">tipo de atendimento</th>
                         <th className="px-4 py-3">família equipamento</th>
@@ -505,7 +505,7 @@ export const FormManagement: React.FC = () => {
               {/* BODY */}
               <div className="flex-1 overflow-y-auto bg-slate-50/30 custom-scrollbar">
                 {/* Nome do Modelo — barra fixa no topo do conteúdo */}
-                <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-6 py-3 flex items-center gap-4">
+                <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4">
                   <label className="text-[10px] font-bold text-slate-500 whitespace-nowrap">Nome:</label>
                   <input
                     type="text"
@@ -522,7 +522,7 @@ export const FormManagement: React.FC = () => {
                 {/* LISTA DE PERGUNTAS — Compacta */}
                 <div className="p-4 space-y-3">
                   {(editingForm.fields || []).map((field, index) => (
-                    <div key={field.id} className="bg-white border border-slate-200 rounded-lg p-3 hover:border-primary-200 transition-all group shadow-sm">
+                    <div key={field.id} className="bg-white border border-slate-200 rounded-lg p-3 hover:border-primary-200 transition-all group shadow-lg shadow-slate-200/50">
                       {/* ROW 1: Número + Label + Tipo + Controles */}
                       <div className="flex items-center gap-3">
                         {/* Badge Número */}

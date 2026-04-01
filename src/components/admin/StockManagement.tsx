@@ -497,7 +497,7 @@ export const StockManagement: React.FC = () => {
             {/* Toolbar Externa */}
             <div className="mb-4 flex flex-wrap gap-4 items-center justify-between pr-2">
                 {/* Tabs */}
-                <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-sm shrink-0 overflow-x-auto max-w-full">
+                <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-lg shadow-slate-200/50 shrink-0 overflow-x-auto max-w-full">
                     <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
                         <List size={14} /> Itens
                     </button>
@@ -539,14 +539,14 @@ export const StockManagement: React.FC = () => {
 
                         {showFilters && activeTab === 'items' && (
                             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
+                                <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px]">
                                     <Filter size={14} className="text-slate-400 mr-2" />
                                     <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none max-w-[100px] cursor-pointer">
                                         <option value="ALL">Categorias</option>
                                         {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                     </select>
                                 </div>
-                                <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-sm h-[42px]">
+                                <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px]">
                                     <AlertTriangle size={14} className="text-slate-400 mr-2" />
                                     <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer">
                                         <option value="ALL">Status</option>
@@ -576,14 +576,14 @@ export const StockManagement: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white border border-slate-100 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
+            <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
 
                 {activeTab === 'items' ? (
                     <>
                         {/* Items Table */}
                         <div className="flex-1 overflow-auto custom-scrollbar">
                             <table className="w-full border-separate border-spacing-y-0">
-                                <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
+                                <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
                                     <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left font-poppins">
                                         <th className="px-4 py-2">Item</th>
                                         <th className="px-4 py-2">Descrição</th>
@@ -634,7 +634,7 @@ export const StockManagement: React.FC = () => {
                                                 const totalCost = calculateTotalCost(item);
                                                 const margin = calculateMargin(item);
                                                 return (
-                                                    <tr key={item.id} className="bg-white hover:bg-primary-50/40 transition-all border-b border-slate-50 last:border-0 group">
+                                                    <tr key={item.id} className="bg-white hover:bg-primary-50/40 transition-all border-b border-slate-200 last:border-0 group">
                                                         <td className="px-4 py-1.5">
                                                             <div className="flex flex-col truncate max-w-[100px]">
                                                                 <span className="text-[12px] font-medium text-primary-600 truncate">{item?.code || '---'}</span>
@@ -710,7 +710,7 @@ export const StockManagement: React.FC = () => {
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {categories.map(cat => (
-                                            <div key={cat.id} className="p-6 bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
+                                            <div key={cat.id} className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
                                                         <Layers size={18} />
@@ -807,7 +807,7 @@ export const StockManagement: React.FC = () => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                                                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-lg shadow-slate-200/50">
                                                     <table className="w-full text-left">
                                                         <thead className="bg-slate-50 border-b border-slate-200">
                                                             <tr className="text-[11px] font-semibold text-slate-600 tracking-tight font-poppins">
@@ -895,7 +895,7 @@ export const StockManagement: React.FC = () => {
                                                 className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
                                             />
                                         </div>
-                                        <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 shadow-sm h-[38px]">
+                                        <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 shadow-lg shadow-slate-200/50 h-[38px]">
                                             <Filter size={12} className="text-slate-400 mr-2" />
                                             <select value={movTypeFilter} onChange={e => setMovTypeFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer">
                                                 <option value="ALL">Todos Tipos</option>
@@ -979,7 +979,7 @@ export const StockManagement: React.FC = () => {
             {isRestockModalOpen && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
                     <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-white/50">
-                        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div className="px-8 py-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
                             <h2 className="text-lg font-black text-slate-800 uppercase  flex items-center gap-2">
                                 <Package className="text-primary-600" size={20} /> Entrada Rápida
                             </h2>
@@ -1050,7 +1050,7 @@ export const StockManagement: React.FC = () => {
             {isModalOpen && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-4 sm:p-8 animate-fade-in">
                     <div className="bg-white rounded-[2.5rem] w-full max-w-[95vw] lg:max-w-6xl shadow-2xl overflow-hidden animate-scale-up border border-white/50 flex flex-col max-h-[90vh]">
-                        <div className="px-10 py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div className="px-10 py-8 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
                             <div className="flex items-center gap-5">
                                 <div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary-600/20">
                                     <Package size={24} />
@@ -1239,7 +1239,7 @@ export const StockManagement: React.FC = () => {
                                                 </div>
 
                                                 <div className="pt-4 border-t border-slate-200 mx-2">
-                                                    <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                    <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-lg shadow-slate-200/50">
                                                         <span className="text-[10px] font-black text-slate-400 uppercase">Custo Total</span>
                                                         <span className="text-base font-black text-slate-700">R$ {calculateTotalCost(formData).toFixed(2)}</span>
                                                     </div>
@@ -1302,7 +1302,7 @@ export const StockManagement: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="p-8 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-4">
+                            <div className="p-8 border-t border-slate-200 bg-slate-50/50 flex justify-end gap-4">
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
@@ -1326,7 +1326,7 @@ export const StockManagement: React.FC = () => {
             {isCategoryModalOpen && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-4 sm:pt-20 animate-fade-in">
                     <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-scale-up border border-white/50">
-                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div className="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
                             <h2 className="text-lg font-black text-slate-800 uppercase ">
                                 {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
                             </h2>
@@ -1362,7 +1362,7 @@ export const StockManagement: React.FC = () => {
             {isTransferModalOpen && (
                 <div className="fixed inset-0 z-[203] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
                     <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-white/50">
-                        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div className="px-8 py-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
                             <h2 className="text-lg font-black text-slate-800 uppercase  flex items-center gap-2">
                                 <Scale className="text-amber-600" size={20} /> Transferência Provisória
                             </h2>

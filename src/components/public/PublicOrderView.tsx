@@ -116,7 +116,7 @@ const CollapsibleFormSection: React.FC<{
   const textCount = formItems.filter(i => i.text !== null).length;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
       {/* Collapsible Toggle */}
       <button
         onClick={() => setIsOpen(v => !v)}
@@ -141,7 +141,7 @@ const CollapsibleFormSection: React.FC<{
 
       {/* Expanded content — cada item do formulário com texto + fotos juntos */}
       {isOpen && (
-        <div className="border-t border-slate-100 px-6 sm:px-8 py-6 space-y-8 animate-fade-in">
+        <div className="border-t border-slate-200 px-6 sm:px-8 py-6 space-y-8 animate-fade-in">
           {(() => {
             const groupedItems = formItems.reduce((acc, item) => {
               const match = item.key.match(/^\[(.*?)\]\s*(?:-|$)/);
@@ -834,7 +834,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
           {/* ── ROW 1: Cliente + Localização ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8">
               <SectionHeader icon={<UserIcon size={15} />} title="Dados do Cliente" />
               <div className="space-y-3">
                 {/* Nome do cliente */}
@@ -859,20 +859,20 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 )}
 
                 {/* Datas */}
-                <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-4">
+                <div className="pt-3 border-t border-slate-200 grid grid-cols-2 gap-4">
                   <InfoPill label="Abertura" value={fmt(order.createdAt)} />
                   <InfoPill label="Agendado" value={order.scheduledDate ? `${fmt(order.scheduledDate)}${order.scheduledTime ? ' · ' + order.scheduledTime : ''}` : '—'} />
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8">
               <SectionHeader icon={<Box size={15} />} title={`Equipamento${linkedEquipments.length > 1 ? 's' : ''} Vinculado${linkedEquipments.length > 1 ? 's' : ''}`} />
               {linkedEquipments.length > 0 ? (
                 <div className="rounded-xl border border-slate-100 overflow-hidden">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                      <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
                         <th className="px-4 py-2.5">Equipamento</th>
                         <th className="px-4 py-2.5">Modelo</th>
                         <th className="px-4 py-2.5">Nº Série</th>
@@ -914,7 +914,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
 
           {/* ── ROW 2: Relatório Técnico ── */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8">
             <SectionHeader icon={<FileText size={15} />} title="Relatório Técnico de Execução" />
 
             {/* Timeline bar */}
@@ -979,13 +979,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
           {/* ── PEÇAS E VALORES ── */}
           {order.showValueToClient && order.items && order.items.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
               <div className="p-6 sm:p-8">
                 <SectionHeader icon={<Package size={15} />} title="Peças e Materiais Aplicados" />
                 <div className="rounded-xl border border-slate-100 overflow-hidden">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                      <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
                         <th className="px-5 py-3">Descrição</th>
                         <th className="px-5 py-3 text-center w-20">Qtd</th>
                         <th className="px-5 py-3 text-right w-28">Unitário</th>
@@ -1090,7 +1090,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
             if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl && !fd.videoUrl && !fd.video_url && allValidPhotos.length === 0) return null;
             return (
-              <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-2xl border border-indigo-200 shadow-lg shadow-slate-200/50 overflow-hidden">
                 <div className="flex items-center justify-between px-6 sm:px-8 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
@@ -1213,7 +1213,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               findFd('cpf');
 
             return (
-              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8">
                 <SectionHeader icon={<CheckCircle2 size={15} />} title="Validação e Assinaturas" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 

@@ -595,22 +595,22 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
                     {/* ── ROW 1: Cliente + Comercial ── */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8">
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8">
                             <SectionHeader icon={<User size={15} />} title="Dados do Cliente" />
                             <div className="space-y-3">
                                 <p className="text-lg font-black text-slate-900 uppercase leading-tight">{quote.customerName}</p>
                                 {quote.customerAddress ? (
-                                    <div className="flex items-start gap-2 pt-2 border-t border-slate-50">
+                                    <div className="flex items-start gap-2 pt-2 border-t border-slate-200">
                                         <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
                                         <p className="text-sm text-slate-500 leading-snug">{quote.customerAddress}</p>
                                     </div>
                                 ) : (
-                                    <p className="text-[10px] text-slate-300 uppercase tracking-widest italic pt-2 border-t border-slate-50">Endereço não informado</p>
+                                    <p className="text-[10px] text-slate-300 uppercase tracking-widest italic pt-2 border-t border-slate-200">Endereço não informado</p>
                                 )}
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 sm:p-8 flex flex-col justify-center">
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8 flex flex-col justify-center">
                             <SectionHeader icon={<FileText size={15} />} title="Resumo Comercial" />
                             <div className="grid grid-cols-2 gap-y-4 gap-x-6">
                                 <InfoPill
@@ -622,7 +622,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     value={new Date(quote.createdAt).toLocaleDateString()}
                                 />
                                 {quote.description && (
-                                    <div className="col-span-2 pt-3 border-t border-slate-50">
+                                    <div className="col-span-2 pt-3 border-t border-slate-200">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Objeto / Escopo Técnico</p>
                                         <p className="text-xs text-slate-600 font-medium italic">{quote.description}</p>
                                     </div>
@@ -632,7 +632,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     </div>
 
                     {/* ── ROW 2: Tabela de Itens ── */}
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
                         <div className="p-6 sm:p-8 pb-4">
                             <SectionHeader icon={<DollarSign size={15} />} title="Composição de Preços e Serviços" color="text-emerald-600" />
                         </div>
@@ -686,7 +686,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     )}
 
                     {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO') && (
-                        <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-6 sm:p-8 overflow-hidden relative">
+                        <div className="bg-white rounded-2xl border border-emerald-100 shadow-lg shadow-slate-200/50 p-6 sm:p-8 overflow-hidden relative">
                             {/* Background hint */}
                             <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
                                 <CheckCircle size={120} className="text-emerald-600" />
@@ -795,7 +795,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                 </div>
                             </div>
 
-                            <div className="flex gap-4 pt-6 mt-6 border-t border-slate-100">
+                            <div className="flex gap-4 pt-6 mt-6 border-t border-slate-200">
                                 <button disabled={isSubmitting} onClick={() => setIsRejectMode(false)} className="flex-1 py-4 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
                                 <button
                                     disabled={isSubmitting}
@@ -875,7 +875,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                 </div>
                             </div>
 
-                            <div className="flex gap-4 pt-6 mt-6 border-t border-slate-100">
+                            <div className="flex gap-4 pt-6 mt-6 border-t border-slate-200">
                                 <button disabled={isSubmitting} onClick={() => setIsApproveMode(false)} className="flex-1 py-4 text-[10px] font-black uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
                                 <button
                                     disabled={isSubmitting}

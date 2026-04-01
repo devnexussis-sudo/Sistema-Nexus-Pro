@@ -443,11 +443,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 </div>
             </div>
 
-            <div className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
+            <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
                 <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full border-separate border-spacing-y-0 text-left">
-                        <thead className="sticky top-0 bg-slate-100/80 backdrop-blur-md z-10 text-[11px] font-semibold text-slate-600 border-b border-slate-300 font-poppins">
-                            <tr className="border-b border-slate-100">
+                        <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 text-[11px] font-semibold text-slate-600 border-b border-slate-300 font-poppins">
+                            <tr className="border-b border-slate-200">
                                 <th className="px-3 py-2 w-12 text-center text-slate-400">
                                     <input
                                         type="checkbox"
@@ -552,7 +552,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     setViewQuote(quote);
                                                     setIsViewModalOpen(true);
                                                 }}
-                                                className="p-3 bg-slate-50/50 text-slate-400 hover:text-slate-900 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-slate-100 active:scale-95"
+                                                className="p-3 bg-slate-50/50 text-slate-400 hover:text-slate-900 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-slate-200 active:scale-95"
                                                 title="Visualizar Completo"
                                             >
                                                 <Eye size={16} />
@@ -618,7 +618,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-hidden">
                     <div className="bg-white rounded-[2.5rem] w-full max-w-7xl h-[90vh] shadow-2xl overflow-hidden animate-fade-in-up flex flex-col border border-white/20">
                         {/* Header Compacto */}
-                        <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
+                        <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-slate-50/30">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 bg-[#1c2d4f] rounded-xl flex items-center justify-center text-white shadow-lg">
                                     <Calculator size={20} />
@@ -640,7 +640,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
                             {/* Coluna Esquerda: Dados Principais (35% -> 100% on mobile) */}
                             <div className="w-full lg:w-[35%] border-b lg:border-b-0 lg:border-r border-slate-100 p-6 lg:p-8 space-y-6 overflow-y-auto custom-scrollbar bg-slate-50/20">
-                                <div className="p-4 lg:p-5 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                                <div className="p-4 lg:p-5 bg-white border border-slate-200 rounded-2xl shadow-lg shadow-slate-200/50">
                                     <label className="text-[8px] font-black text-slate-400 uppercase mb-1 block tracking-widest">Identificador Soberano</label>
                                     <p className="text-xl font-black text-[#1c2d4f] uppercase tracking-tighter">{previewId}</p>
                                 </div>
@@ -736,7 +736,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                             {/* Coluna Direita: Composição de Preços (65% -> 100% on mobile) */}
                             <div className="w-full lg:w-[65%] flex flex-col bg-white">
-                                <div className="px-6 lg:px-8 py-4 border-b border-slate-50 flex items-center justify-between sticky top-0 bg-white z-10 shadow-sm">
+                                <div className="px-6 lg:px-8 py-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10 shadow-sm">
                                     <div className="flex items-center gap-2">
                                         <ListPlus size={16} className="text-primary-600" />
                                         <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest italic">Composição de Preços e Itens</label>
@@ -759,7 +759,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 <div className="col-span-2 text-[8px] font-black text-slate-300 uppercase tracking-widest text-right pr-12">Subtotal</div>
                                             </div>
                                             {items.map((item, index) => (
-                                                <div key={item.id} className="grid grid-cols-12 gap-4 items-center p-3 bg-white rounded-xl border border-slate-100 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] hover:border-primary-300 transition-all group">
+                                                <div key={item.id} className="grid grid-cols-12 gap-4 items-center p-3 bg-white rounded-xl border border-slate-200 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] hover:border-primary-300 transition-all group">
                                                     <div className="col-span-6">
                                                         <input
                                                             placeholder="Buscar no estoque ou descrever item..."
@@ -919,7 +919,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             {/* Linha 2: Cliente e Escopo */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                 <div className="space-y-6">
-                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b border-slate-100 pb-2"><User size={12} /> Dados do Cliente</h3>
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b border-slate-200 pb-2"><User size={12} /> Dados do Cliente</h3>
                                     <div>
                                         <p className="text-xl font-black text-slate-900 uppercase italic tracking-tighter">{viewQuote.customerName}</p>
                                         <div className="flex items-center gap-2 mt-2 text-slate-500">
@@ -929,7 +929,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     </div>
                                 </div>
                                 <div className="space-y-6">
-                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b border-slate-100 pb-2"><Briefcase size={12} /> Título e Objeto</h3>
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b border-slate-200 pb-2"><Briefcase size={12} /> Título e Objeto</h3>
                                     <div>
                                         <p className="text-[12px] font-black text-slate-800 uppercase italic">{viewQuote.title}</p>
                                         {viewQuote.description && <p className="text-[10px] text-slate-400 mt-2 leading-relaxed italic line-clamp-3">{viewQuote.description}</p>}
@@ -939,7 +939,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                             {/* Linha 3: Tabela de Itens (Compacta) */}
                             <div className="space-y-4">
-                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b border-slate-100 pb-2"><Calculator size={12} /> Composição de Preços</h3>
+                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b border-slate-200 pb-2"><Calculator size={12} /> Composição de Preços</h3>
                                 <div className="border border-slate-100 rounded-3xl overflow-hidden shadow-sm bg-slate-50/30">
                                     <table className="w-full text-left">
                                         <thead className="bg-white text-[8px] font-black text-slate-400 uppercase">
@@ -953,7 +953,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         </thead>
                                         <tbody className="text-[10px] font-bold">
                                             {viewQuote.items.map((item, idx) => (
-                                                <tr key={idx} className="border-t border-slate-50 hover:bg-white transition-colors">
+                                                <tr key={idx} className="border-t border-slate-200 hover:bg-white transition-colors">
                                                     <td className="px-6 py-1.5 text-slate-400 font-mono">{(idx + 1).toString().padStart(2, '0')}</td>
                                                     <td className="px-6 py-1.5 text-slate-700 uppercase">{item.description}</td>
                                                     <td className="px-6 py-1.5 text-slate-500">{item.quantity} un</td>
@@ -1027,7 +1027,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 <SignatureIcon size={14} className="text-primary-400" />
                                                 <p className="text-[8px] font-black text-primary-400 uppercase">Assinatura Digital Capturada</p>
                                             </div>
-                                            <div className="bg-white p-8 rounded-[2.5rem] border border-primary-100 shadow-sm flex items-center justify-center overflow-hidden">
+                                            <div className="bg-white p-8 rounded-[2.5rem] border border-primary-100 shadow-lg shadow-slate-200/50 flex items-center justify-center overflow-hidden">
                                                 {viewQuote.approvalSignature ? (
                                                     <img src={viewQuote.approvalSignature} alt="Assinatura" className="h-32 object-contain grayscale" />
                                                 ) : (
@@ -1066,7 +1066,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </div>
 
                         {/* Footer do View Modal */}
-                        <div className="px-10 py-8 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+                        <div className="px-10 py-8 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
                             <button
                                 onClick={() => setIsViewModalOpen(false)}
                                 className="px-12 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-lg shadow-slate-900/20 hover:scale-[1.02] active:scale-95 transition-all"
