@@ -195,7 +195,7 @@ export const useContracts = (enabled = true) => {
 export const useQuotes = (enabled = true) => {
     return useQuery('quotes', (signal) => QuoteService.getQuotes(signal), {
         enabled,
-        staleTime: 1000 * 60 * 5
+        staleTime: 1000 * 30 // 30 segundos
     });
 };
 

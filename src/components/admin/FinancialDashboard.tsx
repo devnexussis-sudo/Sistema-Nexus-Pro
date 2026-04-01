@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ServiceOrder, OrderStatus, User, Quote } from '../../types';
 import type { DbTenant } from '../../types/database';
 import {
@@ -11,6 +11,7 @@ import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
 import { DataService } from '../../services/dataService';
 import XLSX from 'xlsx-js-style';
+import { NexusQueryClient } from '../../hooks/nexusHooks';
 
 interface FinancialDashboardProps {
     orders: ServiceOrder[];
@@ -23,6 +24,12 @@ interface FinancialDashboardProps {
 export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, tenant, onRefresh }) => {
     const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        // Ao montar o dashboard financeiro, força uma invalidação dos orçamentos para exibir imediatamente os orçamentos aprovados no dia (cache refresh).
+        NexusQueryClient.invalidateQuotes();
+    }, []);
+
     const getDefaultDates = () => {
         const dEnd = new Date();
         const dStart = new Date();
