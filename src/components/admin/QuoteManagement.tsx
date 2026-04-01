@@ -490,27 +490,27 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <td className="px-4 py-1.5">
                                         <div className="flex flex-col truncate max-w-[140px]">
                                             {/* getQuoteDisplayId: retorna ORC-... para soberanos, #XXXXXXXX... para UUIDs legados */}
-                                            <span className="text-[11px] font-medium text-primary-600 tracking-tighter truncate" title={quote.id}>
+                                            <span className="text-[13px] font-medium text-primary-600 tracking-tighter truncate" title={quote.id}>
                                                 {getQuoteDisplayId(quote)}
                                             </span>
-                                            <span className="text-[10px] text-slate-500 truncate">{quote.title}</span>
+                                            <span className="text-[12px] text-slate-500 truncate">{quote.title}</span>
                                         </div>
                                     </td>
                                     <td className="px-4 py-1.5">
                                         <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                            <Clock size={10} className="text-slate-400" />
-                                            <span className="text-[10px] text-slate-600">{new Date(quote.createdAt).toLocaleDateString()}</span>
+                                            <Clock size={12} className="text-slate-400" />
+                                            <span className="text-[12px] text-slate-600">{new Date(quote.createdAt).toLocaleDateString()}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-1.5 text-[10px] text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
+                                    <td className="px-4 py-1.5 text-[12px] text-slate-700 truncate max-w-[150px]">{quote.customerName}</td>
                                     <td className="px-4 py-1.5">
                                         <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                            <Calendar size={10} className="text-slate-400" />
-                                            <span className="text-[10px] text-slate-600">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'N/D'}</span>
+                                            <Calendar size={12} className="text-slate-400" />
+                                            <span className="text-[12px] text-slate-600">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'N/D'}</span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-1.5 text-[11px] font-medium text-emerald-600 whitespace-nowrap">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                    <td className="px-4 py-1.5 text-[10px] text-slate-600 whitespace-nowrap">
+                                    <td className="px-4 py-1.5 text-[13px] font-medium text-emerald-600 whitespace-nowrap">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-4 py-1.5 text-[12px] text-slate-600 whitespace-nowrap">
                                         {quote.linkedOrderId ? (() => {
                                             // Busca a OS vinculada para exibir o protocolo (displayId) em vez do UUID
                                             const linkedOrder = orders.find(o =>

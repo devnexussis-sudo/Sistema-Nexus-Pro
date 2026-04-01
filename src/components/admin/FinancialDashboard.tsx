@@ -763,42 +763,42 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-[#1c2d4f] cursor-pointer" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg w-fit whitespace-nowrap ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-600'}`}>
+                                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-lg w-fit whitespace-nowrap ${item.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-600'}`}>
                                             {getDocLabel(item)}
                                         </span>
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <p className="text-[11px] font-bold text-slate-800 truncate max-w-[150px] uppercase">{item.customerName}</p>
+                                        <p className="text-[13px] font-medium text-slate-800 truncate max-w-[150px]">{item.customerName}</p>
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <p className="text-[10px] text-slate-600 truncate max-w-[180px] font-bold uppercase">{item.title}</p>
+                                        <p className="text-[12px] text-slate-600 truncate max-w-[180px]">{item.title}</p>
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <span className="text-[10px] font-bold text-slate-700 capitalize">{item.technician?.toLowerCase()}</span>
+                                        <span className="text-[12px] text-slate-700 capitalize">{item.technician?.toLowerCase()}</span>
                                     </td>
                                     <td className="px-4 py-2.5">
                                         <div className="flex flex-col gap-0.5">
-                                            <span className="text-[10px] font-bold text-slate-600 whitespace-nowrap">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
-                                            <span className="text-[8px] text-slate-400 font-black uppercase tracking-wider">{item.type === 'QUOTE' ? 'Criação' : 'Conclusão'}</span>
+                                            <span className="text-[12px] text-slate-600 whitespace-nowrap">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
+                                            <span className="text-[10px] text-slate-400 tracking-wider">{item.type === 'QUOTE' ? 'Criação' : 'Conclusão'}</span>
                                         </div>
                                     </td>
                                     <td className="px-4 py-2.5">
                                         <div className="flex flex-col gap-0.5">
                                             {item.paidAt ? (
                                                 <>
-                                                    <span className="text-[10px] font-bold text-emerald-600 whitespace-nowrap">{new Date(item.paidAt).toLocaleDateString('pt-BR')}</span>
-                                                    <span className="text-[8px] text-emerald-400 font-black uppercase tracking-wider">Faturado</span>
+                                                    <span className="text-[12px] text-emerald-600 whitespace-nowrap">{new Date(item.paidAt).toLocaleDateString('pt-BR')}</span>
+                                                    <span className="text-[10px] text-emerald-400 tracking-wider">Faturado</span>
                                                 </>
                                             ) : (
-                                                <span className="text-[10px] font-bold text-slate-400">—</span>
+                                                <span className="text-[12px] text-slate-400">—</span>
                                             )}
                                         </div>
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <span className="text-sm font-black text-slate-900">{formatCurrency(item.value)}</span>
+                                        <span className="text-[15px] font-medium text-slate-900">{formatCurrency(item.value)}</span>
                                     </td>
                                     <td className="px-4 py-2.5 text-center">
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wide ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium tracking-wide ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                                             <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'PAID' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
                                             {item.status === 'PAID' ? 'Faturado' : 'Pendente'}
                                         </div>

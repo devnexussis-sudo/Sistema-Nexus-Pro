@@ -1084,17 +1084,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <span className="font-bold text-slate-700 text-[11px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 group-hover:bg-white group-hover:border-slate-300 transition-colors">
+                      <span className="font-medium text-slate-700 text-[12px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 group-hover:bg-white group-hover:border-slate-300 transition-colors">
                         {order.displayId || order.id}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-[11px] font-semibold text-slate-700 whitespace-nowrap">
+                    <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
                       {formatDateDisplay(order.scheduledDate)}
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-500 font-medium uppercase tracking-wide whitespace-nowrap">
+                    <td className="px-3 py-2 text-[12px] text-slate-500 tracking-wide whitespace-nowrap">
                       {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
                     </td>
-                    <td className="px-3 py-2 font-bold text-xs text-slate-800 tracking-tight truncate max-w-[160px]">
+                    <td className="px-3 py-2 text-[13px] text-slate-800 tracking-tight truncate max-w-[160px]">
                       {order.customerName}
                     </td>
 
@@ -1103,16 +1103,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {assignedTech ? (
                           <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-sm transition-all shrink-0">
                             <img src={assignedTech.avatar} className="w-4 h-4 rounded-full object-cover shadow-sm" />
-                            <span className="text-[9px] font-black text-slate-600 uppercase truncate max-w-[60px]">{assignedTech?.name?.split(' ')[0]}</span>
+                            <span className="text-[11px] text-slate-600 truncate max-w-[60px]">{assignedTech?.name?.split(' ')[0]}</span>
                           </div>
-                        ) : <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">-</span>}
+                        ) : <span className="text-[11px] text-slate-300 tracking-widest">-</span>}
                       </div>
                     </td>
 
-                    <td className="px-3 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                    <td className="px-3 py-2 text-[11px] text-slate-500 tracking-wide whitespace-nowrap">
                       {order.operationType || '---'}
                     </td>
-                    <td className="px-3 py-2 text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                    <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
                       {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
                     </td>
 
