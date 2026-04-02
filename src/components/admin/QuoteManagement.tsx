@@ -12,9 +12,8 @@ import {
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
 import { Customer, OrderStatus, OrderPriority, ServiceOrder, StockItem, Quote, QuoteItem } from '../../types';
-import { usePagedQuotes } from '../../hooks/nexusHooks';
+import { usePagedQuotes, useTenant } from '../../hooks/nexusHooks';
 import { useAuth } from '../../contexts/AuthContext';
-import { DataService } from '../../services/dataService';
 
 interface QuoteManagementProps {
     quotes: Quote[];
@@ -40,7 +39,6 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
     const [viewQuote, setViewQuote] = useState<Quote | null>(null);
     const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
-    const [tenant, setTenant] = useState<any>(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const PAGE_SIZE = 20;
@@ -86,18 +84,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     const totalValue = useMemo(() => items.reduce((acc, curr) => acc + curr.total, 0), [items]);
 
-    // Fetch tenant data for print header
-    useEffect(() => {
-        const fetchTenant = async () => {
-            try {
-                if (session?.user?.user_metadata?.tenant_id) {
-                    const data = await DataService.getTenantById(session.user.user_metadata.tenant_id);
-                    setTenant(data);
-                }
-            } catch (e) { console.error('Error fetching tenant:', e); }
-        };
-        if (session && !tenant) fetchTenant();
-    }, [session]);
+    // Tenant data via system-wide hook (same pattern as the rest of the app)
+    const { data: tenant } = useTenant(!isAuthLoading && !!session);
 
     const getQuoteDisplayId = (quote: Quote): string => {
         if (quote.displayId) return quote.displayId;
