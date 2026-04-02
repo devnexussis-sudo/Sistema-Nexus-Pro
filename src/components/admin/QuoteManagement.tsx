@@ -6,7 +6,7 @@ import {
     ChevronRight, CreditCard, User, MapPin, Briefcase,
     ArrowUpRight, Loader2, ListPlus, Calculator, Inbox, Calendar, Link2, Share2,
     Eye, Link, ExternalLink, Globe, ClipboardCheck, ShieldCheck, Box, Signature as SignatureIcon,
-    AlertCircle, ChevronLeft, Filter, FileSpreadsheet, X, Cpu, ShoppingCart
+    AlertCircle, ChevronLeft, Filter, FileSpreadsheet, X, Cpu, ShoppingCart, Printer
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { Customer, OrderStatus, OrderPriority, ServiceOrder, StockItem, Quote, QuoteItem } from '../../types';
@@ -537,6 +537,16 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 <Edit3 size={16} />
                                             </button>
                                             <button
+                                                onClick={() => {
+                                                    setViewQuote(quote);
+                                                    setTimeout(() => window.print(), 100);
+                                                }}
+                                                className="p-3 bg-slate-900/5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-slate-200 active:scale-95"
+                                                title="Imprimir Orçamento"
+                                            >
+                                                <Printer size={16} />
+                                            </button>
+                                            <button
                                                 onClick={() => onDeleteQuote(quote.id)}
                                                 className="p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-rose-100 active:scale-95"
                                             >
@@ -922,12 +932,39 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             )}
                         </div>
 
-                        <div className="px-10 py-6 bg-white border-t border-slate-200 flex justify-end">
-                            <button onClick={() => setIsViewModalOpen(false)} className="px-10 py-3 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl text-sm font-bold transition-all">Fechar</button>
+                         <div className="px-10 py-6 bg-white border-t border-slate-200 flex justify-end gap-3 shrink-0 print:hidden">
+                            <button
+                                onClick={() => window.print()}
+                                className="px-8 py-3.5 bg-[#1c2d4f] text-white hover:bg-[#253a66] rounded-xl text-sm font-bold transition-all active:scale-95 flex items-center gap-2"
+                            >
+                                <Printer size={18} /> Imprimir Proposta
+                            </button>
+                            <button
+                                onClick={() => setIsViewModalOpen(false)}
+                                className="px-10 py-3.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl text-sm font-bold transition-all"
+                            >
+                                Fechar
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
+
+            <style dangerouslySetInnerHTML={{ __html: `
+                @media print {
+                    body * { visibility: hidden; }
+                    .fixed.inset-0.z-\\[2000\\], .fixed.inset-0.z-\\[2000\\] * { visibility: visible; }
+                    .fixed.inset-0.z-\\[2000\\] { position: absolute; left: 0; top: 0; width: 100%; height: auto; overflow: visible !important; }
+                    .print\\:hidden { display: none !important; }
+                    .custom-scrollbar { overflow: visible !important; }
+                    .bg-white { border: none !important; box-shadow: none !important; }
+                    .bg-slate-50\\/20 { background-color: transparent !important; }
+                    table { page-break-inside: auto; }
+                    tr { page-break-inside: avoid; page-break-after: auto; }
+                    thead { display: table-header-group; }
+                    tfoot { display: table-footer-group; }
+                }
+            `}} />
         </div>
     );
 };
