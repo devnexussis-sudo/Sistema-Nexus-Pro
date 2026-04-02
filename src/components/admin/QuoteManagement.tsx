@@ -704,8 +704,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     </button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                                        <table className="w-full text-left">
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
+                                        <table className="w-full text-left table-fixed lg:table-auto overflow-visible">
                                             <thead className="bg-slate-50 border-b border-slate-200">
                                                 <tr className="text-[10px] font-bold text-slate-400 uppercase">
                                                     <th className="px-6 py-3">Descrição / Item</th>
@@ -715,9 +715,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     <th className="px-6 py-3 w-16"></th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-100">
+                                            <tbody className="divide-y divide-slate-100 overflow-visible">
                                                 {items.map((item, index) => (
-                                                    <tr key={item.id} className="hover:bg-slate-50/50 group">
+                                                    <tr key={item.id} className={`hover:bg-slate-50/50 group transition-all ${isStockListOpen[index] ? 'z-[1400] relative bg-slate-50/80 shadow-sm' : 'z-auto'}`}>
                                                         <td className="px-6 py-4">
                                                             <div className="relative">
                                                                 <input
