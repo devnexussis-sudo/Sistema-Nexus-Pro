@@ -844,10 +844,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
 
 
-            {/* ── PAINEL DE DETALHES (Centrado no meio) ── */}
+            {/* ── PAINEL DE DETALHES (Centrado no meio com formato Padrão OS) ── */}
             {isSidebarOpen && selectedItem && (
-                <div className="fixed inset-0 z-[1200] bg-slate-900/60 backdrop-blur-sm flex justify-center items-center py-4 px-4 overflow-y-auto animate-fade-in" onClick={() => setIsSidebarOpen(false)}>
-                    <div className="bg-slate-50 w-full max-w-2xl min-h-[500px] max-h-full rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden relative" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-[1200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center py-4 px-4 overflow-y-auto animate-fade-in" onClick={() => setIsSidebarOpen(false)}>
+                    <div className="bg-white w-full max-w-6xl max-h-[92vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative" onClick={e => e.stopPropagation()}>
 
                         {/* Hero Header — padrão OS */}
                         <div className={`${selectedItem.status === 'PAID' ? 'bg-emerald-700' : 'bg-[#1c2d4f]'} transition-colors`}>
@@ -986,22 +986,23 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 </div>
                             )}
 
-                            {/* Acesso Rápido */}
-                            <div className="grid grid-cols-2 gap-3">
+                        {/* Acesso Rápido */}
+                        <div className="p-6">
+                            <div className="grid grid-cols-2 gap-3 max-w-4xl mx-auto">
                                 <button
                                     onClick={() => {
                                         const route = selectedItem.type === 'QUOTE' ? 'view-quote' : 'view';
                                         const token = selectedItem.original.publicToken || selectedItem.id;
                                         window.open(`${window.location.origin}/#/${route}/${token}`, '_blank');
                                     }}
-                                    className="py-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between px-5 text-[#1c2d4f] hover:bg-[#1c2d4f] hover:text-white transition-all shadow-sm"
+                                    className="py-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between px-5 text-[#1c2d4f] hover:bg-[#1c2d4f] hover:text-white transition-all shadow-sm"
                                 >
                                     <span className="text-[10px] font-black uppercase tracking-wide">Link Público</span>
                                     <ArrowUpRight size={16} />
                                 </button>
                                 <button
                                     onClick={() => handlePrint(selectedItem)}
-                                    className="py-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between px-5 text-slate-600 hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+                                    className="py-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between px-5 text-slate-600 hover:bg-slate-900 hover:text-white transition-all shadow-sm"
                                 >
                                     <span className="text-[10px] font-black uppercase tracking-wide">Imprimir</span>
                                     <Printer size={16} />
@@ -1010,19 +1011,19 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         </div>
 
                         {/* Footer de Ação */}
-                        <div className="p-4 bg-white/80 backdrop-blur-md flex gap-3 z-10 sticky bottom-0 border-t border-slate-200 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] rounded-b-3xl">
-                            <button onClick={() => setIsSidebarOpen(false)} className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-800 transition-all hover:bg-slate-50">
+                        <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 z-10 sticky bottom-0 border-t border-slate-200 rounded-b-xl">
+                            <button onClick={() => setIsSidebarOpen(false)} className="px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:text-slate-800 shadow-sm transition-all hover:bg-slate-50">
                                 Fechar Painel
                             </button>
                             {selectedItem.status !== 'PAID' ? (
                                 <button
                                     onClick={() => { setSelectedIds([selectedItem.id]); setIsInvoiceModalOpen(true); }}
-                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
                                 >
                                     <DollarSign size={18} /> Confirmar Lançamento Financeiro
                                 </button>
                             ) : (
-                                <div className="flex-1 py-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl font-bold text-sm text-center flex items-center justify-center gap-2">
+                                <div className="px-6 py-2.5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl font-bold text-sm text-center flex items-center justify-center gap-2 shadow-inner">
                                     <CheckCircle2 size={18} /> Lançamento Liquidado
                                 </div>
                             )}
@@ -1186,150 +1187,186 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             </div>
                         </div>
 
-                        {/* ─── Conteúdo do Recibo (imprimível) ─── */}
-                        <div id="printable-receipt" ref={printRef} className="p-10 space-y-8">
-
-                            {/* Cabeçalho com branding da empresa */}
-                            <div className="flex items-start justify-between pb-8 border-b-2 border-[#1c2d4f]">
-                                <div className="flex items-center gap-4">
-                                    {(tenant?.logo_url || tenant?.logoUrl) ? (
-                                        <img
-                                            src={tenant.logo_url || tenant.logoUrl}
-                                            alt={tenant.company_name || tenant.name || 'Logo'}
-                                            className="h-12 w-auto object-contain"
-                                        />
-                                    ) : (
-                                        <div className="w-12 h-12 bg-[#1c2d4f] rounded-xl flex items-center justify-center">
-                                            <Wallet size={20} className="text-white" />
-                                        </div>
-                                    )}
-                                    <div>
-                                        <h1 className="text-xl font-black text-[#1c2d4f] uppercase tracking-tight leading-none">
-                                            {tenant?.company_name || tenant?.trading_name || tenant?.name || 'Empresa'}
-                                        </h1>
-                                        {tenant?.cnpj || tenant?.document ? (
-                                            <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase">
-                                                CNPJ: {tenant.cnpj || tenant.document}
-                                            </p>
-                                        ) : null}
-                                        {(tenant?.address || tenant?.street) ? (
-                                            <p className="text-[10px] text-slate-400 font-medium leading-tight">
-                                                {tenant.street
-                                                    ? `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' - ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}`
-                                                    : tenant.address
-                                                }
-                                            </p>
-                                        ) : null}
-                                        {tenant?.phone && (
-                                            <p className="text-[10px] text-slate-400 font-medium">{tenant.phone}</p>
-                                        )}
-                                        {tenant?.email && (
-                                            <p className="text-[10px] text-slate-400 font-medium">{tenant.email}</p>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Recibo de Faturamento</p>
-                                    <p className="text-2xl font-black text-[#1c2d4f] italic tracking-tighter">
-                                        #{getDocLabel(printItem)}
-                                    </p>
-                                    <p className="text-[11px] text-slate-400 font-bold mt-1">
-                                        {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                    </p>
-                                </div>
+                        {/* ─── Conteúdo do Recibo FORMAL SAAS (imprimível) ─── */}
+                        <div id="printable-receipt" ref={printRef} className="p-10 bg-white font-poppins min-h-[1056px] flex flex-col relative w-[210mm] mx-auto print:w-full print:p-8">
+                            {/* Marca D'Água (Status) */}
+                            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none select-none text-[8rem] font-black uppercase -rotate-45 tracking-widest whitespace-nowrap z-0`}>
+                                {printItem.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}
                             </div>
 
-                            {/* Dados do cliente */}
-                            <div className="grid grid-cols-2 gap-8">
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Users size={10} /> Dados do Cliente</p>
-                                    <p className="text-base font-black text-slate-800 capitalize">{printItem.customerName?.toLowerCase()}</p>
-                                    {printItem.customerAddress && (
-                                        <p className="text-xs text-slate-500 font-medium mt-1">{printItem.customerAddress}</p>
-                                    )}
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Tipo de Documento</p>
-                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase ${
-                                        printItem.type === 'QUOTE' ? 'bg-[#1c2d4f]/10 text-[#1c2d4f]' : 'bg-slate-100 text-slate-700'
-                                    }`}>
-                                        {printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}
-                                    </span>
-                                    {printItem.original?.paymentMethod && (
-                                        <p className="text-xs text-slate-500 font-bold mt-2 uppercase">
-                                            Pagamento: {printItem.original.paymentMethod}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Descrição do serviço */}
-                            {printItem.title && (
-                                <div className="bg-slate-50 rounded-2xl p-5">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Descrição do Serviço</p>
-                                    <p className="text-sm font-bold text-slate-800 uppercase">{printItem.title}</p>
-                                    {printItem.description && (
-                                        <p className="text-xs text-slate-500 mt-1 italic">{printItem.description}</p>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Orçamentos vinculados (se OS) */}
-                            {printItem.type === 'ORDER' && printItem.original?.linkedQuotes?.length > 0 && (() => {
-                                const linkedQts = (printItem.original.linkedQuotes as string[]).map((qId: string) => quotes.find(q => q.id === qId)).filter(Boolean);
-                                if (!linkedQts.length) return null;
-                                return (
-                                    <div className="space-y-2">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Layer size={10} /> Orçamentos Vinculados</p>
-                                        {linkedQts.map((q: any) => (
-                                            <div key={q.id} className="flex justify-between items-center px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                                                <div>
-                                                    <span className="text-[9px] font-black text-[#1c2d4f] uppercase">{q.displayId || 'ORC-' + q.id.slice(0, 8).toUpperCase()}</span>
-                                                    <p className="text-xs text-slate-600 font-bold">{q.title}</p>
-                                                </div>
-                                                <span className="text-sm font-black text-slate-800">{formatCurrency(q.totalValue)}</span>
+                            <div className="relative z-10 flex-1 flex flex-col">
+                                {/* Header SaaS Moderno */}
+                                <div className="flex items-start justify-between pb-8 border-b-2 border-slate-200">
+                                    <div className="flex items-end gap-6">
+                                        {(tenant?.logo_url || tenant?.logoUrl) ? (
+                                            <img
+                                                src={tenant.logo_url || tenant.logoUrl}
+                                                alt={tenant.company_name || tenant.name || 'Logo'}
+                                                className="h-16 w-auto object-contain"
+                                            />
+                                        ) : (
+                                            <div className="w-16 h-16 bg-[#1c2d4f] rounded-2xl flex items-center justify-center shadow-lg">
+                                                <Wallet size={28} className="text-white" />
                                             </div>
-                                        ))}
+                                        )}
+                                        <div>
+                                            <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none mb-1">
+                                                {tenant?.company_name || tenant?.trading_name || tenant?.name || 'Sua Empresa'}
+                                            </h1>
+                                            {tenant?.cnpj || tenant?.document ? (
+                                                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide">
+                                                    CNPJ: {tenant.cnpj || tenant.document}
+                                                </p>
+                                            ) : null}
+                                            <p className="text-[10px] text-slate-400 mt-1 max-w-xs leading-tight">
+                                                {(tenant?.address || tenant?.street) ? `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' - ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}` : 'Endereço da Empresa Não Informado'}
+                                            </p>
+                                        </div>
                                     </div>
-                                );
-                            })()}
 
-                            {/* Linha de Total */}
-                            <div className="bg-[#1c2d4f] rounded-2xl px-8 py-6 flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Valor Total Faturado</p>
-                                    {printItem.original?.paymentMethod && (
-                                        <p className="text-xs text-white/70 font-bold">
-                                            {printItem.original.paymentMethod}
-                                            {printItem.original.paidAt && ` — ${new Date(printItem.original.paidAt).toLocaleDateString('pt-BR')}`}
-                                        </p>
-                                    )}
+                                    <div className="text-right">
+                                        <div className="inline-block px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg mb-3">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Fatura/Recibo Nº</p>
+                                            <p className="text-xl font-bold text-[#1c2d4f] font-mono tracking-tight text-right">
+                                                {getDocLabel(printItem)}
+                                            </p>
+                                        </div>
+                                        <p className="text-[10px] font-bold text-slate-500">Data de Emissão: {new Date().toLocaleDateString('pt-BR')}</p>
+                                        <p className="text-[10px] font-bold text-slate-400">Vencimento: {new Date(printItem.date).toLocaleDateString('pt-BR')}</p>
+                                    </div>
                                 </div>
-                                <p className="text-3xl font-black text-white tracking-tighter italic">
-                                    {formatCurrency(printItem.value)}
-                                </p>
-                            </div>
 
-                            {/* Status */}
-                            <div className="flex items-center justify-between">
-                                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase ${
-                                    printItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                }`}>
-                                    <span className={`w-2 h-2 rounded-full ${
-                                        printItem.status === 'PAID' ? 'bg-emerald-500' : 'bg-amber-500'
-                                    }`} />
-                                    {printItem.status === 'PAID' ? 'Faturado / Liquidado' : 'Pendente'}
+                                {/* Seção: Cobrado A (Cliente) */}
+                                <div className="py-8 grid grid-cols-12 gap-8 border-b border-slate-100">
+                                    <div className="col-span-7">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Faturado para:</h3>
+                                        <h2 className="text-lg font-bold text-slate-900 capitalize mb-1">{printItem.customerName?.toLowerCase() || 'Cliente Não Identificado'}</h2>
+                                        {printItem.customerAddress && (
+                                            <p className="text-sm text-slate-600 max-w-md">{printItem.customerAddress}</p>
+                                        )}
+                                        {printItem.customerDocument && (
+                                            <p className="text-xs text-slate-500 font-medium mt-1">Doc: {printItem.customerDocument}</p>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="col-span-5 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Detalhes do Documento</h3>
+                                        <table className="w-full text-xs">
+                                            <tbody>
+                                                <tr>
+                                                    <td className="py-1 text-slate-500 font-medium">Origem do Ref.:</td>
+                                                    <td className="py-1 text-slate-900 font-bold text-right uppercase">{printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="py-1 text-slate-500 font-medium">Status de Pagamento:</td>
+                                                    <td className={`py-1 font-bold text-right uppercase ${printItem.status === 'PAID' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                                        {printItem.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}
+                                                    </td>
+                                                </tr>
+                                                {printItem.original?.paymentMethod && (
+                                                    <tr>
+                                                        <td className="py-1 text-slate-500 font-medium whitespace-nowrap flex items-center pt-2 mt-2 border-t border-slate-200">Meio de Pagamento:</td>
+                                                        <td className="py-1 text-slate-900 font-bold text-right pt-2 mt-2 border-t border-slate-200">{printItem.original.paymentMethod}</td>
+                                                    </tr>
+                                                )}
+                                                {printItem.original?.paidAt && (
+                                                    <tr>
+                                                        <td className="py-1 text-slate-500 font-medium">Data do Recebimento:</td>
+                                                        <td className="py-1 text-slate-900 font-bold text-right">{new Date(printItem.original.paidAt).toLocaleDateString('pt-BR')}</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                                <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">
-                                    Gerado em {new Date().toLocaleString('pt-BR')}
-                                </p>
-                            </div>
 
-                            {/* Rodapé */}
-                            <div className="pt-6 border-t border-slate-200 text-center">
-                                <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">
-                                    {tenant?.company_name || tenant?.name || 'Nexus Pro'} — Sistema de Gestão de Serviços
-                                </p>
+                                {/* Tabela de Serviços/Itens */}
+                                <div className="mt-8 flex-1">
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Descritivo dos Lançamentos</h3>
+                                    
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b-2 border-slate-200 text-left">
+                                                <th className="py-3 px-2 font-bold text-slate-900 uppercase text-[10px] tracking-wider w-3/5">Descrição do Serviço / Histórico</th>
+                                                <th className="py-3 px-2 font-bold text-slate-900 uppercase text-[10px] tracking-wider text-center">Tipo</th>
+                                                <th className="py-3 px-2 font-bold text-slate-900 uppercase text-[10px] tracking-wider text-right">Valor Líquido</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {/* Item Principal (A Descrição base da OS/ORC) */}
+                                            <tr className="border-b border-slate-100">
+                                                <td className="py-4 px-2">
+                                                    <p className="font-bold text-slate-800">{printItem.title || 'Serviços Prestados'}</p>
+                                                    {printItem.description && (
+                                                        <p className="text-xs text-slate-500 mt-1 whitespace-pre-wrap">{printItem.description}</p>
+                                                    )}
+                                                </td>
+                                                <td className="py-4 px-2 text-center text-slate-600 text-xs uppercase font-medium">{printItem.type === 'QUOTE' ? 'ORC' : 'OS'}</td>
+                                                <td className="py-4 px-2 text-right font-medium text-slate-900">{formatCurrency(printItem.value)}</td>
+                                            </tr>
+                                            
+                                            {/* Listar orçamentos vinculados caso exista e seja O.S */}
+                                            {printItem.type === 'ORDER' && printItem.original?.linkedQuotes?.length > 0 && (() => {
+                                                const linkedQts = (printItem.original.linkedQuotes as string[]).map((qId: string) => quotes.find(q => q.id === qId)).filter(Boolean);
+                                                return linkedQts.map((q: any) => (
+                                                    <tr key={q.id} className="border-b border-slate-100 bg-slate-50/50">
+                                                        <td className="py-3 px-2">
+                                                            <p className="font-semibold text-slate-700 block"><span className="text-slate-400 font-normal mr-2">Vínculo O.S:</span> {q.title || 'Orçamento Vinculado'}</p>
+                                                            <p className="text-xs text-slate-400 mt-0.5">Ref: {q.displayId || q.id.slice(0, 8)}</p>
+                                                        </td>
+                                                        <td className="py-3 px-2 text-center text-slate-500 text-xs font-medium">SUB-IT</td>
+                                                        <td className="py-3 px-2 text-right font-medium text-slate-700">(incluso no principal)</td>
+                                                    </tr>
+                                                ));
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Resumo de Valores e Totais */}
+                                <div className="mt-8 flex justify-end">
+                                    <div className="w-1/2 ml-auto">
+                                        <table className="w-full text-sm">
+                                            <tbody>
+                                                <tr>
+                                                    <td className="py-2 px-4 text-slate-500 text-right">Subtotal:</td>
+                                                    <td className="py-2 px-4 text-right font-medium text-slate-800">{formatCurrency(printItem.value)}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="py-2 px-4 text-slate-500 text-right border-b border-slate-200">Descontos / Acréscimos:</td>
+                                                    <td className="py-2 px-4 text-right font-medium text-slate-800 border-b border-slate-200">R$ 0,00</td>
+                                                </tr>
+                                                <tr className="bg-slate-50">
+                                                    <td className="py-4 px-4 font-black text-[#1c2d4f] text-right text-lg uppercase tracking-wide rounded-l-xl">Total Devido:</td>
+                                                    <td className="py-4 px-4 text-right font-black text-[#1c2d4f] text-2xl tracking-tighter rounded-r-xl">{formatCurrency(printItem.value)}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Assinaturas e Termos */}
+                                <div className="mt-auto pt-16">
+                                    <div className="grid grid-cols-2 gap-16 px-10">
+                                        <div className="text-center">
+                                            <div className="border-t border-slate-300 w-full mb-3"></div>
+                                            <p className="text-xs font-bold text-slate-800">{tenant?.company_name || 'Assinatura Oficial'}</p>
+                                            <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">EMISSOR</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="border-t border-slate-300 w-full mb-3"></div>
+                                            <p className="text-xs font-bold text-slate-800 capitalize">{printItem.customerName?.toLowerCase()}</p>
+                                            <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">CLIENTE (DE ACORDO)</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* Footer Minimalista SaaS */}
+                                <div className="mt-12 pt-4 border-t border-slate-100 flex justify-between items-center text-[9px] text-slate-400 font-medium">
+                                    <p>Recibo gerado eletronicamente e válido digitalmente.</p>
+                                    <p>Powered by Nexus Pro OS System</p>
+                                </div>
+
                             </div>
                         </div>
                     </div>
