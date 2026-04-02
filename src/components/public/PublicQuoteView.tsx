@@ -133,8 +133,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     };
 
     const handleApprove = async () => {
-        if (!approverName || !document || !birthDate || sigCanvas.current?.isEmpty()) {
-            alert('Por favor, preencha todos os campos (Nome, CPF, Data de Nascimento) e assine o documento.');
+        if (!approverName || sigCanvas.current?.isEmpty()) {
+            alert('Por favor, preencha seu nome e assine o documento.');
             return;
         }
 
@@ -168,12 +168,12 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
             await DataService.approveQuote(id, {
                 name: approverName,
-                document,
-                birthDate,
+                document: '',
+                birthDate: '',
                 signature: signatureBase64 || '',
-                metadata: metadata, // 🛡️ Injeção de Auditoria Digital
-                lat: finalLat, // Injeção GPS
-                lng: finalLng  // Injeção GPS
+                metadata: metadata,
+                lat: finalLat,
+                lng: finalLng
             });
 
             console.log('✅ [Nexus] Orçamento aprovado com sucesso!');
@@ -198,8 +198,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     };
 
     const handleConfirmReject = async () => {
-        if (!approverName || !document || !birthDate || !rejectionReason.trim() || sigCanvas.current?.isEmpty()) {
-            alert('Por favor, preencha todos os campos (Nome, CPF, Data de Nascimento, Motivo) e assine para formalizar a recusa.');
+        if (!approverName || !rejectionReason.trim() || sigCanvas.current?.isEmpty()) {
+            alert('Por favor, preencha seu nome, o motivo da recusa e assine para formalizar.');
             return;
         }
 
@@ -229,8 +229,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
             await DataService.rejectQuote(id, {
                 name: approverName,
-                document,
-                birthDate,
+                document: '',
+                birthDate: '',
                 reason: rejectionReason,
                 signature: signatureBase64 || '',
                 metadata: metadata,
@@ -404,10 +404,30 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             <span className="text-[9px] font-medium text-white/90 uppercase tracking-tighter italic">Valores expressos em Reais (BRL). O aceite eletrônico via portal possui validade jurídica para processamento de faturamento e ordens de serviço.</span>
                         </div>
                         <div className="w-64 p-4 flex flex-col justify-center items-end bg-[#132039]">
-                            <span className="text-[10px] uppercase font-black tracking-widest text-[#a8b8d8] mb-1">Investimento Total</span>
-                            <span className="text-2xl font-black tracking-tighter">
-                                R$ {(quote.totalValue || quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </span>
+                            {(quote.discount > 0) && (
+                                <>
+                                    <span className="text-[9px] uppercase font-black tracking-widest text-[#a8b8d8]/70 mb-0.5">Subtotal</span>
+                                    <span className="text-sm font-black tracking-tighter text-white/60 line-through">
+                                        R$ {(quote.items.reduce((a: number, i: any) => a + i.total, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-[9px] uppercase font-black tracking-widest text-rose-300 mt-1">Desconto</span>
+                                    <span className="text-sm font-black text-rose-300">- R$ {Number(quote.discount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    <div className="w-full border-t border-white/20 mt-2 pt-2">
+                                        <span className="text-[10px] uppercase font-black tracking-widest text-[#a8b8d8] mb-1 block">Investimento Total</span>
+                                        <span className="text-2xl font-black tracking-tighter">
+                                            R$ {(quote.totalValue || quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                </>
+                            )}
+                            {!(quote.discount > 0) && (
+                                <>
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-[#a8b8d8] mb-1">Investimento Total</span>
+                                    <span className="text-2xl font-black tracking-tighter">
+                                        R$ {(quote.totalValue || quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -664,8 +684,18 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     Condições Comerciais Regidas pela Nexus Commercial Intelligence
                                 </p>
                             </div>
-                            <div className="flex flex-col items-center sm:items-end order-1 sm:order-2">
-                                <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest mb-1">Investimento Total</p>
+                            <div className="flex flex-col items-center sm:items-end order-1 sm:order-2 gap-1">
+                                {quote.discount > 0 && (
+                                    <>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subtotal</p>
+                                        <p className="text-sm font-bold text-slate-400 line-through">
+                                            R$ {quote.items.reduce((a: number, i: any) => a + i.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </p>
+                                        <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Desconto</p>
+                                        <p className="text-sm font-bold text-rose-500">- R$ {Number(quote.discount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                    </>
+                                )}
+                                <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest">Investimento Total</p>
                                 <h4 className="text-2xl font-black text-emerald-700 tracking-tighter leading-none font-mono">
                                     R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                 </h4>
@@ -734,39 +764,14 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                                     <div>
                                         <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Nome do Responsável</label>
                                         <input
                                             type="text"
                                             value={approverName}
                                             onChange={e => setApproverName(e.target.value)}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">CPF / Documento</label>
-                                        <input
-                                            type="text"
-                                            value={document}
-                                            onChange={e => {
-                                                const v = e.target.value.replace(/\D/g, "").substring(0, 11);
-                                                let fmt = v;
-                                                if (v.length > 9) fmt = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-                                                else if (v.length > 6) fmt = v.replace(/(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3");
-                                                else if (v.length > 3) fmt = v.replace(/(\d{3})(\d{0,3})/, "$1.$2");
-                                                setDocument(fmt);
-                                            }}
-                                            placeholder="000.000.000-00"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Data Nasc.</label>
-                                        <input
-                                            type="date"
-                                            value={birthDate}
-                                            onChange={e => setBirthDate(e.target.value)}
+                                            placeholder="Nome completo"
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
                                         />
                                     </div>
@@ -779,8 +784,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                             <SignaturePad
                                                 ref={sigCanvas}
                                                 penColor="#e11d48"
-                                                minWidth={1.5}
-                                                maxWidth={3.5}
+                                                minWidth={0.5}
+                                                maxWidth={1.5}
                                                 canvasProps={{ className: "w-full h-32 sm:h-40 cursor-crosshair", style: { touchAction: 'none' } }}
                                             />
                                         ) : (
@@ -814,39 +819,14 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             <SectionHeader icon={<ShieldCheck size={15} />} title="Aprovação Segura de Proposta Comercial" color="text-emerald-600" />
 
                             <div className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                                     <div>
                                         <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Nome do Responsável</label>
                                         <input
                                             type="text"
                                             value={approverName}
                                             onChange={e => setApproverName(e.target.value)}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">CPF / Documento</label>
-                                        <input
-                                            type="text"
-                                            value={document}
-                                            onChange={e => {
-                                                const v = e.target.value.replace(/\D/g, "").substring(0, 11);
-                                                let fmt = v;
-                                                if (v.length > 9) fmt = v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-                                                else if (v.length > 6) fmt = v.replace(/(\d{3})(\d{3})(\d{0,3})/, "$1.$2.$3");
-                                                else if (v.length > 3) fmt = v.replace(/(\d{3})(\d{0,3})/, "$1.$2");
-                                                setDocument(fmt);
-                                            }}
-                                            placeholder="000.000.000-00"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Data Nasc.</label>
-                                        <input
-                                            type="date"
-                                            value={birthDate}
-                                            onChange={e => setBirthDate(e.target.value)}
+                                            placeholder="Nome completo"
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
                                         />
                                     </div>
@@ -859,8 +839,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                             <SignaturePad
                                                 ref={sigCanvas}
                                                 penColor="#0f172a"
-                                                minWidth={1.5}
-                                                maxWidth={3.5}
+                                                minWidth={0.5}
+                                                maxWidth={1.5}
                                                 canvasProps={{ className: "w-full h-32 sm:h-40 cursor-crosshair", style: { touchAction: 'none' } }}
                                             />
                                         ) : (

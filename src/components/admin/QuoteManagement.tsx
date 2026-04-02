@@ -67,7 +67,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [notes, setNotes] = useState('');
     const [validUntil, setValidUntil] = useState('');
     const [linkedOrderId, setLinkedOrderId] = useState('');
-    const [discount, setDiscount] = useState(0); // desconto em R$
+    const [discount, setDiscount] = useState(0); // valor de desconto
+    const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed'); // tipo de desconto
 
     const [clientSearch, setClientSearch] = useState('');
     const [isClientListOpen, setIsClientListOpen] = useState(false);
@@ -84,7 +85,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     }, [clientSearch, customers]);
 
     const subtotal = useMemo(() => items.reduce((acc, curr) => acc + curr.total, 0), [items]);
-    const totalValue = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
+    const discountAmount = useMemo(() => 
+        discountType === 'percent' ? (subtotal * discount / 100) : discount
+    , [subtotal, discount, discountType]);
+    const totalValue = useMemo(() => Math.max(0, subtotal - discountAmount), [subtotal, discountAmount]);
 
     // Tenant data via system-wide hook (same pattern as the rest of the app)
     const { data: tenant } = useTenant(!isAuthLoading && !!session);
@@ -199,6 +203,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         setValidUntil('');
         setLinkedOrderId('');
         setDiscount(0);
+        setDiscountType('fixed');
         setLoading(false);
     };
 
@@ -795,36 +800,46 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         <div className="px-8 py-6 border-t border-slate-200 bg-white flex justify-between items-center bg-slate-50/50">
                             <div className="flex items-center gap-6">
                                 {/* Resumo financeiro */}
-                                <div className="space-y-1 min-w-[200px]">
+                                <div className="space-y-1 min-w-[220px]">
                                     <div className="flex justify-between items-center gap-8">
                                         <p className="text-[10px] font-bold text-slate-400 uppercase">Subtotal</p>
                                         <p className="text-sm font-bold text-slate-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     </div>
-                                    <div className="flex justify-between items-center gap-8">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Desconto (R$)</p>
-                                        <input
-                                            type="number"
-                                            min={0}
-                                            max={subtotal}
-                                            step={0.01}
-                                            value={discount || ''}
-                                            onChange={e => setDiscount(parseFloat(e.target.value) || 0)}
-                                            placeholder="0,00"
-                                            className="w-28 text-right text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-rose-300 transition-all"
-                                        />
+                                    <div className="flex justify-between items-center gap-4">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Desconto</p>
+                                        <div className="flex items-center gap-1.5">
+                                            {/* Toggle R$ / % */}
+                                            <div className="flex border border-rose-200 rounded-lg overflow-hidden text-[9px] font-black">
+                                                <button
+                                                    onClick={() => setDiscountType('fixed')}
+                                                    className={`px-2 py-1 transition-all ${discountType === 'fixed' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
+                                                >R$</button>
+                                                <button
+                                                    onClick={() => setDiscountType('percent')}
+                                                    className={`px-2 py-1 transition-all ${discountType === 'percent' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
+                                                >%</button>
+                                            </div>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={discountType === 'percent' ? 100 : subtotal}
+                                                step={0.01}
+                                                value={discount || ''}
+                                                onChange={e => setDiscount(parseFloat(e.target.value) || 0)}
+                                                placeholder="0"
+                                                className="w-20 text-right text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-rose-300 transition-all"
+                                            />
+                                        </div>
                                     </div>
-                                    {discount > 0 && (
-                                        <div className="flex justify-between items-center gap-8 pt-1 border-t border-slate-200">
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Total</p>
-                                            <p className="text-base font-black text-[#1c2d4f]">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                        </div>
+                                    {discountAmount > 0 && (
+                                        <p className="text-[9px] text-rose-400 font-bold text-right">
+                                            - R$ {discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </p>
                                     )}
-                                    {discount === 0 && (
-                                        <div className="flex justify-between items-center gap-8 pt-1 border-t border-slate-200">
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Total</p>
-                                            <p className="text-base font-black text-[#1c2d4f]">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                        </div>
-                                    )}
+                                    <div className="flex justify-between items-center gap-8 pt-1 border-t border-slate-200">
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase">Total</p>
+                                        <p className="text-base font-black text-[#1c2d4f]">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex gap-4">

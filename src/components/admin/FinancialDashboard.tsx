@@ -71,6 +71,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [installments, setInstallments] = useState(2);
     const [billingNotes, setBillingNotes] = useState('');
     const [billingDiscount, setBillingDiscount] = useState(0);
+    const [billingDiscountType, setBillingDiscountType] = useState<'fixed' | 'percent'>('fixed');
     const [isProcessing, setIsProcessing] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
@@ -348,7 +349,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         const finalMethod = getPaymentMethodLabel();
         const paidAt = new Date().toISOString();
         const baseAmount = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
-        const finalAmount = Math.max(0, baseAmount - billingDiscount);
+        const discountValue = billingDiscountType === 'percent' ? (baseAmount * billingDiscount / 100) : billingDiscount;
+        const finalAmount = Math.max(0, baseAmount - discountValue);
         try {
             for (const id of selectedIds) {
                 // ─── Prioridade: usa selectedItem (estado mais atualizado) quando possível ───
@@ -411,7 +413,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         type: 'INCOME',
                         category: item.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
                         amount: finalAmount,
-                        description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${item.displayId || '#' + item.id.slice(0, 8)} — Cliente: ${item.customerName}${billingDiscount > 0 ? ` (Desconto: R$ ${billingDiscount.toFixed(2)})` : ''}`,
+                        description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${item.displayId || '#' + item.id.slice(0, 8)} — Cliente: ${item.customerName}${discountValue > 0 ? ` (Desconto: R$ ${discountValue.toFixed(2)})` : ''}`,
                         referenceId: item.id,
                         referenceType: item.type,
                         paymentMethod: finalMethod,
@@ -434,6 +436,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             setPaymentMethod('Dinheiro');
             setBillingNotes('');
             setBillingDiscount(0);
+            setBillingDiscountType('fixed');
             await onRefresh();
         } catch (error: any) {
             alert(`Erro ao processar faturamento: ${error.message}`);
@@ -1072,15 +1075,19 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     <span className="text-xs text-white/50">Subtotal</span>
                                     <span className="text-sm font-bold text-white/70">{formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}</span>
                                 </div>
-                                {billingDiscount > 0 && (
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-xs text-rose-300">Desconto</span>
-                                        <span className="text-sm font-bold text-rose-300">- {formatCurrency(billingDiscount)}</span>
-                                    </div>
-                                )}
+                                {(() => {
+                                    const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
+                                    const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
+                                    return dv > 0 ? (
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-rose-300">Desconto</span>
+                                            <span className="text-sm font-bold text-rose-300">- {formatCurrency(dv)}</span>
+                                        </div>
+                                    ) : null;
+                                })()}
                                 <div className="flex justify-between items-center pt-2 border-t border-white/10">
                                     <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Total a Receber</span>
-                                    <span className="text-2xl font-black text-white italic tracking-tighter">{formatCurrency(Math.max(0, (selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) - billingDiscount))}</span>
+                                    <span className="text-2xl font-black text-white italic tracking-tighter">{formatCurrency(Math.max(0, (() => { const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal; const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount; return base - dv; })()))}</span>
                                 </div>
                             </div>
                         </div>
@@ -1145,15 +1152,29 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                             <Tag size={12}/> Desconto
                                         </p>
                                         <div className="flex items-center gap-3">
+                                            {/* Toggle R$ / % */}
+                                            <div className="flex border border-rose-200 rounded-xl overflow-hidden text-[10px] font-black shrink-0">
+                                                <button
+                                                    onClick={() => setBillingDiscountType('fixed')}
+                                                    className={`px-3 py-2.5 transition-all ${billingDiscountType === 'fixed' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
+                                                >R$</button>
+                                                <button
+                                                    onClick={() => setBillingDiscountType('percent')}
+                                                    className={`px-3 py-2.5 transition-all ${billingDiscountType === 'percent' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
+                                                >%</button>
+                                            </div>
                                             <div className="relative flex-1">
-                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-rose-400">R$</span>
+                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-rose-400">
+                                                    {billingDiscountType === 'percent' ? '%' : 'R$'}
+                                                </span>
                                                 <input
                                                     type="number"
                                                     min={0}
+                                                    max={billingDiscountType === 'percent' ? 100 : undefined}
                                                     step={0.01}
                                                     value={billingDiscount || ''}
                                                     onChange={e => setBillingDiscount(parseFloat(e.target.value) || 0)}
-                                                    placeholder="0,00"
+                                                    placeholder="0"
                                                     className="w-full pl-10 pr-4 py-3 bg-white border border-rose-200 rounded-xl text-sm font-bold text-rose-700 outline-none focus:ring-2 focus:ring-rose-300 transition-all"
                                                 />
                                             </div>
@@ -1163,11 +1184,15 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                 </button>
                                             )}
                                         </div>
-                                        {billingDiscount > 0 && (
-                                            <p className="text-[10px] font-bold text-rose-500 mt-2">
-                                                Valor final: {formatCurrency(Math.max(0, (selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) - billingDiscount))}
-                                            </p>
-                                        )}
+                                        {billingDiscount > 0 && (() => {
+                                            const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
+                                            const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
+                                            return (
+                                                <p className="text-[10px] font-bold text-rose-500 mt-2">
+                                                    Desconto: {formatCurrency(dv)} • Valor final: {formatCurrency(Math.max(0, base - dv))}
+                                                </p>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
 
