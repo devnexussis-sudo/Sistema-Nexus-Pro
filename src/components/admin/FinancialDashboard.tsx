@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ServiceOrder, OrderStatus, User, Quote } from '../../types';
 import type { DbTenant } from '../../types/database';
 import {
-    Search, X, DollarSign, Calendar, Users,
+    Search, X, DollarSign, Calendar, Users, Tag,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
     TrendingUp, Clock, FileSpreadsheet, ChevronRight, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter
@@ -70,6 +70,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
     const [installments, setInstallments] = useState(2);
     const [billingNotes, setBillingNotes] = useState('');
+    const [billingDiscount, setBillingDiscount] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
@@ -346,6 +347,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         setIsProcessing(true);
         const finalMethod = getPaymentMethodLabel();
         const paidAt = new Date().toISOString();
+        const baseAmount = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
+        const finalAmount = Math.max(0, baseAmount - billingDiscount);
         try {
             for (const id of selectedIds) {
                 // ─── Prioridade: usa selectedItem (estado mais atualizado) quando possível ───
@@ -407,8 +410,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     await DataService.registerCashFlow({
                         type: 'INCOME',
                         category: item.type === 'ORDER' ? 'Serviço (O.S.)' : 'Venda (Orçamento)',
-                        amount: item.value,
-                        description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${item.displayId || '#' + item.id.slice(0, 8)} — Cliente: ${item.customerName}`,
+                        amount: finalAmount,
+                        description: `Faturamento de ${item.type === 'ORDER' ? 'O.S.' : 'Orçamento'} ${item.displayId || '#' + item.id.slice(0, 8)} — Cliente: ${item.customerName}${billingDiscount > 0 ? ` (Desconto: R$ ${billingDiscount.toFixed(2)})` : ''}`,
                         referenceId: item.id,
                         referenceType: item.type,
                         paymentMethod: finalMethod,
@@ -430,6 +433,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             setIsInvoiceModalOpen(false);
             setPaymentMethod('Dinheiro');
             setBillingNotes('');
+            setBillingDiscount(0);
             await onRefresh();
         } catch (error: any) {
             alert(`Erro ao processar faturamento: ${error.message}`);
@@ -1060,13 +1064,24 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 </div>
                             </div>
 
-                            <div className="mt-10 pt-8 border-t border-white/10">
+                            <div className="mt-10 pt-8 border-t border-white/10 space-y-2">
                                 <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                    <DollarSign size={12}/> Valor Total a Receber
+                                    <DollarSign size={12}/> Resumo financeiro
                                 </p>
-                                <p className="text-5xl font-black text-white italic tracking-tighter">
-                                    {formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}
-                                </p>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-white/50">Subtotal</span>
+                                    <span className="text-sm font-bold text-white/70">{formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}</span>
+                                </div>
+                                {billingDiscount > 0 && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-rose-300">Desconto</span>
+                                        <span className="text-sm font-bold text-rose-300">- {formatCurrency(billingDiscount)}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center pt-2 border-t border-white/10">
+                                    <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Total a Receber</span>
+                                    <span className="text-2xl font-black text-white italic tracking-tighter">{formatCurrency(Math.max(0, (selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) - billingDiscount))}</span>
+                                </div>
                             </div>
                         </div>
 
@@ -1124,6 +1139,36 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                             </div>
                                         </div>
                                     )}
+                                    {/* Desconto */}
+                                    <div className="mt-6 p-5 bg-rose-50 border border-rose-200/60 rounded-2xl">
+                                        <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                            <Tag size={12}/> Desconto
+                                        </p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative flex-1">
+                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-rose-400">R$</span>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    step={0.01}
+                                                    value={billingDiscount || ''}
+                                                    onChange={e => setBillingDiscount(parseFloat(e.target.value) || 0)}
+                                                    placeholder="0,00"
+                                                    className="w-full pl-10 pr-4 py-3 bg-white border border-rose-200 rounded-xl text-sm font-bold text-rose-700 outline-none focus:ring-2 focus:ring-rose-300 transition-all"
+                                                />
+                                            </div>
+                                            {billingDiscount > 0 && (
+                                                <button onClick={() => setBillingDiscount(0)} className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg transition-all">
+                                                    <X size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                        {billingDiscount > 0 && (
+                                            <p className="text-[10px] font-bold text-rose-500 mt-2">
+                                                Valor final: {formatCurrency(Math.max(0, (selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) - billingDiscount))}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Observações */}

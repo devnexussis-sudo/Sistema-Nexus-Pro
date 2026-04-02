@@ -67,6 +67,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [notes, setNotes] = useState('');
     const [validUntil, setValidUntil] = useState('');
     const [linkedOrderId, setLinkedOrderId] = useState('');
+    const [discount, setDiscount] = useState(0); // desconto em R$
 
     const [clientSearch, setClientSearch] = useState('');
     const [isClientListOpen, setIsClientListOpen] = useState(false);
@@ -82,7 +83,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         );
     }, [clientSearch, customers]);
 
-    const totalValue = useMemo(() => items.reduce((acc, curr) => acc + curr.total, 0), [items]);
+    const subtotal = useMemo(() => items.reduce((acc, curr) => acc + curr.total, 0), [items]);
+    const totalValue = useMemo(() => Math.max(0, subtotal - discount), [subtotal, discount]);
 
     // Tenant data via system-wide hook (same pattern as the rest of the app)
     const { data: tenant } = useTenant(!isAuthLoading && !!session);
@@ -164,6 +166,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 description,
                 items,
                 totalValue,
+                discount,
                 notes,
                 validUntil,
                 linkedOrderId,
@@ -195,6 +198,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         setNotes('');
         setValidUntil('');
         setLinkedOrderId('');
+        setDiscount(0);
         setLoading(false);
     };
 
@@ -789,9 +793,39 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </div>
 
                         <div className="px-8 py-6 border-t border-slate-200 bg-white flex justify-between items-center bg-slate-50/50">
-                            <div className="flex items-center gap-4">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Total Estimado</p>
-                                <p className="text-2xl font-bold text-[#1c2d4f]">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                            <div className="flex items-center gap-6">
+                                {/* Resumo financeiro */}
+                                <div className="space-y-1 min-w-[200px]">
+                                    <div className="flex justify-between items-center gap-8">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Subtotal</p>
+                                        <p className="text-sm font-bold text-slate-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                    </div>
+                                    <div className="flex justify-between items-center gap-8">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Desconto (R$)</p>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={subtotal}
+                                            step={0.01}
+                                            value={discount || ''}
+                                            onChange={e => setDiscount(parseFloat(e.target.value) || 0)}
+                                            placeholder="0,00"
+                                            className="w-28 text-right text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-rose-300 transition-all"
+                                        />
+                                    </div>
+                                    {discount > 0 && (
+                                        <div className="flex justify-between items-center gap-8 pt-1 border-t border-slate-200">
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Total</p>
+                                            <p className="text-base font-black text-[#1c2d4f]">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        </div>
+                                    )}
+                                    {discount === 0 && (
+                                        <div className="flex justify-between items-center gap-8 pt-1 border-t border-slate-200">
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Total</p>
+                                            <p className="text-base font-black text-[#1c2d4f]">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex gap-4">
                                 <button onClick={() => setIsModalOpen(false)} className="px-8 py-3 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-all">Cancelar</button>
@@ -847,6 +881,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         setDescription(quote.description);
                                         setItems(quote.items);
                                         setValidUntil(quote.validUntil || '');
+                        setDiscount(Number(quote.discount) || 0);
                                         setLinkedOrderId(quote.linkedOrderId || '');
                                         setIsViewModalOpen(false);
                                         setIsModalOpen(true);
