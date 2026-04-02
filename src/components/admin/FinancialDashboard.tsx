@@ -1391,6 +1391,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                             <p className="text-xs text-slate-400 mt-0.5">Ref: {q.displayId || q.id.slice(0, 8)}</p>
                                                         </td>
                                                         <td className="py-3 px-2 text-center text-slate-500 text-xs font-medium">SUB-IT</td>
+                                                        <td className="py-3 px-2 text-right font-medium text-slate-700">(incluso no principal)</td>
+                                                    </tr>
+                                                ));
+                                            })()}
                                         </tbody>
                                     </table>
                                 </div>
