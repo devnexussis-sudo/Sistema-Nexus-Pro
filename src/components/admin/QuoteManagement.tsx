@@ -1152,10 +1152,10 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                         </div>
                     </div>
                 </div>
-                <div className="text-right">
-                    <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
+                <div className="text-right shrink-0">
+                    <div className="border-2 border-slate-800 px-5 py-2 rounded-lg bg-slate-50 min-w-[160px]">
                         <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Proposta Comercial</div>
-                        <div className="text-2xl font-black text-slate-900 tracking-tighter">#{quote.displayId || quote.id.slice(0, 8).toUpperCase()}</div>
+                        <div className="text-base font-black text-slate-900 tracking-tight whitespace-nowrap">{quote.displayId || quote.id.slice(0, 8).toUpperCase()}</div>
                     </div>
                     <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
                         Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
