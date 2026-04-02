@@ -57,7 +57,6 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const pagedQuotes = pageResult?.data ?? [];
     const totalQuotes = pageResult?.total ?? 0;
     const totalPages = pageResult?.lastPage ?? 1;
-    const totalPages = pageResult?.lastPage ?? 1;
 
     // Form States
     const [customerName, setCustomerName] = useState('');
