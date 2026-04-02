@@ -813,92 +813,159 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar space-y-10 bg-slate-50/20">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                <div className="space-y-4">
-                                    <h3 className="text-xs font-bold text-slate-900 border-l-4 border-primary-500 pl-3 uppercase">Cliente</h3>
-                                    <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                                        <p className="text-lg font-bold text-slate-900">{viewQuote.customerName}</p>
-                                        <div className="flex items-center gap-2 mt-2 text-slate-500">
-                                            <MapPin size={14} />
-                                            <p className="text-xs font-medium">{viewQuote.customerAddress || 'N/D'}</p>
+                        <div className="flex-1 overflow-y-auto p-12 custom-scrollbar bg-white">
+                            <div className="max-w-4xl mx-auto space-y-12">
+                                {/* Cabeçalho da Proposta */}
+                                <div className="flex justify-between items-start border-b border-slate-100 pb-10">
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black text-primary-600 uppercase tracking-[0.2em]">Cliente / Solicitante</p>
+                                            <h3 className="text-2xl font-bold text-slate-900 leading-tight">{viewQuote.customerName}</h3>
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex items-center gap-2 text-slate-500">
+                                                <MapPin size={14} className="text-slate-300" />
+                                                <p className="text-xs font-semibold">{viewQuote.customerAddress || 'Endereço não informado'}</p>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-slate-500">
+                                                <User size={14} className="text-slate-300" />
+                                                <p className="text-xs font-semibold">{viewQuote.customerDocument || 'Documento não informado'}</p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div className="space-y-4">
-                                    <h3 className="text-xs font-bold text-slate-900 border-l-4 border-amber-500 pl-3 uppercase">Objeto</h3>
-                                    <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                                        <p className="text-sm font-bold text-slate-800">{viewQuote.title}</p>
-                                        <p className="text-xs text-slate-500 mt-4 leading-relaxed">{viewQuote.description || 'Sem detalhamento.'}</p>
+                                    <div className="text-right space-y-4">
+                                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl">
+                                            <Calendar size={14} className="text-slate-400" />
+                                            <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">Válido até: {viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString('pt-BR') : 'N/D'}</p>
+                                        </div>
+                                        {viewQuote.linkedOrderId && (
+                                            <div className="flex items-center justify-end gap-2 text-primary-600">
+                                                <Link2 size={14} />
+                                                <p className="text-[10px] font-black uppercase tracking-widest">O.S. Vinculada: {viewQuote.linkedOrderId.slice(0, 8)}</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="space-y-4">
-                                <h3 className="text-xs font-bold text-slate-900 border-l-4 border-emerald-500 pl-3 uppercase">Itens da Proposta</h3>
-                                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase">
-                                            <tr>
-                                                <th className="px-8 py-3">Item</th>
-                                                <th className="px-8 py-3">Descrição</th>
-                                                <th className="px-8 py-3 text-center">Qtd</th>
-                                                <th className="px-8 py-3">Unitário</th>
-                                                <th className="px-8 py-3 text-right">Subtotal</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {viewQuote.items.map((item, idx) => (
-                                                <tr key={idx}>
-                                                    <td className="px-8 py-4 text-xs font-bold text-slate-300">{idx + 1}</td>
-                                                    <td className="px-8 py-4 text-sm font-bold text-slate-700">{item.description}</td>
-                                                    <td className="px-8 py-4 text-xs font-bold text-slate-500 text-center">{item.quantity}</td>
-                                                    <td className="px-8 py-4 text-xs font-bold text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                                    <td className="px-8 py-4 text-right text-sm font-bold text-[#1c2d4f]">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                {/* Descrição do Projeto */}
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Descrição da Proposta Comercial</h4>
+                                    <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100/50">
+                                        <p className="text-sm font-bold text-slate-800 mb-3">{viewQuote.title}</p>
+                                        <p className="text-sm text-slate-600 leading-relaxed font-medium">{viewQuote.description || 'Nenhum detalhamento adicional fornecido para esta proposta.'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Itens da Proposta */}
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-end">
+                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Itens e Serviços Inclusos</h4>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{viewQuote.items.length} {viewQuote.items.length === 1 ? 'Item' : 'Itens'} listados</p>
+                                    </div>
+                                    <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                                                <tr>
+                                                    <th className="px-8 py-4 w-16">#</th>
+                                                    <th className="px-8 py-4">Especificação do Item / Serviço</th>
+                                                    <th className="px-8 py-4 text-center w-24">Qtd</th>
+                                                    <th className="px-8 py-4 w-32">Unitário</th>
+                                                    <th className="px-8 py-4 text-right w-40">Subtotal</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                        <tfoot className="bg-[#1c2d4f] text-white">
-                                            <tr>
-                                                <td colSpan={4} className="px-8 py-4 text-xs font-bold uppercase text-right">Total:</td>
-                                                <td className="px-8 py-4 text-right text-xl font-bold">R$ {viewQuote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {viewQuote.items.map((item, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
+                                                        <td className="px-8 py-5 text-xs font-bold text-slate-300">{String(idx + 1).padStart(2, '0')}</td>
+                                                        <td className="px-8 py-5">
+                                                            <p className="text-sm font-bold text-slate-700">{item.description}</p>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-center">
+                                                            <span className="inline-flex px-2 py-1 bg-slate-100 rounded text-[10px] font-bold text-slate-600">{item.quantity}</span>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-xs font-bold text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                        <td className="px-8 py-5 text-right text-sm font-black text-slate-900">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                            <tfoot className="bg-slate-900 text-white">
+                                                <tr>
+                                                    <td colSpan={4} className="px-8 py-6 text-[10px] font-black uppercase text-right tracking-[0.2em] opacity-60">Valor Total da Proposta:</td>
+                                                    <td className="px-8 py-6 text-right text-xl font-black">R$ {viewQuote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
                                 </div>
-                            </div>
 
-                            {viewQuote.status === 'APROVADO' && (
-                                <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-2xl space-y-6">
-                                    <div className="flex items-center gap-3">
-                                        <ShieldCheck className="text-emerald-500" size={24} />
-                                        <h4 className="text-sm font-bold text-emerald-900 uppercase">Aprovação Confirmada</h4>
-                                    </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                        <div><p className="text-[10px] font-bold text-emerald-600/60 uppercase">Aprovado por</p><p className="text-xs font-bold text-slate-700">{viewQuote.approvedByName}</p></div>
-                                        <div><p className="text-[10px] font-bold text-emerald-600/60 uppercase">Vencimento</p><p className="text-xs font-bold text-slate-700">{viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString('pt-BR') : 'N/D'}</p></div>
-                                        {viewQuote.approvalLatitude && (
-                                            <div className="col-span-2">
-                                                <p className="text-[10px] font-bold text-emerald-600/60 uppercase">Geo-Registro</p>
-                                                <a href={`https://www.google.com/maps?q=${viewQuote.approvalLatitude},${viewQuote.approvalLongitude}`} target="_blank" className="text-xs font-bold text-primary-600 hover:underline">Ver no Mapa</a>
+                                {/* Seção de Aprovação (Formal) */}
+                                {viewQuote.status === 'APROVADO' && (
+                                    <div className="pt-12 border-t border-slate-100 mt-12">
+                                        <div className="flex items-center gap-3 mb-8">
+                                            <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                                                <ShieldCheck size={16} />
                                             </div>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-col md:flex-row gap-6">
-                                        <div className="flex-1 bg-white p-4 rounded-xl border border-emerald-100 flex flex-col items-center">
-                                            <p className="text-[8px] font-bold text-slate-400 uppercase mb-2">Assinatura Capturada</p>
-                                            {viewQuote.approvalSignature ? <img src={viewQuote.approvalSignature} alt="Assinatura" className="h-16 grayscale" /> : <p className="text-[10px] text-slate-300 italic">Indisponível</p>}
+                                            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">Certificação de Aprovação Digital</h4>
                                         </div>
-                                        {viewQuote.approvalMetadata && (
-                                            <div className="w-full md:w-64 bg-[#1c2d4f] p-4 rounded-xl text-white space-y-2">
-                                                <div className="flex items-center gap-2 mb-2"><Cpu size={14} className="text-primary-400" /><p className="text-[9px] font-bold uppercase">Metadata</p></div>
-                                                <div className="text-[9px] font-medium opacity-70">Plataforma: {viewQuote.approvalMetadata.platform}</div>
-                                                <div className="text-[9px] font-medium opacity-70 truncate">Browser: {viewQuote.approvalMetadata.userAgent?.split(' ')[0]}</div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+                                            <div className="space-y-1">
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase">Aprovado por:</p>
+                                                <p className="text-sm font-bold text-slate-800">{viewQuote.approvedByName}</p>
                                             </div>
-                                        )}
+                                            <div className="space-y-1">
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase">Data da Aprovação:</p>
+                                                <p className="text-sm font-bold text-slate-800">{viewQuote.approvedAt ? new Date(viewQuote.approvedAt).toLocaleString('pt-BR') : 'N/D'}</p>
+                                            </div>
+                                            {viewQuote.approvalLatitude && (
+                                                <div className="space-y-1">
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">Localização (GPS):</p>
+                                                    <a href={`https://www.google.com/maps?q=${viewQuote.approvalLatitude},${viewQuote.approvalLongitude}`} target="_blank" className="flex items-center gap-1.5 text-xs font-bold text-primary-600 hover:underline">
+                                                        <MapPin size={12} /> Ver Geo-Registro
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex flex-col md:flex-row gap-8 items-stretch">
+                                            <div className="flex-1 bg-white p-8 rounded-2xl border border-slate-200 flex flex-col items-center justify-center min-h-[160px]">
+                                                <p className="text-[9px] font-bold text-slate-300 uppercase mb-4 tracking-widest">Assinatura Digital</p>
+                                                {viewQuote.approvalSignature ? (
+                                                    <img src={viewQuote.approvalSignature} alt="Assinatura" className="h-20 grayscale brightness-90 animate-fade-in" />
+                                                ) : (
+                                                    <div className="flex flex-col items-center gap-2 opacity-20">
+                                                        <SignatureIcon size={32} />
+                                                        <p className="text-[10px] font-bold uppercase">Sem Assinatura</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {viewQuote.approvalMetadata && (
+                                                <div className="w-full md:w-80 bg-slate-50 p-6 rounded-2xl border border-slate-100 flex flex-col justify-center">
+                                                    <div className="flex items-center gap-2 mb-4">
+                                                        <Cpu size={14} className="text-slate-400" />
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Evidências Técnicas</p>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-slate-100">
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase">Plataforma</span>
+                                                            <span className="text-[10px] font-bold text-slate-700">{viewQuote.approvalMetadata.platform}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center bg-white px-3 py-2 rounded-lg border border-slate-100">
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase">IP Origem</span>
+                                                            <span className="text-[10px] font-bold text-slate-700">{viewQuote.approvalMetadata.ip || '---.---.---'}</span>
+                                                        </div>
+                                                        <div className="bg-white px-3 py-2 rounded-lg border border-slate-100">
+                                                           <p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Agente de Navegação</p>
+                                                           <p className="text-[9px] font-medium text-slate-500 truncate">{viewQuote.approvalMetadata.userAgent}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
 
                          <div className="px-10 py-6 bg-slate-900 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0 print:hidden">
