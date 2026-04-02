@@ -986,8 +986,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 </div>
                             )}
 
+                        </div>
+
                         {/* Acesso Rápido */}
-                        <div className="p-6">
+                        <div className="px-6 pb-6">
                             <div className="grid grid-cols-2 gap-3 max-w-4xl mx-auto">
                                 <button
                                     onClick={() => {
