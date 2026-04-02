@@ -404,30 +404,41 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             <span className="text-[9px] font-medium text-white/90 uppercase tracking-tighter italic">Valores expressos em Reais (BRL). O aceite eletrônico via portal possui validade jurídica para processamento de faturamento e ordens de serviço.</span>
                         </div>
                         <div className="w-64 p-4 flex flex-col justify-center items-end bg-[#132039]">
-                            {(quote.discount > 0) && (
-                                <>
-                                    <span className="text-[9px] uppercase font-black tracking-widest text-[#a8b8d8]/70 mb-0.5">Subtotal</span>
-                                    <span className="text-sm font-black tracking-tighter text-white/60 line-through">
-                                        R$ {(quote.items.reduce((a: number, i: any) => a + i.total, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </span>
-                                    <span className="text-[9px] uppercase font-black tracking-widest text-rose-300 mt-1">Desconto</span>
-                                    <span className="text-sm font-black text-rose-300">- R$ {Number(quote.discount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                    <div className="w-full border-t border-white/20 mt-2 pt-2">
-                                        <span className="text-[10px] uppercase font-black tracking-widest text-[#a8b8d8] mb-1 block">Investimento Total</span>
+                            {(() => {
+                                const subtotal = quote.items.reduce((a: number, i: any) => a + (i.total || 0), 0);
+                                const disc = quote.discount || 0;
+                                const type = quote.discountType || 'fixed';
+                                const dv = type === 'percent' ? (subtotal * disc / 100) : disc;
+
+                                if (dv > 0) {
+                                    return (
+                                        <>
+                                            <span className="text-[9px] uppercase font-black tracking-widest text-[#a8b8d8]/70 mb-0.5">Subtotal</span>
+                                            <span className="text-sm font-black tracking-tighter text-white/60 line-through">
+                                                R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </span>
+                                            <span className="text-[9px] uppercase font-black tracking-widest text-rose-300 mt-1">
+                                                Desconto {type === 'percent' ? `(${disc}%)` : ''}
+                                            </span>
+                                            <span className="text-sm font-black text-rose-300">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                            <div className="w-full border-t border-white/20 mt-2 pt-2 text-right">
+                                                <span className="text-[10px] uppercase font-black tracking-widest text-[#a8b8d8] mb-1 block text-right">Investimento Total</span>
+                                                <span className="text-2xl font-black tracking-tighter">
+                                                    R$ {(quote.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                        </>
+                                    );
+                                }
+                                return (
+                                    <>
+                                        <span className="text-[10px] uppercase font-black tracking-widest text-[#a8b8d8] mb-1">Investimento Total</span>
                                         <span className="text-2xl font-black tracking-tighter">
-                                            R$ {(quote.totalValue || quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            R$ {(quote.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </span>
-                                    </div>
-                                </>
-                            )}
-                            {!(quote.discount > 0) && (
-                                <>
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-[#a8b8d8] mb-1">Investimento Total</span>
-                                    <span className="text-2xl font-black tracking-tighter">
-                                        R$ {(quote.totalValue || quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </span>
-                                </>
-                            )}
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -684,21 +695,32 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     Condições Comerciais Regidas pela Nexus Commercial Intelligence
                                 </p>
                             </div>
-                            <div className="flex flex-col items-center sm:items-end order-1 sm:order-2 gap-1">
-                                {quote.discount > 0 && (
-                                    <>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subtotal</p>
-                                        <p className="text-sm font-bold text-slate-400 line-through">
-                                            R$ {quote.items.reduce((a: number, i: any) => a + i.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                        </p>
-                                        <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Desconto</p>
-                                        <p className="text-sm font-bold text-rose-500">- R$ {Number(quote.discount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                    </>
-                                )}
-                                <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest">Investimento Total</p>
-                                <h4 className="text-2xl font-black text-emerald-700 tracking-tighter leading-none font-mono">
-                                    R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                </h4>
+                            <div className="flex flex-col items-center sm:items-end order-1 sm:order-2 gap-1 w-full sm:w-auto">
+                                {(() => {
+                                    const subtotal = quote.items.reduce((a: number, i: any) => a + (i.total || 0), 0);
+                                    const disc = quote.discount || 0;
+                                    const type = quote.discountType || 'fixed';
+                                    const dv = type === 'percent' ? (subtotal * disc / 100) : disc;
+
+                                    return (
+                                        <>
+                                            <div className="flex justify-between items-center py-1 w-full sm:w-64">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subtotal</p>
+                                                <p className="text-sm font-bold text-slate-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                            </div>
+                                            {dv > 0 && (
+                                                <div className="flex justify-between items-center py-1 w-full sm:w-64">
+                                                    <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Desconto</p>
+                                                    <p className="text-sm font-bold text-rose-500 tracking-tight">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between items-center pt-3 mt-1 border-t border-slate-200 w-full sm:w-64">
+                                                <p className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest">Investimento Total</p>
+                                                <p className="text-xl font-black text-emerald-700 tracking-tighter italic">R$ {(quote.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>

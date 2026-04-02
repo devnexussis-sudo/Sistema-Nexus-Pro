@@ -225,6 +225,8 @@ export interface ServiceOrder {
   paidAt?: string;
   billingNotes?: string;
   linkedQuotes?: string[];
+  discount?: number;
+  discountType?: 'fixed' | 'percent';
 
   // 📍 Fluxo de Atendimento (Check-in / Check-out / SLA)
   timeline?: {
@@ -487,6 +489,8 @@ export interface Quote {
   paymentMethod?: string;
   paidAt?: string;
   billingNotes?: string;
+  discount?: number;
+  discountType?: 'fixed' | 'percent';
 }
 
 export interface AuthState {

@@ -170,6 +170,8 @@ export interface DbOrder {
     paid_at?: string;
     billing_notes?: string;
     linked_quotes?: string[];
+    discount?: number;
+    discount_type?: 'fixed' | 'percent';
     timeline?: DbOrderTimeline;
     checkin_location?: DbGeoLocation;
     checkout_location?: DbGeoLocation;
@@ -373,6 +375,8 @@ export interface DbQuote {
     payment_method?: string;
     paid_at?: string;
     billing_notes?: string;
+    discount?: number;
+    discount_type?: 'fixed' | 'percent';
     created_at: string;
     updated_at?: string;
 }

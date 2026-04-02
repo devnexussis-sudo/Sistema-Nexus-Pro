@@ -41,7 +41,9 @@ export const QuoteService = {
             billingStatus: data.billing_status || 'PENDING',
             paymentMethod: data.payment_method,
             paidAt: data.paid_at,
-            billingNotes: data.billing_notes
+            billingNotes: data.billing_notes,
+            discount: data.discount || 0,
+            discountType: data.discount_type || 'fixed'
         };
     },
 
@@ -117,6 +119,8 @@ export const QuoteService = {
                 notes: quote.notes,
                 valid_until: quote.validUntil,
                 linked_order_id: quote.linkedOrderId,
+                discount: quote.discount || 0,
+                discount_type: quote.discountType || 'fixed',
                 created_at: now.toISOString()
             };
 
@@ -144,6 +148,8 @@ export const QuoteService = {
                 payment_method: quote.paymentMethod,
                 paid_at: quote.paidAt,
                 billing_notes: quote.billingNotes,
+                discount: quote.discount,
+                discount_type: quote.discountType,
                 updated_at: new Date().toISOString()
             };
 

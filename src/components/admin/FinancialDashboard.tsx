@@ -378,6 +378,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         billingStatus: 'PAID',
                         paymentMethod: finalMethod,
                         billingNotes: billingNotes,
+                        discount: billingDiscount,
+                        discountType: billingDiscountType,
                         paidAt
                     });
 
@@ -403,6 +405,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         billingStatus: 'PAID',
                         paymentMethod: finalMethod,
                         billingNotes: billingNotes,
+                        discount: billingDiscount,
+                        discountType: billingDiscountType,
                         paidAt
                     });
                 }
@@ -427,7 +431,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 setSelectedItem((prev: any) => prev ? ({
                     ...prev,
                     status: 'PAID',
-                    original: { ...prev.original, billingStatus: 'PAID', paymentMethod: finalMethod, paidAt }
+                    original: { ...prev.original, billingStatus: 'PAID', paymentMethod: finalMethod, paidAt, discount: billingDiscount, discountType: billingDiscountType }
                 }) : null);
             }
 
@@ -1387,10 +1391,6 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                             <p className="text-xs text-slate-400 mt-0.5">Ref: {q.displayId || q.id.slice(0, 8)}</p>
                                                         </td>
                                                         <td className="py-3 px-2 text-center text-slate-500 text-xs font-medium">SUB-IT</td>
-                                                        <td className="py-3 px-2 text-right font-medium text-slate-700">(incluso no principal)</td>
-                                                    </tr>
-                                                ));
-                                            })()}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1402,15 +1402,30 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                             <tbody>
                                                 <tr>
                                                     <td className="py-2 px-4 text-slate-500 text-right">Subtotal:</td>
-                                                    <td className="py-2 px-4 text-right font-medium text-slate-800">{formatCurrency(printItem.value)}</td>
+                                                    <td className="py-2 px-4 text-right font-medium text-slate-800">{formatCurrency(printItem.value || 0)}</td>
                                                 </tr>
+                                                {(() => {
+                                                    const disc = printItem.original?.discount || 0;
+                                                    const type = printItem.original?.discountType || 'fixed';
+                                                    const val = type === 'percent' ? ((printItem.value || 0) * disc / 100) : disc;
+                                                    return val > 0 ? (
+                                                        <tr>
+                                                            <td className="py-2 px-4 text-rose-500 text-right font-bold italic">Descontos Aplicados:</td>
+                                                            <td className="py-2 px-4 text-right font-bold text-rose-600 italic">(- {formatCurrency(val)})</td>
+                                                        </tr>
+                                                    ) : null;
+                                                })()}
                                                 <tr>
-                                                    <td className="py-2 px-4 text-slate-500 text-right border-b border-slate-200">Descontos / Acréscimos:</td>
-                                                    <td className="py-2 px-4 text-right font-medium text-slate-800 border-b border-slate-200">R$ 0,00</td>
-                                                </tr>
-                                                <tr className="bg-slate-50">
-                                                    <td className="py-4 px-4 font-black text-[#1c2d4f] text-right text-lg uppercase tracking-wide rounded-l-xl">Total Devido:</td>
-                                                    <td className="py-4 px-4 text-right font-black text-[#1c2d4f] text-2xl tracking-tighter rounded-r-xl">{formatCurrency(printItem.value)}</td>
+                                                    <td className="py-3 px-4 text-[#1c2d4f] font-black text-right border-t-2 border-[#1c2d4f] uppercase text-xs tracking-widest">Total Líquido Recebido:</td>
+                                                    <td className="py-3 px-4 text-right font-black text-[#1c2d4f] border-t-2 border-[#1c2d4f] text-xl tracking-tighter italic">
+                                                        {(() => {
+                                                            const base = printItem.value || 0;
+                                                            const disc = printItem.original?.discount || 0;
+                                                            const type = printItem.original?.discountType || 'fixed';
+                                                            const val = type === 'percent' ? (base * disc / 100) : disc;
+                                                            return formatCurrency(Math.max(0, base - val));
+                                                        })()}
+                                                    </td>
                                                 </tr>
                                             </tbody>
                                         </table>

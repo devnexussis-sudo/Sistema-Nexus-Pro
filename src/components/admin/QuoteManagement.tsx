@@ -1272,9 +1272,32 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                             ))}
                         </tbody>
                     </table>
-                    <div className="bg-slate-800 text-white px-3 py-2 flex justify-end gap-6 items-center border-t border-slate-800">
-                        <span className="text-[9px] uppercase font-black tracking-widest text-slate-300">Total</span>
-                        <span className="text-sm font-black tracking-tighter">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <div className="bg-slate-50 border-t border-slate-200 divide-y divide-slate-100">
+                        {(() => {
+                            const subtotal = quote.items.reduce((acc, item) => acc + (item.total || 0), 0);
+                            const discountValue = quote.discountType === 'percent' 
+                                ? (subtotal * (quote.discount || 0) / 100) 
+                                : (quote.discount || 0);
+
+                            return (
+                                <>
+                                    <div className="px-6 py-2 flex justify-end gap-12 items-center">
+                                        <span className="text-[8px] uppercase font-bold tracking-widest text-slate-400">Subtotal Bruto</span>
+                                        <span className="text-[10px] font-bold text-slate-600 font-mono">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    {discountValue > 0 && (
+                                        <div className="px-6 py-2 flex justify-end gap-12 items-center">
+                                            <span className="text-[8px] uppercase font-bold tracking-widest text-rose-400 italic">Desconto Aplicado ({quote.discountType === 'percent' ? `${quote.discount}%` : 'Fixo'})</span>
+                                            <span className="text-[10px] font-bold text-rose-500 font-mono italic">- R$ {discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                    )}
+                                    <div className="bg-slate-800 text-white px-6 py-3 flex justify-end gap-12 items-center">
+                                        <span className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-300">Total Líquido</span>
+                                        <span className="text-xl font-black tracking-tighter">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
 
