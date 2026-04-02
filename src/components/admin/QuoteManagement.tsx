@@ -874,8 +874,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
             {/* MODAL DE VISUALIZAÇÃO COMPLETA (VIEW MODAL) */}
             {isViewModalOpen && viewQuote && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-6 animate-fade-in">
-                    <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-[3.5rem] shadow-[0_32px_64px_-15px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden border border-white">
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[2000] flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsViewModalOpen(false)}>
+                    <div className="bg-white w-full max-w-6xl max-h-[92vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative" onClick={e => e.stopPropagation()}>
 
                         {/* Header do View Modal */}
                         <div className="px-10 py-8 bg-slate-900 flex justify-between items-center shrink-0">
