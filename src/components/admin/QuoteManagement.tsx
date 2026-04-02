@@ -121,21 +121,6 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     const updateItem = (index: number, fields: Partial<QuoteItem>) => {
         const newItems = [...items];
-
-        if (fields.description !== undefined) {
-            const searchTerm = fields.description.toLowerCase().trim();
-            const matchedStock = stockItems.find(s =>
-                s.description.toLowerCase() === searchTerm ||
-                s.code.toLowerCase() === searchTerm ||
-                `${s.code.toLowerCase()} - ${s.description.toLowerCase()}` === searchTerm ||
-                s.description.toLowerCase().startsWith(searchTerm)
-            );
-            if (matchedStock) {
-                fields.description = matchedStock.description;
-                fields.unitPrice = matchedStock.sellPrice;
-            }
-        }
-
         newItems[index] = { ...newItems[index], ...fields };
         newItems[index].total = (newItems[index].quantity || 0) * (newItems[index].unitPrice || 0);
         setItems(newItems);
@@ -746,13 +731,38 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                     className="w-full bg-transparent border-none text-sm font-semibold text-slate-700 outline-none p-0 focus:ring-0"
                                                                 />
                                                                 {isStockListOpen[index] && item.description.length > 0 && (
-                                                                    <div className="absolute z-[1300] top-full left-0 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto">
-                                                                        {stockItems.filter(s => s.description.toLowerCase().includes(item.description.toLowerCase())).map(s => (
-                                                                            <button key={s.id} onClick={() => { updateItem(index, { description: s.description, unitPrice: s.sellPrice }); setIsStockListOpen(prev => ({ ...prev, [index]: false })); }} className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0">
-                                                                                <p className="text-xs font-bold text-slate-800">{s.description}</p>
-                                                                                <p className="text-[10px] text-emerald-600 font-bold">R$ {s.sellPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                                                            </button>
-                                                                        ))}
+                                                                    <div className="absolute z-[1300] top-full left-0 w-[450px] mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-scale-up">
+                                                                        <button
+                                                                            onClick={() => setIsStockListOpen(prev => ({ ...prev, [index]: false }))}
+                                                                            className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-100 bg-primary-50/50 text-[#1c2d4f] font-bold text-[11px] uppercase transition-colors flex items-center justify-between"
+                                                                        >
+                                                                            <span>Usar como item avulso: "{item.description.slice(0, 25)}..."</span>
+                                                                            <Plus size={14} />
+                                                                        </button>
+                                                                        {stockItems
+                                                                            .filter(s => s.active !== false && (
+                                                                                s.description.toLowerCase().includes(item.description.toLowerCase()) || 
+                                                                                (s.code && s.code.toLowerCase().includes(item.description.toLowerCase()))
+                                                                            ))
+                                                                            .map(s => (
+                                                                                <button
+                                                                                    key={s.id}
+                                                                                    onClick={() => {
+                                                                                        updateItem(index, { description: s.description, unitPrice: s.sellPrice });
+                                                                                        setIsStockListOpen(prev => ({ ...prev, [index]: false }));
+                                                                                    }}
+                                                                                    className="w-full text-left px-5 py-4 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors group/item"
+                                                                                >
+                                                                                    <div className="flex justify-between items-start">
+                                                                                        <div>
+                                                                                            <p className="text-xs font-bold text-slate-800 group-hover/item:text-[#1c2d4f]">{s.description}</p>
+                                                                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">SKU: {s.code}</p>
+                                                                                        </div>
+                                                                                        <p className="text-xs font-bold text-emerald-600">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                                    </div>
+                                                                                </button>
+                                                                            ))
+                                                                        }
                                                                     </div>
                                                                 )}
                                                             </div>
