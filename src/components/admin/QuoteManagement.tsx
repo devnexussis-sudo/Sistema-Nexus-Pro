@@ -443,7 +443,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     </td>
                                 </tr>
                             ) : pagedQuotes.map(quote => (
-                                <tr key={quote.id} className={`bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md ${selectedQuoteIds.includes(quote.id) ? 'bg-indigo-50/40' : ''}`}>
+                                <tr 
+                                    key={quote.id} 
+                                    className={`bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer ${selectedQuoteIds.includes(quote.id) ? 'bg-indigo-50/40' : ''}`}
+                                    onClick={() => { setViewQuote(quote); setIsViewModalOpen(true); }}
+                                >
                                     <td className="px-3 py-2 text-center shrink-0 w-12" onClick={(e) => { e.stopPropagation(); setSelectedQuoteIds(prev => prev.includes(quote.id) ? prev.filter(id => id !== quote.id) : [...prev, quote.id]); }}>
                                         <input
                                             type="checkbox"
@@ -505,52 +509,17 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         )}
                                     </td>
                                     <td className="px-6 py-2 text-right pr-6">
-                                        <div className="flex justify-end gap-1.5">
+                                        <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button
-                                                onClick={() => { setViewQuote(quote); setIsViewModalOpen(true); }}
-                                                className="p-3 bg-slate-50/50 text-slate-400 hover:text-slate-900 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-slate-200 active:scale-95"
-                                            >
-                                                <Eye size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => {
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
                                                     const url = `${window.location.origin}/#/view-quote/${quote.publicToken || quote.id}`;
                                                     window.open(url, '_blank');
                                                 }}
                                                 className="p-3 bg-emerald-50/50 text-emerald-500 hover:text-emerald-700 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-emerald-100 active:scale-95"
+                                                title="Link Público"
                                             >
                                                 <ExternalLink size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedQuote(quote);
-                                                    setCustomerName(quote.customerName);
-                                                    setTitle(quote.title);
-                                                    setDescription(quote.description);
-                                                    setItems(quote.items);
-                                                    setValidUntil(quote.validUntil || '');
-                                                    setLinkedOrderId(quote.linkedOrderId || '');
-                                                    setIsModalOpen(true);
-                                                }}
-                                                className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-primary-100 active:scale-95"
-                                            >
-                                                <Edit3 size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setViewQuote(quote);
-                                                    setTimeout(() => window.print(), 100);
-                                                }}
-                                                className="p-3 bg-slate-900/5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-slate-200 active:scale-95"
-                                                title="Imprimir Orçamento"
-                                            >
-                                                <Printer size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => onDeleteQuote(quote.id)}
-                                                className="p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-rose-100 active:scale-95"
-                                            >
-                                                <Trash2 size={16} />
                                             </button>
                                         </div>
                                     </td>
@@ -932,19 +901,53 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             )}
                         </div>
 
-                         <div className="px-10 py-6 bg-white border-t border-slate-200 flex justify-end gap-3 shrink-0 print:hidden">
-                            <button
-                                onClick={() => window.print()}
-                                className="px-8 py-3.5 bg-[#1c2d4f] text-white hover:bg-[#253a66] rounded-xl text-sm font-bold transition-all active:scale-95 flex items-center gap-2"
-                            >
-                                <Printer size={18} /> Imprimir Proposta
-                            </button>
-                            <button
-                                onClick={() => setIsViewModalOpen(false)}
-                                className="px-10 py-3.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl text-sm font-bold transition-all"
-                            >
-                                Fechar
-                            </button>
+                         <div className="px-10 py-6 bg-slate-900 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0 print:hidden">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm('Tem certeza que deseja excluir esta proposta?')) {
+                                            onDeleteQuote(viewQuote.id);
+                                            setIsViewModalOpen(false);
+                                        }
+                                    }}
+                                    className="p-3.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all active:scale-95 flex items-center gap-2 text-xs font-bold"
+                                    title="Excluir Proposta"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        const quote = viewQuote;
+                                        setSelectedQuote(quote);
+                                        setCustomerName(quote.customerName);
+                                        setTitle(quote.title);
+                                        setDescription(quote.description);
+                                        setItems(quote.items);
+                                        setValidUntil(quote.validUntil || '');
+                                        setLinkedOrderId(quote.linkedOrderId || '');
+                                        setIsViewModalOpen(false);
+                                        setIsModalOpen(true);
+                                    }}
+                                    className="px-6 py-3.5 bg-white/10 text-white hover:bg-white/20 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-2"
+                                >
+                                    <Edit3 size={18} /> Editar Proposta
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => window.print()}
+                                    className="px-8 py-3.5 bg-primary-500 text-white hover:bg-primary-400 rounded-xl text-sm font-bold transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-primary-500/20"
+                                >
+                                    <Printer size={18} /> Imprimir Orçamento
+                                </button>
+                                <button
+                                    onClick={() => setIsViewModalOpen(false)}
+                                    className="px-8 py-3.5 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-sm font-bold transition-all"
+                                >
+                                    Fechar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
