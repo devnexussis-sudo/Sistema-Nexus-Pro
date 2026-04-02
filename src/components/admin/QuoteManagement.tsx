@@ -57,6 +57,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const pagedQuotes = pageResult?.data ?? [];
     const totalQuotes = pageResult?.total ?? 0;
     const totalPages = pageResult?.lastPage ?? 1;
+    const totalPages = pageResult?.lastPage ?? 1;
 
     // Form States
     const [customerName, setCustomerName] = useState('');
@@ -66,6 +67,20 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [notes, setNotes] = useState('');
     const [validUntil, setValidUntil] = useState('');
     const [linkedOrderId, setLinkedOrderId] = useState('');
+
+    const [clientSearch, setClientSearch] = useState('');
+    const [isClientListOpen, setIsClientListOpen] = useState(false);
+    const [isStockListOpen, setIsStockListOpen] = useState<{ [key: number]: boolean }>({});
+
+    const filteredClients = useMemo(() => {
+        const term = clientSearch.toLowerCase();
+        return customers.filter(c => 
+            c.name.toLowerCase().includes(term) ||
+            (c.document && c.document.toLowerCase().includes(term)) ||
+            (c.cpf && c.cpf.toLowerCase().includes(term)) ||
+            (c.cnpj && c.cnpj.toLowerCase().includes(term))
+        );
+    }, [clientSearch, customers]);
 
     const totalValue = useMemo(() => items.reduce((acc, curr) => acc + curr.total, 0), [items]);
 
@@ -615,8 +630,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
             {/* Modal Editor de Orçamento - BIG TECH STANDARD DESIGN */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-hidden">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-7xl h-[90vh] shadow-2xl overflow-hidden animate-fade-in-up flex flex-col border border-white/20">
+                <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
+                    <div className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
                         {/* Header Compacto */}
                         <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-slate-50/30">
                             <div className="flex items-center gap-4">
@@ -646,16 +661,48 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 </div>
 
                                 <div className="space-y-4">
-                                    <div>
+                                    <div className="relative">
                                         <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Cliente</label>
-                                        <select
-                                            value={customerName}
-                                            onChange={(e) => setCustomerName(e.target.value)}
-                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
-                                        >
-                                            <option value="">Selecionar Cliente...</option>
-                                            {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                        </select>
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                            <input
+                                                type="text"
+                                                placeholder={customerName || "Buscar por Nome, CPF ou CNPJ..."}
+                                                value={isClientListOpen ? clientSearch : (customerName || clientSearch)}
+                                                onChange={e => {
+                                                    setClientSearch(e.target.value);
+                                                    setIsClientListOpen(true);
+                                                    if (!e.target.value) setCustomerName(''); 
+                                                }}
+                                                onFocus={() => setIsClientListOpen(true)}
+                                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-3 text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-primary-100 transition-all"
+                                            />
+                                            {customerName && !isClientListOpen && (
+                                              <button onClick={() => {setCustomerName(''); setClientSearch('');}} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"><X size={14} /></button>
+                                            )}
+                                        </div>
+                                        {isClientListOpen && (
+                                            <div className="absolute z-[1300] top-full mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar">
+                                                {filteredClients.length > 0 ? (
+                                                    filteredClients.map(c => (
+                                                        <button
+                                                            key={c.id}
+                                                            onClick={() => {
+                                                                setCustomerName(c.name);
+                                                                setClientSearch(c.name);
+                                                                setIsClientListOpen(false);
+                                                            }}
+                                                            className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                                                        >
+                                                            <p className="text-xs font-bold text-slate-800 uppercase">{c.name}</p>
+                                                            <p className="text-[10px] text-slate-400">{c.document || c.cnpj || c.cpf || 'Sem documento'}</p>
+                                                        </button>
+                                                    ))
+                                                ) : (
+                                                    <div className="p-4 text-center text-[10px] text-slate-400 font-bold uppercase">Nenhum cliente encontrado</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div>
@@ -760,28 +807,49 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             </div>
                                             {items.map((item, index) => (
                                                 <div key={item.id} className="grid grid-cols-12 gap-4 items-center p-3 bg-white rounded-xl border border-slate-200 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] hover:border-primary-300 transition-all group">
-                                                    <div className="col-span-6">
+                                                    <div className="col-span-6 relative">
                                                         <input
                                                             placeholder="Buscar no estoque ou descrever item..."
                                                             value={item.description}
-                                                            list="stock-suggestions"
                                                             autoComplete="off"
-                                                            onChange={e => updateItem(index, { description: e.target.value })}
+                                                            onFocus={() => setIsStockListOpen(prev => ({ ...prev, [index]: true }))}
+                                                            onChange={e => {
+                                                                updateItem(index, { description: e.target.value });
+                                                                setIsStockListOpen(prev => ({ ...prev, [index]: true }));
+                                                            }}
                                                             className="w-full bg-transparent border-none text-[10px] font-black uppercase outline-none text-slate-800 placeholder:text-slate-300"
                                                         />
-                                                        {/* datalist renderizado aqui para ficar no escopo correto do input */}
-                                                        <datalist id="stock-suggestions">
-                                                            {stockItems
-                                                                .filter(s => s.active !== false)
-                                                                .map(s => (
-                                                                    <option
-                                                                        key={s.id}
-                                                                        value={s.description}
-                                                                        label={`${s.code} — R$ ${s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${s.quantity} ${s.unit || 'UN'})`}
-                                                                    />
-                                                                ))
-                                                            }
-                                                        </datalist>
+                                                        {isStockListOpen[index] && item.description.length > 0 && (
+                                                            <div className="absolute z-[1300] top-full left-0 w-[400px] mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setIsStockListOpen(prev => ({ ...prev, [index]: false }));
+                                                                    }}
+                                                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 bg-primary-50 text-primary-600 font-bold text-[10px] uppercase transition-colors"
+                                                                >
+                                                                    <Plus size={12} className="inline mr-1" /> Usar "{item.description.slice(0, 30)}{item.description.length > 30 ? '...' : ''}" como avulso
+                                                                </button>
+                                                                {stockItems
+                                                                    .filter(s => s.active !== false && (
+                                                                        s.description.toLowerCase().includes(item.description.toLowerCase()) || 
+                                                                        s.code.toLowerCase().includes(item.description.toLowerCase())
+                                                                    ))
+                                                                    .map(s => (
+                                                                        <button
+                                                                            key={s.id}
+                                                                            onClick={() => {
+                                                                                updateItem(index, { description: s.description, unitPrice: s.sellPrice });
+                                                                                setIsStockListOpen(prev => ({ ...prev, [index]: false }));
+                                                                            }}
+                                                                            className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors"
+                                                                        >
+                                                                            <p className="text-[10px] font-bold text-slate-800 uppercase">{s.code} — {s.description}</p>
+                                                                            <p className="text-[9px] text-emerald-600 font-bold pr-2">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} • Qtd: {s.quantity}</p>
+                                                                        </button>
+                                                                    ))
+                                                                }
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div className="col-span-2">
                                                         <input
