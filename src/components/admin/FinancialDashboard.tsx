@@ -77,6 +77,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 12;
 
+    // 🔥 Auto-trigger print when modal opens
+    useEffect(() => {
+        if (isPrintModalOpen && printItem) {
+            const timer = setTimeout(() => {
+                window.print();
+            }, 500); // 500ms delay to ensure rendering
+            return () => clearTimeout(timer);
+        }
+    }, [isPrintModalOpen, printItem]);
+
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
         key: 'date',
         direction: 'desc'
