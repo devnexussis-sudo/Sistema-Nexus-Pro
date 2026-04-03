@@ -66,6 +66,9 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     const [alertDaysBefore, setAlertDaysBefore] = useState(5);
     const [alertFrequency, setAlertFrequency] = useState(2);
 
+    const [customerSearch, setCustomerSearch] = useState('');
+    const [isCustomerListOpen, setIsCustomerListOpen] = useState(false);
+
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 12;
 
@@ -100,6 +103,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     const handleOpenEdit = (contract: any) => {
         setSelectedContract(contract);
         setSelectedCustomerId(contract.customerName);
+        setCustomerSearch(contract.customerName);
         setSelectedEquipIds(contract.equipmentIds || []);
         setContractTitle(contract.title.replace('CONTRATO Master: ', ''));
         setStartDate(contract.scheduledDate);
@@ -257,12 +261,13 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                     <div className="flex items-center gap-3"><Briefcase className="text-[#1c2d4f]" size={32} /><h1 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">Gestão de Contratos</h1></div>
                     <p className="text-slate-400 text-[10px] font-bold uppercase pl-11">Auditoria Jurídica, Comercial e Operacional Nexus Line.</p>
                 </div>
-                <button 
+                <Button 
                   onClick={() => {
                     setSelectedContract(null); 
                     setModalTab('technical'); 
                     setPendingAction('CREATE');
-                    setSelectedCustomerId(customers[0]?.name || ''); 
+                    setSelectedCustomerId(''); 
+                    setCustomerSearch('');
                     setChangeReason('');
                     setContractValue('0,00'); 
                     setIncludesParts(false); 
@@ -273,7 +278,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                   className="px-6 py-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm transition-all border border-[#1c2d4f] flex items-center gap-2"
                 >
                   <Plus size={16} /> Novo Contrato
-                </button>
+                </Button>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
@@ -462,16 +467,59 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                     <div className="space-y-6">
                                         <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
                                             <div className="space-y-6">
-                                                <div>
+                                                <div className="relative">
                                                     <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Cliente Responsável</label>
-                                                    <select 
-                                                        disabled={!!selectedContract} 
-                                                        value={selectedCustomerId} 
-                                                        onChange={e => setSelectedCustomerId(e.target.value)} 
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 uppercase outline-none focus:ring-2 focus:ring-primary-100 transition-all cursor-pointer"
-                                                    >
-                                                        {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                                    </select>
+                                                    
+                                                    {selectedContract ? (
+                                                        <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 uppercase opacity-70">
+                                                            {selectedCustomerId || 'Cliente não selecionado'}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="relative">
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Buscar por nome ou documento..."
+                                                                    value={customerSearch || selectedCustomerId}
+                                                                    onChange={(e) => {
+                                                                        setCustomerSearch(e.target.value);
+                                                                        setIsCustomerListOpen(true);
+                                                                        if (!e.target.value) setSelectedCustomerId('');
+                                                                    }}
+                                                                    onFocus={() => setIsCustomerListOpen(true)}
+                                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 uppercase outline-none focus:ring-2 focus:ring-primary-100 transition-all shadow-inner"
+                                                                />
+                                                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                                            </div>
+
+                                                            {isCustomerListOpen && (
+                                                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] max-h-[250px] overflow-y-auto custom-scrollbar p-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                                    {customers
+                                                                        .filter(c => 
+                                                                            c.name.toLowerCase().includes(customerSearch.toLowerCase()) || 
+                                                                            (c.document && c.document.includes(customerSearch))
+                                                                        )
+                                                                        .map(c => (
+                                                                            <button
+                                                                                key={c.id}
+                                                                                onClick={() => {
+                                                                                    setSelectedCustomerId(c.name);
+                                                                                    setCustomerSearch(c.name);
+                                                                                    setIsCustomerListOpen(false);
+                                                                                }}
+                                                                                className="w-full text-left p-3 rounded-xl hover:bg-slate-50 transition-all group flex flex-col gap-0.5 border border-transparent hover:border-slate-100"
+                                                                            >
+                                                                                <span className="text-[11px] font-bold text-slate-700 uppercase group-hover:text-primary-600 truncate">{c.name}</span>
+                                                                                <span className="text-[9px] font-medium text-slate-400 uppercase">{c.document || 'S/ DOCUMENTO'}</span>
+                                                                            </button>
+                                                                        ))}
+                                                                    {customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || (c.document && c.document.includes(customerSearch))).length === 0 && (
+                                                                        <div className="py-8 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nenhum cliente encontrado</div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div>
                                                     <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Título do Contrato</label>
