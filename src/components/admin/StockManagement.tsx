@@ -579,7 +579,7 @@ export const StockManagement: React.FC = () => {
             </div>
 
             {/* Main Table Container */}
-            <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
+            <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col flex-1 ring-1 ring-slate-200/80">
                 {activeTab === 'items' ? (
                     <>
                         <div className="flex-1 overflow-auto custom-scrollbar">
@@ -710,7 +710,7 @@ export const StockManagement: React.FC = () => {
                         />
                     </>
                 ) : (
-                    <div className="p-10 flex-1 overflow-auto custom-scrollbar">
+                    <div className="p-4 sm:p-10 shrink-0">
                         {activeTab === 'categories' && (
                             <>
                                 <h3 className="text-xl font-black text-slate-800 uppercase  mb-6 flex items-center gap-3">
