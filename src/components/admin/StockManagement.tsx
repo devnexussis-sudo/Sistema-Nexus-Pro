@@ -1496,8 +1496,8 @@ export const StockManagement: React.FC = () => {
                                             techStock
                                                 .filter(ts => (Number(ts.quantity) || 0) > 0)
                                                 .map(ts => (
-                                                    <option key={ts.item?.id || ts.stock_item_id} value={ts.item?.id || ts.stock_item_id}>
-                                                        {ts.item?.description} ({ts.quantity} {ts.item?.unit} em posse do colaborador)
+                                                    <option key={ts.id} value={ts.stockItemId}>
+                                                        {ts.item?.description || 'Item sem descrição'} ({ts.quantity} {ts.item?.unit || 'UN'} em posse do colaborador)
                                                     </option>
                                                 ))
                                         ) : (
