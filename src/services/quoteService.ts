@@ -13,6 +13,18 @@ export const QuoteService = {
 
     _mapQuoteFromDB: (data: any): any => {
         if (!data) return null;
+
+        // Nexus Logic: Extrair motivo da recusa de várias fontes possíveis
+        let rejectionReason = data.rejection_reason || null;
+        if (!rejectionReason && data.approval_metadata && data.approval_metadata.rejection_reason) {
+            rejectionReason = data.approval_metadata.rejection_reason;
+        }
+
+        // Se ainda não tem, tenta extrair das notas (padrão legado/RPC)
+        if (!rejectionReason && data.notes && data.notes.toUpperCase().includes('MOTIVO DA RECUSA:')) {
+            rejectionReason = data.notes.replace(/MOTIVO DA RECUSA:\s*/i, '').trim();
+        }
+
         return {
             id: data.id,
             // display_id: Identificador Soberano (ORC-...) gerado pela app.
@@ -31,7 +43,7 @@ export const QuoteService = {
             notes: data.notes,
             validUntil: data.valid_until,
             linkedOrderId: data.linked_order_id,
-            rejectionReason: data.rejection_reason || (data.approval_metadata && data.approval_metadata.rejection_reason) || null,
+            rejectionReason: rejectionReason,
             // Campos de Aprovação
             approvalDocument: data.approval_document,
             approvalBirthDate: data.approval_birth_date,
@@ -297,7 +309,11 @@ export const QuoteService = {
                     p_signature: finalSignature,
                     p_name: rejectionData.name,
                     p_reason: rejectionData.reason,
-                    p_metadata: rejectionData.metadata || {},
+                    p_metadata: { 
+                        ...(rejectionData.metadata || {}), 
+                        rejection_reason: rejectionData.reason,
+                        rejected_by_portal: true 
+                    },
                     p_lat: rejectionData.lat,
                     p_lng: rejectionData.lng
                 });

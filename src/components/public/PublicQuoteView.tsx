@@ -497,7 +497,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
             )}
 
             {/* Approval / Signature Area */}
-            {quote.status === 'APROVADO' ? (
+            {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO') ? (
                 <div className="border-2 border-emerald-500 rounded-xl overflow-hidden break-inside-avoid mb-3 bg-emerald-50/20">
                     <div className="bg-emerald-50 px-4 py-2 border-b border-emerald-200 flex items-center gap-2">
                         <CheckCircle size={16} className="text-emerald-600" />
@@ -528,8 +528,28 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                         <XCircle size={16} className="text-rose-600" />
                         <span className="font-black text-[11px] uppercase tracking-widest text-rose-800">Recusa do Orçamento Formalizada</span>
                     </div>
-                    <div className="p-6 bg-white text-rose-900 font-bold italic text-sm uppercase tracking-tight">
-                        Motivo Registrado: {quote.rejectionReason || 'Recusa efetuada via link público pelo cliente.'}
+                    <div className="p-6 bg-white flex flex-col gap-4">
+                        <div className="text-rose-900 font-bold italic text-sm uppercase tracking-tight">
+                            Motivo Registrado: {quote.rejectionReason || 'Recusa efetuada via link público pelo cliente.'}
+                        </div>
+                        <div className="grid grid-cols-2 gap-6 border-t border-rose-100 pt-4">
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Recusado por</span>
+                                <span className="text-sm font-black text-slate-900 uppercase">{quote.approvedByName || 'Cliente'}</span>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">Data e hora: {quote.approvedAt ? new Date(quote.approvedAt).toLocaleString('pt-BR') : 'N/D'}</span>
+                            </div>
+                            <div className="border border-rose-100 rounded-lg h-24 flex flex-col items-center justify-center relative bg-rose-50/30">
+                                {quote.approvalSignature ? (
+                                    <>
+                                        <img src={quote.approvalSignature} className="max-h-16 max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                                        <p className="text-[9px] font-black text-rose-900 uppercase mt-1">Recusado por {quote.approvedByName || 'Cliente'}</p>
+                                    </>
+                                ) : (
+                                    <span className="text-slate-300 italic text-[10px] font-bold uppercase">Registro de Recusa Auditado</span>
+                                )}
+                                <div className="absolute bottom-1 right-2 text-[6px] text-rose-400 uppercase tracking-widest">Duno Secure Audit</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             ) : (
@@ -795,7 +815,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             <div className="mb-8 p-4 bg-rose-50 border border-rose-100 rounded-2xl relative z-10">
                                 <p className="text-[9px] font-black text-rose-800 tracking-widest uppercase mb-1">Motivo da Recusa</p>
                                 <p className="text-xs font-bold text-rose-600/80 italic uppercase">
-                                    {quote.rejectionReason || (quote.notes || '').replace(/MOTIVO DA RECUSA:\s*/i, '').trim() || rejectionReason || 'Nenhum motivo específico informado.'}
+                                    {quote.rejectionReason || rejectionReason || 'Nenhum motivo específico informado.'}
                                 </p>
                             </div>
 
