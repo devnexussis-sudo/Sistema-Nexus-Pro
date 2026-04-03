@@ -77,11 +77,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 12;
 
-    // 🔥 Auto-trigger print when modal opens
+    // 🔥 Auto-trigger print when modal opens and close it after
     useEffect(() => {
         if (isPrintModalOpen && printItem) {
             const timer = setTimeout(() => {
                 window.print();
+                // Close the modal after a short delay to give the browser time to initiate
+                setTimeout(() => {
+                    setIsPrintModalOpen(false);
+                    setPrintItem(null);
+                }, 1000);
             }, 500); // 500ms delay to ensure rendering
             return () => clearTimeout(timer);
         }
@@ -1326,8 +1331,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
             {/* ── MODAL DE IMPRESSÃO / RECIBO DE FATURAMENTO ── */}
             {isPrintModalOpen && printItem && (
-                <div className="fixed inset-0 z-[3000] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in print:bg-white print:p-0 print:fixed print:inset-0">
-                    <div className="bg-white w-full max-w-3xl max-h-[95vh] overflow-y-auto rounded-3xl shadow-2xl border border-slate-200 print:rounded-none print:max-w-none print:max-h-none print:overflow-visible print:shadow-none print:border-0">
+                <div className="fixed inset-0 z-[3000] bg-white flex items-center justify-center p-4 opacity-0 pointer-events-none print:opacity-100 print:pointer-events-auto print:fixed print:inset-0">
+                    <div className="bg-white w-full max-w-3xl max-h-[95vh] overflow-y-auto print:max-w-none print:max-h-none print:overflow-visible">
 
                         {/* Barra de ação — oculta na impressão */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 print:hidden">
