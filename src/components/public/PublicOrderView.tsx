@@ -116,7 +116,7 @@ const CollapsibleFormSection: React.FC<{
   const textCount = formItems.filter(i => i.text !== null).length;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
+    <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
       {/* Collapsible Toggle */}
       <button
         onClick={() => setIsOpen(v => !v)}
@@ -726,11 +726,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   // ── WEB LAYOUT ─────────────────────────────────────────────────────────────
   return (
-    <>
+    <div className="public-view-wrapper">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+        .public-view-wrapper, .public-view-wrapper * {
+            font-family: 'Poppins', sans-serif !important;
+        }
+      `}</style>
       <div className="hidden print:!block">
         <PrintLayout />
       </div>
-      <div className="min-h-screen bg-[#F0F2F5] font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
+      <div className="min-h-screen bg-slate-50 font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
         {/* ── TOP ACCENT BAR ── */}
         <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 
@@ -842,11 +848,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         </div>
 
         {/* ── MAIN CONTENT ── */}
-        <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-6 print:hidden">
+        <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-12 flex flex-col gap-10 print:hidden">
 
           {/* ── ROW 1: Cliente + Localização ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
               <SectionHeader icon={<UserIcon size={15} />} title="Dados do Cliente" />
               <div className="space-y-3">
                 {/* Nome do cliente */}
@@ -878,7 +884,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
               <SectionHeader icon={<Box size={15} />} title={`Equipamento${linkedEquipments.length > 1 ? 's' : ''} Vinculado${linkedEquipments.length > 1 ? 's' : ''}`} />
               {linkedEquipments.length > 0 ? (
                 <div className="rounded-xl border border-slate-100 overflow-hidden">
@@ -926,7 +932,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
 
           {/* ── ROW 2: Relatório Técnico ── */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
             <SectionHeader icon={<FileText size={15} />} title="Relatório Técnico de Execução" />
 
             {/* Timeline bar */}
@@ -975,7 +981,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             const reason = fd.impediment_reason || fd.blockReason || order.notes?.replace('IMPEDIMENTO: ', '') || 'Sem motivo detalhado.';
             const blockPhoto = fd.blockPhotoUrl;
             return (
-              <div className="bg-red-50 rounded-2xl border border-red-100 shadow-sm p-6 sm:p-8">
+              <div className="bg-red-50 rounded-3xl border border-red-100 shadow-md shadow-red-100/50 p-8 sm:p-10">
                 <SectionHeader icon={<ShieldAlert size={15} />} title="Aviso de Impedimento" color="text-red-600" />
                 <p className="text-sm font-bold text-red-800 italic mb-4">"{reason}"</p>
                 {blockPhoto && (
@@ -991,7 +997,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
           {/* ── PEÇAS E VALORES ── */}
           {order.showValueToClient && order.items && order.items.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
               <div className="p-6 sm:p-8">
                 <SectionHeader icon={<Package size={15} />} title="Peças e Materiais Aplicados" />
                 <div className="rounded-xl border border-slate-100 overflow-hidden">
@@ -1102,7 +1108,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
             if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl && !fd.videoUrl && !fd.video_url && allValidPhotos.length === 0) return null;
             return (
-              <div className="bg-white rounded-2xl border border-indigo-200 shadow-lg shadow-slate-200/50 overflow-hidden">
+              <div className="bg-white rounded-3xl border border-indigo-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
                 <div className="flex items-center justify-between px-6 sm:px-8 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
@@ -1225,7 +1231,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               findFd('cpf');
 
             return (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
                 <SectionHeader icon={<CheckCircle2 size={15} />} title="Validação e Assinaturas" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
@@ -1315,12 +1321,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 src={fullscreenImage}
                 controls
                 autoPlay
-                className="max-w-full max-h-full rounded-2xl shadow-2xl"
+                className="max-w-full max-h-full rounded-3xl shadow-2xl"
               />
             ) : (
               <img
                 src={fullscreenImage}
-                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                className="max-w-full max-h-full object-contain rounded-3xl shadow-2xl"
                 alt="Visualização"
               />
             )}
@@ -1333,7 +1339,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 };
 

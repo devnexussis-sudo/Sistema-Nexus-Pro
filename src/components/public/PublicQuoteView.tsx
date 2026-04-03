@@ -526,12 +526,19 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     );
 
     return (
-        <>
+        <div className="public-view-wrapper">
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+                .public-view-wrapper, .public-view-wrapper * {
+                    font-family: 'Poppins', sans-serif !important;
+                }
+            `}</style>
+            
             <div className="hidden print:!block">
                 <PrintLayout />
             </div>
 
-            <div className="min-h-screen bg-[#F0F2F5] font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
+            <div className="min-h-screen bg-slate-50 font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
                 {/* ── TOP ACCENT BAR ── */}
                 <div className="h-1 w-full bg-gradient-to-r from-[#1c2d4f] via-[#3e5b99] to-[#1c2d4f]" />
 
@@ -630,19 +637,16 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     }`} />
                                 {quote.status}
                             </div>
-                            <div className="px-2.5 py-1 bg-white/10 rounded-full text-[8px] font-bold text-white/70 uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
-                                <Calendar size={10} /> Emissão: {new Date(quote.createdAt).toLocaleDateString()}
-                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* ── MAIN CONTENT ── */}
-                <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-6">
+                <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-12 flex flex-col gap-10 print:hidden">
 
                     {/* ── ROW 1: Cliente + Comercial ── */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10">
+                        <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
                             <SectionHeader icon={<User size={15} />} title="Dados do Cliente" />
                             <div className="space-y-3">
                                 <p className="text-lg font-black text-slate-900 uppercase leading-tight">{quote.customerName}</p>
@@ -657,7 +661,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-6 sm:p-8 flex flex-col justify-center">
+                        <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10 flex flex-col justify-center">
                             <SectionHeader icon={<FileText size={15} />} title="Resumo Comercial" />
                             <div className="grid grid-cols-2 gap-y-4 gap-x-6">
                                 <InfoPill
@@ -679,12 +683,12 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     </div>
 
                     {/* ── ROW 2: Tabela de Itens ── */}
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
-                        <div className="p-6 sm:p-8 pb-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
+                        <div className="p-8 sm:p-10 pb-6">
                             <SectionHeader icon={<DollarSign size={15} />} title="Composição de Preços e Serviços" color="text-emerald-600" />
                         </div>
 
-                        <div className="px-6 sm:px-8 pb-8 space-y-3">
+                        <div className="px-8 sm:px-10 pb-10 space-y-4">
                             {quote.items.map((item: any, i: number) => (
                                 <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/50 border border-slate-100 rounded-xl group hover:border-slate-300 transition-all gap-4 sm:gap-0">
                                     <div className="flex items-center gap-4">
@@ -704,8 +708,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             ))}
                         </div>
 
-                        <div className="bg-emerald-50/50 p-6 sm:p-8 border-t border-emerald-100/50 flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 order-2 sm:order-1">
+                        <div className="bg-emerald-50/50 p-8 sm:p-10 border-t border-emerald-100/50 flex flex-col sm:flex-row items-center justify-between gap-6">
+                            <div className="flex items-center gap-4 order-2 sm:order-1">
                                 <ShieldCheck className="text-emerald-500" size={16} />
                                 <p className="text-[8px] font-bold text-emerald-800/60 uppercase tracking-widest max-w-[200px] leading-tight flex-1">
                                     Condições comerciai regidas pela emissora do documento
@@ -747,8 +751,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     {/* ── ACTIONS / STATUS VIEW ── */}
 
                     {quote.status === 'REJEITADO' && (
-                        <div className="bg-rose-50 border border-rose-100 rounded-2xl p-6 sm:p-8 shadow-sm flex flex-col items-center justify-center text-center">
-                            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center mb-4"><XCircle size={20} /></div>
+                        <div className="bg-rose-50 border border-rose-100 rounded-3xl p-8 sm:p-10 shadow-sm flex flex-col items-center justify-center text-center">
+                            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-6"><XCircle size={24} /></div>
                             <h3 className="text-sm font-black text-rose-800 uppercase tracking-widest mb-2">Proposta Formalmente Recusada</h3>
                             <p className="text-xs font-bold text-rose-600/70 italic uppercase max-w-lg mb-4">
                                 {quote.notes?.replace('MOTIVO DA RECUSA: ', '') || 'Nenhum motivo específico informado.'}
@@ -757,7 +761,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     )}
 
                     {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO') && (
-                        <div className="bg-white rounded-2xl border border-emerald-100 shadow-lg shadow-slate-200/50 p-6 sm:p-8 overflow-hidden relative">
+                        <div className="bg-white rounded-3xl border border-emerald-100 shadow-2xl shadow-emerald-100/30 p-8 sm:p-10 overflow-hidden relative">
                             {/* Background hint */}
                             <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
                                 <CheckCircle size={120} className="text-emerald-600" />
@@ -791,7 +795,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
                     {/* AREA DE RECUSA TEMÁTICA - Form */}
                     {isRejectMode && (
-                        <div className="bg-white border-2 border-rose-100 rounded-2xl shadow-xl shadow-rose-100/20 p-6 sm:p-8 animate-fade-in-up print:hidden">
+                        <div className="bg-white border-2 border-rose-100 rounded-3xl shadow-2xl shadow-rose-100/30 p-8 sm:p-10 animate-fade-in-up print:hidden">
                             <SectionHeader icon={<XCircle size={15} />} title="Formalizar Recusa da Proposta" color="text-rose-600" />
 
                             <div className="space-y-6">
@@ -856,7 +860,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
                     {/* AREA DE APROVAÇÃO - Form */}
                     {isApproveMode && (
-                        <div className="bg-white border-2 border-emerald-100 rounded-2xl shadow-xl shadow-emerald-100/20 p-6 sm:p-8 animate-fade-in-up print:hidden">
+                        <div className="bg-white border-2 border-emerald-100 rounded-3xl shadow-2xl shadow-emerald-100/30 p-8 sm:p-10 animate-fade-in-up print:hidden">
                             <SectionHeader icon={<ShieldCheck size={15} />} title="Aprovação Segura de Proposta Comercial" color="text-emerald-600" />
 
                             <div className="space-y-6">
@@ -944,7 +948,6 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     </div>
                 </footer>
 
-                {/* ── LIGHTBOX (Opcional para Assinatura) ── */}
                 {fullscreenImage && (
                     <div
                         className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
@@ -952,7 +955,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     >
                         <img
                             src={fullscreenImage}
-                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                            className="max-w-full max-h-full object-contain rounded-3xl shadow-2xl"
                             alt="Visualização"
                         />
                         <button
@@ -964,7 +967,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     </div>
                 )}
             </div>
-        </>
+        </div>
     );
 };
 
