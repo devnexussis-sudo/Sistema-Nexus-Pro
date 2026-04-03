@@ -493,85 +493,66 @@ export const StockManagement: React.FC = () => {
     };
 
     return (
-        <div className="p-4 pr-8 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
-            {/* Toolbar Externa */}
-            <div className="mb-4 flex flex-wrap gap-4 items-center justify-between pr-2">
+        <div className="p-4 pr-8 animate-fade-in">
+            <div className="mb-6 flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between pr-2">
                 {/* Tabs */}
-                <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-lg shadow-slate-200/50 shrink-0 overflow-x-auto max-w-full">
-                    <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <List size={14} /> Itens
+                <div className="flex bg-[#f8fafc] p-1.5 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/40 shrink-0 overflow-x-auto max-w-full">
+                    <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-lg shadow-primary-900/20' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                        <List size={14} /> Itens em Estoque
                     </button>
-                    <button onClick={() => setActiveTab('categories')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'categories' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <button onClick={() => setActiveTab('categories')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'categories' ? 'bg-[#10b981] text-white shadow-lg shadow-emerald-900/20' : 'text-slate-500 hover:text-emerald-600 hover:bg-white'}`}>
                         <Tag size={14} /> Categorias
                     </button>
-                    <button onClick={() => setActiveTab('techs')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'techs' ? 'bg-amber-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <button onClick={() => setActiveTab('techs')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'techs' ? 'bg-[#f59e0b] text-white shadow-lg shadow-amber-900/20' : 'text-slate-500 hover:text-amber-600 hover:bg-white'}`}>
                         <Box size={14} /> Estoque Técnico
                     </button>
-                    <button onClick={() => setActiveTab('movements')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'movements' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <Scale size={14} /> Movimentações
+                    <button onClick={() => setActiveTab('movements')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'movements' ? 'bg-slate-800 text-white shadow-lg shadow-slate-900/20' : 'text-slate-500 hover:text-slate-800 hover:bg-white'}`}>
+                        <Scale size={14} /> Auditoria / Logs
                     </button>
                 </div>
 
-                {/* Search & Actions Container */}
-                <div className="flex flex-1 items-center gap-3 w-full lg:w-auto">
-                    {/* Search */}
-                    {activeTab === 'items' ? (
-                        <div className="relative flex-1 min-w-0">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Pesquisar..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
-                            />
-                        </div>
-                    ) : <div className="flex-1 lg:hidden"></div>}
-
-                    {/* Filters & Actions */}
-                    <div className="flex items-center gap-2 shrink-0">
-                        <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className={`flex items-center gap-2 px-4 h-[42px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
-                        >
-                            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
-                        </button>
-
-                        {showFilters && activeTab === 'items' && (
-                            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px]">
-                                    <Filter size={14} className="text-slate-400 mr-2" />
-                                    <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none max-w-[100px] cursor-pointer">
-                                        <option value="ALL">Categorias</option>
-                                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                    </select>
-                                </div>
-                                <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px]">
-                                    <AlertTriangle size={14} className="text-slate-400 mr-2" />
-                                    <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer">
-                                        <option value="ALL">Status</option>
-                                        <option value="GOOD">Regular</option>
-                                        <option value="LOW">Baixo</option>
-                                        <option value="OUT">Zerado</option>
-                                    </select>
-                                </div>
-                                <button
-                                    onClick={() => { setSearchTerm(''); setCategoryFilter('ALL'); setStatusFilter('ALL'); }}
-                                    className="px-4 py-2 text-[9px] font-bold uppercase text-slate-400 hover:text-[#1c2d4f] transition-colors"
-                                >
-                                    Limpar
-                                </button>
+                <div className="flex items-center gap-4 w-full lg:w-auto">
+                    <div className="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-md flex-1 lg:flex-none">
+                        {activeTab === 'items' && (
+                            <div className="flex items-center gap-3 pl-3 pr-2 border-r border-slate-100 hidden sm:flex">
+                                <Search size={14} className="text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Localizar no estoque..."
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="bg-transparent text-[10px] font-bold uppercase text-slate-700 outline-none w-32 placeholder:text-slate-300"
+                                />
                             </div>
                         )}
 
-                        {(activeTab === 'items' || activeTab === 'categories') && (
-                            <button
-                                onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
-                                className={`flex items-center justify-center gap-2 px-6 h-[42px] rounded-xl text-[10px] font-bold uppercase shadow-md hover:-translate-y-0.5 transition-all text-white active:scale-95 whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] hover:bg-[#253a66]' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-                            >
-                                <Plus size={16} /> {activeTab === 'items' ? 'Novo Item' : 'Nova Categoria'}
-                            </button>
+                        {activeTab === 'items' && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors hidden md:flex">
+                                <Filter size={12} className="text-slate-400" />
+                                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="bg-transparent text-[9px] font-black uppercase text-slate-600 outline-none cursor-pointer">
+                                    <option value="ALL">Categoria</option>
+                                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                </select>
+                            </div>
                         )}
+
+                        <div className="flex items-center gap-2 shrink-0">
+                            <button
+                                onClick={() => setIsRestockModalOpen(true)}
+                                className="flex items-center gap-2 px-5 h-[38px] rounded-xl text-[10px] font-black uppercase shadow-lg shadow-primary-900/10 bg-[#1c2d4f] text-white hover:bg-[#253a66] hover:-translate-y-0.5 transition-all active:scale-95 whitespace-nowrap"
+                            >
+                                <Scale size={14} /> Entrada
+                            </button>
+
+                            {(activeTab === 'items' || activeTab === 'categories') && (
+                                <button
+                                    onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
+                                    className={`flex items-center gap-2 px-5 h-[38px] rounded-xl text-[10px] font-black uppercase shadow-lg hover:-translate-y-0.5 transition-all text-white active:scale-95 whitespace-nowrap ${activeTab === 'items' ? 'bg-[#10b981] shadow-emerald-900/10' : 'bg-[#1c2d4f] shadow-primary-900/10'}`}
+                                >
+                                    <Plus size={14} /> {activeTab === 'items' ? 'Novo Cadastro' : 'Nova Categoria'}
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -583,16 +564,16 @@ export const StockManagement: React.FC = () => {
                         {/* Items Table */}
                         <div className="flex-1 overflow-auto custom-scrollbar">
                             <table className="w-full border-separate border-spacing-y-0">
-                                <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
-                                    <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left font-poppins">
-                                        <th className="px-4 py-2">Item</th>
-                                        <th className="px-4 py-2">Descrição</th>
-                                        <th className="px-4 py-2">Localização</th>
-                                        <th className="px-4 py-2 text-center">Qtd.</th>
-                                        <th className="px-4 py-2 text-right whitespace-nowrap">Custo Total</th>
-                                        <th className="px-4 py-2 text-right">Venda</th>
-                                        <th className="px-4 py-2 text-center">Margem</th>
-                                        <th className="px-4 py-3 text-right pr-6">Ações</th>
+                                <thead className="sticky top-0 z-20 shadow-md">
+                                    <tr className="bg-[#1c2d4f] text-[10px] font-black text-white uppercase tracking-[0.15em] text-left">
+                                        <th className="px-6 py-5 first:rounded-tl-[2rem]">Identificação / SKU</th>
+                                        <th className="px-6 py-5">Descrição do Produto</th>
+                                        <th className="px-6 py-5">Localização</th>
+                                        <th className="px-6 py-5 text-center">Saldo</th>
+                                        <th className="px-6 py-5 text-right whitespace-nowrap">Avaliação Custo</th>
+                                        <th className="px-6 py-5 text-right whitespace-nowrap">Venda Público</th>
+                                        <th className="px-6 py-5 text-center">Rentabilidade</th>
+                                        <th className="px-6 py-5 text-right pr-10 last:rounded-tr-[2rem]">Gestão</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1048,276 +1029,281 @@ export const StockManagement: React.FC = () => {
 
             {/* ITEM MODAL */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-4 sm:p-8 animate-fade-in">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-[95vw] lg:max-w-6xl shadow-2xl overflow-hidden animate-scale-up border border-white/50 flex flex-col max-h-[90vh]">
-                        <div className="px-10 py-8 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 animate-fade-in">
+                    <div className="bg-white rounded-[2rem] w-full max-w-[95vw] lg:max-w-6xl h-[92vh] shadow-2xl overflow-hidden animate-scale-up border border-slate-200 flex flex-col">
+                        {/* MODAL HEADER */}
+                        <div className="px-10 py-6 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
                             <div className="flex items-center gap-5">
-                                <div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary-600/20">
+                                <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-[#1c2d4f] border border-slate-200 shadow-sm">
                                     <Package size={24} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter  leading-none">{editingItem ? 'Editar Item' : 'Novo Item'}</h2>
-                                    <p className="text-[10px] font-black text-primary-500 uppercase tracking-widest mt-1 ">Cadastro de Estoque</p>
+                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none">
+                                        {editingItem ? `Editar Item: ${editingItem.code}` : 'Novo Cadastro de Produto'}
+                                    </h2>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                        Nexus Gestão de Materiais • Estoque Geral
+                                    </p>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:border-rose-200 transition-all shadow-sm"
-                            >
-                                <X size={20} />
-                            </button>
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="p-3 bg-slate-50 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all border border-slate-200 hover:border-rose-200 shadow-sm"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-10 overflow-y-auto custom-scrollbar flex-1">
-                            <div className="grid grid-cols-12 gap-8">
-                                <div className="col-span-12 lg:col-span-7 space-y-8">
-                                    <div className="bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100 space-y-6">
-                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest  flex items-center gap-2"><Box size={14} /> Identificação</h3>
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <div className="space-y-1.5">
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Código Interno</span>
-                                                <div className="relative">
+                        {/* MODAL BODY */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/30">
+                            <form onSubmit={handleSubmit} id="stock-item-form" className="p-10">
+                                <div className="grid grid-cols-12 gap-8 max-w-6xl mx-auto">
+                                    {/* LEFT COLUMN: IDENTIFICATION & LOGISTICS */}
+                                    <div className="col-span-12 lg:col-span-7 space-y-8">
+                                        {/* SECTION: IDENTIFICAÇÃO */}
+                                        <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">
+                                            <h3 className="text-sm font-black text-slate-900 border-l-4 border-[#1c2d4f] pl-3 uppercase">Informações Básicas</h3>
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Código Interno (SKU)</label>
+                                                    <div className="relative group">
+                                                        <Input
+                                                            value={formData.code}
+                                                            onChange={e => setFormData({ ...formData, code: e.target.value })}
+                                                            className="rounded-xl border-slate-200 font-bold bg-slate-50/50 focus:bg-white pr-12 h-12"
+                                                            required
+                                                            placeholder="Ex: STK-00001"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={generateCode}
+                                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-400 hover:text-primary-600 p-2 hover:bg-primary-50 rounded-lg transition-all"
+                                                            title="Gerar Cód. Aleatório"
+                                                        >
+                                                            <Wand2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Ref. Fabricante / Código Externo</label>
                                                     <Input
-                                                        value={formData.code}
-                                                        onChange={e => setFormData({ ...formData, code: e.target.value })}
-                                                        className="rounded-xl border-slate-200 font-bold bg-white pr-10"
-                                                        required
-                                                        placeholder="Ex: NEX-001"
+                                                        value={formData.externalCode}
+                                                        onChange={e => setFormData({ ...formData, externalCode: e.target.value })}
+                                                        className="rounded-xl border-slate-200 font-bold bg-slate-50/50 focus:bg-white h-12"
+                                                        placeholder="EAN / Part Number..."
+                                                        icon={<Barcode size={16} className="text-slate-400" />}
                                                     />
-                                                    <button
-                                                        type="button"
-                                                        onClick={generateCode}
-                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-400 hover:text-primary-600 p-1.5 hover:bg-primary-50 rounded-lg transition-colors"
-                                                        title="Gerar Código Automático"
-                                                    >
-                                                        <Wand2 size={14} />
-                                                    </button>
                                                 </div>
                                             </div>
-                                            <div className="space-y-1.5">
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Cód. Terceiro / Fabricante</span>
+
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome / Descrição Detalhada</label>
                                                 <Input
-                                                    value={formData.externalCode}
-                                                    onChange={e => setFormData({ ...formData, externalCode: e.target.value })}
-                                                    className="rounded-xl border-slate-200 font-bold bg-white text-slate-600"
-                                                    placeholder="Ref. Fabricante..."
-                                                    icon={<Barcode size={14} className="text-slate-300" />}
+                                                    value={formData.description}
+                                                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                                    className="rounded-xl border-slate-200 font-black bg-white h-14 text-sm shadow-inner"
+                                                    required
+                                                    placeholder="Digite o nome completo do produto ou peça..."
                                                 />
                                             </div>
-                                        </div>
 
-                                        <div className="space-y-1.5">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Descrição do Produto</span>
-                                            <Input
-                                                value={formData.description}
-                                                onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                                className="rounded-xl border-slate-200 font-bold bg-white text-lg"
-                                                required
-                                                placeholder="Nome completo do item..."
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <div className="space-y-1.5">
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Categoria</span>
-                                                <select
-                                                    value={formData.category}
-                                                    onChange={e => setFormData({ ...formData, category: e.target.value })}
-                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all uppercase"
-                                                >
-                                                    <option value="">Sem Categoria</option>
-                                                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                                </select>
-                                                {/* Fallback to text input if user wants to type? Maybe not for strict data. Keeping select for now. */}
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Unidade de Medida</span>
-                                                <select
-                                                    value={formData.unit}
-                                                    onChange={e => setFormData({ ...formData, unit: e.target.value as any })}
-                                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all uppercase"
-                                                >
-                                                    <option value="UN">Unidade (UN)</option>
-                                                    <option value="CX">Caixa (CX)</option>
-                                                    <option value="PCT">Pacote (PCT)</option>
-                                                    <option value="M">Metros (M)</option>
-                                                    <option value="CM">Centímetros (CM)</option>
-                                                    <option value="KG">Quilos (KG)</option>
-                                                    <option value="G">Gramas (G)</option>
-                                                    <option value="L">Litros (L)</option>
-                                                    <option value="ML">Mililitros (ML)</option>
-                                                    <option value="M2">Metros² (M²)</option>
-                                                    <option value="M3">Metros³ (M³)</option>
-                                                    <option value="PAR">Par (PAR)</option>
-                                                    <option value="CJ">Conjunto (CJ)</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-3 gap-6">
-                                        <div className="space-y-1.5">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Localização</span>
-                                            <Input
-                                                value={formData.location}
-                                                onChange={e => setFormData({ ...formData, location: e.target.value })}
-                                                className="rounded-xl border-slate-200 font-bold"
-                                                placeholder="Corredor / Prateleira"
-                                            />
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Qtd Atual</span>
-                                            <Input
-                                                type="number"
-                                                value={formData.quantity}
-                                                onChange={e => setFormData({ ...formData, quantity: e.target.value })}
-                                                onFocus={(e) => e.target.select()}
-                                                className="rounded-xl border-slate-200 font-bold text-center"
-                                                required
-                                            />
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Alerta Mínimo</span>
-                                            <Input
-                                                type="number"
-                                                value={formData.minQuantity}
-                                                onChange={e => setFormData({ ...formData, minQuantity: e.target.value })}
-                                                onFocus={(e) => e.target.select()}
-                                                className="rounded-xl border-slate-200 font-bold text-rose-500 text-center"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="col-span-12 lg:col-span-5 space-y-8 flex flex-col h-full">
-                                    <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 flex-1 flex flex-col gap-8">
-                                        <div className="flex-1 space-y-6">
-                                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest  flex items-center gap-2"><DollarSign size={14} /> Composição de Custo</h3>
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <span className="text-[9px] font-black text-slate-500 uppercase w-24">Valor Compra</span>
-                                                    <div className="flex-1 relative">
-                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">R$</span>
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            value={formData.costPrice}
-                                                            onChange={e => setFormData({ ...formData, costPrice: e.target.value })}
-                                                            onFocus={(e) => e.target.select()}
-                                                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-primary-300"
-                                                        />
-                                                    </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Categoria de Estoque</label>
+                                                    <select
+                                                        value={formData.category}
+                                                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-[11px] font-black text-slate-700 focus:ring-4 focus:ring-primary-100 focus:border-[#1c2d4f] transition-all outline-none uppercase cursor-pointer"
+                                                    >
+                                                        <option value="">Sem Categoria Definida</option>
+                                                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                                    </select>
                                                 </div>
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <span className="text-[9px] font-black text-slate-500 uppercase w-24">Frete / Logística</span>
-                                                    <div className="flex-1 relative">
-                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">R$</span>
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            value={formData.freightCost}
-                                                            onChange={e => setFormData({ ...formData, freightCost: e.target.value })}
-                                                            onFocus={(e) => e.target.select()}
-                                                            className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-primary-300"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <span className="text-[9px] font-black text-slate-500 uppercase w-24">Taxas / Impostos</span>
-                                                    <div className="flex-1 relative">
-                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-bold">%</span>
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            value={formData.taxPercent}
-                                                            onChange={e => setFormData({ ...formData, taxPercent: e.target.value })}
-                                                            onFocus={(e) => e.target.select()}
-                                                            className="w-full pl-4 pr-8 py-2.5 rounded-xl border border-slate-200 text-xs font-bold outline-none focus:border-primary-300"
-                                                            placeholder="0.00"
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="pt-4 border-t border-slate-200 mx-2">
-                                                    <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-lg shadow-slate-200/50">
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase">Custo Total</span>
-                                                        <span className="text-base font-black text-slate-700">R$ {calculateTotalCost(formData).toFixed(2)}</span>
-                                                    </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Unidade de Controle</label>
+                                                    <select
+                                                        value={formData.unit}
+                                                        onChange={e => setFormData({ ...formData, unit: e.target.value as any })}
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-[11px] font-black text-slate-700 focus:ring-4 focus:ring-primary-100 focus:border-[#1c2d4f] transition-all outline-none uppercase cursor-pointer"
+                                                    >
+                                                        <option value="UN">Unidade (UN)</option>
+                                                        <option value="CX">Caixa (CX)</option>
+                                                        <option value="PCT">Pacote (PCT)</option>
+                                                        <option value="M">Metros (M)</option>
+                                                        <option value="KG">Quilos (KG)</option>
+                                                        <option value="G">Gramas (G)</option>
+                                                        <option value="L">Litros (L)</option>
+                                                        <option value="ML">Mililitros (ML)</option>
+                                                        <option value="PAR">Par (PAR)</option>
+                                                    </select>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-6">
-                                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest  flex items-center gap-2"><Scale size={14} /> Estratégia de Venda</h3>
-
-                                            <div className="relative group">
-                                                <label className="absolute -top-2.5 left-4 bg-slate-50 px-2 text-[9px] font-black text-emerald-600 uppercase">Preço Final</label>
-                                                <div className="relative">
-                                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-400 text-sm font-bold">R$</span>
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={formData.sellPrice}
-                                                        onChange={e => setFormData({ ...formData, sellPrice: e.target.value })}
-                                                        onFocus={(e) => e.target.select()}
-                                                        className="w-full pl-10 pr-6 py-4 rounded-2xl border-2 border-emerald-100 text-xl font-black text-emerald-700 outline-none focus:border-emerald-300 focus:shadow-xl focus:shadow-emerald-100 transition-all"
+                                        {/* SECTION: ARMAZENAMENTO */}
+                                        <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">
+                                            <h3 className="text-sm font-black text-slate-900 border-l-4 border-amber-500 pl-3 uppercase">Controle e Localização</h3>
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Endereço / Localização</label>
+                                                    <Input
+                                                        value={formData.location}
+                                                        onChange={e => setFormData({ ...formData, location: e.target.value })}
+                                                        className="rounded-xl border-slate-200 font-bold h-12"
+                                                        placeholder="Ex: A-10 / P-02"
                                                     />
                                                 </div>
-                                            </div>
-
-                                            <div className="flex justify-between items-center px-2">
-                                                <div className="flex-1 mr-4">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Margem Desejada (%)</span>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Saldo em Estoque</label>
                                                     <div className="relative">
-                                                        <input
+                                                        <Input
                                                             type="number"
-                                                            step="0.1"
-                                                            placeholder="0.0"
-                                                            onChange={(e) => {
-                                                                const margin = Number(e.target.value);
-                                                                const totalCost = calculateTotalCost(formData);
-                                                                // Sell = Cost * (1 + Margin/100)
-                                                                if (margin >= 0) {
-                                                                    const newSellPrice = totalCost * (1 + (margin / 100));
-                                                                    setFormData({ ...formData, sellPrice: parseFloat(newSellPrice.toFixed(2)) });
-                                                                }
-                                                            }}
+                                                            value={formData.quantity}
+                                                            onChange={e => setFormData({ ...formData, quantity: e.target.value })}
                                                             onFocus={(e) => e.target.select()}
-                                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:border-primary-300 bg-white"
+                                                            className="rounded-xl border-slate-200 font-black h-12 text-center text-lg bg-slate-50"
+                                                            required
                                                         />
-                                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
+                                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400">{formData.unit}</span>
                                                     </div>
                                                 </div>
-
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase mb-1">Margem Real</span>
-                                                    <div className={`px-4 py-2 rounded-lg flex items-center gap-2 ${calculateMargin(formData) > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                                        {calculateMargin(formData) >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                                                        <span className="text-sm font-black">{calculateMargin(formData).toFixed(1)}%</span>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Alerta de Reposição</label>
+                                                    <div className="relative">
+                                                        <Input
+                                                            type="number"
+                                                            value={formData.minQuantity}
+                                                            onChange={e => setFormData({ ...formData, minQuantity: e.target.value })}
+                                                            onFocus={(e) => e.target.select()}
+                                                            className="rounded-xl border-rose-200 font-black h-12 text-center text-lg text-rose-600 bg-rose-50/30"
+                                                        />
+                                                        <AlertTriangle size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-400" />
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
 
-                            <div className="p-8 border-t border-slate-200 bg-slate-50/50 flex justify-end gap-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="px-8 py-3 rounded-xl font-black text-[10px] uppercase text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all tracking-wider"
-                                >
-                                    Cancelar Operação
-                                </button>
-                                <button
-                                    onClick={handleSubmit}
-                                    className="px-10 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-primary-600/20 bg-primary-600 text-white hover:bg-primary-700 hover:-translate-y-0.5 transition-all tracking-wider flex items-center gap-2"
-                                >
-                                    <Save size={16} /> Salvar Cadastro
-                                </button>
-                            </div>
-                        </form>
+                                    {/* RIGHT COLUMN: FINANCIAL / SIDEBAR STYLE */}
+                                    <div className="col-span-12 lg:col-span-5 space-y-8 flex flex-col">
+                                        <div className="bg-[#1c2d4f] p-10 rounded-[2.5rem] text-white shadow-2xl shadow-primary-900/40 relative overflow-hidden flex-1 flex flex-col gap-8">
+                                            {/* Decorative Background */}
+                                            <div className="absolute top-0 right-0 p-8 opacity-10">
+                                                <DollarSign size={120} />
+                                            </div>
+                                            
+                                            <div className="relative z-10 space-y-8 flex-1">
+                                                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-primary-300 border-b border-white/10 pb-4 flex items-center gap-3">
+                                                    <DollarSign size={16} /> Composição Financeira
+                                                </h3>
+
+                                                <div className="space-y-6">
+                                                    <div className="flex items-center justify-between group">
+                                                        <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Preço de Compra</span>
+                                                        <div className="relative flex-1 max-w-[160px]">
+                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-[10px] text-white/40">R$</span>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={formData.costPrice}
+                                                                onChange={e => setFormData({ ...formData, costPrice: e.target.value })}
+                                                                onFocus={(e) => e.target.select()}
+                                                                className="w-full bg-white/10 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-xs font-black text-white outline-none focus:bg-white/20 focus:border-primary-400 transition-all text-right"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between group">
+                                                        <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Frete / Logística</span>
+                                                        <div className="relative flex-1 max-w-[160px]">
+                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-[10px] text-white/40">R$</span>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={formData.freightCost}
+                                                                onChange={e => setFormData({ ...formData, freightCost: e.target.value })}
+                                                                onFocus={(e) => e.target.select()}
+                                                                className="w-full bg-white/10 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-xs font-black text-white outline-none focus:bg-white/20 focus:border-primary-400 transition-all text-right"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between group">
+                                                        <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Impostos (%)</span>
+                                                        <div className="relative flex-1 max-w-[160px]">
+                                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-[10px] text-white/40">%</span>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={formData.taxPercent}
+                                                                onChange={e => setFormData({ ...formData, taxPercent: e.target.value })}
+                                                                onFocus={(e) => e.target.select()}
+                                                                className="w-full bg-white/10 border border-white/10 rounded-xl pl-4 pr-8 py-3 text-xs font-black text-white outline-none focus:bg-white/20 focus:border-primary-400 transition-all text-right"
+                                                                placeholder="0.00"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="pt-8 border-t border-white/10 mt-2">
+                                                        <div className="flex justify-between items-center bg-white/10 p-5 rounded-2xl border border-white/5">
+                                                            <span className="text-[10px] font-black text-primary-200 uppercase tracking-widest">Custo Operacional Total</span>
+                                                            <span className="text-xl font-black text-white tracking-tight">
+                                                                R$ {calculateTotalCost(formData).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-6 pt-10">
+                                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400 border-b border-white/10 pb-4 flex items-center gap-3">
+                                                        <TrendingUp size={16} /> Preço Final de Venda
+                                                    </h3>
+
+                                                    <div className="relative">
+                                                        <label className="absolute -top-2.5 left-4 px-2 text-[9px] font-black text-emerald-400 uppercase tracking-widest z-10 bg-[#1c2d4f]">Marcação de Mercado</label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-black text-emerald-400 opacity-50">R$</span>
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={formData.sellPrice}
+                                                                onChange={e => setFormData({ ...formData, sellPrice: e.target.value })}
+                                                                onFocus={(e) => e.target.select()}
+                                                                className="w-full pl-16 pr-8 py-6 rounded-[1.5rem] border-2 border-emerald-500/30 bg-white/5 text-3xl font-black text-emerald-400 outline-none focus:border-emerald-500 focus:bg-white/10 transition-all text-right"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center gap-4 bg-emerald-500/10 border border-emerald-500/20 p-5 rounded-2xl">
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-emerald-400/70 uppercase mb-1">Margem Real Estimada</p>
+                                                            <p className="text-2xl font-black text-emerald-400">{calculateMargin(formData).toFixed(2)}%</p>
+                                                        </div>
+                                                        <div className={`p-3 rounded-xl ${calculateMargin(formData) > 30 ? 'bg-emerald-500 text-white' : (calculateMargin(formData) > 0 ? 'bg-amber-500 text-white' : 'bg-rose-500 text-white')}`}>
+                                                            {calculateMargin(formData) >= 0 ? <TrendingUp size={24} /> : <TrendingDown size={24} />}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="shrink-0 pt-8 mt-auto flex flex-col gap-4">
+                                                <button
+                                                    type="submit"
+                                                    className="w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl bg-emerald-500 text-white hover:bg-emerald-600 hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-3 shadow-emerald-900/40"
+                                                >
+                                                    <Save size={20} /> Efetivar Registro
+                                                </button>
+                                                <p className="text-[8px] text-center text-white/30 uppercase font-black tracking-widest">Certificado Duno Audit Trail • 2026</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1326,11 +1312,21 @@ export const StockManagement: React.FC = () => {
             {isCategoryModalOpen && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-4 sm:pt-20 animate-fade-in">
                     <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-scale-up border border-white/50">
-                        <div className="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-                            <h2 className="text-lg font-black text-slate-800 uppercase ">
-                                {editingCategory ? 'Editar Categoria' : 'Nova Categoria'}
-                            </h2>
-                            <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-rose-500">
+                        <div className="px-8 py-6 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 border border-emerald-100 shadow-sm">
+                                    <Tag size={20} />
+                                </div>
+                                <div>
+                                    <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight leading-none">
+                                        {editingCategory ? 'Modificar Categoria' : 'Nova Classificação'}
+                                    </h2>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                        Nexus Organizational Structure
+                                    </p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsCategoryModalOpen(false)} className="p-2 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-all">
                                 <X size={20} />
                             </button>
                         </div>
