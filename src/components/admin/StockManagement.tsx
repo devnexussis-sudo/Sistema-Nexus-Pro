@@ -250,10 +250,10 @@ export const StockManagement: React.FC = () => {
     const handleOpenModal = (item?: StockItem) => {
         if (item) {
             setEditingItem(item);
-            // Reverse calculate tax percent based on Sell Price (New Policy)
-            const sell = item.sellPrice || 0;
+            // Reverse calculate tax percent for editing (Policy: Base on Cost Price)
+            const cost = item.costPrice || 0;
             const tax = item.taxCost || 0;
-            const percent = sell > 0 ? (tax / sell) * 100 : 0;
+            const percent = cost > 0 ? (tax / cost) * 100 : 0;
 
             setFormData({
                 ...item,
@@ -306,8 +306,8 @@ export const StockManagement: React.FC = () => {
                 // BUT for UI state I need to persist the percentage to restore it properly on edit?
                 // If I save only taxCost, when I edit, I have to reverse calculate %: (Tax / Cost) * 100.
                 // That works.
-                // Tax burden starts to be calculated on the SELLING PRICE as requested
-                taxCost: (Number(formData.sellPrice) || 0) * ((Number(formData.taxPercent) || 0) / 100)
+                // Tax burden calculated on the COST PRICE (Purchase Price) as requested
+                taxCost: (Number(formData.costPrice) || 0) * ((Number(formData.taxPercent) || 0) / 100)
             } as StockItem;
 
             if (editingItem) {
@@ -483,11 +483,11 @@ export const StockManagement: React.FC = () => {
     const calculateTotalCost = (item: any) => {
         const cost = Number(item.costPrice) || 0;
         const freight = Number(item.freightCost) || 0;
-        const sell = Number(item.sellPrice) || 0;
+        
         // Prioritizamos o cálculo dinâmico via porcentagem se ela existir (modo edição/formulário)
-        // para que o preview reaja instantaneamente.
+        // para que o preview reaja instantaneamente sobre o PREÇO DE COMPRA.
         const taxVal = (item.taxPercent !== undefined && item.taxPercent !== '')
-            ? (sell * (Number(item.taxPercent) / 100))
+            ? (cost * (Number(item.taxPercent) / 100))
             : (Number(item.taxCost) || 0);
 
         return cost + freight + taxVal;
