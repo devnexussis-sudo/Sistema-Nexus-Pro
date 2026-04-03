@@ -326,9 +326,17 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                         : `Obrigado pelo seu feedback. Registramos a recusa da proposta e notificamos nossa equipe comercial.`
                     }
                 </p>
-                <div className="p-4 sm:p-6 bg-slate-50 rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 mb-8">
-                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Código do Orçamento</p>
-                    <p className="text-lg sm:text-xl font-black text-primary-600 italic tracking-tighter">{quote.displayId || quote.id}</p>
+                <div className="p-4 sm:p-6 bg-slate-50 rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 mb-8 grid grid-cols-2 gap-4 text-left">
+                    <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Código do Orçamento</p>
+                        <p className="text-sm sm:text-base font-black text-[#1c2d4f] italic tracking-tighter break-all">{quote.displayId || quote.id.split('-')[0].toUpperCase()}</p>
+                    </div>
+                    <div className="border-l border-slate-200 pl-4 flex flex-col justify-center">
+                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">{isSuccess ? 'Data da Aprovação' : 'Data da Recusa'}</p>
+                        <p className="text-xs sm:text-sm font-black text-slate-800 tracking-tight">
+                            {quote?.updatedAt ? new Date(quote.updatedAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}
+                        </p>
+                    </div>
                 </div>
                 <div className="flex items-center justify-center gap-2 opacity-50">
                     <NexusBranding size="sm" />
