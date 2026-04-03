@@ -708,7 +708,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             <div className="flex items-center gap-3 order-2 sm:order-1">
                                 <ShieldCheck className="text-emerald-500" size={16} />
                                 <p className="text-[8px] font-bold text-emerald-800/60 uppercase tracking-widest max-w-[200px] leading-tight flex-1">
-                                    Condições Comerciais Regidas pela Nexus Commercial Intelligence
+                                    Condições comerciai regidas pela emissora do documento
                                 </p>
                             </div>
                             <div className="flex flex-col items-center sm:items-end order-1 sm:order-2 gap-1 w-full sm:w-auto">
