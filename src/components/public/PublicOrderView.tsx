@@ -301,7 +301,22 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     fetchCustomerAddress();
   }, [order?.customerName, order?.id]);
 
-  if (!order) return null;
+  if (!order) return (
+    <div className="public-view-wrapper">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+        .public-view-wrapper, .public-view-wrapper * {
+            font-family: 'Poppins', sans-serif !important;
+        }
+      `}</style>
+      <div className="min-h-screen bg-white flex items-center justify-center p-12">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <NexusBranding size="lg" />
+          <p className="text-[10px] font-black uppercase text-slate-300 tracking-widest">Carregando Detalhes da OS...</p>
+        </div>
+      </div>
+    </div>
+  );
 
   const tech = techs.find(t => t.id === order.assignedTo);
   const companyName = tenant?.company_name || tenant?.name || tenant?.companyName || 'Nexus Pro';
@@ -722,7 +737,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     </div>
   );
 
-  if (isPrint) return <PrintLayout />;
+  if (isPrint) return (
+    <div className="public-view-wrapper">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+        .public-view-wrapper, .public-view-wrapper * {
+            font-family: 'Poppins', sans-serif !important;
+        }
+      `}</style>
+      <PrintLayout />
+    </div>
+  );
 
   // ── WEB LAYOUT ─────────────────────────────────────────────────────────────
   return (

@@ -278,12 +278,41 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
         }
     };
 
-    if (loading) return (<div className="min-h-screen bg-white flex items-center justify-center"><img src="/duno-icon.png" alt="Duno" className="h-20 w-auto object-contain animate-pulse" /></div>);
+    const fontStyle = (
+        <style>{`
+            @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+            .public-view-wrapper, .public-view-wrapper * {
+                font-family: 'Poppins', sans-serif !important;
+            }
+        `}</style>
+    );
 
-    if (error || !quote) return (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><div className="bg-white p-10 rounded-[3rem] shadow-xl text-center max-w-sm"><AlertCircle size={48} className="text-rose-500 mx-auto mb-4" /><h2 className="text-xl font-black text-slate-900 uppercase italic mb-2">Acesso Negado</h2><p className="text-xs text-slate-500 font-bold uppercase">{error || 'Esta proposta não está mais disponível.'}</p></div></div>);
+    if (loading) return (
+        <div className="public-view-wrapper">
+            {fontStyle}
+            <div className="min-h-screen bg-white flex items-center justify-center">
+                <img src="/duno-icon.png" alt="Duno" className="h-20 w-auto object-contain animate-pulse" />
+            </div>
+        </div>
+    );
+
+    if (error || !quote) return (
+        <div className="public-view-wrapper">
+            {fontStyle}
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+                <div className="bg-white p-10 rounded-[3rem] shadow-xl text-center max-w-sm">
+                    <AlertCircle size={48} className="text-rose-500 mx-auto mb-4" />
+                    <h2 className="text-xl font-black text-slate-900 uppercase italic mb-2">Acesso Negado</h2>
+                    <p className="text-xs text-slate-500 font-bold uppercase">{error || 'Esta proposta não está mais disponível.'}</p>
+                </div>
+            </div>
+        </div>
+    );
 
     if (isSuccess || isRejected) return (
-        <div className={`min-h-screen ${isSuccess ? 'bg-emerald-500' : 'bg-rose-500'} flex items-center justify-center p-4 sm:p-6 animate-fade-in`}>
+        <div className="public-view-wrapper">
+            {fontStyle}
+            <div className={`min-h-screen ${isSuccess ? 'bg-emerald-500' : 'bg-rose-500'} flex items-center justify-center p-4 sm:p-6 animate-fade-in`}>
             <div className="bg-white p-8 sm:p-12 rounded-[2rem] sm:rounded-[4rem] shadow-2xl text-center max-w-md border-[6px] sm:border-8 border-white/20">
                 <div className={`w-16 h-16 sm:w-24 sm:h-24 ${isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'} rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-center mx-auto mb-6 sm:mb-8 shadow-xl`}>
                     {isSuccess ? <CheckCircle className="w-8 h-8 sm:w-12 sm:h-12" /> : <AlertCircle className="w-8 h-8 sm:w-12 sm:h-12" />}
@@ -480,7 +509,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             ) : (
                                 <span className="text-slate-300 italic text-[10px] font-bold uppercase">Token de Assinatura Certificada</span>
                             )}
-                            <div className="absolute bottom-1 right-2 text-[6px] text-slate-400 uppercase tracking-widest">Nexus Pro Secure Approval</div>
+                            <div className="absolute bottom-1 right-2 text-[6px] text-slate-400 uppercase tracking-widest">Duno Secure Approval</div>
                         </div>
                     </div>
                 </div>
@@ -516,7 +545,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     <p className="text-[7px] font-black text-slate-500 uppercase leading-none">Intelligence for Service Flow Systems</p>
                 </div>
                 <div className="text-right">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-[#1c2d4f] mb-0.5">Escritura Digital Nexus v5.2</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-[#1c2d4f] mb-0.5">Documento digital Duno</p>
                     <p className="text-[7px] uppercase tracking-tight font-medium text-slate-500 max-w-xs ml-auto leading-tight italic">
                         Documento gerado eletronicamente através de provisionamento seguro em nuvem. A assinatura digital contida neste documento ou o registro de aceite no servidor central constituem prova formal de concordância comercial.
                     </p>
@@ -527,12 +556,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
 
     return (
         <div className="public-view-wrapper">
-            <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
-                .public-view-wrapper, .public-view-wrapper * {
-                    font-family: 'Poppins', sans-serif !important;
-                }
-            `}</style>
+            {fontStyle}
             
             <div className="hidden print:!block">
                 <PrintLayout />
