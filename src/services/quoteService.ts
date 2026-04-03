@@ -31,6 +31,7 @@ export const QuoteService = {
             notes: data.notes,
             validUntil: data.valid_until,
             linkedOrderId: data.linked_order_id,
+            rejectionReason: data.rejection_reason || (data.approval_metadata && data.approval_metadata.rejection_reason) || null,
             // Campos de Aprovação
             approvalDocument: data.approval_document,
             approvalBirthDate: data.approval_birth_date,

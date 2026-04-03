@@ -470,6 +470,7 @@ export interface Quote {
   totalValue: number;
   status: 'ABERTO' | 'APROVADO' | 'REJEITADO' | 'CONVERTIDO' | 'PENDENTE';
   notes?: string;
+  rejectionReason?: string;
   validUntil?: string;
   linkedOrderId?: string;
   createdAt: string;

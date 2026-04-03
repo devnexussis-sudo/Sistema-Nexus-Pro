@@ -795,7 +795,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             <div className="mb-8 p-4 bg-rose-50 border border-rose-100 rounded-2xl relative z-10">
                                 <p className="text-[9px] font-black text-rose-800 tracking-widest uppercase mb-1">Motivo da Recusa</p>
                                 <p className="text-xs font-bold text-rose-600/80 italic uppercase">
-                                    {(quote.notes || '').replace(/MOTIVO DA RECUSA:\s*/i, '').trim() || rejectionReason || 'Nenhum motivo específico informado.'}
+                                    {quote.rejectionReason || (quote.notes || '').replace(/MOTIVO DA RECUSA:\s*/i, '').trim() || rejectionReason || 'Nenhum motivo específico informado.'}
                                 </p>
                             </div>
 
