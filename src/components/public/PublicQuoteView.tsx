@@ -258,7 +258,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
         }
     };
 
-    if (loading) return (<div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="flex flex-col items-center gap-4"><Hexagon size={48} className="animate-spin text-primary-600" /><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carregando Proposta Nexus...</p></div></div>);
+    if (loading) return (<div className="min-h-screen bg-white flex items-center justify-center"><img src="/duno-icon.png" alt="Duno" className="h-20 w-auto object-contain animate-pulse" /></div>);
 
     if (error || !quote) return (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><div className="bg-white p-10 rounded-[3rem] shadow-xl text-center max-w-sm"><AlertCircle size={48} className="text-rose-500 mx-auto mb-4" /><h2 className="text-xl font-black text-slate-900 uppercase italic mb-2">Acesso Negado</h2><p className="text-xs text-slate-500 font-bold uppercase">{error || 'Esta proposta não está mais disponível.'}</p></div></div>);
 
@@ -304,36 +304,35 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     const PrintLayout = () => (
         <div className="bg-white text-[12px] leading-relaxed font-poppins p-4 sm:p-6 print:break-inside-avoid min-h-[297mm] w-[210mm] mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
             {/* Header: Company & Quote Info */}
-            <div className="flex justify-between items-start pb-6 border-b-4 border-[#1c2d4f] mb-6">
-                <div className="flex gap-6 items-center">
+            <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
+                <div className="flex gap-4 items-center">
                     {companyLogo
-                        ? <img src={companyLogo} alt="Logo" className="max-h-24 w-auto object-contain" />
-                        : <div className="bg-[#1c2d4f] p-4 rounded-xl flex items-center justify-center min-w-[80px] min-h-[80px]"><Hexagon size={40} className="text-white fill-white/10" /></div>
+                        ? <img src={companyLogo} alt="Logo" className="h-16 w-auto object-contain" />
+                        : <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px] text-white"><Hexagon size={32} className="text-white fill-white/10" /></div>
                     }
                     <div className="space-y-1">
-                        <h1 className="text-2xl font-black text-[#1c2d4f] uppercase tracking-tighter">{companyName}</h1>
-                        <div className="text-[10px] text-slate-600 max-w-[300px] font-medium uppercase leading-snug">
+                        <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
+                        <div className="text-[9px] text-slate-600 max-w-[400px]">
                             {companyAddress && <div>{companyAddress}</div>}
-                            <div className="mt-1">
-                                {companyPhone && <span>TEL: {companyPhone}</span>}
-                                {companyPhone && companyEmail && <span className="mx-2">•</span>}
-                                {companyEmail && <span>{companyEmail}</span>}
+                            <div className="flex gap-3 mt-0.5">
+                                {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
+                                {companyEmail && <span>Email: {companyEmail}</span>}
                             </div>
-                            {companyDoc && <div className="mt-1">CNPJ: {companyDoc}</div>}
+                            {companyDoc && <div className="mt-0.5">CNPJ: {companyDoc}</div>}
                         </div>
                     </div>
                 </div>
-                <div className="text-right flex flex-col items-end">
-                    <div className="bg-slate-50 border-2 border-slate-200 px-6 py-3 rounded-xl min-w-[200px] text-center">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Orçamento N°</div>
-                        <div className="text-3xl font-black text-[#1c2d4f] tracking-tighter leading-none">
-                            {quote.displayId || quote.id.slice(0, 8).toUpperCase()}
+                <div className="text-right">
+                    <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
+                        <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Orçamento N°</div>
+                        <div className="text-2xl font-black text-slate-900 tracking-tighter leading-none">
+                            #{quote.displayId || quote.id.slice(0, 8).toUpperCase()}
                         </div>
                     </div>
-                    <div className="text-[10px] font-bold text-slate-500 mt-3 uppercase">
-                        Emitido em: {new Date(quote.createdAt).toLocaleDateString()}
+                    <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
+                        Emissão: {new Date(quote.createdAt).toLocaleDateString()}
                     </div>
-                    <div className="text-[10px] font-bold text-slate-500 uppercase mt-1">
+                    <div className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">
                         Validade: {quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : 'A combinar'}
                     </div>
                 </div>
@@ -418,7 +417,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                                 R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </span>
                                             <span className="text-[9px] uppercase font-black tracking-widest text-rose-300 mt-1">
-                                                Desconto {type === 'percent' ? `(${disc}%)` : ''}
+                                                Desconto Aplicado {type === 'percent' ? `(${disc}%)` : ''}
                                             </span>
                                             <span className="text-sm font-black text-rose-300">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                             <div className="w-full border-t border-white/20 mt-2 pt-2 text-right">
@@ -455,12 +454,14 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                         <div className="flex flex-col gap-2">
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Responsável pela Aprovação</span>
                             <span className="text-sm font-black text-slate-900 uppercase">{quote.approvedByName}</span>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase">Documento: {quote.approvalDocument}</span>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase">Timestamp: {new Date(quote.approvedAt).toLocaleString('pt-BR')}</span>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Data e hora da assinatura: {new Date(quote.approvedAt).toLocaleString('pt-BR')}</span>
                         </div>
-                        <div className="border border-slate-200 rounded-lg h-24 flex items-center justify-center relative bg-slate-50/50">
+                        <div className="border border-slate-200 rounded-lg h-24 flex flex-col items-center justify-center relative bg-slate-50/50">
                             {quote.approvalSignature ? (
-                                <img src={quote.approvalSignature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                                <>
+                                    <img src={quote.approvalSignature} className="max-h-16 max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                                    <p className="text-[9px] font-black text-slate-900 uppercase mt-1">Assinado por {quote.approvedByName || 'Alex Cruz'}</p>
+                                </>
                             ) : (
                                 <span className="text-slate-300 italic text-[10px] font-bold uppercase">Token de Assinatura Certificada</span>
                             )}
@@ -710,7 +711,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                             </div>
                                             {dv > 0 && (
                                                 <div className="flex justify-between items-center py-1 w-full sm:w-64">
-                                                    <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Desconto</p>
+                                                    <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Desconto Aplicado {type === 'percent' ? `(${disc}%)` : ''}</p>
                                                     <p className="text-sm font-bold text-rose-500 tracking-tight">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                                 </div>
                                             )}
@@ -747,9 +748,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             <SectionHeader icon={<ShieldCheck size={15} />} title="Assinatura e Auditoria Digital" color="text-emerald-700" />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 relative z-10">
                                 <div className="space-y-5">
-                                    <InfoPill label="Assinado por" value={quote.approvedByName || 'Aprovador Online'} />
-                                    <InfoPill label="Documento Verificado" value={quote.approvalDocument || 'N/D'} mono />
-                                    <InfoPill label="Log de Data e Hora (Timestamp)" value={quote.approvedAt ? new Date(quote.approvedAt).toLocaleString() : 'N/D'} mono />
+                                    <InfoPill label="Assinado por" value={quote.approvedByName || 'Alex Cruz'} />
+                                    <InfoPill label="Data e hora da assinatura" value={quote.approvedAt ? new Date(quote.approvedAt).toLocaleString() : 'N/D'} mono />
                                 </div>
                                 <div className="border border-emerald-100 bg-emerald-50/30 rounded-xl p-4 flex flex-col items-center justify-center min-h-[140px]">
                                     {quote.approvalSignature ? (
@@ -760,7 +760,8 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                                 className="max-h-24 w-auto object-contain mix-blend-multiply cursor-zoom-in"
                                                 onClick={() => setFullscreenImage(quote.approvalSignature)}
                                             />
-                                            <p className="text-[7px] text-emerald-600/50 font-mono tracking-widest uppercase mt-2">Visto Eletrônico Válido</p>
+                                            <p className="text-[7px] text-emerald-600/50 font-mono tracking-widest uppercase mt-1">Visto Eletrônico Válido</p>
+                                            <p className="text-[11px] font-black text-emerald-800 uppercase text-center mt-1">Assinado por {quote.approvedByName || 'Alex Cruz'}</p>
                                         </>
                                     ) : (
                                         <p className="text-[9px] font-black text-slate-400 uppercase italic">Assinatura não disponível</p>

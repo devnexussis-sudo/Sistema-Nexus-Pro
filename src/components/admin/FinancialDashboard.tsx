@@ -5,7 +5,7 @@ import {
     Search, X, DollarSign, Calendar, Users, Tag,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
-    TrendingUp, Clock, FileSpreadsheet, ChevronRight, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter
+    TrendingUp, Clock, FileSpreadsheet, ChevronRight, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -192,6 +192,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 value: Number(q.totalValue) || 0,
                 status: (q.billingStatus || 'PENDING').toUpperCase(),
                 original: q,
+                billingDiscount: q.discount || 0,
+                billingDiscountType: q.discountType || 'fixed',
                 technician: 'Administrador'
             }));
 
@@ -230,6 +232,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     value: Number(value),
                     status: (order.billingStatus || 'PENDING').toUpperCase(),
                     original: order,
+                    billingDiscount: order.discount || 0,
+                    billingDiscountType: order.discountType || 'fixed',
                     technician: techObj?.name || order.assignedTo || 'N/A'
                 };
             })
@@ -372,14 +376,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     : rawItem;
 
                 if (item.type === 'ORDER') {
-                    // Atualiza O.S. principal
+                    // Atualiza O.S. principal — preserva desconto original se nenhum extra foi informado
+                    const effectiveDiscount = billingDiscount > 0 ? billingDiscount : (item.original?.discount || 0);
+                    const effectiveDiscountType = billingDiscount > 0 ? billingDiscountType : (item.original?.discountType || 'fixed');
                     await DataService.updateOrder({
                         ...(item.original as ServiceOrder),
                         billingStatus: 'PAID',
                         paymentMethod: finalMethod,
                         billingNotes: billingNotes,
-                        discount: billingDiscount,
-                        discountType: billingDiscountType,
+                        discount: effectiveDiscount,
+                        discountType: effectiveDiscountType,
                         paidAt
                     });
 
@@ -400,13 +406,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     }
                 } else {
                     // Orçamento autônomo faturado
+                    // Usa desconto do billing se informado, senão mantém o desconto original do orçamento
+                    const effectiveDiscount = billingDiscount > 0 ? billingDiscount : (item.original?.discount || 0);
+                    const effectiveDiscountType = billingDiscount > 0 ? billingDiscountType : (item.original?.discountType || 'fixed');
                     await DataService.updateQuote({
                         ...item.original,
                         billingStatus: 'PAID',
                         paymentMethod: finalMethod,
                         billingNotes: billingNotes,
-                        discount: billingDiscount,
-                        discountType: billingDiscountType,
+                        discount: effectiveDiscount,
+                        discountType: effectiveDiscountType,
                         paidAt
                     });
                 }
@@ -451,6 +460,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     // ── Handler de Impressão ──────────────────────────────────────────────────
     const handlePrint = (item: any) => {
+        // DEBUG: ver campos de desconto disponíveis
+        console.log('[PRINT DEBUG] item:', {
+            value: item.value,
+            billingDiscount: item.billingDiscount,
+            billingDiscountType: item.billingDiscountType,
+            'original.discount': item.original?.discount,
+            'original.discountType': item.original?.discountType,
+            'original.totalValue': item.original?.totalValue,
+            fullOriginal: item.original
+        });
         setPrintItem(item);
         setIsPrintModalOpen(true);
     };
@@ -460,9 +479,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     };
 
     const handleExportExcel = () => {
-        const itemsToExport = selectedIds.length > 0 
-            ? filteredItems.filter(i => selectedIds.includes(i.id)) 
-            : filteredItems;
+        if (selectedIds.length === 0) return;
+
+        const itemsToExport = filteredItems.filter(i => selectedIds.includes(i.id));
 
         if (itemsToExport.length === 0) return;
 
@@ -625,22 +644,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         </div>
                         <button
                             onClick={() => setShowFilters(!showFilters)}
-                            className={`flex items-center gap-2 px-4 h-11 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+                            className={`flex items-center gap-2 px-4 h-11 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-slate-800 border-slate-800 text-slate-200 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
                         >
                             <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
                         </button>
                     </div>
 
                     <div className="flex items-center gap-3 ml-auto w-full xl:w-auto justify-end">
-                        {selectedIds.length === 0 && (
-                            <button
-                                onClick={handleExportExcel}
-                                className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100/50 h-10"
-                                title="Exportar Filtrados para Excel"
-                            >
-                                <FileSpreadsheet size={14} /> Exportar Excel
-                            </button>
-                        )}
+
 
                         {/* Ações em Lote (Seleção) - Realocado para o Header */}
                         {selectedIds.length > 0 && (
@@ -665,7 +676,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                                     <button
                                         onClick={handleInvoiceBatch}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white rounded-lg text-[10px] font-black uppercase transition-all shadow-lg shadow-primary-500/20 active:scale-95 whitespace-nowrap"
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-800 text-white rounded-lg text-[10px] font-black uppercase transition-all shadow-lg shadow-slate-800/20 active:scale-95 whitespace-nowrap"
                                         title="Faturar Seleção"
                                     >
                                         <DollarSign size={14} /> Faturar
@@ -837,7 +848,16 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         </div>
                                     </td>
                                     <td className="px-4 py-2.5">
-                                        <span className="text-[15px] font-medium text-slate-900">{formatCurrency(item.value)}</span>
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[15px] font-medium text-slate-900">
+                                                {formatCurrency(item.value)}
+                                            </span>
+                                            {item.original?.discount > 0 && (
+                                                <span className="text-[9px] text-rose-500 font-bold uppercase tracking-widest mt-0.5">
+                                                    {item.original.discountType === 'percent' ? `Desc. Aplicado (${item.original.discount}%)` : `Desc. Aplicado (-${formatCurrency(item.original.discount)})`}
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-4 py-2.5 text-center">
                                         <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium tracking-wide ${item.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
@@ -860,28 +880,30 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 <div className="fixed inset-0 z-[1200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center py-4 px-4 overflow-y-auto animate-fade-in" onClick={() => setIsSidebarOpen(false)}>
                     <div className="bg-white w-full max-w-6xl max-h-[92vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative" onClick={e => e.stopPropagation()}>
 
-                        {/* Hero Header — padrão OS */}
-                        <div className={`${selectedItem.status === 'PAID' ? 'bg-emerald-700' : 'bg-[#1c2d4f]'} transition-colors`}>
-                            <div className="px-6 py-5 flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10">
-                                        {selectedItem.type === 'QUOTE' ? <FileText size={22} className="text-white" /> : <Wrench size={22} className="text-white" />}
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-white/50 tracking-wider mb-1 capitalize">{selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</p>
-                                        <h2 className="text-xl font-black text-white uppercase tracking-tight leading-none">#{getDocLabel(selectedItem)}</h2>
-                                        {selectedItem.title && <p className="text-xs font-medium text-white/80 mt-1 capitalize">{selectedItem.title}</p>}
-                                    </div>
+                        {/* Cabeçalho OS padrão minimalista (Big Tech) */}
+                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-slate-400">
+                                    {selectedItem.type === 'QUOTE' ? <FileText size={20} /> : <Wrench size={20} />}
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <div className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border flex items-center gap-2 ${selectedItem.status === 'PAID' ? 'bg-emerald-500/20 text-emerald-200 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'}`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${selectedItem.status === 'PAID' ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
-                                        {selectedItem.status === 'PAID' ? 'Faturado' : 'Pendente'}
+                                <div>
+                                    <div className="flex items-center gap-3">
+                                        <h2 className="text-base font-semibold text-slate-900 font-poppins">
+                                            {selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'} #{getDocLabel(selectedItem)}
+                                        </h2>
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${selectedItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
+                                            {selectedItem.status === 'PAID' ? 'Faturado' : 'Pendente'}
+                                        </span>
                                     </div>
-                                    <button onClick={() => setIsSidebarOpen(false)} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all hover:rotate-90">
-                                        <X size={20} />
-                                    </button>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                        {selectedItem.title || (selectedItem.type === 'QUOTE' ? 'Criação' : 'Conclusão')}
+                                    </p>
                                 </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all rounded-full hover:bg-slate-50">
+                                    <X size={20} />
+                                </button>
                             </div>
                         </div>
 
@@ -893,8 +915,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 {/* Cliente */}
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5">
                                     <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-4">
-                                        <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center text-[#1c2d4f]"><Users size={13} /></div>
-                                        <h3 className="text-xs font-black text-[#1c2d4f] tracking-wide">Dados do cliente</h3>
+                                        <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Users size={13} /></div>
+                                        <h3 className="text-xs font-black text-slate-800 tracking-wide">Dados do cliente</h3>
                                     </div>
                                     <p className="text-base font-bold text-slate-800 capitalize">{selectedItem.customerName?.toLowerCase()}</p>
                                     {selectedItem.customerAddress && (
@@ -906,13 +928,24 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 </div>
 
                                 {/* Valor */}
-                                <div className="bg-[#1c2d4f] rounded-2xl p-5 text-white relative overflow-hidden">
-                                    <div className="absolute -top-6 -right-6 w-24 h-24 bg-white/5 rounded-full blur-2xl" />
-                                    <p className="text-xs font-bold text-white/60 tracking-wider mb-1">Valor total</p>
-                                    <p className="text-3xl font-black tracking-tight">{formatCurrency(selectedItem.value)}</p>
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5 relative overflow-hidden">
+                                    <p className="text-xs font-bold text-slate-500 tracking-wider mb-1">Valor Total</p>
+                                    <p className="text-3xl font-black tracking-tight border-b border-slate-100 pb-2 mb-2 text-slate-900">
+                                        {formatCurrency(selectedItem.value)}
+                                    </p>
+                                    {selectedItem.original?.discount > 0 && (
+                                        <div className="flex justify-between items-center mb-2">
+                                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Desconto Aplicado</p>
+                                            <p className="text-xs font-bold text-rose-500">
+                                                {selectedItem.original.discountType === 'percent' 
+                                                    ? `- ${selectedItem.original.discount}%` 
+                                                    : `- ${formatCurrency(selectedItem.original.discount)}`}
+                                            </p>
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-2 mt-4">
-                                        <div className="w-6 h-6 bg-[#1c2d4f]/60 border border-white/10 rounded-lg flex items-center justify-center"><Calendar size={12} className="text-white/60" /></div>
-                                        <p className="text-[10px] font-bold text-white/70">{new Date(selectedItem.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                        <div className="w-6 h-6 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center"><Calendar size={12} className="text-slate-400" /></div>
+                                        <p className="text-[10px] font-bold text-slate-600">{new Date(selectedItem.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                                     </div>
                                 </div>
                             </div>
@@ -920,36 +953,36 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             {/* Técnico + Descrição */}
                             <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5">
                                 <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-4">
-                                    <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center text-[#1c2d4f]"><Info size={13} /></div>
-                                    <h3 className="text-xs font-black text-[#1c2d4f] tracking-wide">Descrição do atendimento</h3>
+                                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Info size={13} /></div>
+                                    <h3 className="text-xs font-black text-slate-800 tracking-wide">Descrição do atendimento</h3>
                                 </div>
-                                <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 rounded-xl">
-                                    <div className="w-8 h-8 bg-slate-200 rounded-xl flex items-center justify-center">
-                                        <UserCheck size={15} className="text-[#1c2d4f]" />
+                                <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                                    <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
+                                        <UserCheck size={15} className="text-slate-500" />
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Técnico designado</p>
                                         <p className="text-xs font-bold text-slate-700 capitalize">{selectedItem.technician?.toLowerCase()}</p>
                                     </div>
                                 </div>
-                                {selectedItem.description && <p className="text-xs text-slate-500 font-medium leading-relaxed italic">{selectedItem.description}</p>}
+                                {selectedItem.description && <p className="text-xs text-slate-600 font-medium leading-relaxed italic">{selectedItem.description}</p>}
                             </div>
 
                             {/* Orçamentos vinculados (somente OS) */}
                             {selectedItem.type === 'ORDER' && (
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5">
                                     <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-4">
-                                        <div className="w-7 h-7 rounded-xl bg-slate-100 flex items-center justify-center text-[#1c2d4f]"><Layer size={13} /></div>
-                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#1c2d4f]">Orçamentos Vinculados</h3>
+                                        <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Layer size={13} /></div>
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">Orçamentos Vinculados</h3>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {selectedItem.original.linkedQuotes?.map((qId: string) => {
                                             const q = quotes.find(quote => quote.id === qId);
                                             return q ? (
-                                                <div key={qId} className="p-4 bg-slate-50 border border-slate-100 rounded-xl flex justify-between items-center">
+                                                <div key={qId} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center">
                                                     <div>
-                                                        <span className="text-[9px] font-black text-[#1c2d4f] uppercase">{q.displayId || 'ORC-' + qId.slice(0, 8).toUpperCase()}</span>
-                                                        <p className="text-xs font-bold text-slate-700 mt-0.5 truncate max-w-[150px]">{q.title}</p>
+                                                        <span className="text-[9px] font-black text-slate-500 uppercase">{q.displayId || 'ORC-' + qId.slice(0, 8).toUpperCase()}</span>
+                                                        <p className="text-xs font-bold text-slate-800 mt-0.5 truncate max-w-[150px]">{q.title}</p>
                                                     </div>
                                                     <span className="text-sm font-black text-slate-900">{formatCurrency(q.totalValue)}</span>
                                                 </div>
@@ -957,17 +990,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         })}
                                         {(!selectedItem.original.linkedQuotes || selectedItem.original.linkedQuotes.length === 0) && (
                                             <div className="col-span-full py-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                                <p className="text-[10px] text-slate-300 font-bold uppercase">Nenhum orçamento vinculado</p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase">Nenhum orçamento vinculado</p>
                                             </div>
                                         )}
                                         {availableQuotesForClient.length > 0 && selectedItem.status !== 'PAID' && (
-                                            <div className="col-span-full pt-3 border-t border-slate-200">
+                                            <div className="col-span-full pt-3 border-t border-slate-100 mt-2">
                                                 <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Disponíveis para vincular:</p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {availableQuotesForClient.map(q => (
-                                                        <button key={q.id} onClick={() => handleLinkQuote(q.id)} disabled={isProcessing} className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2 hover:border-[#1c2d4f] hover:bg-[#1c2d4f]/5 transition-all text-[10px] font-bold text-slate-700 uppercase">
+                                                        <button key={q.id} onClick={() => handleLinkQuote(q.id)} disabled={isProcessing} className="px-3 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all text-[10px] font-bold text-slate-700 uppercase shadow-sm">
                                                             {q.displayId || 'ORC-' + q.id.slice(0, 8).toUpperCase()} — {formatCurrency(q.totalValue)}
-                                                            <Plus size={12} className="text-[#1c2d4f]" />
+                                                            <Plus size={12} className="text-slate-400" />
                                                         </button>
                                                     ))}
                                                 </div>
@@ -1008,7 +1041,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         const token = selectedItem.original.publicToken || selectedItem.id;
                                         window.open(`${window.location.origin}/#/${route}/${token}`, '_blank');
                                     }}
-                                    className="py-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between px-5 text-[#1c2d4f] hover:bg-[#1c2d4f] hover:text-white transition-all shadow-sm"
+                                    className="py-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between px-5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:border-slate-300 transition-all shadow-sm"
                                 >
                                     <span className="text-[10px] font-black uppercase tracking-wide">Link Público</span>
                                     <ArrowUpRight size={16} />
@@ -1045,130 +1078,184 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 </div>
             )}
 
-            {/* ── MODAL DE FATURAMENTO ── */}
+            {/* ── MODAL DE FATURAMENTO (Padrão OS Big Tech) ── */}
             {isInvoiceModalOpen && (
-                <div className="fixed inset-0 z-[2000] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl border border-slate-200 flex flex-col md:flex-row h-[95vh] md:h-auto md:max-h-[90vh] overflow-hidden">
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in" onClick={() => setIsInvoiceModalOpen(false)}>
+                    <div className="bg-white rounded-xl w-full max-w-4xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
                         
-                        {/* ── ALINHAMENTO ESQUERDO: RESUMO DA FATURA ── */}
-                        <div className="w-full md:w-5/12 bg-[#1c2d4f] p-6 md:p-10 flex flex-col justify-between text-white border-r border-[#ffffff]/10 shrink-0">
-                            <div>
-                                <div className="w-14 h-14 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-6">
-                                    <Wallet size={26} className="text-white" />
+                        {/* HEADER - Padrão OS */}
+                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-slate-400">
+                                    <ShieldCheck size={20} />
                                 </div>
-                                <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-2">Checkout Faturamento</p>
-                                <h2 className="text-3xl font-black text-white tracking-tight leading-tight">Liquidação de<br />Recebíveis</h2>
-                                <p className="text-sm text-white/60 mt-4 leading-relaxed font-medium">Confirme o recebimento deste faturamento para gerar o recibo oficial e atualizar o caixa.</p>
-
-                                <div className="mt-8 space-y-4">
-                                    <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-5 border border-white/10 transition-all hover:bg-white/10">
-                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                                            <Layers size={12}/> Documentos a faturar
-                                        </p>
-                                        <p className="text-base font-black text-white uppercase">{selectedIds.length === 1 ? (selectedItem ? getDocLabel(selectedItem) : '—') : `${selectedIds.length} Itens Lançados`}</p>
-                                        <p className="text-xs text-white/50 font-medium mt-1 uppercase tracking-wide">{selectedIds.length === 1 ? selectedItem?.customerName : 'Múltiplos clientes'}</p>
+                                <div>
+                                    <div className="flex items-center gap-3">
+                                        <h2 className="text-base font-semibold text-slate-900 font-poppins">Liquidação Financeira</h2>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                            Checkout
+                                        </span>
                                     </div>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                        {selectedIds.length === 1 ? (selectedItem ? getDocLabel(selectedItem) : 'Transação') : `${selectedIds.length} Documentos selecionados`} • {selectedIds.length === 1 ? selectedItem?.customerName : 'Múltiplos clientes'}
+                                    </p>
                                 </div>
                             </div>
-
-                            <div className="mt-10 pt-8 border-t border-white/10 space-y-2">
-                                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                    <DollarSign size={12}/> Resumo financeiro
-                                </p>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-xs text-white/50">Subtotal</span>
-                                    <span className="text-sm font-bold text-white/70">{formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}</span>
-                                </div>
-                                {(() => {
-                                    const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
-                                    const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
-                                    return dv > 0 ? (
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs text-rose-300">Desconto</span>
-                                            <span className="text-sm font-bold text-rose-300">- {formatCurrency(dv)}</span>
-                                        </div>
-                                    ) : null;
-                                })()}
-                                <div className="flex justify-between items-center pt-2 border-t border-white/10">
-                                    <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Total a Receber</span>
-                                    <span className="text-2xl font-black text-white italic tracking-tighter">{formatCurrency(Math.max(0, (() => { const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal; const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount; return base - dv; })()))}</span>
-                                </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setIsInvoiceModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                                    <X size={20} />
+                                </button>
                             </div>
                         </div>
 
-                        {/* ── ALINHAMENTO DIREITO: FORMULÁRIO ── */}
-                        <div className="w-full md:w-7/12 bg-white flex flex-col flex-1 min-h-0">
-                            
-                            <div className="p-6 md:p-8 md:px-10 flex justify-between items-center shrink-0">
-                                <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-3">
-                                    <CreditCard size={20} className="text-[#1c2d4f]"/> Detalhes do Pagamento
-                                </h3>
-                                <button onClick={() => setIsInvoiceModalOpen(false)} className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full text-slate-400 hover:text-slate-700 transition-all hover:rotate-90">
-                                    <X size={18} />
-                                </button>
-                            </div>
-
-                            <div className="px-6 md:px-10 pb-4 space-y-6 flex-1 overflow-y-auto min-h-0">
-                                {/* Formas de Pagamento */}
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Meio de Pagamento</p>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {paymentMethods.map(method => (
-                                            <button
-                                                key={method.id}
-                                                onClick={() => setPaymentMethod(method.id)}
-                                                className={`flex flex-col items-center justify-center p-4 border rounded-2xl transition-all ${paymentMethod === method.id
-                                                    ? 'border-[#1c2d4f] bg-[#1c2d4f]/5 text-[#1c2d4f] ring-2 ring-[#1c2d4f]/20 shadow-sm scale-[1.02]'
-                                                    : 'border-slate-200 hover:border-slate-300 text-slate-400 hover:text-slate-800 bg-white hover:bg-slate-50'}`}
-                                            >
-                                                <div className="mb-2 opacity-80">{method.icon}</div>
-                                                <span className="text-[10px] font-black uppercase tracking-wider leading-tight text-center">{method.label}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    {/* Parcelas */}
-                                    {paymentMethod === 'Cartão Crédito' && (
-                                        <div className="mt-6 p-6 bg-slate-50 border border-slate-200/60 rounded-3xl animate-fade-in">
-                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2"><Layers size={12}/> Numero de Parcelas</p>
-                                            <div className="grid grid-cols-6 gap-2">
-                                                {[2, 3, 4, 5, 6, 12].map(n => (
-                                                    <button
-                                                        key={n}
-                                                        onClick={() => setInstallments(n)}
-                                                        className={`py-2.5 rounded-xl text-[11px] font-black transition-all ${installments === n ? 'bg-[#1c2d4f] text-white shadow-md scale-105' : 'bg-white border border-slate-200 text-slate-500 hover:border-[#1c2d4f]/50 hover:text-slate-800'}`}
-                                                    >
-                                                        {n}x
-                                                    </button>
-                                                ))}
+                        {/* BODY - SCROLLABLE BG-SLATE-50 */}
+                        <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+                                
+                                {/* Lado Esquerdo - Detalhes e Resumo */}
+                                <div className="space-y-6">
+                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
+                                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                            <Layers size={16} className="text-slate-400"/> Documentos a Faturar
+                                        </h3>
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-700">{selectedIds.length === 1 ? (selectedItem ? getDocLabel(selectedItem) : '—') : `${selectedIds.length} Itens Lançados`}</p>
+                                                <p className="text-xs text-slate-500 font-medium mt-0.5">{selectedIds.length === 1 ? selectedItem?.customerName : 'Múltiplos clientes'}</p>
                                             </div>
-                                            <div className="mt-5 pt-4 border-t border-slate-200 flex items-center justify-between">
-                                                <span className="text-xs font-bold text-slate-400 uppercase">Valor da parcela</span>
-                                                <span className="text-sm font-black text-[#1c2d4f] uppercase tracking-wide">
-                                                    {installments}x de {formatCurrency((selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) / installments)}
-                                                </span>
+                                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-400">
+                                                <Wallet size={16} />
                                             </div>
                                         </div>
-                                    )}
-                                    {/* Desconto */}
-                                    <div className="mt-6 p-5 bg-rose-50 border border-rose-200/60 rounded-2xl">
-                                        <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                            <Tag size={12}/> Desconto
-                                        </p>
+                                    </div>
+
+                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
+                                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                            <DollarSign size={16} className="text-slate-400"/> Resumo Financeiro
+                                        </h3>
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="text-slate-500 font-medium">Subtotal</span>
+                                                <span className="font-bold text-slate-700">{formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}</span>
+                                            </div>
+                                            {(() => {
+                                                const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
+                                                const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
+                                                return dv > 0 ? (
+                                                    <div className="flex justify-between items-center text-sm">
+                                                        <span className="text-rose-500 font-medium tracking-wide">Desconto</span>
+                                                        <span className="font-bold text-rose-500">- {formatCurrency(dv)}</span>
+                                                    </div>
+                                                ) : null;
+                                            })()}
+                                            <div className="pt-4 mt-3 border-t border-slate-100 flex justify-between items-center">
+                                                <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Total a Receber</span>
+                                                <span className="text-2xl font-black text-emerald-600 tracking-tight">{formatCurrency(Math.max(0, (() => { const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal; const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount; return base - dv; })()))}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
+                                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                            <FileText size={16} className="text-slate-400"/> Observações e Comprovante
+                                        </h3>
+                                        <textarea
+                                            className="w-full min-h-[100px] bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all resize-none placeholder:text-slate-400"
+                                            placeholder="Ex: Nº do comprovante transacional, código Pix, NSU da maquineta..."
+                                            value={billingNotes}
+                                            onChange={e => setBillingNotes(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Lado Direito - Pagamento e Parcelas */}
+                                <div className="space-y-6">
+                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
+                                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                            <CreditCard size={16} className="text-slate-400"/> Forma de Pagamento
+                                        </h3>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {paymentMethods.map(method => (
+                                                <button
+                                                    key={method.id}
+                                                    onClick={() => setPaymentMethod(method.id)}
+                                                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all shadow-sm ${paymentMethod === method.id
+                                                        ? 'bg-slate-800 border-slate-800 text-slate-200'
+                                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}
+                                                >
+                                                    <div className="mb-1.5 opacity-80">{method.icon}</div>
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-center">{method.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Parcelas */}
+                                        {paymentMethod === 'Cartão Crédito' && (
+                                            <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in">
+                                                <h4 className="text-[10px] font-black tracking-widest uppercase text-slate-400 mb-3">Opções de Parcelamento</h4>
+                                                
+                                                {/* Botões Rápidos 1 a 12 */}
+                                                <div className="grid grid-cols-6 gap-2 mb-3">
+                                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                                                        <button
+                                                            key={n}
+                                                            onClick={() => setInstallments(n)}
+                                                            className={`py-2 rounded-lg text-[11px] font-black transition-all ${installments === n ? 'bg-slate-800 text-white shadow-md scale-105' : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-800 hover:text-slate-800'}`}
+                                                        >
+                                                            {n}x
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                
+                                                {/* Opção Manual e Resumo */}
+                                                <div className="p-3 bg-slate-50 rounded-lg flex flex-col md:flex-row items-center justify-between gap-3 border border-slate-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Outro valor:</span>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="number"
+                                                                min={1}
+                                                                max={999}
+                                                                value={installments || ''}
+                                                                onChange={e => {
+                                                                    const val = parseInt(e.target.value);
+                                                                    if (!isNaN(val) && val > 0) setInstallments(val);
+                                                                }}
+                                                                className="w-16 px-2 pr-6 py-1.5 text-xs font-black text-slate-800 bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all text-center"
+                                                            />
+                                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 pointer-events-none">x</span>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Valor da Parcela</span>
+                                                        <span className="text-sm font-black text-slate-800">
+                                                            {installments}x de {formatCurrency((selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) / (installments || 1))}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Desconto Extra */}
+                                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
+                                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                            <Tag size={16} className="text-slate-400"/> Aplicar Desconto Extra
+                                        </h3>
                                         <div className="flex items-center gap-3">
-                                            {/* Toggle R$ / % */}
-                                            <div className="flex border border-rose-200 rounded-xl overflow-hidden text-[10px] font-black shrink-0">
+                                            <div className="flex border border-slate-200 rounded-lg overflow-hidden shrink-0">
                                                 <button
                                                     onClick={() => setBillingDiscountType('fixed')}
-                                                    className={`px-3 py-2.5 transition-all ${billingDiscountType === 'fixed' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
+                                                    className={`px-3 py-2 text-[10px] font-black transition-all ${billingDiscountType === 'fixed' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
                                                 >R$</button>
                                                 <button
                                                     onClick={() => setBillingDiscountType('percent')}
-                                                    className={`px-3 py-2.5 transition-all ${billingDiscountType === 'percent' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
+                                                    className={`px-3 py-2 text-[10px] font-black transition-all ${billingDiscountType === 'percent' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
                                                 >%</button>
                                             </div>
                                             <div className="relative flex-1">
-                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-rose-400">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
                                                     {billingDiscountType === 'percent' ? '%' : 'R$'}
                                                 </span>
                                                 <input
@@ -1179,62 +1266,41 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                     value={billingDiscount || ''}
                                                     onChange={e => setBillingDiscount(parseFloat(e.target.value) || 0)}
                                                     placeholder="0"
-                                                    className="w-full pl-10 pr-4 py-3 bg-white border border-rose-200 rounded-xl text-sm font-bold text-rose-700 outline-none focus:ring-2 focus:ring-rose-300 transition-all"
+                                                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all shadow-sm"
                                                 />
                                             </div>
                                             {billingDiscount > 0 && (
-                                                <button onClick={() => setBillingDiscount(0)} className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-100 rounded-lg transition-all">
+                                                <button onClick={() => setBillingDiscount(0)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
                                                     <X size={16} />
                                                 </button>
                                             )}
                                         </div>
-                                        {billingDiscount > 0 && (() => {
-                                            const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
-                                            const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
-                                            return (
-                                                <p className="text-[10px] font-bold text-rose-500 mt-2">
-                                                    Desconto: {formatCurrency(dv)} • Valor final: {formatCurrency(Math.max(0, base - dv))}
-                                                </p>
-                                            );
-                                        })()}
                                     </div>
                                 </div>
 
-                                {/* Observações */}
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <FileText size={12}/> Referência Legal / Comprovante
-                                    </p>
-                                    <textarea
-                                        className="w-full min-h-[100px] bg-slate-50 border border-slate-200 rounded-3xl p-5 text-sm font-medium text-slate-700 outline-none focus:ring-4 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f]/30 transition-all resize-none placeholder:font-medium placeholder:text-slate-400"
-                                        placeholder="Ex: Nº do comprovante transacional, código de autenticação Pix, NSU da maquineta..."
-                                        value={billingNotes}
-                                        onChange={e => setBillingNotes(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Botões Ação */}
-                            <div className="p-6 md:p-8 md:px-10 border-t border-slate-200 bg-white shrink-0 shadow-[0_-5px_15px_rgba(0,0,0,0.02)] z-10">
-                                <div className="flex gap-4">
-                                    <button onClick={() => setIsInvoiceModalOpen(false)} className="px-8 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase text-slate-500 hover:text-slate-800 hover:bg-white hover:border-slate-300 tracking-widest transition-all">
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        onClick={confirmInvoice}
-                                        disabled={isProcessing}
-                                        className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-500 hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 disabled:cursor-not-allowed text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-                                    >
-                                        {isProcessing ? (
-                                            <><div className="w-5 h-5 border-[3px] border-white/30 border-t-white rounded-full animate-spin" /> Concluindo Baixa...</>
-                                        ) : (
-                                            <><ShieldCheck size={20} /> Liquidar Recebíveis</>
-                                        )}
-                                    </button>
-                                </div>
                             </div>
                         </div>
 
+                        {/* FOOTER - Padrão OS */}
+                        <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+                            <button
+                                onClick={() => setIsInvoiceModalOpen(false)}
+                                className="h-10 px-5 flex items-center justify-center gap-2 text-slate-500 hover:text-slate-800 font-bold transition-colors bg-white hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-200"
+                            >
+                                <X size={16} /> Cancelar
+                            </button>
+                            <button
+                                onClick={confirmInvoice}
+                                disabled={isProcessing}
+                                className="h-10 px-6 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-md shadow-emerald-600/20 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                {isProcessing ? (
+                                    <><Loader2 size={16} className="animate-spin" /> Concluindo Baixa...</>
+                                ) : (
+                                    <><CheckCircle2 size={16} /> Confirmar Liquidação</>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1404,33 +1470,73 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     <div className="w-1/2 ml-auto">
                                         <table className="w-full text-sm">
                                             <tbody>
-                                                <tr>
-                                                    <td className="py-2 px-4 text-slate-500 text-right">Subtotal:</td>
-                                                    <td className="py-2 px-4 text-right font-medium text-slate-800">{formatCurrency(printItem.value || 0)}</td>
-                                                </tr>
                                                 {(() => {
-                                                    const disc = printItem.original?.discount || 0;
-                                                    const type = printItem.original?.discountType || 'fixed';
-                                                    const val = type === 'percent' ? ((printItem.value || 0) * disc / 100) : disc;
-                                                    return val > 0 ? (
-                                                        <tr>
-                                                            <td className="py-2 px-4 text-rose-500 text-right font-bold italic">Descontos Aplicados:</td>
-                                                            <td className="py-2 px-4 text-right font-bold text-rose-600 italic">(- {formatCurrency(val)})</td>
-                                                        </tr>
-                                                    ) : null;
+                                                    // printItem.value = totalValue já descontado (líquido)
+                                                    const netValue = printItem?.value || 0;
+
+                                                    // Tier 1: usar campo discount do DB se disponível
+                                                    const storedDisc = Number(printItem?.billingDiscount ?? printItem?.original?.discount ?? 0);
+                                                    const storedDiscType: string = printItem?.billingDiscountType ?? printItem?.original?.discountType ?? 'fixed';
+
+                                                    // Tier 2: calcular desconto implícito via items (para registros antigos onde discount foi zerado)
+                                                    const originalItems: any[] = printItem?.original?.items || [];
+                                                    const itemsGross = originalItems.reduce((acc: number, it: any) => {
+                                                        return acc + Number(it.total ?? (it.quantity * it.unitPrice) ?? 0);
+                                                    }, 0);
+                                                    const impliedDiscountAmount = itemsGross > 0 ? Math.max(0, Math.round((itemsGross - netValue) * 100) / 100) : 0;
+
+                                                    // Escolher estratégia: campo DB > calculado de items
+                                                    let grossValue = netValue;
+                                                    let discountAmount = 0;
+                                                    let discLabel = '';
+
+                                                    if (storedDisc > 0) {
+                                                        // Tier 1: temos o valor do campo discount
+                                                        if (storedDiscType === 'percent') {
+                                                            grossValue = netValue / (1 - storedDisc / 100);
+                                                            discountAmount = grossValue - netValue;
+                                                            discLabel = `(${storedDisc}%)`;
+                                                        } else {
+                                                            grossValue = netValue + storedDisc;
+                                                            discountAmount = storedDisc;
+                                                        }
+                                                    } else if (impliedDiscountAmount > 0.01) {
+                                                        // Tier 2: desconto calculado dos itens (registro antigo)
+                                                        grossValue = itemsGross;
+                                                        discountAmount = impliedDiscountAmount;
+                                                    }
+
+                                                    const hasDiscount = discountAmount > 0.01;
+
+                                                    return (
+                                                        <>
+                                                            {hasDiscount && (
+                                                                <tr>
+                                                                    <td className="py-2 px-4 text-slate-500 text-right font-medium">Valor Nominal (Bruto):</td>
+                                                                    <td className="py-2 px-4 text-right font-medium text-slate-800">{formatCurrency(grossValue)}</td>
+                                                                </tr>
+                                                            )}
+                                                            {hasDiscount && (
+                                                                <tr>
+                                                                    <td className="py-2 px-4 text-rose-500 text-right font-bold italic">
+                                                                        Desconto Aplicado {discLabel}:
+                                                                    </td>
+                                                                    <td className="py-2 px-4 text-right font-bold text-rose-600 italic">
+                                                                        - {formatCurrency(discountAmount)}
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                            <tr>
+                                                                <td className="py-3 px-4 text-[#1c2d4f] font-black text-right border-t-2 border-[#1c2d4f] uppercase text-xs tracking-widest">
+                                                                    Total Líquido Recebido:
+                                                                </td>
+                                                                <td className="py-3 px-4 text-right font-black text-[#1c2d4f] border-t-2 border-[#1c2d4f] text-xl tracking-tighter italic">
+                                                                    {formatCurrency(netValue)}
+                                                                </td>
+                                                            </tr>
+                                                        </>
+                                                    );
                                                 })()}
-                                                <tr>
-                                                    <td className="py-3 px-4 text-[#1c2d4f] font-black text-right border-t-2 border-[#1c2d4f] uppercase text-xs tracking-widest">Total Líquido Recebido:</td>
-                                                    <td className="py-3 px-4 text-right font-black text-[#1c2d4f] border-t-2 border-[#1c2d4f] text-xl tracking-tighter italic">
-                                                        {(() => {
-                                                            const base = printItem.value || 0;
-                                                            const disc = printItem.original?.discount || 0;
-                                                            const type = printItem.original?.discountType || 'fixed';
-                                                            const val = type === 'percent' ? (base * disc / 100) : disc;
-                                                            return formatCurrency(Math.max(0, base - val));
-                                                        })()}
-                                                    </td>
-                                                </tr>
                                             </tbody>
                                         </table>
                                     </div>

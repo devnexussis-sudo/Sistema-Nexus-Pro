@@ -183,13 +183,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const { handleExportExcel: exportToExcel } = useOrderExport();
 
   const handleExportExcel = () => {
-    // Exporta os itens da página atual (ou apenas os selecionados)
-    const base = pagedOrders;
+    if (selectedOrderIds.length === 0) return;
+
+    // Exporta apenas os itens selecionados
     exportToExcel({
-      orders: base,
-      filteredOrders: selectedOrderIds.length > 0
-        ? pagedOrders.filter(o => selectedOrderIds.includes(o.id))
-        : pagedOrders,
+      orders: pagedOrders,
+      filteredOrders: pagedOrders.filter(o => selectedOrderIds.includes(o.id)),
       selectedOrderIds,
       techs
     });
@@ -952,18 +951,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
-            {/* Exportação Geral (Baseada em Filtros) */}
-            {selectedOrderIds.length === 0 && (
-              <div className="flex items-center gap-2 mr-2">
-                <button
-                  onClick={handleExportExcel}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100/50"
-                  title="Exportar Filtrados para Excel"
-                >
-                  <FileSpreadsheet size={14} /> Exportar Excel
-                </button>
-              </div>
-            )}
+
 
             {/* Ações em Lote (Seleção) */}
             {selectedOrderIds.length > 0 && (
@@ -1240,6 +1228,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <Edit3 size={14} /> Editar OS
                       </Button>
                     )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={(e) => handleOpenPublicView(selectedOrder, e)}
+                      className="h-9 px-4 gap-2 border-primary-200 text-primary-700 hover:bg-primary-50"
+                    >
+                      <Share2 size={14} /> Visualizar
+                    </Button>
                     <Button
                       variant="secondary"
                       size="sm"

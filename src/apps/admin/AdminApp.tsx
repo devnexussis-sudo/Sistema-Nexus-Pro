@@ -286,9 +286,8 @@ export const AdminApp: React.FC<AdminAppProps> = ({
             isSidebarCollapsed={isSidebarCollapsed}
         >
             {isFetchingAny && (
-                <div className="absolute inset-0 z-[500] bg-slate-50/70 backdrop-blur-[2px] flex flex-col items-center justify-center">
-                    <img src="/splash-duno-v5.png" alt="Carregando DUNO" className="w-12 h-12 object-contain animate-pulse" />
-                    <p className="mt-3 text-[9px] font-black uppercase tracking-[0.3em] text-[#1c2d4f]/70 animate-pulse">Carregando...</p>
+                <div className="absolute inset-0 z-[500] bg-white flex flex-col items-center justify-center">
+                    <img src="/duno-icon.png" alt="DUNO" className="h-24 w-auto object-contain animate-pulse" />
                 </div>
             )}
             <Routes>

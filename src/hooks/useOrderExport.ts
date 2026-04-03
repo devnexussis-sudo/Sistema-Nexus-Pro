@@ -14,6 +14,8 @@ import { supabase } from '../lib/supabase';
 export const useOrderExport = () => {
     const handleExportExcel = async ({ orders, filteredOrders, selectedOrderIds, techs }: UseOrderExportProps) => {
         // Se tiver seleção, precisa garantir que busca também as IDs de outras páginas.
+        if (selectedOrderIds.length === 0) return;
+
         let ordersToExport: ServiceOrder[] = [];
         if (selectedOrderIds.length > 0) {
             const localOrders = orders.filter(o => selectedOrderIds.includes(o.id));
@@ -47,8 +49,6 @@ export const useOrderExport = () => {
                     ordersToExport = localOrders;
                 }
             }
-        } else {
-            ordersToExport = filteredOrders;
         }
 
         if (ordersToExport.length === 0) {

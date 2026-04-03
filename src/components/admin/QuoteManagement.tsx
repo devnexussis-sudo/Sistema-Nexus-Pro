@@ -171,6 +171,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 items,
                 totalValue,
                 discount,
+                discountType,
                 notes,
                 validUntil,
                 linkedOrderId,
@@ -255,6 +256,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     };
 
     const handleExportExcel = async () => {
+        if (selectedQuoteIds.length === 0) return;
+
         let itemsToExport: Quote[] = [];
         if (selectedQuoteIds.length > 0) {
             const localQuotes = pagedQuotes.filter((q: Quote) => selectedQuoteIds.includes(q.id));
@@ -294,8 +297,6 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                     itemsToExport = localQuotes;
                 }
             }
-        } else {
-            itemsToExport = pagedQuotes;
         }
 
         if (itemsToExport.length === 0) return;
@@ -390,16 +391,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                     />
                 </div>
 
-                {selectedQuoteIds.length === 0 && (
-                    <div className="flex items-center gap-2 mr-auto" style={{ marginLeft: '1rem' }}>
-                        <button
-                            onClick={handleExportExcel}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100/50"
-                        >
-                            <FileSpreadsheet size={14} /> Exportar Excel
-                        </button>
-                    </div>
-                )}
+
 
                 {selectedQuoteIds.length > 0 && (
                     <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-900 rounded-[1.5rem] shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100 mr-auto" style={{ marginLeft: '1rem' }}>

@@ -138,24 +138,11 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] pb-24 font-sans relative">
-      {/* 🔮 NEXUS IMMERSIVE LOADER - Estabilidade via opacity (evita NotFoundError) */}
       <div
         className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/60 backdrop-blur-md transition-opacity duration-300 pointer-events-none ${isFetching ? 'opacity-100 pointer-events-auto' : 'opacity-0'}`}
         aria-hidden={!isFetching}
       >
-        <div className="relative">
-          <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping scale-150"></div>
-          <div className="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin shadow-xl"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-10 h-10 bg-[#0f172a] rounded-xl flex items-center justify-center shadow-lg border border-white/10">
-              <Hexagon size={20} className="text-emerald-400 fill-emerald-400/10" />
-            </div>
-          </div>
-        </div>
-        <div className="mt-8 flex flex-col items-center gap-1">
-          <p className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em] italic animate-pulse">Sincronizando</p>
-          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Sincronizando Dados...</p>
-        </div>
+        <img src="/duno-icon.png" alt="DUNO" className="h-24 w-auto object-contain animate-pulse" />
       </div>
 
       <div className="bg-[#0f172a] px-6 py-4 sticky top-0 z-50 shadow-2xl border-b border-white/5">

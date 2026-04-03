@@ -4,7 +4,6 @@ import { PublicOrderView } from '../../components/public/PublicOrderView';
 import { PublicQuoteView } from '../../components/public/PublicQuoteView';
 import { DataService } from '../../services/dataService';
 import { ServiceOrder, User } from '../../types';
-import { Hexagon } from 'lucide-react';
 
 interface PublicAppProps {
     publicOrderId: string | null;
@@ -54,8 +53,12 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
     if (publicOrderId) {
         if (isFetchingPublicOrder) {
             return (
-                <div className="min-h-screen bg-[#111422] flex items-center justify-center">
-                    <Hexagon size={48} className="animate-spin text-primary-500" />
+                <div className="min-h-screen bg-white flex items-center justify-center">
+                    <img
+                        src="/duno-icon.png"
+                        alt="Duno"
+                        className="h-20 w-auto object-contain animate-pulse"
+                    />
                 </div>
             );
         }
