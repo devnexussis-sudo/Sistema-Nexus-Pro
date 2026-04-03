@@ -250,10 +250,10 @@ export const StockManagement: React.FC = () => {
     const handleOpenModal = (item?: StockItem) => {
         if (item) {
             setEditingItem(item);
-            // Reverse calculate tax percent for editing
-            const cost = item.costPrice || 0;
+            // Reverse calculate tax percent based on Sell Price (New Policy)
+            const sell = item.sellPrice || 0;
             const tax = item.taxCost || 0;
-            const percent = cost > 0 ? (tax / cost) * 100 : 0;
+            const percent = sell > 0 ? (tax / sell) * 100 : 0;
 
             setFormData({
                 ...item,
@@ -306,7 +306,8 @@ export const StockManagement: React.FC = () => {
                 // BUT for UI state I need to persist the percentage to restore it properly on edit?
                 // If I save only taxCost, when I edit, I have to reverse calculate %: (Tax / Cost) * 100.
                 // That works.
-                taxCost: (Number(formData.costPrice) || 0) * ((Number(formData.taxPercent) || 0) / 100)
+                // Tax burden starts to be calculated on the SELLING PRICE as requested
+                taxCost: (Number(formData.sellPrice) || 0) * ((Number(formData.taxPercent) || 0) / 100)
             } as StockItem;
 
             if (editingItem) {
@@ -482,11 +483,16 @@ export const StockManagement: React.FC = () => {
     const calculateTotalCost = (item: any) => {
         const cost = Number(item.costPrice) || 0;
         const freight = Number(item.freightCost) || 0;
-        const taxCost = Number(item.taxCost) || 0;
+        const sell = Number(item.sellPrice) || 0;
+        const taxPercent = Number(item.taxPercent) || 0;
 
-        // No banco salvamos o valor absoluto do imposto (tax_cost)
-        // Se houver taxPercent no formulário, ele é usado no handleSubmit para calcular o taxCost.
-        return cost + freight + taxCost;
+        // Se o item já vem do banco, usamos o taxCost absoluto.
+        // Se for o estado local do formulário (que tem taxPercent), calculamos dinamicamente para o preview
+        const taxVal = item.taxCost !== undefined 
+            ? Number(item.taxCost) 
+            : (sell * (taxPercent / 100));
+
+        return cost + freight + taxVal;
     };
 
     const calculateMargin = (item: any) => {
