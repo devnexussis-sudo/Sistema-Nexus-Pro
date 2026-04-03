@@ -784,12 +784,43 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     {/* ── ACTIONS / STATUS VIEW ── */}
 
                     {quote.status === 'REJEITADO' && (
-                        <div className="bg-rose-50 border border-rose-100 rounded-3xl p-8 sm:p-10 shadow-sm flex flex-col items-center justify-center text-center">
-                            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-6"><XCircle size={24} /></div>
-                            <h3 className="text-sm font-black text-rose-800 uppercase tracking-widest mb-2">Proposta Formalmente Recusada</h3>
-                            <p className="text-xs font-bold text-rose-600/70 italic uppercase max-w-lg mb-4">
-                                {quote.notes?.replace('MOTIVO DA RECUSA: ', '') || 'Nenhum motivo específico informado.'}
-                            </p>
+                        <div className="bg-white rounded-3xl border border-rose-100 shadow-2xl shadow-rose-100/30 p-8 sm:p-10 overflow-hidden relative">
+                            {/* Background hint */}
+                            <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                                <XCircle size={120} className="text-rose-600" />
+                            </div>
+
+                            <SectionHeader icon={<ShieldCheck size={15} />} title="Registro de Recusa" color="text-rose-700" />
+                            
+                            <div className="mb-8 p-4 bg-rose-50 border border-rose-100 rounded-2xl relative z-10">
+                                <p className="text-[9px] font-black text-rose-800 tracking-widest uppercase mb-1">Motivo da Recusa</p>
+                                <p className="text-xs font-bold text-rose-600/80 italic uppercase">
+                                    {quote.notes?.replace('MOTIVO DA RECUSA: ', '') || 'Nenhum motivo específico informado.'}
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 relative z-10">
+                                <div className="space-y-5">
+                                    <InfoPill label="Recusado por" value={quote.approvedByName || 'Cliente'} />
+                                    <InfoPill label="Data e hora da recusa" value={quote.approvedAt ? new Date(quote.approvedAt).toLocaleString() : 'N/D'} mono />
+                                </div>
+                                <div className="border border-rose-100 bg-rose-50/30 rounded-xl p-4 flex flex-col items-center justify-center min-h-[140px]">
+                                    {quote.approvalSignature ? (
+                                        <>
+                                            <img
+                                                src={quote.approvalSignature}
+                                                alt="Assinatura"
+                                                className="max-h-24 w-auto object-contain mix-blend-multiply cursor-zoom-in"
+                                                onClick={() => setFullscreenImage(quote.approvalSignature)}
+                                            />
+                                            <p className="text-[7px] text-rose-600/50 font-mono tracking-widest uppercase mt-1">Registro Auditado</p>
+                                            <p className="text-[11px] font-black text-rose-800 uppercase text-center mt-1">Assinado por {quote.approvedByName || 'Cliente'}</p>
+                                        </>
+                                    ) : (
+                                        <p className="text-[9px] font-black text-slate-400 uppercase italic">Assinatura não disponível</p>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     )}
 
