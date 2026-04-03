@@ -336,6 +336,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Protocolo Nexus Digital v2.0</p>
             </div>
         </div>
+    </div>
     );
 
 
