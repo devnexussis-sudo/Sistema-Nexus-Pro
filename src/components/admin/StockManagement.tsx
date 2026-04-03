@@ -541,20 +541,23 @@ export const StockManagement: React.FC = () => {
                         )}
 
                         <div className="flex items-center gap-2 shrink-0">
-                            <button
+                            <Button
                                 onClick={() => setIsRestockModalOpen(true)}
-                                className="flex items-center gap-2 px-5 h-[38px] rounded-xl text-[10px] font-black uppercase shadow-lg shadow-primary-900/10 bg-[#1c2d4f] text-white hover:bg-[#253a66] hover:-translate-y-0.5 transition-all active:scale-95 whitespace-nowrap"
+                                variant="secondary"
+                                size="sm"
+                                className="h-[38px] px-5 text-[10px] font-black uppercase gap-2"
                             >
                                 <Scale size={14} /> Entrada
-                            </button>
+                            </Button>
 
                             {(activeTab === 'items' || activeTab === 'categories') && (
-                                <button
+                                <Button
                                     onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
-                                    className={`flex items-center gap-2 px-5 h-[38px] rounded-xl text-[10px] font-black uppercase shadow-lg hover:-translate-y-0.5 transition-all text-white active:scale-95 whitespace-nowrap ${activeTab === 'items' ? 'bg-[#10b981] shadow-emerald-900/10' : 'bg-[#1c2d4f] shadow-primary-900/10'}`}
+                                    variant="primary"
+                                    className={`h-[38px] px-5 text-[10px] font-black uppercase gap-2 whitespace-nowrap ${activeTab === 'items' ? 'bg-[#10b981] hover:bg-[#059669] border-[#10b981]' : ''}`}
                                 >
                                     <Plus size={14} /> {activeTab === 'items' ? 'Novo Cadastro' : 'Nova Categoria'}
-                                </button>
+                                </Button>
                             )}
                         </div>
                     </div>
@@ -658,12 +661,24 @@ export const StockManagement: React.FC = () => {
                                                         </td>
                                                         <td className="px-3 py-3 text-right pr-6">
                                                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                                                <button onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }} className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 transition-all" title="Ver Detalhes">
+                                                                <Button 
+                                                                    onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }} 
+                                                                    variant="secondary"
+                                                                    size="sm"
+                                                                    className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 transition-all" 
+                                                                    title="Ver Detalhes"
+                                                                >
                                                                     <Package size={14} />
-                                                                </button>
-                                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all" title="Excluir">
+                                                                </Button>
+                                                                <Button 
+                                                                    onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} 
+                                                                    variant="danger"
+                                                                    size="sm"
+                                                                    className="p-2 text-rose-400 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-lg border border-transparent hover:border-rose-200 transition-all" 
+                                                                    title="Excluir"
+                                                                >
                                                                     <Trash2 size={14} />
-                                                                </button>
+                                                                </Button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1016,12 +1031,13 @@ export const StockManagement: React.FC = () => {
                                                 required
                                             />
                                         </div>
-                                        <button
+                                        <Button
                                             type="submit"
-                                            className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-primary-600/20 transition-all active:scale-95"
+                                            variant="primary"
+                                            className="px-6 py-2.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-primary-900/20 transition-all active:scale-95"
                                         >
                                             Confirmar Entrada
-                                        </button>
+                                        </Button>
                                     </form>
                                 </div>
                             ) : restockSearch && (
@@ -1062,17 +1078,18 @@ export const StockManagement: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <button
+                                <Button
                                     onClick={handleSubmit}
                                     form="stock-item-form"
-                                    className="h-9 px-5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg shadow-md shadow-primary-500/20 transition-all flex items-center gap-2"
+                                    variant="primary"
+                                    className="h-9 px-5 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-lg shadow-md shadow-primary-500/20 transition-all flex items-center gap-2"
                                 >
                                     <Save size={14} /> Salvar Alterações
-                                </button>
+                                </Button>
                                 <div className="h-6 w-px bg-slate-200 mx-2"></div>
-                                <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                                <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                                     <X size={20} />
-                                </button>
+                                </Button>
                             </div>
                         </div>
 
@@ -1442,12 +1459,13 @@ export const StockManagement: React.FC = () => {
                                 </div>
                             </div>
 
-                            <button
+                            <Button
                                 type="submit"
-                                className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black uppercase text-xs  tracking-widest shadow-xl shadow-amber-500/20 transition-all active:scale-95"
+                                variant="primary"
+                                className="w-full py-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary-900/20 transition-all active:scale-95"
                             >
                                 Confirmar Envio ao Técnico
-                            </button>
+                            </Button>
                         </form>
                     </div>
                 </div>
