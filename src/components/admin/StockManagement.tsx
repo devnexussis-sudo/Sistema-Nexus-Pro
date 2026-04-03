@@ -1461,15 +1461,22 @@ export const StockManagement: React.FC = () => {
                                 <div className="flex bg-slate-100 p-1.5 rounded-xl">
                                     <button
                                         type="button"
-                                        className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'transfer' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                        onClick={() => setTransferData({ ...transferData, direction: 'transfer' })}
+                                        className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'transfer' ? 'bg-white text-[#10b981] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        onClick={() => setTransferData({ ...transferData, direction: 'transfer', itemId: '' })}
                                     >
                                         Enviar para Técnico
                                     </button>
                                     <button
                                         type="button"
                                         className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'return' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                        onClick={() => setTransferData({ ...transferData, direction: 'return' })}
+                                        onClick={async () => {
+                                            setTransferData({ ...transferData, direction: 'return', itemId: '' });
+                                            // Se já tiver técnico selecionado, busca o estoque dele
+                                            if (transferData.techId) {
+                                                const stock = await DataService.getTechStock(transferData.techId);
+                                                setTechStock(stock);
+                                            }
+                                        }}
                                     >
                                         Devolver ao Estoque Geral
                                     </button>
@@ -1485,19 +1492,23 @@ export const StockManagement: React.FC = () => {
                                     >
                                         <option value="">Selecione o Item</option>
                                         {transferData.direction === 'return' ? (
-                                            // Se for devolução, mostramos apenas o que o técnico selecionado possui no estoque técnico
-                                            techStock.map(ts => (
-                                                <option key={ts.item?.id || ts.stock_item_id} value={ts.item?.id || ts.stock_item_id}>
-                                                    {ts.item?.description} ({ts.quantity} {ts.item?.unit} em posse do colaborador)
-                                                </option>
-                                            ))
+                                            // Se for devolução, mostramos apenas o que o técnico selecionado possui no estoque técnico com saldo
+                                            techStock
+                                                .filter(ts => (Number(ts.quantity) || 0) > 0)
+                                                .map(ts => (
+                                                    <option key={ts.item?.id || ts.stock_item_id} value={ts.item?.id || ts.stock_item_id}>
+                                                        {ts.item?.description} ({ts.quantity} {ts.item?.unit} em posse do colaborador)
+                                                    </option>
+                                                ))
                                         ) : (
-                                            // Se for transferência normal, mostramos o estoque geral disponível
-                                            items.map(i => (
-                                                <option key={i.id} value={i.id}>
-                                                    {i.description} ({i.quantity} {i.unit} disp. no Geral)
-                                                </option>
-                                            ))
+                                            // Se for transferência normal, mostramos o estoque geral disponível com saldo
+                                            items
+                                                .filter(i => (Number(i.quantity) || 0) > 0)
+                                                .map(i => (
+                                                    <option key={i.id} value={i.id}>
+                                                        {i.description} ({i.quantity} {i.unit} disp. no Geral)
+                                                    </option>
+                                                ))
                                         )}
                                     </select>
                                 </div>
