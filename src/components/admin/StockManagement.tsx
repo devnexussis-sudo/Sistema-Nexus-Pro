@@ -248,6 +248,7 @@ export const StockManagement: React.FC = () => {
 
     // --- Item Handlers ---
     const handleOpenModal = (item?: StockItem) => {
+        setModalTab('dados');
         if (item) {
             setEditingItem(item);
             // Reverse calculate tax percent for editing (Policy: Base on Cost Price)
