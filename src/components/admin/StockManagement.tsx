@@ -68,6 +68,7 @@ export const StockManagement: React.FC = () => {
     const [selectedTech, setSelectedTech] = useState<any | null>(null);
     const [techStock, setTechStock] = useState<any[]>([]);
     const [movements, setMovements] = useState<any[]>([]);
+    const [itemMovements, setItemMovements] = useState<any[]>([]);
     const [movSearch, setMovSearch] = useState('');
     const [movTypeFilter, setMovTypeFilter] = useState('ALL');
     const getDefaultDates = () => {
@@ -203,13 +204,23 @@ export const StockManagement: React.FC = () => {
 
     const loadMovements = async () => {
         try {
-            const data = await DataService.getMovements();
+            const data = await DataService.getMovements({
+                type: movTypeFilter,
+                dateFrom: movDateFrom,
+                dateTo: movDateTo
+            });
             setMovements(data);
         } catch (err: any) {
             console.error('Erro ao carregar movimentações:', err);
-            if (err.name === 'AbortError' || err.message?.includes('Abort') || err.message?.includes('Killed by Nexus')) {
-                setTimeout(loadMovements, 3000);
-            }
+        }
+    };
+
+    const loadItemMovements = async (itemId: string) => {
+        try {
+            const data = await DataService.getMovements({ stockItemId: itemId });
+            setItemMovements(data);
+        } catch (err) {
+            console.error('Erro ao carregar histórico do item:', err);
         }
     };
 
@@ -245,6 +256,11 @@ export const StockManagement: React.FC = () => {
         }
         init();
     }, []);
+    useEffect(() => {
+        if (activeTab === 'movements') {
+            loadMovements();
+        }
+    }, [movTypeFilter, movDateFrom, movDateTo, activeTab]);
 
     // --- Item Handlers ---
     const handleOpenModal = (item?: StockItem) => {
@@ -263,22 +279,15 @@ export const StockManagement: React.FC = () => {
         } else {
             setEditingItem(null);
             setFormData({
-                code: '',
-                externalCode: '',
-                description: '',
-                category: '',
-                location: '',
-                quantity: '',
-                minQuantity: '',
-                costPrice: '',
-                sellPrice: '',
-                freightCost: '',
-                taxPercent: '',
-                unit: 'UN',
-                active: true
+                code: '', externalCode: '', description: '', category: '', location: '',
+                quantity: '', minQuantity: '', costPrice: '', sellPrice: '', freightCost: '',
+                taxPercent: '', unit: 'UN', active: true
             });
+            setItemMovements([]);
         }
+        setModalTab('dados');
         setIsModalOpen(true);
+        if (item) loadItemMovements(item.id);
     };
 
     const generateCode = () => {
@@ -1323,13 +1332,12 @@ export const StockManagement: React.FC = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
-                                                    {editingItem && movements.filter(m => m.stock_item_id === editingItem.id).length === 0 ? (
+                                                    {itemMovements.length === 0 ? (
                                                         <tr>
                                                             <td colSpan={5} className="py-12 text-center text-slate-400 text-xs italic">Nenhum histórico disponível para este item no momento.</td>
                                                         </tr>
                                                     ) : (
-                                                        movements
-                                                            .filter(m => m.stock_item_id === editingItem?.id)
+                                                        itemMovements
                                                             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                                                             .map(m => (
                                                                 <tr key={m.id} className="text-[12px] hover:bg-slate-50 transition-colors">

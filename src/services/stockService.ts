@@ -381,19 +381,32 @@ export const StockService = {
         }
     },
 
-    getMovements: async (limit = 100): Promise<any[]> => {
+    getMovements: async (filters?: { stockItemId?: string, type?: string, dateFrom?: string, dateTo?: string }, limit = 200): Promise<any[]> => {
         const tenantId = getCurrentTenantId();
         if (isCloudEnabled && tenantId) {
-            // Buscamos as movimentações sem as relações de usuário porque a FK de created_by pode estar ausente
-            const { data, error } = await supabase
+            let query = supabase
                 .from('stock_movements')
                 .select(`
                     *, 
                     stock_items(description, code)
                 `)
                 .eq('tenant_id', tenantId)
-                .order('created_at', { ascending: false })
-                .limit(limit);
+                .order('created_at', { ascending: false });
+
+            if (filters?.stockItemId) {
+                query = query.eq('stock_item_id', filters.stockItemId);
+            }
+            if (filters?.type && filters.type !== 'ALL') {
+                query = query.eq('type', filters.type);
+            }
+            if (filters?.dateFrom) {
+                query = query.gte('created_at', filters.dateFrom + 'T00:00:00Z');
+            }
+            if (filters?.dateTo) {
+                query = query.lte('created_at', filters.dateTo + 'T23:59:59Z');
+            }
+
+            const { data, error } = await query.limit(limit);
 
             if (error) {
                 console.error("❌ [StockService] Erro ao buscar movimentações:", error.message);
