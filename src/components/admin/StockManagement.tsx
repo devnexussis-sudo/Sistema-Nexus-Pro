@@ -739,37 +739,43 @@ export const StockManagement: React.FC = () => {
                                             </div>
                                         ))}
                                     </div>
-                                )}
-                            </>
-                        )}
-
-                        {activeTab === 'techs' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center">
-                                    <h3 className="text-xl font-black text-slate-800 uppercase  flex items-center gap-3">
-                                        <Box className="text-amber-500" /> Estoque por Técnico
-                                    </h3>
-                                    <button
+                              {activeTab === 'techs' && (
+                            <div className="space-y-6 animate-fade-in font-poppins">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center text-primary-600 border border-primary-100 shadow-sm">
+                                            <Users size={20} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-semibold text-slate-800 leading-none">
+                                                Estoque por Colaborador
+                                            </h3>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-1 uppercase tracking-wider">Gestão de carga e cautelas técnico-operacionais</p>
+                                        </div>
+                                    </div>
+                                    <Button
                                         onClick={() => setIsTransferModalOpen(true)}
-                                        className="px-6 py-2.5 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20"
+                                        variant="primary"
+                                        className="px-6 py-2.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-xs font-bold shadow-lg shadow-primary-900/10 gap-2"
                                     >
-                                        Nova Transferência
-                                    </button>
+                                        <Layers size={16} /> Movimentação de Carga
+                                    </Button>
                                 </div>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                                    <div className="lg:col-span-1 space-y-4">
+                                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+                                    {/* Sidebar Colaboradores */}
+                                    <div className="lg:col-span-1 space-y-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm h-full max-h-[calc(100vh-280px)] flex flex-col">
                                         <div className="relative">
                                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                             <input
                                                 type="text"
-                                                placeholder="Buscar colaborador..."
+                                                placeholder="Localizar colaborador..."
                                                 value={techSearch}
                                                 onChange={e => setTechSearch(e.target.value)}
-                                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-amber-50 transition-all shadow-sm"
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all"
                                             />
                                         </div>
-                                        <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                                        <div className="flex-1 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
                                             {techs
                                                 .filter(t => t.name.toLowerCase().includes(techSearch.toLowerCase()))
                                                 .map(t => (
@@ -780,90 +786,99 @@ export const StockManagement: React.FC = () => {
                                                             const stock = await DataService.getTechStock(t.id);
                                                             setTechStock(stock);
                                                         }}
-                                                        className={`w-full p-4 rounded-2xl border text-left transition-all group relative overflow-hidden ${selectedTech?.id === t.id ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-200/50' : 'bg-white border-slate-100 hover:border-amber-200'}`}
+                                                        className={`w-full p-3 rounded-xl border text-left transition-all group relative overflow-hidden flex items-center gap-3 ${selectedTech?.id === t.id ? 'bg-primary-50 border-primary-200 shadow-sm' : 'bg-white border-transparent hover:bg-slate-50'}`}
                                                     >
-                                                        {selectedTech?.id === t.id && (
-                                                            <div className="absolute right-0 top-0 bottom-0 w-1 bg-amber-500" />
-                                                        )}
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${selectedTech?.id === t.id ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                                                {t.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[11px] font-black text-slate-800 uppercase leading-none mb-1">{t.name}</p>
-                                                                <p className={`text-[8px] font-black uppercase tracking-wider ${t.role === 'ADMIN' ? 'text-rose-500' : 'text-slate-400'}`}>
-                                                                    {t.role === 'ADMIN' ? 'Gestor' : 'Técnico'}
+                                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-transform group-hover:scale-105 ${selectedTech?.id === t.id ? 'bg-[#1c2d4f] text-white shadow-md shadow-primary-900/20' : 'bg-slate-100 text-slate-500'}`}>
+                                                            {t.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                                                        </div>
+                                                        <div className="min-w-0 pr-4">
+                                                            <p className={`text-[11px] font-bold leading-none mb-1.5 truncate uppercase ${selectedTech?.id === t.id ? 'text-primary-900' : 'text-slate-700'}`}>{t.name}</p>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${t.role === 'ADMIN' ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+                                                                <p className="text-[9px] font-semibold text-slate-400 flex items-center gap-1">
+                                                                    {t.role === 'ADMIN' ? 'GESTÃO' : 'OPERACIONAL'}
                                                                 </p>
                                                             </div>
                                                         </div>
+                                                        {selectedTech?.id === t.id && (
+                                                            <div className="ml-auto">
+                                                                <RefreshCw size={12} className="text-primary-default animate-pulse" />
+                                                            </div>
+                                                        )}
                                                     </button>
                                                 ))}
                                         </div>
                                     </div>
-                                    <div className="lg:col-span-3">
+
+                                    {/* Inventário do Técnico */}
+                                    <div className="lg:col-span-3 space-y-6 flex flex-col h-full max-h-[calc(100vh-280px)]">
                                         {selectedTech ? (
-                                            <div className="space-y-4">
-                                                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-3xl p-6 text-white shadow-lg shadow-amber-500/20">
-                                                    <div className="flex items-center justify-between">
-                                                        <div>
-                                                            <p className="text-[10px] font-black uppercase opacity-80 mb-1">Responsável</p>
-                                                            <h4 className="text-xl font-black uppercase tracking-tight">{selectedTech.name}</h4>
+                                            <>
+                                                <div className="bg-[#1c2d4f] rounded-2xl p-6 text-white shadow-xl shadow-primary-900/10 relative overflow-hidden shrink-0">
+                                                    <div className="relative z-10 flex items-center justify-between">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20">
+                                                                <Box className="text-white" size={28} />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] font-bold uppercase text-blue-200 mb-1 leading-none">Cautela de Carga Ativa</p>
+                                                                <h4 className="text-xl font-bold uppercase tracking-tight leading-none">{selectedTech.name}</h4>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <p className="text-[10px] font-black uppercase opacity-80 mb-1">Total de Itens</p>
-                                                            <p className="text-2xl font-black">{techStock.length}</p>
+                                                        <div className="text-right flex flex-col items-end">
+                                                            <p className="text-[10px] font-bold uppercase text-blue-200 mb-1 leading-none">Itens Custodiados</p>
+                                                            <p className="text-4xl font-black">{techStock.length}</p>
                                                         </div>
                                                     </div>
+                                                    <TrendingUp size={120} className="absolute right-[-20px] bottom-[-40px] text-white/5" />
                                                 </div>
-                                                <div className="bg-white border border-slate-300 shadow-xl shadow-slate-200/50 rounded-xl overflow-hidden ring-1 ring-slate-100">
-                                                    <table className="w-full text-left">
-                                                        <thead className="bg-slate-200/60 backdrop-blur-md border-b border-slate-300">
-                                                            <tr className="text-[10px] font-black text-slate-500 uppercase tracking-[0.1em]">
-                                                                <th className="px-6 py-4">Item Catalogado</th>
-                                                                <th className="px-6 py-4 text-center">Quantidade</th>
-                                                                <th className="px-6 py-3 text-right">Avaliação Unit.</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {techStock.length === 0 ? (
-                                                                <tr>
-                                                                    <td colSpan={3} className="py-20 text-center">
-                                                                        <div className="flex flex-col items-center gap-2 opacity-20">
-                                                                            <Package size={40} />
-                                                                            <p className="text-[10px] font-black uppercase tracking-widest">Sem carga ativa</p>
-                                                                        </div>
-                                                                    </td>
+
+                                                <div className="bg-white border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
+                                                    <div className="overflow-auto custom-scrollbar">
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+                                                                <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+                                                                    <th className="px-6 py-4">Produto no Estoque Técnico</th>
+                                                                    <th className="px-6 py-4 text-center">Quantidade</th>
+                                                                    <th className="px-6 py-4 text-right">Referência SKU</th>
                                                                 </tr>
-                                                            ) : techStock.map(ts => (
-                                                                <tr key={ts.id} className="hover:bg-slate-50/50 transition-colors">
-                                                                    <td className="px-6 py-4">
-                                                                        <div className="flex flex-col">
-                                                                            <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{ts.item?.description}</span>
-                                                                            <span className="text-[9px] font-bold text-slate-400">SKU: {ts.item?.code || 'S/N'}</span>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-6 py-4 text-center">
-                                                                        <span className="inline-flex items-center justify-center min-w-[32px] h-8 px-2 bg-slate-900 text-white rounded-xl text-[11px] font-black shadow-inner">
-                                                                            {ts.quantity}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-6 py-4 text-right">
-                                                                        <span className="text-[11px] font-black text-slate-700 bg-slate-100 px-3 py-1 rounded-lg">
-                                                                            R$ {ts.item?.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                        </span>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-100">
+                                                                {techStock.length === 0 ? (
+                                                                    <tr>
+                                                                        <td colSpan={3} className="py-24 text-center">
+                                                                            <div className="flex flex-col items-center gap-3 opacity-30">
+                                                                                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
+                                                                                    <Package size={32} className="text-slate-400" />
+                                                                                </div>
+                                                                                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Sem carga atribuída</p>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                ) : techStock.map(ts => (
+                                                                    <tr key={ts.id} className="hover:bg-slate-50 transition-colors group">
+                                                                        <td className="px-6 py-4">
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight group-hover:text-primary-600 transition-colors">{ts.item?.description}</span>
+                                                                                <span className="text-[9px] font-medium text-slate-400 mt-1 uppercase tracking-wider">{ts.item?.category || 'Sem Categoria'}</span>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-6 py-4 text-center">
+                                                                            <span className="inline-flex items-center justify-center min-w-[32px] h-8 px-3 bg-white border border-slate-200 text-slate-900 rounded-[10px] text-[11px] font-bold shadow-sm">
+                                                                                {ts.quantity} {ts.item?.unit}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-6 py-4 text-right">
+                                                                            <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-md border border-slate-100">#{ts.item?.code || '---'}</span>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            </>
                                         ) : (
-                                            <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl h-full min-h-[500px] flex flex-col items-center justify-center p-12 text-center group">
-                                                <div className="w-20 h-20 bg-white rounded-3xl shadow-xl shadow-slate-200/50 flex items-center justify-center text-slate-300 mb-6 group-hover:scale-110 transition-transform">
-                                                    <Users size={32} />
-                                                </div>
-                                                <h5 className="text-slate-800 font-black uppercase text-sm mb-2">Aguardando Seleção</h5>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest max-w-[200px]">Selecione um colaborador ao lado para auditar sua carga de estoque</p>
                                             </div>
                                         )}
