@@ -909,7 +909,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     }}
                                     className="h-9 px-4 gap-2 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-bold transition-all flex items-center"
                                 >
-                                    <Share2 size={14} /> Link Público
+                                    <Share2 size={14} /> Visualizar
                                 </button>
                                 <button
                                     onClick={() => handlePrint(selectedItem)}
@@ -1034,10 +1034,26 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                         <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center"><Check size={16} className="text-white" /></div>
                                         <p className="text-[11px] font-black text-emerald-800 uppercase tracking-widest">Baixa Realizada</p>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                         <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                                            <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Método</p>
+                                            <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Pagamento (Ex: Cartão 3x)</p>
                                             <p className="text-xs font-black text-emerald-900 uppercase">{selectedItem.original.paymentMethod || '—'}</p>
+                                        </div>
+                                        <div className="bg-white rounded-xl p-3 border border-emerald-100">
+                                            <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Desconto</p>
+                                            <p className="text-xs font-black text-emerald-900 uppercase">
+                                                {(() => {
+                                                    const disc = Number(selectedItem.original?.discount) || 0;
+                                                    const subtotal = selectedItem.original?.items?.reduce((a: number, i: any) => a + (Number(i.total) || 0), 0) || selectedItem.value;
+                                                    const infer = subtotal > selectedItem.original?.totalValue ? subtotal - selectedItem.original?.totalValue : 0;
+                                                    const finalDisc = disc > 0 ? disc : infer;
+                                                    const type = disc > 0 ? (selectedItem.original.discountType || 'fixed') : 'fixed';
+                                                    if (finalDisc > 0) {
+                                                        return type === 'percent' ? `${finalDisc}%` : formatCurrency(finalDisc);
+                                                    }
+                                                    return 'Sem desconto';
+                                                })()}
+                                            </p>
                                         </div>
                                         <div className="bg-white rounded-xl p-3 border border-emerald-100">
                                             <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Data</p>
