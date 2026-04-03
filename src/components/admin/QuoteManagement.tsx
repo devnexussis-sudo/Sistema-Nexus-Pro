@@ -1382,40 +1382,48 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                     </div>
                 )}
 
-                {/* Aprovação (se aprovado) */}
-                {quote.status === 'APROVADO' && (
-                    <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
-                        <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
-                            <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Responsável Técnico / Emissor</p>
-                                <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-[10px] font-bold uppercase">
-                                    Validação Eletrônica no Sistema
+                {/* Aprovação / Recusa (Auditoria Digital) */}
+                {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO' || quote.status === 'REJEITADO') ? (
+                    <div className={`border rounded-lg overflow-hidden break-inside-avoid mt-4 ${quote.status === 'REJEITADO' ? 'border-rose-300' : 'border-emerald-300'}`}>
+                        <div className={`${quote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'} px-3 py-1.5 border-b font-bold text-[9px] uppercase tracking-wider`}>
+                            {quote.status === 'REJEITADO' ? 'Formalização de Recusa — Auditoria Digital' : 'Validação e Assinaturas — Auditoria Digital'}
+                        </div>
+                        <div className="bg-white">
+                            {quote.status === 'REJEITADO' && (
+                                <div className="p-3 bg-rose-50/50 border-b border-rose-100 italic text-[11px] text-rose-900 font-bold uppercase">
+                                    Motivo da Recusa: {quote.rejectionReason || 'Recusa efetuada via link público pelo cliente.'}
                                 </div>
-                                <div className="w-full border-t border-slate-300 pt-2">
-                                    <p className="text-[12px] font-black text-slate-900 uppercase">{companyName}</p>
+                            )}
+                            <div className="grid grid-cols-2 divide-x divide-slate-300 text-center">
+                                <div className="p-4 flex flex-col items-center justify-center gap-3">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Emitente / Comercial</p>
+                                    <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-[10px] font-bold uppercase">
+                                        Visto Eletrônico Nexus
+                                    </div>
+                                    <div className="w-full border-t border-slate-300 pt-2">
+                                        <p className="text-[12px] font-black text-slate-900 uppercase">{companyName}</p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Aprovação do Cliente</p>
-                                <div className="h-[80px] flex items-center justify-center">
-                                    {quote.approvalSignature ? (
-                                        <img src={quote.approvalSignature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
-                                    ) : (
-                                        <span className="text-slate-300 italic text-[10px] font-bold uppercase">Aprovação digital registrada</span>
-                                    )}
-                                </div>
-                                <div className="w-full border-t border-slate-300 pt-2">
-                                    <p className="text-[12px] font-black text-slate-900 uppercase">{quote.approvedByName || 'Não Informado'}</p>
-                                    {quote.approvedAt && <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{new Date(quote.approvedAt).toLocaleString('pt-BR')}</p>}
+                                <div className="p-4 flex flex-col items-center justify-center gap-3">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                        {quote.status === 'REJEITADO' ? 'Recusado pelo Cliente' : 'Aprovação do Cliente'}
+                                    </p>
+                                    <div className="h-[80px] flex items-center justify-center">
+                                        {quote.approvalSignature ? (
+                                            <img src={quote.approvalSignature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
+                                        ) : (
+                                            <span className="text-slate-300 italic text-[10px] font-bold uppercase">Registro digital certificado</span>
+                                        )}
+                                    </div>
+                                    <div className="w-full border-t border-slate-300 pt-2">
+                                        <p className="text-[12px] font-black text-slate-900 uppercase">{quote.approvedByName || 'Cliente'}</p>
+                                        {quote.approvedAt && <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{new Date(quote.approvedAt).toLocaleString('pt-BR')}</p>}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                )}
-
-                {/* Aceite (se não aprovado) */}
-                {quote.status !== 'APROVADO' && (
+                ) : (
                     <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
                         <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Aceite e Conformidade</div>
                         <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
@@ -1431,7 +1439,6 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                                 <div className="h-[80px] flex items-center justify-center" />
                                 <div className="w-full border-t border-slate-300 pt-2">
                                     <p className="text-[12px] font-black text-slate-300 uppercase">Nome:</p>
-                                    <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">CPF/CNPJ:</p>
                                 </div>
                             </div>
                         </div>
