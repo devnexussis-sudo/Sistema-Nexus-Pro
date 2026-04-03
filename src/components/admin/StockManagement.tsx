@@ -758,7 +758,15 @@ export const StockManagement: React.FC = () => {
                                         </div>
                                     </div>
                                     <Button
-                                        onClick={() => setIsTransferModalOpen(true)}
+                                        onClick={() => {
+                                            setTransferData({ 
+                                                itemId: '', 
+                                                techId: selectedTech?.id || '', 
+                                                quantity: '', 
+                                                direction: selectedTech ? 'return' : 'transfer' 
+                                            });
+                                            setIsTransferModalOpen(true);
+                                        }}
                                         variant="primary"
                                         className="px-6 py-2.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-xs font-bold shadow-lg shadow-primary-900/10 gap-2"
                                     >
@@ -1471,14 +1479,26 @@ export const StockManagement: React.FC = () => {
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Item Envolvido</label>
                                     <select
                                         required
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-100"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100"
                                         value={transferData.itemId}
                                         onChange={e => setTransferData({ ...transferData, itemId: e.target.value })}
                                     >
                                         <option value="">Selecione o Item</option>
-                                        {items.map(i => (
-                                            <option key={i.id} value={i.id}>{i.description} {transferData.direction === 'transfer' ? `(${i.quantity} ${i.unit} disp. no Geral)` : ''}</option>
-                                        ))}
+                                        {transferData.direction === 'return' ? (
+                                            // Se for devolução, mostramos apenas o que o técnico selecionado possui no estoque técnico
+                                            techStock.map(ts => (
+                                                <option key={ts.item?.id || ts.stock_item_id} value={ts.item?.id || ts.stock_item_id}>
+                                                    {ts.item?.description} ({ts.quantity} {ts.item?.unit} em posse do colaborador)
+                                                </option>
+                                            ))
+                                        ) : (
+                                            // Se for transferência normal, mostramos o estoque geral disponível
+                                            items.map(i => (
+                                                <option key={i.id} value={i.id}>
+                                                    {i.description} ({i.quantity} {i.unit} disp. no Geral)
+                                                </option>
+                                            ))
+                                        )}
                                     </select>
                                 </div>
 
@@ -1486,9 +1506,16 @@ export const StockManagement: React.FC = () => {
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Técnico Envolvido</label>
                                     <select
                                         required
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-100"
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100"
                                         value={transferData.techId}
-                                        onChange={e => setTransferData({ ...transferData, techId: e.target.value })}
+                                        onChange={async (e) => {
+                                            const newTechId = e.target.value;
+                                            setTransferData({ ...transferData, techId: newTechId, itemId: '' });
+                                            if (newTechId && transferData.direction === 'return') {
+                                                const stock = await DataService.getTechStock(newTechId);
+                                                setTechStock(stock);
+                                            }
+                                        }}
                                     >
                                         <option value="">Selecione o Técnico</option>
                                         {techs.map(t => (
@@ -1516,7 +1543,7 @@ export const StockManagement: React.FC = () => {
                                 variant="primary"
                                 className="w-full py-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary-900/20 transition-all active:scale-95"
                             >
-                                Confirmar Envio ao Técnico
+                                {transferData.direction === 'transfer' ? 'Confirmar Transferência' : 'Confirmar Devolução'}
                             </Button>
                         </form>
                     </div>
