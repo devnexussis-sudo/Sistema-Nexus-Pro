@@ -484,13 +484,11 @@ export const StockManagement: React.FC = () => {
         const cost = Number(item.costPrice) || 0;
         const freight = Number(item.freightCost) || 0;
         const sell = Number(item.sellPrice) || 0;
-        const taxPercent = Number(item.taxPercent) || 0;
-
-        // Se o item já vem do banco, usamos o taxCost absoluto.
-        // Se for o estado local do formulário (que tem taxPercent), calculamos dinamicamente para o preview
-        const taxVal = item.taxCost !== undefined 
-            ? Number(item.taxCost) 
-            : (sell * (taxPercent / 100));
+        // Prioritizamos o cálculo dinâmico via porcentagem se ela existir (modo edição/formulário)
+        // para que o preview reaja instantaneamente.
+        const taxVal = (item.taxPercent !== undefined && item.taxPercent !== '')
+            ? (sell * (Number(item.taxPercent) / 100))
+            : (Number(item.taxCost) || 0);
 
         return cost + freight + taxVal;
     };
