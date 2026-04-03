@@ -97,6 +97,7 @@ export const StockManagement: React.FC = () => {
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [transferData, setTransferData] = useState({ itemId: '', techId: '', quantity: '', direction: 'transfer' });
     const [techSearch, setTechSearch] = useState('');
+    const [modalTab, setModalTab] = useState<'dados' | 'financial' | 'logs'>('dados');
 
     // --- Loaders ---
     const loadItems = async (page: number, search: string, category: string, status: string) => {
@@ -314,7 +315,7 @@ export const StockManagement: React.FC = () => {
                 await DataService.createStockItem(payload);
             }
             setIsModalOpen(false);
-            loadItems();
+            loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
         } catch (error: any) {
             console.error('Erro completo ao salvar item:', error);
             alert(`Erro ao salvar item no banco de dados:\n\n${error.message || 'Verifique sua conexão ou tente novamente.'}`);
@@ -324,7 +325,7 @@ export const StockManagement: React.FC = () => {
     const handleDelete = async (id: string) => {
         if (confirm('Tem certeza que deseja remover este item?')) {
             await DataService.deleteStockItem(id);
-            loadItems();
+            loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
         }
     };
 
@@ -356,6 +357,8 @@ export const StockManagement: React.FC = () => {
             }
             setIsCategoryModalOpen(false);
             loadCategories();
+            loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
+            loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
         } catch (error: any) {
             console.error('❌ Erro completo ao salvar categoria:', error);
             alert(`Erro ao salvar categoria: ${error.message || 'Verifique o console para mais detalhes.'}`);
@@ -366,6 +369,7 @@ export const StockManagement: React.FC = () => {
         if (confirm('Tem certeza? Isso não removerá os itens associados.')) {
             await DataService.deleteCategory(id);
             loadCategories();
+            loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
         }
     };
 
@@ -493,7 +497,7 @@ export const StockManagement: React.FC = () => {
     };
 
     return (
-        <div className="p-4 pr-8 animate-fade-in">
+        <div className="p-4 pr-8 animate-fade-in font-poppins">
             <div className="mb-6 flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between pr-2">
                 {/* Tabs */}
                 <div className="flex bg-[#f8fafc] p-1.5 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/40 shrink-0 overflow-x-auto max-w-full">
@@ -557,23 +561,22 @@ export const StockManagement: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
-
+            {/* Main Table Container */}
+            <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
                 {activeTab === 'items' ? (
                     <>
-                        {/* Items Table */}
                         <div className="flex-1 overflow-auto custom-scrollbar">
-                            <table className="w-full border-separate border-spacing-y-0">
-                                <thead className="sticky top-0 z-20 shadow-md">
-                                    <tr className="bg-[#1c2d4f] text-[10px] font-black text-white uppercase tracking-[0.15em] text-left">
-                                        <th className="px-6 py-5 first:rounded-tl-[2rem]">Identificação / SKU</th>
-                                        <th className="px-6 py-5">Descrição do Produto</th>
-                                        <th className="px-6 py-5">Localização</th>
-                                        <th className="px-6 py-5 text-center">Saldo</th>
-                                        <th className="px-6 py-5 text-right whitespace-nowrap">Avaliação Custo</th>
-                                        <th className="px-6 py-5 text-right whitespace-nowrap">Venda Público</th>
-                                        <th className="px-6 py-5 text-center">Rentabilidade</th>
-                                        <th className="px-6 py-5 text-right pr-10 last:rounded-tr-[2rem]">Gestão</th>
+                            <table className="w-full border-collapse">
+                                <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
+                                    <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
+                                        <th className="px-3 py-2 first:pl-6">Identificação / SKU</th>
+                                        <th className="px-3 py-2">Descrição do Produto</th>
+                                        <th className="px-3 py-2">Localização</th>
+                                        <th className="px-3 py-2 text-center">Saldo</th>
+                                        <th className="px-3 py-2 text-right whitespace-nowrap">Avaliação Custo</th>
+                                        <th className="px-3 py-2 text-right whitespace-nowrap">Venda Público</th>
+                                        <th className="px-3 py-2 text-center">Rentabilidade</th>
+                                        <th className="px-3 py-2 text-right pr-6">Gestão</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -615,47 +618,51 @@ export const StockManagement: React.FC = () => {
                                                 const totalCost = calculateTotalCost(item);
                                                 const margin = calculateMargin(item);
                                                 return (
-                                                    <tr key={item.id} className="bg-white hover:bg-primary-50/40 transition-all border-b border-slate-200 last:border-0 group">
-                                                        <td className="px-4 py-1.5">
+                                                    <tr
+                                                        key={item.id}
+                                                        className="transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer bg-white hover:bg-slate-50"
+                                                        onClick={() => handleOpenModal(item)}
+                                                    >
+                                                        <td className="px-3 py-3 pl-6">
                                                             <div className="flex flex-col truncate max-w-[100px]">
                                                                 <span className="text-[12px] font-medium text-primary-600 truncate">{item?.code || '---'}</span>
                                                                 {item?.externalCode && (
-                                                                    <span className="text-[11px] text-slate-400 flex items-center gap-1 truncate">
+                                                                    <span className="text-[10px] text-slate-400 flex items-center gap-1 truncate font-normal">
                                                                         <Barcode size={10} className="shrink-0" /> {item.externalCode}
                                                                     </span>
                                                                 )}
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-1.5">
-                                                            <p className="text-[13px] font-medium text-slate-700 truncate max-w-[180px]">{item?.description || 'Item sem descrição'}</p>
+                                                        <td className="px-3 py-3">
+                                                            <p className="text-[12px] font-medium text-slate-700 truncate max-w-[220px]">{item?.description || 'Item sem descrição'}</p>
                                                             <div className="flex gap-1.5 overflow-hidden">
-                                                                <span className="text-[11px] text-slate-400 truncate">{item?.category || '-'}</span>
-                                                                <span className="text-[11px] text-slate-300 shrink-0">•</span>
-                                                                <span className="text-[11px] text-slate-400 shrink-0">{item?.unit || 'UN'}</span>
+                                                                <span className="text-[10px] text-slate-400 truncate">{item?.category || '-'}</span>
+                                                                <span className="text-[10px] text-slate-300 shrink-0">•</span>
+                                                                <span className="text-[10px] text-slate-400 shrink-0">{item?.unit || 'UN'}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-1.5 text-[12px] text-slate-500 truncate max-w-[100px]">{item?.location || '-'}</td>
-                                                        <td className="px-4 py-1.5 text-center">
+                                                        <td className="px-3 py-3 text-[11px] text-slate-500 truncate max-w-[100px]">{item?.location || '-'}</td>
+                                                        <td className="px-3 py-3 text-center">
                                                             <div className="flex items-center justify-center gap-1.5">
-                                                                <span className={`text-[13px] font-semibold ${(item?.quantity || 0) <= (item?.minQuantity || 0) ? 'text-rose-500' : 'text-slate-700'}`}>{item?.quantity || 0}</span>
+                                                                <span className={`text-[12px] font-semibold tracking-tight ${(item?.quantity || 0) <= (item?.minQuantity || 0) ? 'text-rose-500' : 'text-slate-700'}`}>{item?.quantity || 0}</span>
                                                                 {(item?.quantity || 0) <= (item?.minQuantity || 0) && <AlertTriangle size={12} className="text-rose-500 shrink-0" />}
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-1.5 text-[12px] text-slate-500 text-right whitespace-nowrap">R$ {totalCost.toFixed(2)}</td>
-                                                        <td className="px-4 py-1.5 text-[12px] text-slate-700 text-right whitespace-nowrap">R$ {(item?.sellPrice || 0).toFixed(2)}</td>
-                                                        <td className="px-4 py-1.5">
-                                                            <div className={`flex items-center justify-center gap-1 text-[12px] font-medium ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
+                                                        <td className="px-3 py-3 text-[11px] text-slate-500 text-right whitespace-nowrap">R$ {totalCost.toFixed(2)}</td>
+                                                        <td className="px-3 py-3 text-[11px] text-slate-700 text-right whitespace-nowrap font-medium">R$ {(item?.sellPrice || 0).toFixed(2)}</td>
+                                                        <td className="px-3 py-3">
+                                                            <div className={`flex items-center justify-center gap-1 text-[11px] font-bold ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
                                                                 {margin >= 0 ? <TrendingUp size={12} className="shrink-0" /> : <TrendingDown size={12} className="shrink-0" />}
                                                                 {margin.toFixed(1)}%
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-1.5 text-right pr-4">
-                                                            <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-all">
-                                                                <button onClick={() => handleOpenModal(item)} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-95" title="Editar">
-                                                                    <Edit3 size={16} />
+                                                        <td className="px-3 py-3 text-right pr-6">
+                                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                                                <button onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }} className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 transition-all" title="Ver Detalhes">
+                                                                    <Package size={14} />
                                                                 </button>
-                                                                <button onClick={() => handleDelete(item.id)} className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-95" title="Excluir">
-                                                                    <Trash2 size={16} />
+                                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all" title="Excluir">
+                                                                    <Trash2 size={14} />
                                                                 </button>
                                                             </div>
                                                         </td>
@@ -788,11 +795,11 @@ export const StockManagement: React.FC = () => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-lg shadow-slate-200/50">
+                                                <div className="bg-white border border-slate-300 shadow-xl shadow-slate-200/50 rounded-xl overflow-hidden ring-1 ring-slate-100">
                                                     <table className="w-full text-left">
-                                                        <thead className="bg-slate-50 border-b border-slate-200">
-                                                            <tr className="text-[11px] font-semibold text-slate-600 tracking-tight font-poppins">
-                                                                <th className="px-6 py-4">Item Patrimonial</th>
+                                                        <thead className="bg-slate-200/60 backdrop-blur-md border-b border-slate-300">
+                                                            <tr className="text-[10px] font-black text-slate-500 uppercase tracking-[0.1em]">
+                                                                <th className="px-6 py-4">Item Catalogado</th>
                                                                 <th className="px-6 py-4 text-center">Quantidade</th>
                                                                 <th className="px-6 py-3 text-right">Avaliação Unit.</th>
                                                             </tr>
@@ -832,7 +839,7 @@ export const StockManagement: React.FC = () => {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[40px] h-full min-h-[500px] flex flex-col items-center justify-center p-12 text-center group">
+                                            <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl h-full min-h-[500px] flex flex-col items-center justify-center p-12 text-center group">
                                                 <div className="w-20 h-20 bg-white rounded-3xl shadow-xl shadow-slate-200/50 flex items-center justify-center text-slate-300 mb-6 group-hover:scale-110 transition-transform">
                                                     <Users size={32} />
                                                 </div>
@@ -898,17 +905,17 @@ export const StockManagement: React.FC = () => {
                                         )}
                                         <span className="text-[9px] font-bold text-slate-400 ml-auto">{filtered.length} registro(s)</span>
                                     </div>
-                                    <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden">
+                                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                                         <table className="w-full text-left">
-                                            <thead className="bg-slate-50 border-b border-slate-200">
-                                                <tr className="text-[10px] font-black text-slate-500 uppercase">
-                                                    <th className="px-6 py-1.5 text-center">Data</th>
-                                                    <th className="px-6 py-1.5 text-center">Tipo</th>
-                                                    <th className="px-6 py-1.5">Item</th>
-                                                    <th className="px-6 py-1.5 text-center">Qtd.</th>
-                                                    <th className="px-6 py-1.5">Técnico / Admin</th>
-                                                    <th className="px-6 py-1.5">Referência (OS/ORC)</th>
-                                                    <th className="px-6 py-1.5 text-center">Fluxo</th>
+                                            <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
+                                                <tr className="text-[10px] font-semibold text-slate-600 tracking-tight text-left uppercase">
+                                                    <th className="px-6 py-3 text-center">Data</th>
+                                                    <th className="px-6 py-3 text-center">Tipo</th>
+                                                    <th className="px-6 py-3">Item</th>
+                                                    <th className="px-6 py-3 text-center">Qtd.</th>
+                                                    <th className="px-6 py-3">Técnico / Admin</th>
+                                                    <th className="px-6 py-3">Referência (OS/ORC)</th>
+                                                    <th className="px-6 py-3 text-center">Fluxo</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
@@ -958,10 +965,10 @@ export const StockManagement: React.FC = () => {
 
             {/* RESTOCK MODAL */}
             {isRestockModalOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-white/50">
-                        <div className="px-8 py-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-                            <h2 className="text-lg font-black text-slate-800 uppercase  flex items-center gap-2">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-slate-200">
+                        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                            <h2 className="text-base font-semibold text-slate-900 font-poppins flex items-center gap-2">
                                 <Package className="text-primary-600" size={20} /> Entrada Rápida
                             </h2>
                             <button onClick={() => setIsRestockModalOpen(false)} className="text-slate-400 hover:text-rose-500 transition-colors">
@@ -1027,281 +1034,263 @@ export const StockManagement: React.FC = () => {
                 </div>
             )}
 
-            {/* ITEM MODAL */}
+            {/* ITEM MODAL (Pattern igual a OS Atividades) */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 animate-fade-in">
-                    <div className="bg-white rounded-[2rem] w-full max-w-[95vw] lg:max-w-6xl h-[92vh] shadow-2xl overflow-hidden animate-scale-up border border-slate-200 flex flex-col">
-                        {/* MODAL HEADER */}
-                        <div className="px-10 py-6 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
-                            <div className="flex items-center gap-5">
-                                <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-[#1c2d4f] border border-slate-200 shadow-sm">
-                                    <Package size={24} />
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+                        {/* HEADER (Estilo Atividades) */}
+                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 transition-colors">
+                                    <Package size={20} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none">
-                                        {editingItem ? `Editar Item: ${editingItem.code}` : 'Novo Cadastro de Produto'}
-                                    </h2>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                                        Nexus Gestão de Materiais • Estoque Geral
+                                    <div className="flex items-center gap-3">
+                                        <h2 className="text-base font-semibold text-slate-900 font-poppins">
+                                            {editingItem ? `Produto SKU #${editingItem.code}` : 'Novo Cadastro de Produto'}
+                                        </h2>
+                                        {editingItem && (
+                                            <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${(editingItem.quantity || 0) > (editingItem.minQuantity || 0) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                                {(editingItem.quantity || 0) > (editingItem.minQuantity || 0) ? 'Estoque Regular' : 'Atenção: Baixo Estoque'}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                        {formData.description || 'Gestão de Inventário e Patrimônio • Nexus Pro'}
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-4">
+
+                            <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="p-3 bg-slate-50 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all border border-slate-200 hover:border-rose-200 shadow-sm"
+                                    onClick={handleSubmit}
+                                    form="stock-item-form"
+                                    className="h-9 px-5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg shadow-md shadow-primary-500/20 transition-all flex items-center gap-2"
                                 >
+                                    <Save size={14} /> Salvar Alterações
+                                </button>
+                                <div className="h-6 w-px bg-slate-200 mx-2"></div>
+                                <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                                     <X size={20} />
                                 </button>
                             </div>
                         </div>
 
-                        {/* MODAL BODY */}
-                        <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/30">
-                            <form onSubmit={handleSubmit} id="stock-item-form" className="p-10">
-                                <div className="grid grid-cols-12 gap-8 max-w-6xl mx-auto">
-                                    {/* LEFT COLUMN: IDENTIFICATION & LOGISTICS */}
-                                    <div className="col-span-12 lg:col-span-7 space-y-8">
-                                        {/* SECTION: IDENTIFICAÇÃO */}
-                                        <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">
-                                            <h3 className="text-sm font-black text-slate-900 border-l-4 border-[#1c2d4f] pl-3 uppercase">Informações Básicas</h3>
-                                            
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Código Interno (SKU)</label>
-                                                    <div className="relative group">
-                                                        <Input
-                                                            value={formData.code}
-                                                            onChange={e => setFormData({ ...formData, code: e.target.value })}
-                                                            className="rounded-xl border-slate-200 font-bold bg-slate-50/50 focus:bg-white pr-12 h-12"
-                                                            required
-                                                            placeholder="Ex: STK-00001"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={generateCode}
-                                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-400 hover:text-primary-600 p-2 hover:bg-primary-50 rounded-lg transition-all"
-                                                            title="Gerar Cód. Aleatório"
-                                                        >
-                                                            <Wand2 size={16} />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Ref. Fabricante / Código Externo</label>
-                                                    <Input
-                                                        value={formData.externalCode}
-                                                        onChange={e => setFormData({ ...formData, externalCode: e.target.value })}
-                                                        className="rounded-xl border-slate-200 font-bold bg-slate-50/50 focus:bg-white h-12"
-                                                        placeholder="EAN / Part Number..."
-                                                        icon={<Barcode size={16} className="text-slate-400" />}
-                                                    />
-                                                </div>
-                                            </div>
+                        {/* TABS (Igual a Atividades) */}
+                        <div className="px-6 border-b border-slate-200 bg-white flex gap-6 shrink-0 overflow-x-auto">
+                            {[
+                                { id: 'dados', label: 'dados gerais', icon: LayoutDashboard },
+                                { id: 'financial', label: 'financeiro', icon: DollarSign },
+                                { id: 'logs', label: 'movimentações', icon: History }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setModalTab(tab.id as any)}
+                                    className={`flex items-center gap-2 py-4 text-xs font-medium border-b-2 transition-all whitespace-nowrap font-poppins uppercase tracking-wider
+                                        ${modalTab === tab.id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    <tab.icon size={15} /> {tab.label}
+                                </button>
+                            ))}
+                        </div>
 
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome / Descrição Detalhada</label>
-                                                <Input
-                                                    value={formData.description}
-                                                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                                    className="rounded-xl border-slate-200 font-black bg-white h-14 text-sm shadow-inner"
-                                                    required
-                                                    placeholder="Digite o nome completo do produto ou peça..."
-                                                />
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Categoria de Estoque</label>
-                                                    <select
-                                                        value={formData.category}
-                                                        onChange={e => setFormData({ ...formData, category: e.target.value })}
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-[11px] font-black text-slate-700 focus:ring-4 focus:ring-primary-100 focus:border-[#1c2d4f] transition-all outline-none uppercase cursor-pointer"
-                                                    >
-                                                        <option value="">Sem Categoria Definida</option>
-                                                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Unidade de Controle</label>
-                                                    <select
-                                                        value={formData.unit}
-                                                        onChange={e => setFormData({ ...formData, unit: e.target.value as any })}
-                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-[11px] font-black text-slate-700 focus:ring-4 focus:ring-primary-100 focus:border-[#1c2d4f] transition-all outline-none uppercase cursor-pointer"
-                                                    >
-                                                        <option value="UN">Unidade (UN)</option>
-                                                        <option value="CX">Caixa (CX)</option>
-                                                        <option value="PCT">Pacote (PCT)</option>
-                                                        <option value="M">Metros (M)</option>
-                                                        <option value="KG">Quilos (KG)</option>
-                                                        <option value="G">Gramas (G)</option>
-                                                        <option value="L">Litros (L)</option>
-                                                        <option value="ML">Mililitros (ML)</option>
-                                                        <option value="PAR">Par (PAR)</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* SECTION: ARMAZENAMENTO */}
-                                        <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">
-                                            <h3 className="text-sm font-black text-slate-900 border-l-4 border-amber-500 pl-3 uppercase">Controle e Localização</h3>
-                                            
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Endereço / Localização</label>
-                                                    <Input
-                                                        value={formData.location}
-                                                        onChange={e => setFormData({ ...formData, location: e.target.value })}
-                                                        className="rounded-xl border-slate-200 font-bold h-12"
-                                                        placeholder="Ex: A-10 / P-02"
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Saldo em Estoque</label>
-                                                    <div className="relative">
-                                                        <Input
-                                                            type="number"
-                                                            value={formData.quantity}
-                                                            onChange={e => setFormData({ ...formData, quantity: e.target.value })}
-                                                            onFocus={(e) => e.target.select()}
-                                                            className="rounded-xl border-slate-200 font-black h-12 text-center text-lg bg-slate-50"
-                                                            required
-                                                        />
-                                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-400">{formData.unit}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Alerta de Reposição</label>
-                                                    <div className="relative">
-                                                        <Input
-                                                            type="number"
-                                                            value={formData.minQuantity}
-                                                            onChange={e => setFormData({ ...formData, minQuantity: e.target.value })}
-                                                            onFocus={(e) => e.target.select()}
-                                                            className="rounded-xl border-rose-200 font-black h-12 text-center text-lg text-rose-600 bg-rose-50/30"
-                                                        />
-                                                        <AlertTriangle size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-400" />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* RIGHT COLUMN: FINANCIAL / SIDEBAR STYLE */}
-                                    <div className="col-span-12 lg:col-span-5 space-y-8 flex flex-col">
-                                        <div className="bg-[#1c2d4f] p-10 rounded-[2.5rem] text-white shadow-2xl shadow-primary-900/40 relative overflow-hidden flex-1 flex flex-col gap-8">
-                                            {/* Decorative Background */}
-                                            <div className="absolute top-0 right-0 p-8 opacity-10">
-                                                <DollarSign size={120} />
-                                            </div>
-                                            
-                                            <div className="relative z-10 space-y-8 flex-1">
-                                                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-primary-300 border-b border-white/10 pb-4 flex items-center gap-3">
-                                                    <DollarSign size={16} /> Composição Financeira
+                        {/* BODY */}
+                        <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 custom-scrollbar">
+                            <form onSubmit={handleSubmit} id="stock-item-form">
+                                {modalTab === 'dados' && (
+                                    <div className="grid grid-cols-12 gap-8">
+                                        <div className="col-span-12 lg:col-span-8 space-y-6">
+                                            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm space-y-6">
+                                                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                                    <Info size={18} className="text-slate-400" /> Identificação e Localização
                                                 </h3>
-
-                                                <div className="space-y-6">
-                                                    <div className="flex items-center justify-between group">
-                                                        <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Preço de Compra</span>
-                                                        <div className="relative flex-1 max-w-[160px]">
-                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-[10px] text-white/40">R$</span>
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                value={formData.costPrice}
-                                                                onChange={e => setFormData({ ...formData, costPrice: e.target.value })}
-                                                                onFocus={(e) => e.target.select()}
-                                                                className="w-full bg-white/10 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-xs font-black text-white outline-none focus:bg-white/20 focus:border-primary-400 transition-all text-right"
+                                                
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Código SKU / Interno</label>
+                                                        <div className="relative group">
+                                                            <Input
+                                                                value={formData.code}
+                                                                onChange={e => setFormData({ ...formData, code: e.target.value })}
+                                                                className="rounded-lg border-slate-200 font-bold bg-slate-50/30 focus:bg-white h-11 text-sm"
+                                                                required
                                                             />
+                                                            <button type="button" onClick={generateCode} className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-400 p-2 hover:bg-primary-50 rounded-md"><Wand2 size={16} /></button>
                                                         </div>
                                                     </div>
-
-                                                    <div className="flex items-center justify-between group">
-                                                        <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Frete / Logística</span>
-                                                        <div className="relative flex-1 max-w-[160px]">
-                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-[10px] text-white/40">R$</span>
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                value={formData.freightCost}
-                                                                onChange={e => setFormData({ ...formData, freightCost: e.target.value })}
-                                                                onFocus={(e) => e.target.select()}
-                                                                className="w-full bg-white/10 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-xs font-black text-white outline-none focus:bg-white/20 focus:border-primary-400 transition-all text-right"
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex items-center justify-between group">
-                                                        <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Impostos (%)</span>
-                                                        <div className="relative flex-1 max-w-[160px]">
-                                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-[10px] text-white/40">%</span>
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                value={formData.taxPercent}
-                                                                onChange={e => setFormData({ ...formData, taxPercent: e.target.value })}
-                                                                onFocus={(e) => e.target.select()}
-                                                                className="w-full bg-white/10 border border-white/10 rounded-xl pl-4 pr-8 py-3 text-xs font-black text-white outline-none focus:bg-white/20 focus:border-primary-400 transition-all text-right"
-                                                                placeholder="0.00"
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="pt-8 border-t border-white/10 mt-2">
-                                                        <div className="flex justify-between items-center bg-white/10 p-5 rounded-2xl border border-white/5">
-                                                            <span className="text-[10px] font-black text-primary-200 uppercase tracking-widest">Custo Operacional Total</span>
-                                                            <span className="text-xl font-black text-white tracking-tight">
-                                                                R$ {calculateTotalCost(formData).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                            </span>
-                                                        </div>
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Código de Barras / EAN</label>
+                                                        <Input
+                                                            value={formData.externalCode}
+                                                            onChange={e => setFormData({ ...formData, externalCode: e.target.value })}
+                                                            className="rounded-lg border-slate-200 h-11 text-sm"
+                                                            icon={<Barcode size={16} className="text-slate-400" />}
+                                                        />
                                                     </div>
                                                 </div>
 
-                                                <div className="space-y-6 pt-10">
-                                                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400 border-b border-white/10 pb-4 flex items-center gap-3">
-                                                        <TrendingUp size={16} /> Preço Final de Venda
-                                                    </h3>
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[11px] font-medium text-slate-400 block px-1">Nome / Descrição Curta</label>
+                                                    <Input
+                                                        value={formData.description}
+                                                        onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                                        className="rounded-lg border-slate-200 font-semibold h-11 text-sm"
+                                                        required
+                                                    />
+                                                </div>
 
-                                                    <div className="relative">
-                                                        <label className="absolute -top-2.5 left-4 px-2 text-[9px] font-black text-emerald-400 uppercase tracking-widest z-10 bg-[#1c2d4f]">Marcação de Mercado</label>
-                                                        <div className="relative">
-                                                            <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-black text-emerald-400 opacity-50">R$</span>
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                value={formData.sellPrice}
-                                                                onChange={e => setFormData({ ...formData, sellPrice: e.target.value })}
-                                                                onFocus={(e) => e.target.select()}
-                                                                className="w-full pl-16 pr-8 py-6 rounded-[1.5rem] border-2 border-emerald-500/30 bg-white/5 text-3xl font-black text-emerald-400 outline-none focus:border-emerald-500 focus:bg-white/10 transition-all text-right"
-                                                            />
-                                                        </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Categoria</label>
+                                                        <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all uppercase cursor-pointer">
+                                                            <option value="">Sem Categoria</option>
+                                                            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                                        </select>
                                                     </div>
-
-                                                    <div className="flex justify-between items-center gap-4 bg-emerald-500/10 border border-emerald-500/20 p-5 rounded-2xl">
-                                                        <div>
-                                                            <p className="text-[10px] font-black text-emerald-400/70 uppercase mb-1">Margem Real Estimada</p>
-                                                            <p className="text-2xl font-black text-emerald-400">{calculateMargin(formData).toFixed(2)}%</p>
-                                                        </div>
-                                                        <div className={`p-3 rounded-xl ${calculateMargin(formData) > 30 ? 'bg-emerald-500 text-white' : (calculateMargin(formData) > 0 ? 'bg-amber-500 text-white' : 'bg-rose-500 text-white')}`}>
-                                                            {calculateMargin(formData) >= 0 ? <TrendingUp size={24} /> : <TrendingDown size={24} />}
-                                                        </div>
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Unidade</label>
+                                                        <select value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value as any })} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all uppercase cursor-pointer">
+                                                            <option value="UN">Unidade (UN)</option>
+                                                            <option value="CX">Caixa (CX)</option>
+                                                            <option value="M">Metros (M)</option>
+                                                            <option value="KG">Quilos (KG)</option>
+                                                            <option value="PAR">Par (PAR)</option>
+                                                        </select>
                                                     </div>
                                                 </div>
                                             </div>
+                                        </div>
 
-                                            <div className="shrink-0 pt-8 mt-auto flex flex-col gap-4">
-                                                <button
-                                                    type="submit"
-                                                    className="w-full py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl bg-emerald-500 text-white hover:bg-emerald-600 hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-3 shadow-emerald-900/40"
-                                                >
-                                                    <Save size={20} /> Efetivar Registro
-                                                </button>
-                                                <p className="text-[8px] text-center text-white/30 uppercase font-black tracking-widest">Certificado Duno Audit Trail • 2026</p>
+                                        {/* Right Column: Status Summary */}
+                                        <div className="col-span-12 lg:col-span-4 space-y-6">
+                                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><Box size={16} className="text-slate-400" /> Controle Físico</h3>
+                                                <div className="space-y-4">
+                                                    <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                                                        <span className="text-xs font-semibold text-slate-400">Posição / Local</span>
+                                                        <input value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="text-xs font-bold text-slate-700 text-right bg-transparent outline-none" placeholder="Ex: Prateleira A" />
+                                                    </div>
+                                                    <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span className="text-[10px] font-bold text-emerald-600 uppercase">Quantidade Atual</span>
+                                                        </div>
+                                                        <input type="number" value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} className="text-2xl font-black text-emerald-700 bg-transparent outline-none w-full" />
+                                                    </div>
+                                                    <div className="p-4 bg-rose-50 rounded-lg border border-rose-100">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span className="text-[10px] font-bold text-rose-600 uppercase">Mínimo (Alerta)</span>
+                                                        </div>
+                                                        <input type="number" value={formData.minQuantity} onChange={e => setFormData({...formData, minQuantity: e.target.value})} className="text-2xl font-black text-rose-700 bg-transparent outline-none w-full" />
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                )}
+
+                                {modalTab === 'financial' && (
+                                    <div className="max-w-4xl mx-auto space-y-8">
+                                        <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-12">
+                                            <div className="space-y-6">
+                                                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                                    <DollarSign size={18} className="text-slate-400" /> Custos de Aquisição
+                                                </h3>
+                                                <div className="space-y-4">
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Preço de Compra (Líquido)</label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                                            <input type="number" step="0.01" value={formData.costPrice} onChange={e => setFormData({...formData, costPrice: e.target.value})} className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-primary-100" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Frete / Entregas</label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
+                                                            <input type="number" step="0.01" value={formData.freightCost} onChange={e => setFormData({...formData, freightCost: e.target.value})} className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-primary-100" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Carga Tributária (%)</label>
+                                                        <div className="relative">
+                                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">%</span>
+                                                            <input type="number" step="0.1" value={formData.taxPercent} onChange={e => setFormData({...formData, taxPercent: e.target.value})} className="w-full pl-4 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-primary-100" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-4 bg-[#1c2d4f] text-white rounded-lg shadow-inner">
+                                                        <p className="text-[10px] font-bold uppercase opacity-60">Custo Final Estimado</p>
+                                                        <p className="text-xl font-black">R$ {calculateTotalCost(formData).toFixed(2)}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-6">
+                                                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                                    <TrendingUp size={18} className="text-emerald-500" /> Estratégia de Venda
+                                                </h3>
+                                                <div className="space-y-4">
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Preço Sugerido ao Público</label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 text-lg font-black">R$</span>
+                                                            <input type="number" step="0.01" value={formData.sellPrice} onChange={e => setFormData({...formData, sellPrice: e.target.value})} className="w-full pl-12 pr-4 py-4 bg-emerald-50 border-2 border-emerald-100 rounded-xl text-2xl font-black text-emerald-700 outline-none focus:border-emerald-300" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-6 bg-slate-900 rounded-xl relative overflow-hidden">
+                                                        <div className="relative z-10">
+                                                            <p className="text-[10px] font-bold uppercase text-slate-400">Margem Comercial</p>
+                                                            <p className={`text-4xl font-black ${calculateMargin(formData) > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                {calculateMargin(formData).toFixed(1)}%
+                                                            </p>
+                                                        </div>
+                                                        <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
+                                                            <TrendingUp size={100} className="text-white" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {modalTab === 'logs' && (
+                                    <div className="max-w-4xl mx-auto space-y-6">
+                                        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-slate-50 border-b border-slate-200">
+                                                    <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                        <th className="px-6 py-4">Data/Hora</th>
+                                                        <th className="px-6 py-4">Operação</th>
+                                                        <th className="px-6 py-4">Responsável</th>
+                                                        <th className="px-6 py-4 text-center">Volume</th>
+                                                        <th className="px-6 py-4 text-right">Saldo Final</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {editingItem && movements.filter(m => m.stockItemId === editingItem.id).length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={5} className="py-12 text-center text-slate-400 text-xs italic">Nenhum histórico disponível para este item.</td>
+                                                        </tr>
+                                                    ) : (
+                                                        movements.filter(m => m.stockItemId === editingItem?.id).map(m => (
+                                                            <tr key={m.id} className="text-[12px]">
+                                                                <td className="px-6 py-4 text-slate-500">{new Date(m.createdAt).toLocaleString()}</td>
+                                                                <td className="px-6 py-4">
+                                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${m.type === 'RESTOCK' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                                                        {m.type === 'RESTOCK' ? 'Entrada' : 'Saída'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 font-medium">{m.technicianName || 'Sistema'}</td>
+                                                                <td className="px-6 py-4 text-center font-bold">{m.quantity > 0 ? `+${m.quantity}` : m.quantity}</td>
+                                                                <td className="px-6 py-4 text-right font-black">---</td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
                             </form>
                         </div>
                     </div>
@@ -1356,13 +1345,13 @@ export const StockManagement: React.FC = () => {
             )}
             {/* TRANSFER MODAL */}
             {isTransferModalOpen && (
-                <div className="fixed inset-0 z-[203] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-white/50">
-                        <div className="px-8 py-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-                            <h2 className="text-lg font-black text-slate-800 uppercase  flex items-center gap-2">
-                                <Scale className="text-amber-600" size={20} /> Transferência Provisória
+                <div className="fixed inset-0 z-[203] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-slate-200">
+                        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                            <h2 className="text-base font-semibold text-slate-900 font-poppins flex items-center gap-3">
+                                <Box className="text-primary-600" size={20} /> Movimentação Logística
                             </h2>
-                            <button onClick={() => setIsTransferModalOpen(false)} className="text-slate-400 hover:text-rose-500 transition-colors">
+                            <button onClick={() => setIsTransferModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all rounded-lg">
                                 <X size={20} />
                             </button>
                         </div>
@@ -1379,7 +1368,7 @@ export const StockManagement: React.FC = () => {
                                     alert('Transferência ao técnico concluída!');
                                 }
                                 setIsTransferModalOpen(false);
-                                loadItems();
+                                loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
                                 loadMovements();
                                 if (selectedTech?.id === transferData.techId) {
                                     const stock = await DataService.getTechStock(selectedTech.id);
