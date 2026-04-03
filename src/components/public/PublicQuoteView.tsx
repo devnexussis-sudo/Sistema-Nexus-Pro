@@ -64,6 +64,26 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
     const sigCanvas = useRef<any>(null);
+    const companyName = tenant?.company_name || tenant?.name || tenant?.companyName || 'Nexus Pro';
+    const companyLogo = tenant?.logo_url || tenant?.logoUrl;
+    const companyAddress = React.useMemo(() => {
+        if (!tenant) return '';
+        const street = tenant.street || tenant.address || '';
+        if (!street) return '';
+        
+        const parts = [street];
+        if (tenant.number) parts.push(`, ${tenant.number}`);
+        if (tenant.complement) parts.push(` - ${tenant.complement}`);
+        if (tenant.neighborhood) parts.push(` - ${tenant.neighborhood}`);
+        if (tenant.city) parts.push(`, ${tenant.city}`);
+        if (tenant.state) parts.push(`/${tenant.state}`);
+        
+        return parts.join('');
+    }, [tenant]);
+    const companyPhone = tenant?.phone || '';
+    const companyEmail = tenant?.admin_email || tenant?.email || '';
+    const companyDoc = tenant?.cnpj || tenant?.document || '';
+    const companyWebsite = tenant?.website || '';
 
     // 🛰️ Inicia captura de GPS assim que entra no modo de validação (Aprovação ou Recusa)
     useEffect(() => {
@@ -289,15 +309,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
         </div>
     );
 
-    const companyName = tenant?.company_name || tenant?.name || tenant?.companyName || 'Nexus Pro';
-    const companyLogo = tenant?.logo_url || tenant?.logoUrl;
-    const companyAddress = tenant?.street ?
-        `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ', ' + tenant.neighborhood : ''}${tenant.city ? ' - ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}` :
-        (tenant?.address || '');
-    const companyPhone = tenant?.phone || '';
-    const companyEmail = tenant?.admin_email || tenant?.email || '';
-    const companyDoc = tenant?.cnpj || tenant?.document || '';
-    const companyWebsite = tenant?.website || '';
+
 
     // ── PRINT LAYOUT COMPONENT ──
     // ── PRINT LAYOUT COMPONENT ──
@@ -405,9 +417,12 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                         <div className="w-64 p-4 flex flex-col justify-center items-end bg-[#132039]">
                             {(() => {
                                 const subtotal = quote.items.reduce((a: number, i: any) => a + (i.total || 0), 0);
-                                const disc = quote.discount || 0;
+                                const disc = Number(quote.discount) || 0;
                                 const type = quote.discountType || 'fixed';
-                                const dv = type === 'percent' ? (subtotal * disc / 100) : disc;
+                                let dv = type === 'percent' ? (subtotal * disc / 100) : disc;
+                                if (dv <= 0 && subtotal > (quote.totalValue || subtotal)) {
+                                    dv = subtotal - (quote.totalValue || subtotal);
+                                }
 
                                 if (dv > 0) {
                                     return (
@@ -699,9 +714,12 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             <div className="flex flex-col items-center sm:items-end order-1 sm:order-2 gap-1 w-full sm:w-auto">
                                 {(() => {
                                     const subtotal = quote.items.reduce((a: number, i: any) => a + (i.total || 0), 0);
-                                    const disc = quote.discount || 0;
+                                    const disc = Number(quote.discount) || 0;
                                     const type = quote.discountType || 'fixed';
-                                    const dv = type === 'percent' ? (subtotal * disc / 100) : disc;
+                                    let dv = type === 'percent' ? (subtotal * disc / 100) : disc;
+                                    if (dv <= 0 && subtotal > (quote.totalValue || subtotal)) {
+                                        dv = subtotal - (quote.totalValue || subtotal);
+                                    }
 
                                     return (
                                         <>

@@ -22,6 +22,7 @@ export const QuoteService = {
             tenantId: data.tenant_id,
             customerName: data.customer_name,
             customerAddress: data.customer_address,
+            customerDocument: data.customer_document,
             title: data.title,
             description: data.description,
             items: data.items || [],
@@ -42,7 +43,7 @@ export const QuoteService = {
             paymentMethod: data.payment_method,
             paidAt: data.paid_at,
             billingNotes: data.billing_notes,
-            discount: data.discount || 0,
+            discount: Number(data.discount) || 0,
             discountType: data.discount_type || 'fixed'
         };
     },

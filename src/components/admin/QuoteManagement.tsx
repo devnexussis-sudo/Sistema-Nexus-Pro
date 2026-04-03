@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import {
     Search, Plus, FileText, DollarSign, Clock, CheckCircle,
     XCircle, MoreHorizontal, ArrowRight, Trash2, Edit3, Trash, Edit,
-    ChevronRight, CreditCard, User, MapPin, Briefcase, Hexagon,
+    ChevronRight, CreditCard, User, MapPin, Briefcase, Hexagon, Lock,
     ArrowUpRight, Loader2, ListPlus, Calculator, Inbox, Calendar, Link2, Share2,
     Eye, Link, ExternalLink, Globe, ClipboardCheck, ShieldCheck, Box, Signature as SignatureIcon,
     AlertCircle, ChevronLeft, Filter, FileSpreadsheet, X, Cpu, ShoppingCart, Printer
@@ -540,10 +540,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     const url = `${window.location.origin}/#/view-quote/${quote.publicToken || quote.id}`;
                                                     window.open(url, '_blank');
                                                 }}
-                                                className="p-3 bg-emerald-50/50 text-emerald-500 hover:text-emerald-700 hover:bg-white rounded-xl shadow-sm transition-all border border-transparent hover:border-emerald-100 active:scale-95"
-                                                title="Link Público"
+                                                className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 hover:border-primary-600 transition-all shadow-sm"
+                                                title="Visualizar"
                                             >
-                                                <ExternalLink size={16} />
+                                                <Eye size={16} />
                                             </button>
                                         </div>
                                     </td>
@@ -879,23 +879,46 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             </div>
 
                             <div className="flex items-center gap-2">
+                                {(() => {
+                                    const isLocked = viewQuote.status === 'APROVADO' || viewQuote.status === 'CONVERTIDO' || viewQuote.billingStatus === 'PAID';
+                                    return (
+                                        <button
+                                            onClick={() => {
+                                                if (isLocked) return;
+                                                const quote = viewQuote;
+                                                setSelectedQuote(quote);
+                                                setCustomerName(quote.customerName);
+                                                setTitle(quote.title);
+                                                setDescription(quote.description);
+                                                setItems(quote.items);
+                                                setValidUntil(quote.validUntil || '');
+                                                setDiscount(Number(quote.discount) || 0);
+                                                setDiscountType(quote.discountType || 'fixed');
+                                                setLinkedOrderId(quote.linkedOrderId || '');
+                                                setIsViewModalOpen(false);
+                                                setIsModalOpen(true);
+                                            }}
+                                            disabled={isLocked}
+                                            className={`h-9 px-4 gap-2 border rounded-lg text-xs font-bold transition-all flex items-center ${
+                                                isLocked 
+                                                ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60' 
+                                                : 'border-blue-200 text-blue-700 hover:bg-blue-50 active:scale-95 shadow-sm'
+                                            }`}
+                                            title={isLocked ? "Propostas aprovadas ou faturadas não podem ser editadas" : "Editar proposta"}
+                                        >
+                                            {isLocked ? <Lock size={14} /> : <Edit3 size={14} />}
+                                            {isLocked ? 'Bloqueado' : 'Editar'}
+                                        </button>
+                                    );
+                                })()}
                                 <button
                                     onClick={() => {
-                                        const quote = viewQuote;
-                                        setSelectedQuote(quote);
-                                        setCustomerName(quote.customerName);
-                                        setTitle(quote.title);
-                                        setDescription(quote.description);
-                                        setItems(quote.items);
-                                        setValidUntil(quote.validUntil || '');
-                        setDiscount(Number(quote.discount) || 0);
-                                        setLinkedOrderId(quote.linkedOrderId || '');
-                                        setIsViewModalOpen(false);
-                                        setIsModalOpen(true);
+                                        const url = `${window.location.origin}/#/view-quote/${viewQuote.publicToken || viewQuote.id}`;
+                                        window.open(url, '_blank');
                                     }}
-                                    className="h-9 px-4 gap-2 border border-blue-200 text-blue-700 hover:bg-blue-50 rounded-lg text-xs font-bold transition-all flex items-center"
+                                    className="h-9 px-4 gap-2 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-bold transition-all flex items-center"
                                 >
-                                    <Edit3 size={14} /> Editar
+                                    <Eye size={14} /> Visualizar
                                 </button>
                                 <button
                                     onClick={handlePrintQuote}
@@ -1013,11 +1036,38 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 </tbody>
                                             </table>
                                         </div>
-                                        <div className="mt-4 flex justify-end">
-                                            <div className="bg-slate-900 text-white px-6 py-4 rounded-lg flex items-center gap-6">
-                                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Valor Total:</span>
-                                                <span className="text-xl font-black">R$ {viewQuote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                            </div>
+                                        <div className="mt-4 flex flex-col items-end gap-2">
+                                            {(() => {
+                                                const subtotal = viewQuote.items.reduce((acc, item) => acc + (item.total || 0), 0);
+                                                let discountValue = viewQuote.discountType === 'percent' 
+                                                    ? (subtotal * (Number(viewQuote.discount) || 0) / 100) 
+                                                    : (Number(viewQuote.discount) || 0);
+
+                                                if (discountValue <= 0 && subtotal > (viewQuote.totalValue || subtotal)) {
+                                                    discountValue = subtotal - (viewQuote.totalValue || subtotal);
+                                                }
+
+                                                return (
+                                                    <>
+                                                        <div className="bg-slate-50 border border-slate-100 px-6 py-3 rounded-lg flex flex-col gap-2 min-w-[300px]">
+                                                            <div className="flex justify-between items-center w-full">
+                                                                <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Subtotal</span>
+                                                                <span className="text-sm font-bold text-slate-600 font-mono">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                            </div>
+                                                            {discountValue > 0 && (
+                                                                <div className="flex justify-between items-center w-full pt-2 border-t border-slate-200/50">
+                                                                    <span className="text-[10px] uppercase font-bold tracking-widest text-rose-400">Desconto {viewQuote.discountType === 'percent' ? `(${viewQuote.discount}%)` : ''}</span>
+                                                                    <span className="text-sm font-bold text-rose-500 font-mono">- R$ {discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="bg-slate-900 text-white px-6 py-4 rounded-lg flex items-center justify-between gap-6 min-w-[300px] shadow-lg shadow-slate-900/10 mt-1">
+                                                            <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Total Líquido</span>
+                                                            <span className="text-2xl font-black tracking-tighter">R$ {viewQuote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 </div>
@@ -1160,12 +1210,37 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tenant }) => {
     const companyName = tenant?.company_name || tenant?.name || tenant?.companyName || 'Nexus Pro';
     const companyLogo = tenant?.logo_url || tenant?.logoUrl;
-    const companyAddress = tenant?.street
-        ? `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' - ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}`
-        : (tenant?.address || '');
+    const companyAddress = useMemo(() => {
+        if (!tenant) return '';
+        // Prioritiza campos individuais, fallbacks para 'address'
+        const street = tenant.street || tenant.address || '';
+        if (!street) return '';
+        
+        const parts = [];
+        parts.push(street);
+        if (tenant.number) parts.push(`, ${tenant.number}`);
+        if (tenant.complement) parts.push(` - ${tenant.complement}`);
+        if (tenant.neighborhood) parts.push(` - ${tenant.neighborhood}`);
+        if (tenant.city) parts.push(`, ${tenant.city}`);
+        if (tenant.state) parts.push(`/${tenant.state}`);
+        
+        return parts.join('');
+    }, [tenant]);
+
     const companyPhone = tenant?.phone || '';
     const companyEmail = tenant?.admin_email || tenant?.email || '';
     const companyDoc = tenant?.cnpj || tenant?.document || '';
+
+    useEffect(() => {
+        if (tenant) {
+            console.log('[QuotePrintLayout] Tenant data:', {
+                name: companyName,
+                address: companyAddress,
+                street: tenant.street,
+                rawAddress: tenant.address
+            });
+        }
+    }, [tenant, companyName, companyAddress]);
 
     const fmt = (d?: string) => {
         if (!d) return '—';
@@ -1267,9 +1342,13 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                     <div className="bg-slate-50 border-t border-slate-200 divide-y divide-slate-100">
                         {(() => {
                             const subtotal = quote.items.reduce((acc, item) => acc + (item.total || 0), 0);
-                            const discountValue = quote.discountType === 'percent' 
-                                ? (subtotal * (quote.discount || 0) / 100) 
-                                : (quote.discount || 0);
+                            let discountValue = quote.discountType === 'percent' 
+                                ? (subtotal * (Number(quote.discount) || 0) / 100) 
+                                : (Number(quote.discount) || 0);
+
+                            if (discountValue <= 0 && subtotal > (quote.totalValue || subtotal)) {
+                                discountValue = subtotal - (quote.totalValue || subtotal);
+                            }
 
                             return (
                                 <>

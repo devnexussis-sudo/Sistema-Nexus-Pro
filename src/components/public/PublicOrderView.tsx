@@ -306,9 +306,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const tech = techs.find(t => t.id === order.assignedTo);
   const companyName = tenant?.company_name || tenant?.name || tenant?.companyName || 'Nexus Pro';
   const companyLogo = tenant?.logo_url || tenant?.logoUrl;
-  const companyAddress = tenant?.street
-    ? `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' - ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}`
-    : (tenant?.address || '');
+  const companyAddress = React.useMemo(() => {
+    if (!tenant) return '';
+    // Prioritiza campos individuais, fallbacks para 'address'
+    const street = tenant.street || tenant.address || '';
+    if (!street) return '';
+    
+    const parts = [street];
+    if (tenant.number) parts.push(`, ${tenant.number}`);
+    if (tenant.complement) parts.push(` - ${tenant.complement}`);
+    if (tenant.neighborhood) parts.push(` - ${tenant.neighborhood}`);
+    if (tenant.city) parts.push(`, ${tenant.city}`);
+    if (tenant.state) parts.push(`/${tenant.state}`);
+    
+    return parts.join('');
+  }, [tenant]);
   const companyPhone = tenant?.phone || '';
   const companyEmail = tenant?.admin_email || tenant?.email || '';
   const companyDoc = tenant?.cnpj || tenant?.document || '';

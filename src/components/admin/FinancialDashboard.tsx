@@ -5,7 +5,7 @@ import {
     Search, X, DollarSign, Calendar, Users, Tag,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
-    TrendingUp, Clock, FileSpreadsheet, ChevronRight, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2
+    TrendingUp, Clock, FileSpreadsheet, ChevronRight, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -901,6 +901,23 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        const route = selectedItem.type === 'QUOTE' ? 'view-quote' : 'view';
+                                        const token = selectedItem.original?.publicToken || selectedItem.id;
+                                        window.open(`${window.location.origin}/#/${route}/${token}`, '_blank');
+                                    }}
+                                    className="h-9 px-4 gap-2 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-bold transition-all flex items-center"
+                                >
+                                    <Share2 size={14} /> Link Público
+                                </button>
+                                <button
+                                    onClick={() => handlePrint(selectedItem)}
+                                    className="h-9 px-4 gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-bold transition-all flex items-center"
+                                >
+                                    <Printer size={14} /> Imprimir
+                                </button>
+                                <div className="h-6 w-px bg-slate-200 mx-2"></div>
                                 <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all rounded-full hover:bg-slate-50">
                                     <X size={20} />
                                 </button>
@@ -1030,30 +1047,6 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 </div>
                             )}
 
-                        </div>
-
-                        {/* Acesso Rápido */}
-                        <div className="px-6 pb-6">
-                            <div className="grid grid-cols-2 gap-3 max-w-4xl mx-auto">
-                                <button
-                                    onClick={() => {
-                                        const route = selectedItem.type === 'QUOTE' ? 'view-quote' : 'view';
-                                        const token = selectedItem.original.publicToken || selectedItem.id;
-                                        window.open(`${window.location.origin}/#/${route}/${token}`, '_blank');
-                                    }}
-                                    className="py-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between px-5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:border-slate-300 transition-all shadow-sm"
-                                >
-                                    <span className="text-[10px] font-black uppercase tracking-wide">Link Público</span>
-                                    <ArrowUpRight size={16} />
-                                </button>
-                                <button
-                                    onClick={() => handlePrint(selectedItem)}
-                                    className="py-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between px-5 text-slate-600 hover:bg-slate-900 hover:text-white transition-all shadow-sm"
-                                >
-                                    <span className="text-[10px] font-black uppercase tracking-wide">Imprimir</span>
-                                    <Printer size={16} />
-                                </button>
-                            </div>
                         </div>
 
                         {/* Footer de Ação */}
