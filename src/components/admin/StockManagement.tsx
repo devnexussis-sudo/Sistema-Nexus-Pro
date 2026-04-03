@@ -1,5 +1,5 @@
 
-import { AlertTriangle, Barcode, Box, DollarSign, Edit3, Filter, Layers, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X } from 'lucide-react';
+import { AlertTriangle, Barcode, Box, DollarSign, Edit3, Filter, History, Info, Layers, LayoutDashboard, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { DataService } from '../../services/dataService';
