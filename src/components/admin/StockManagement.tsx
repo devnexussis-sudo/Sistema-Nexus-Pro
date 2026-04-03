@@ -739,7 +739,11 @@ export const StockManagement: React.FC = () => {
                                             </div>
                                         ))}
                                     </div>
-                              {activeTab === 'techs' && (
+                                )}
+                            </>
+                        )}
+
+                        {activeTab === 'techs' && (
                             <div className="space-y-6 animate-fade-in font-poppins">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                     <div className="flex items-center gap-3">
