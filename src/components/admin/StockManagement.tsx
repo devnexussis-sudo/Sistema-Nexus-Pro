@@ -785,7 +785,7 @@ export const StockManagement: React.FC = () => {
 
                                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
                                     {/* Sidebar Colaboradores */}
-                                    <div className="lg:col-span-1 space-y-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm h-full max-h-[calc(100vh-280px)] flex flex-col">
+                                    <div className="lg:col-span-1 space-y-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col">
                                         <div className="relative">
                                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                             <input
@@ -832,7 +832,7 @@ export const StockManagement: React.FC = () => {
                                     </div>
 
                                     {/* Inventário do Técnico */}
-                                    <div className="lg:col-span-3 space-y-6 flex flex-col h-full max-h-[calc(100vh-280px)]">
+                                    <div className="lg:col-span-3 space-y-6 flex flex-col">
                                         {selectedTech ? (
                                             <>
                                                 <div className="bg-[#1c2d4f] rounded-2xl p-6 text-white shadow-xl shadow-primary-900/10 relative overflow-hidden shrink-0">
