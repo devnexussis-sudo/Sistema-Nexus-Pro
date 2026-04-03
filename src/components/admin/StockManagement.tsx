@@ -1284,24 +1284,45 @@ export const StockManagement: React.FC = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
-                                                    {editingItem && movements.filter(m => m.stockItemId === editingItem.id).length === 0 ? (
+                                                    {editingItem && movements.filter(m => m.stock_item_id === editingItem.id).length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={5} className="py-12 text-center text-slate-400 text-xs italic">Nenhum histórico disponível para este item.</td>
+                                                            <td colSpan={5} className="py-12 text-center text-slate-400 text-xs italic">Nenhum histórico disponível para este item no momento.</td>
                                                         </tr>
                                                     ) : (
-                                                        movements.filter(m => m.stockItemId === editingItem?.id).map(m => (
-                                                            <tr key={m.id} className="text-[12px]">
-                                                                <td className="px-6 py-4 text-slate-500">{new Date(m.createdAt).toLocaleString()}</td>
-                                                                <td className="px-6 py-4">
-                                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${m.type === 'RESTOCK' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                                                        {m.type === 'RESTOCK' ? 'Entrada' : 'Saída'}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-6 py-4 font-medium">{m.technicianName || 'Sistema'}</td>
-                                                                <td className="px-6 py-4 text-center font-bold">{m.quantity > 0 ? `+${m.quantity}` : m.quantity}</td>
-                                                                <td className="px-6 py-4 text-right font-black">---</td>
-                                                            </tr>
-                                                        ))
+                                                        movements
+                                                            .filter(m => m.stock_item_id === editingItem?.id)
+                                                            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                                                            .map(m => (
+                                                                <tr key={m.id} className="text-[12px] hover:bg-slate-50 transition-colors">
+                                                                    <td className="px-6 py-4 text-slate-500 font-medium">
+                                                                        {new Date(m.created_at).toLocaleString('pt-BR')}
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase shadow-sm ${
+                                                                            m.type === 'RESTOCK' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
+                                                                            m.type === 'CONSUMPTION' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                                                                            m.type === 'TRANSFER' ? 'bg-primary-50 text-primary-600 border border-primary-100' :
+                                                                            'bg-amber-50 text-amber-600 border border-amber-100'
+                                                                        }`}>
+                                                                            {m.type === 'RESTOCK' ? 'Entrada' : m.type === 'CONSUMPTION' ? 'Consumo' : m.type === 'TRANSFER' ? 'Transferência' : 'Devolução'}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <div className="flex flex-col">
+                                                                            <span className="font-bold text-slate-700 uppercase">{m.technician?.name || m.executor?.name || 'Sistema'}</span>
+                                                                            <span className="text-[9px] text-slate-400 font-medium">{m.source} → {m.destination}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-center font-black text-slate-900">
+                                                                        <span className={m.quantity > 0 && m.type === 'RESTOCK' ? 'text-emerald-600' : 'text-slate-900'}>
+                                                                            {m.quantity > 0 && m.type === 'RESTOCK' ? `+${m.quantity}` : m.quantity}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-right">
+                                                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">Ref: {m.reference_id || 'ID-' + m.id.substring(0, 5).toUpperCase()}</span>
+                                                                    </td>
+                                                                </tr>
+                                                            ))
                                                     )}
                                                 </tbody>
                                             </table>
