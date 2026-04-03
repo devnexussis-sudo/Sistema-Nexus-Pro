@@ -883,7 +883,14 @@ export const StockManagement: React.FC = () => {
                                                 </div>
                                             </>
                                         ) : (
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest max-w-[200px]">Selecione um colaborador ao lado para auditar sua carga de estoque</p>
+                                            <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-white border border-slate-200 rounded-2xl gap-4">
+                                                <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center text-slate-300">
+                                                    <Users size={40} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Nenhum Responsável Selecionado</p>
+                                                    <p className="text-xs text-slate-400 mt-2 max-w-[280px]">Selecione um colaborador à esquerda para gerenciar sua carga ativa e cautelas.</p>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
