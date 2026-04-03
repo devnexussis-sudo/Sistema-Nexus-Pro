@@ -182,7 +182,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 </aside>
 
                 <main className="flex-1 overflow-hidden flex flex-col relative bg-slate-50/50">
-                    <div className="flex-1 overflow-hidden relative">
+                    <div className="flex-1 overflow-y-auto relative custom-scrollbar">
                         {children}
                     </div>
                 </main>
