@@ -37,7 +37,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
-    const [modalStep, setModalStep] = useState(1);
+    const [modalTab, setModalTab] = useState<'technical' | 'commercial' | 'monitoring'>('technical');
     const [selectedContract, setSelectedContract] = useState<any | null>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -116,7 +116,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
         setAlertDaysBefore(contract.alertSettings?.daysBefore || 5);
         setAlertFrequency(contract.alertSettings?.frequency || 2);
         setChangeReason('');
-        setModalStep(1);
+        setModalTab('technical');
         setPendingAction('EDIT');
         setIsModalOpen(true);
     };
@@ -257,12 +257,23 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                     <div className="flex items-center gap-3"><Briefcase className="text-[#1c2d4f]" size={32} /><h1 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">Gestão de Contratos</h1></div>
                     <p className="text-slate-400 text-[10px] font-bold uppercase pl-11">Auditoria Jurídica, Comercial e Operacional Nexus Line.</p>
                 </div>
-                <button onClick={() => {
-                    setSelectedContract(null); setModalStep(1); setPendingAction('CREATE');
-                    setSelectedCustomerId(customers[0]?.name || ''); setChangeReason('');
-                    setContractValue('0,00'); setIncludesParts(false); setVisitCount(1); setContractTerms('');
+                <button 
+                  onClick={() => {
+                    setSelectedContract(null); 
+                    setModalTab('technical'); 
+                    setPendingAction('CREATE');
+                    setSelectedCustomerId(customers[0]?.name || ''); 
+                    setChangeReason('');
+                    setContractValue('0,00'); 
+                    setIncludesParts(false); 
+                    setVisitCount(1); 
+                    setContractTerms('');
                     setIsModalOpen(true);
-                }} className="px-6 py-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm transition-all border border-[#1c2d4f]">Novo Contrato</button>
+                  }} 
+                  className="px-6 py-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm transition-all border border-[#1c2d4f] flex items-center gap-2"
+                >
+                  <Plus size={16} /> Novo Contrato
+                </button>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
@@ -384,98 +395,263 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                 />
             </div>
 
+            {/* EDIT/CREATE MODAL - STANDARDIZED TO OS STYLE */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-6">
-                    <div className="bg-white rounded-[3.5rem] w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in-up">
-                        <div className="px-10 py-8 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-                            <div className="flex items-center gap-4"><div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center text-white shadow-xl"><Layers size={24} /></div><div><h2 className="text-xl font-black text-slate-900 uppercase italic">Etapa {modalStep} de 3</h2><p className="text-[9px] text-slate-400 font-black uppercase tracking-widest leading-loose">{modalStep === 1 ? 'Configuração Técnica' : modalStep === 2 ? 'Comercial e Acordos' : 'Monitoramento Nexus'}</p></div></div>
-                            <button onClick={() => setIsModalOpen(false)}><X size={24} className="text-slate-400" /></button>
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col h-[85vh]">
+                        {/* HEADER - Nexus Premium Standard */}
+                        <div className="px-10 py-6 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-[#1c2d4f] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary-900/20">
+                                    <Layers size={24} />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">
+                                        {pendingAction === 'EDIT' ? 'Editar Contrato Master' : 'Novo Registro de Contrato'}
+                                    </h2>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{pmocCode}</span>
+                                        <div className="w-1 h-1 rounded-full bg-slate-300" />
+                                        <span className="text-[9px] font-black text-primary-600 uppercase tracking-widest">Protocolo Nexus Line</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    onClick={() => setIsModalOpen(false)}
+                                    variant="secondary"
+                                    size="sm"
+                                    className="h-10 px-6 gap-2 text-slate-500 border-slate-200"
+                                >
+                                    <X size={16} /> Cancelar
+                                </Button>
+                                <Button
+                                    onClick={() => setIsAuditModalOpen(true)}
+                                    variant="primary"
+                                    size="sm"
+                                    className="h-10 px-8 gap-2 bg-[#1c2d4f] hover:bg-[#253a66] shadow-lg shadow-primary-900/20"
+                                >
+                                    <Save size={16} /> Salvar Alterações
+                                </Button>
+                            </div>
                         </div>
 
-                        <div className="p-10">
-                            {modalStep === 1 && (
-                                <div className="grid grid-cols-2 gap-10">
+                        {/* TABS - Nexus Premium Standard */}
+                        <div className="px-10 border-b border-slate-200 bg-white flex gap-8 shrink-0">
+                            {[
+                                { id: 'technical', label: 'Dados Técnicos', icon: Settings2 },
+                                { id: 'commercial', label: 'Comercial & Termos', icon: DollarSign },
+                                { id: 'monitoring', label: 'Monitoramento', icon: BellRing }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setModalTab(tab.id as any)}
+                                    className={`flex items-center gap-2 py-4 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all
+                                        ${modalTab === tab.id ? 'border-[#1c2d4f] text-[#1c2d4f]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    <tab.icon size={14} /> {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* CONTENT AREA */}
+                        <div className="flex-1 overflow-y-auto p-10 bg-slate-50/30 custom-scrollbar">
+                            {modalTab === 'technical' && (
+                                <div className="grid grid-cols-2 gap-10 animate-fade-in">
                                     <div className="space-y-6">
-                                        <div className="p-6 bg-primary-50 border border-primary-100 rounded-[2rem] shadow-inner"><label className="text-[9px] font-black text-primary-400 uppercase mb-2 block tracking-widest italic">Código PMOC Pro</label><p className="text-2xl font-black text-primary-600 uppercase italic tracking-tighter">{pmocCode}</p></div>
-                                        <div><label className="text-[9px] font-black text-slate-400 uppercase mb-2 block">Cliente Responsável</label><select disabled={!!selectedContract} value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase">{customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
-                                        <div><label className="text-[9px] font-black text-slate-400 uppercase mb-2 block">Título do Contrato</label><input type="text" value={contractTitle} onChange={e => setContractTitle(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold uppercase text-primary-600 outline-none" /></div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div><label className="text-[8px] font-black text-slate-400 uppercase mb-1 block pl-2">Início Ciclo</label><input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold" /></div>
-                                            <div><label className="text-[8px] font-black text-slate-400 uppercase mb-1 block pl-2">Periodicidade</label><select value={periodicity} onChange={e => setPeriodicity(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-black"><option>Mensal</option><option>Trimestral</option><option>Semestral</option><option>Anual</option></select></div>
+                                        <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
+                                            <div className="space-y-6">
+                                                <div>
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Cliente Responsável</label>
+                                                    <select 
+                                                        disabled={!!selectedContract} 
+                                                        value={selectedCustomerId} 
+                                                        onChange={e => setSelectedCustomerId(e.target.value)} 
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 uppercase outline-none focus:ring-2 focus:ring-primary-100 transition-all cursor-pointer"
+                                                    >
+                                                        {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Título do Contrato</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={contractTitle} 
+                                                        onChange={e => setContractTitle(e.target.value)} 
+                                                        placeholder="Ex: Manutenção Central de Ar"
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all shadow-inner" 
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Início do Ciclo</label>
+                                                        <input 
+                                                            type="date" 
+                                                            value={startDate} 
+                                                            onChange={e => setStartDate(e.target.value)} 
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all" 
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Periodicidade</label>
+                                                        <select 
+                                                            value={periodicity} 
+                                                            onChange={e => setPeriodicity(e.target.value)} 
+                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all"
+                                                        >
+                                                            <option>Mensal</option>
+                                                            <option>Trimestral</option>
+                                                            <option>Semestral</option>
+                                                            <option>Anual</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block pl-2 italic">Dia Preferencial de Visita</label>
-                                            <div className="grid grid-cols-7 gap-1.5 p-4 bg-slate-50 border border-slate-100 rounded-[2rem]">
+
+                                        <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-3 block tracking-widest">Dia de Visita Preferencial</label>
+                                            <div className="grid grid-cols-7 gap-1.5">
                                                 {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                                                    <button key={d} onClick={() => setMaintenanceDay(d)} className={`py-2 rounded-xl text-[9px] font-black transition-all ${maintenanceDay === d ? 'bg-primary-600 text-white shadow-lg' : 'bg-white text-slate-400 border border-slate-100'}`}>{d}</button>
+                                                    <button 
+                                                        key={d} 
+                                                        onClick={() => setMaintenanceDay(d)} 
+                                                        className={`py-2 rounded-lg text-[10px] font-bold transition-all ${maintenanceDay === d ? 'bg-[#1c2d4f] text-white shadow-lg' : 'bg-slate-50 text-slate-400 border border-slate-100 hover:bg-slate-100'}`}
+                                                    >
+                                                        {d}
+                                                    </button>
                                                 ))}
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="bg-slate-50 rounded-[3rem] p-8 h-[550px] border border-slate-100 shadow-inner flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase mb-4">Ativos Vinculados ao PMOC ({selectedEquipIds.length})</label>
-                                        <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                                            {customerEquipments.map(equip => (<div key={equip.id} onClick={() => setSelectedEquipIds(prev => prev.includes(equip.id) ? prev.filter(id => id !== equip.id) : [...prev, equip.id])} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${selectedEquipIds.includes(equip.id) ? 'bg-primary-600 border-primary-600 text-white shadow-lg' : 'bg-white border-slate-100 hover:border-primary-100'}`}><div><p className="text-[10px] font-black uppercase" style={{ color: selectedEquipIds.includes(equip.id) ? 'white' : '' }}>{equip.model}</p><p className="text-[8px] font-bold opacity-60">S/N: {equip.serialNumber}</p></div>{selectedEquipIds.includes(equip.id) && <Check size={12} />}</div>))}
+
+                                    <div className="flex flex-col h-full space-y-4">
+                                        <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm flex-1 flex flex-col min-h-0">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ativos Vinculados ({selectedEquipIds.length})</label>
+                                                <span className="text-[9px] font-bold text-primary-600 bg-primary-50 px-2 py-1 rounded italic">Controle PMOC</span>
+                                            </div>
+                                            <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                                                {customerEquipments.map(equip => (
+                                                    <div 
+                                                        key={equip.id} 
+                                                        onClick={() => setSelectedEquipIds(prev => prev.includes(equip.id) ? prev.filter(id => id !== equip.id) : [...prev, equip.id])} 
+                                                        className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${selectedEquipIds.includes(equip.id) ? 'bg-[#1c2d4f] border-[#1c2d4f] text-white shadow-lg' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}
+                                                    >
+                                                        <div>
+                                                            <p className="text-[10px] font-bold uppercase">{equip.model}</p>
+                                                            <p className="text-[8px] font-medium opacity-60">S/N: {equip.serialNumber}</p>
+                                                        </div>
+                                                        {selectedEquipIds.includes(equip.id) ? <Check size={14} /> : <Plus size={14} className="opacity-20" />}
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {modalStep === 2 && (
-                                <div className="space-y-8 animate-fade-in">
-                                    <div className="grid grid-cols-3 gap-6">
-                                        <div className="p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] shadow-sm">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-3 block italic tracking-widest">Valor Mensal (R$)</label>
+                            {modalTab === 'commercial' && (
+                                <div className="space-y-8 animate-fade-in max-w-4xl mx-auto w-full">
+                                    <div className="grid grid-cols-2 gap-8">
+                                        <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-4 block tracking-widest">Mensalidade do Contrato</label>
                                             <div className="relative">
-                                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-lg italic">R$</div>
-                                                <input type="text" value={contractValue} onChange={handleValueChange} className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-6 py-5 text-2xl font-black text-emerald-600 italic outline-none focus:ring-4 focus:ring-emerald-50 transition-all shadow-inner" placeholder="0,00" />
+                                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 font-bold text-lg italic">R$</div>
+                                                <input 
+                                                    type="text" 
+                                                    value={contractValue} 
+                                                    onChange={handleValueChange} 
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-6 py-5 text-2xl font-black text-emerald-600 italic outline-none focus:ring-2 focus:ring-emerald-50 transition-all shadow-inner" 
+                                                    placeholder="0,00" 
+                                                />
                                             </div>
                                         </div>
-                                        <div className="p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] shadow-sm flex flex-col justify-center">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-3 block italic tracking-widest text-center">Quantas Visitas p/ Ciclo?</label>
-                                            <div className="flex items-center justify-center gap-4">
-                                                <button onClick={() => setVisitCount(Math.max(1, visitCount - 1))} className="p-3 bg-white text-slate-400 rounded-xl border border-slate-200">-</button>
-                                                <span className="text-4xl font-black text-slate-900 italic">{visitCount}</span>
-                                                <button onClick={() => setVisitCount(visitCount + 1)} className="p-3 bg-white text-slate-400 rounded-xl border border-slate-200">+</button>
-                                            </div>
-                                        </div>
-                                        <div className="p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] shadow-sm flex flex-col justify-center items-center">
-                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-3 block italic tracking-widest">Peças Inclusas?</label>
-                                            <div className="flex gap-2 p-1.5 bg-white rounded-2xl border border-slate-200">
-                                                <button onClick={() => setIncludesParts(true)} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${includesParts ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-400'}`}>SIM</button>
-                                                <button onClick={() => setIncludesParts(false)} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${!includesParts ? 'bg-red-500 text-white shadow-lg' : 'text-slate-400'}`}>NÃO</button>
+                                        
+                                        <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm flex flex-col justify-center">
+                                            <label className="text-[9px] font-black text-slate-400 uppercase mb-6 block tracking-widest text-center">Visitas Programadas p/ Ciclo</label>
+                                            <div className="flex items-center justify-center gap-6">
+                                                <button onClick={() => setVisitCount(Math.max(1, visitCount - 1))} className="w-10 h-10 bg-slate-100 text-slate-400 rounded-full border border-slate-200 flex items-center justify-center hover:bg-white hover:text-slate-600 transition-all">-</button>
+                                                <span className="text-4xl font-black text-slate-900 font-poppins">{visitCount}</span>
+                                                <button onClick={() => setVisitCount(visitCount + 1)} className="w-10 h-10 bg-slate-100 text-slate-400 rounded-full border border-slate-200 flex items-center justify-center hover:bg-white hover:text-slate-600 transition-all">+</button>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="bg-slate-50 border border-slate-100 rounded-[3rem] p-10 space-y-4">
-                                        <div className="flex items-center gap-3"><FileSignature className="text-primary-600" size={24} /><label className="text-[11px] font-black text-slate-900 uppercase italic tracking-tighter">Termos e Acordos do Contrato (Painel de Redação)</label></div>
-                                        <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-inner min-h-[300px] flex flex-col">
-                                            <textarea value={contractTerms} onChange={e => setContractTerms(e.target.value)} placeholder="Descreva aqui as cláusulas, exclusões, responsabilidades e observações técnicas comerciais acordadas..." className="w-full flex-1 text-sm font-medium text-slate-700 leading-relaxed outline-none border-none resize-none custom-scrollbar" />
+                                    <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div>
+                                                <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest italic">Peças e Componentes Inclusos?</h4>
+                                                <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase">Define se o contrato prevê substituição s/ custo</p>
+                                            </div>
+                                            <div className="flex gap-2 p-1.5 bg-slate-50 rounded-xl border border-slate-200">
+                                                <button onClick={() => setIncludesParts(true)} className={`px-8 py-2.5 rounded-lg text-[10px] font-bold uppercase transition-all ${includesParts ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Sim</button>
+                                                <button onClick={() => setIncludesParts(false)} className={`px-8 py-2.5 rounded-lg text-[10px] font-bold uppercase transition-all ${!includesParts ? 'bg-white text-[#1c2d4f] border border-slate-200 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Não</button>
+                                            </div>
                                         </div>
-                                        <p className="text-[9px] font-bold text-slate-400 italic text-right">* Este campo suporta formatação de texto plano para inclusão em relatórios PMOC.</p>
+                                    </div>
+
+                                    <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <FileSignature className="text-primary-600" size={18} />
+                                            <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Termos e Acordos de Redação</label>
+                                        </div>
+                                        <textarea 
+                                            value={contractTerms} 
+                                            onChange={e => setContractTerms(e.target.value)} 
+                                            placeholder="Descreva as cláusulas, exclusões e responsabilidades comerciais..." 
+                                            className="w-full h-48 bg-slate-50 border border-slate-200 rounded-xl p-6 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-primary-100 transition-all shadow-inner resize-none custom-scrollbar" 
+                                        />
                                     </div>
                                 </div>
                             )}
 
-                            {modalStep === 3 && (
-                                <div className="max-w-xl mx-auto py-10 space-y-8 animate-fade-in">
-                                    <div className="p-8 bg-primary-50/50 rounded-[2.5rem] border border-primary-100 flex items-center justify-between"><div className="flex items-center gap-4"><div className={`p-4 rounded-2xl ${enableAlerts ? 'bg-primary-600' : 'bg-slate-200'} text-white shadow-lg`}><BellRing size={32} /></div><div><h4 className="text-sm font-black text-slate-900 uppercase italic">Monitoramento</h4><p className="text-[10px] text-slate-500 font-bold uppercase">Alertas Ativos</p></div></div><button onClick={() => setEnableAlerts(!enableAlerts)} className={`w-14 h-8 rounded-full relative transition-all ${enableAlerts ? 'bg-primary-600' : 'bg-slate-300'}`}><div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${enableAlerts ? 'left-7' : 'left-1'}`} /></button></div>
-                                    <div className={`grid grid-cols-2 gap-6 ${enableAlerts ? 'opacity-100' : 'opacity-40 grayscale pointer-events-none'}`}><div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl"><label className="text-[8px] font-black text-slate-400 uppercase mb-4 block">Gatilho (Dias)</label><div className="grid grid-cols-3 gap-2">{[1, 3, 5, 7, 10, 15].map(d => <button key={d} onClick={() => setAlertDaysBefore(d)} className={`py-2 rounded-xl text-[10px] font-black ${alertDaysBefore === d ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'bg-white shadow-sm'}`}>{d}d</button>)}</div></div><div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl"><label className="text-[8px] font-black text-slate-400 uppercase mb-4 block">Exibição P/ Dia</label><div className="grid grid-cols-3 gap-2">{[1, 2, 3, 4, 5, 0].map(f => <button key={f} onClick={() => setAlertFrequency(f)} className={`py-2 rounded-xl text-[10px] font-black ${alertFrequency === f ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20' : 'bg-white shadow-sm'}`}>{f === 0 ? 'Off' : `${f}x`}</button>)}</div></div></div>
+                            {modalTab === 'monitoring' && (
+                                <div className="max-w-2xl mx-auto py-10 space-y-8 animate-fade-in">
+                                    <div className="p-10 bg-white border border-slate-200 rounded-[2.5rem] shadow-sm space-y-10">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-5">
+                                                <div className={`p-4 rounded-2xl ${enableAlerts ? 'bg-[#1c2d4f]' : 'bg-slate-100'} text-white shadow-lg transition-colors`}>
+                                                    <BellRing size={28} className={enableAlerts ? 'text-white' : 'text-slate-300'} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight leading-none">Status do Monitoramento</h4>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Gatilhos Automáticos Nexus</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => setEnableAlerts(!enableAlerts)} className={`w-14 h-8 rounded-full relative transition-all ${enableAlerts ? 'bg-[#1c2d4f]' : 'bg-slate-200'}`}>
+                                                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${enableAlerts ? 'left-7' : 'left-1'}`} />
+                                            </button>
+                                        </div>
+
+                                        <div className={`space-y-8 ${enableAlerts ? 'opacity-100' : 'opacity-30 grayscale pointer-events-none transition-all'}`}>
+                                            <div className="space-y-4">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block px-1">Gatilho de Antecipação (Dias antes do ciclo)</label>
+                                                <div className="grid grid-cols-6 gap-2">
+                                                    {[1, 3, 5, 7, 10, 15].map(d => (
+                                                        <button key={d} onClick={() => setAlertDaysBefore(d)} className={`py-3 rounded-xl text-[10px] font-bold transition-all ${alertDaysBefore === d ? 'bg-[#1c2d4f] text-white shadow-lg' : 'bg-slate-50 text-slate-500 border border-slate-100 hover:border-slate-200'}`}>{d} Dias</button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="space-y-4">
+                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block px-1">Frequência de Alertas Nexus</label>
+                                                <div className="grid grid-cols-6 gap-2">
+                                                    {[1, 2, 3, 4, 5, 0].map(f => (
+                                                        <button key={f} onClick={() => setAlertFrequency(f)} className={`py-3 rounded-xl text-[10px] font-bold transition-all ${alertFrequency === f ? 'bg-[#1c2d4f] text-white shadow-lg' : 'bg-slate-50 text-slate-500 border border-slate-100 hover:border-slate-200'}`}>{f === 0 ? 'Off' : `${f}x p/ dia`}</button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="p-8 bg-blue-50 border border-blue-100 rounded-[2rem] flex items-center gap-4">
+                                        <ShieldAlert className="text-blue-500" size={24} />
+                                        <p className="text-[10px] font-bold text-blue-700 leading-relaxed uppercase">O Nexus monitora o ciclo de faturamento e visitas preventivas automaticamente com base nestas configurações.</p>
+                                    </div>
                                 </div>
                             )}
-                        </div>
-
-                        <div className="px-10 py-8 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
-                            <button onClick={() => setModalStep(modalStep - 1)} disabled={modalStep === 1} className={`flex items-center gap-2 px-6 py-4 text-[10px] font-black uppercase transition-all ${modalStep === 1 ? 'opacity-0' : 'text-slate-400 hover:text-primary-600'}`}><ArrowLeft size={16} /> Passo Anterior</button>
-                            <div className="flex gap-4">
-                                <button onClick={() => setIsModalOpen(false)} className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Cancelar</button>
-                                {modalStep < 3 ? (
-                                    <button onClick={() => setModalStep(modalStep + 1)} className="px-10 py-4 bg-primary-600 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-lg shadow-primary-600/20">Próximo Passo <ArrowUpRight size={16} className="inline ml-1" /></button>
-                                ) : (
-                                    <button onClick={() => setIsAuditModalOpen(true)} className="px-10 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase italic shadow-lg shadow-emerald-900/10">Salvar e Registrar Log</button>
-                                )}
-                            </div>
                         </div>
                     </div>
                 </div>
