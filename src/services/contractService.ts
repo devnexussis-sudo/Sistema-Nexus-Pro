@@ -21,7 +21,7 @@ export const ContractService = {
         return {
             id: data.id,
             tenantId: data.tenant_id,
-            pmocCode: data.id as string,
+            pmocCode: (data.display_id as string) || (data.id as string),
             title: data.title,
             description: data.description,
             customerName: data.customer_name,
@@ -85,7 +85,7 @@ export const ContractService = {
         const tid = getCurrentTenantId();
         if (isCloudEnabled) {
             const dbPayload = {
-                id: contract.pmocCode, // 🔥 Agora usamos apenas o ID
+                display_id: contract.pmocCode, // 🔥 Agora o código PMOC vai para display_id
                 tenant_id: tid,
                 title: contract.title,
                 description: contract.description,
@@ -123,6 +123,7 @@ export const ContractService = {
     updateContract: async (contract: ContractExtended): Promise<ContractExtended> => {
         if (isCloudEnabled) {
             const dbPayload = {
+                display_id: contract.pmocCode,
                 title: contract.title,
                 description: contract.description,
                 status: contract.status,

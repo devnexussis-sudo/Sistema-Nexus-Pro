@@ -1,9 +1,15 @@
--- 🏗️ NEXUS PRO - COMPLETE SCHEMA RECONCILIATION: CONTRACTS
--- Restaura TODAS as colunas para a tabela de Contratos/PMOC
--- Data: 2026-04-03 21:19:15 (Local)
+-- 🏗️ NEXUS PRO - PMOC CODE & UUID FIX
+-- Corrige o erro de sintaxe UUID e adiciona suporte a Código PMOC customizado
+-- Data: 2026-04-03 21:22:52 (Local)
 
 DO $$ BEGIN
-    -- Colunas Estruturais
+    -- Coluna de exibição customizada (para evitar erro de UUID no ID principal)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'display_id') THEN
+        ALTER TABLE contracts ADD COLUMN display_id TEXT;
+        CREATE INDEX IF NOT EXISTS idx_contracts_display_id ON contracts(display_id);
+    END IF;
+
+    -- Garantir que as colunas estruturais existam
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'title') THEN
         ALTER TABLE contracts ADD COLUMN title TEXT DEFAULT 'Contrato Master';
     END IF;
@@ -12,7 +18,7 @@ DO $$ BEGIN
         ALTER TABLE contracts ADD COLUMN description TEXT DEFAULT '';
     END IF;
 
-    -- Colunas de Cliente
+    -- Cliente
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'customer_name') THEN
         ALTER TABLE contracts ADD COLUMN customer_name TEXT;
     END IF;
@@ -21,7 +27,7 @@ DO $$ BEGIN
         ALTER TABLE contracts ADD COLUMN customer_address TEXT;
     END IF;
 
-    -- Colunas de Estado e Prioridade
+    -- Estado e Prioridade
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'status') THEN
         ALTER TABLE contracts ADD COLUMN status TEXT DEFAULT 'PENDENTE';
     END IF;
@@ -30,7 +36,7 @@ DO $$ BEGIN
         ALTER TABLE contracts ADD COLUMN priority TEXT DEFAULT 'MÉDIA';
     END IF;
 
-    -- Colunas de Operação/PMOC
+    -- Operação/PMOC
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'operation_type') THEN
         ALTER TABLE contracts ADD COLUMN operation_type TEXT DEFAULT 'Manutenção Preventiva';
     END IF;
@@ -55,7 +61,7 @@ DO $$ BEGIN
         ALTER TABLE contracts ADD COLUMN logs JSONB DEFAULT '[]';
     END IF;
 
-    -- Colunas Avançadas (Alertas e Comercial)
+    -- Alertas e Comercial
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'alert_settings') THEN
         ALTER TABLE contracts ADD COLUMN alert_settings JSONB DEFAULT '{"enabled": false, "days_before": 5, "frequency": 1}';
     END IF;
@@ -76,7 +82,7 @@ DO $$ BEGIN
         ALTER TABLE contracts ADD COLUMN contract_terms TEXT DEFAULT '';
     END IF;
 
-    -- Colunas de Auditoria
+    -- Auditoria
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'created_at') THEN
         ALTER TABLE contracts ADD COLUMN created_at TIMESTAMPTZ DEFAULT NOW();
     END IF;
@@ -87,4 +93,4 @@ DO $$ BEGIN
 
 END $$;
 
-COMMENT ON TABLE contracts IS 'Nexus Pro: Tabela de contratos master com especificação BigTech PMOC e Comercial.';
+COMMENT ON TABLE contracts IS 'Nexus Pro: Tabela de contratos master com suporte a display_id customizado (PMOC-XXXXX) e UUID nativo.';
