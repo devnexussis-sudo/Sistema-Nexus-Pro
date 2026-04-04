@@ -72,6 +72,18 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 12;
 
+    useEffect(() => {
+        const loadTenant = async () => {
+            try {
+                const data = await DataService.getTenantById();
+                setTenant(data);
+            } catch (err) {
+                console.error("Erro ao carregar dados da empresa:", err);
+            }
+        };
+        loadTenant();
+    }, []);
+
     // Mascara de Moeda
     const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let value = e.target.value.replace(/\D/g, '');
@@ -733,8 +745,8 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
             )}
 
             {isViewModalOpen && selectedContract && (
-                <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-6">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col h-[85vh]">
+                <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-6 print:p-0 print:bg-white print:relative print:z-0">
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col h-[85vh] print:h-auto print:shadow-none print:rounded-none print:w-full print:max-w-none">
                         {/* HEADER - Nexus Premium Standard (Print Version Compatible) */}
                         <div className="px-10 py-6 border-b border-slate-200 flex justify-between items-center bg-white shrink-0 print:hidden">
                             <div className="flex items-center gap-4">
@@ -773,6 +785,11 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                             </div>
                         </div>
 
+                        {/* PRINT LAYOUT — Visible only when printing */}
+                        <div className="hidden print:block p-0">
+                            <ContractPrintLayout contract={selectedContract} tenant={tenant} equipments={equipments} />
+                        </div>
+
                         {/* TABS - Synchronized with Create/Edit */}
                         <div className="px-10 border-b border-slate-200 bg-white flex gap-8 shrink-0 print:hidden">
                              {[
@@ -791,10 +808,10 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                             ))}
                         </div>
 
-                        <div className="flex-1 p-12 overflow-y-auto custom-scrollbar bg-slate-50/30">
+                        <div className="flex-1 p-12 overflow-y-auto custom-scrollbar bg-slate-50/30 print:hidden">
                             {viewTab === 'details' ? (
                                 <div className="space-y-10 animate-fade-in">
-                                    <div className="grid grid-cols-4 gap-4 print:grid-cols-2">
+                                    <div className="grid grid-cols-4 gap-4">
                                         <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Mensalidade</h5><p className="text-sm font-black text-emerald-600 italic">R$ {selectedContract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
                                         <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Período</h5><p className="text-sm font-black text-primary-600 uppercase italic">{selectedContract.periodicity}</p></div>
                                         <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Visitas/Ciclo</h5><p className="text-sm font-black text-slate-900 uppercase italic">{selectedContract.visitCount || 1} Visita(s)</p></div>
@@ -802,7 +819,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                     </div>
                                     <div className="space-y-4">
                                         <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-4"><Box size={14} /> Ativos Vinculados ({selectedContract.equipmentIds?.length})</h5>
-                                        <div className="grid grid-cols-2 gap-6 print:grid-cols-1">
+                                        <div className="grid grid-cols-2 gap-6">
                                             {selectedContract.equipmentIds?.map((id: string) => {
                                                 const eq = equipments.find(e => e.id === id);
                                                 return (
@@ -831,11 +848,11 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                 </div>
                             ) : (
                                 <div className="space-y-12 animate-fade-in max-w-4xl mx-auto">
-                                    <div className="flex items-center gap-4 border-b border-slate-200 pb-8 print:hidden"><History className="text-primary-600" size={24} /><h4 className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Timeline de Auditoria Nexus</h4></div>
+                                    <div className="flex items-center gap-4 border-b border-slate-200 pb-8"><History className="text-primary-600" size={24} /><h4 className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Timeline de Auditoria Nexus</h4></div>
                                     <div className="relative border-l-2 border-slate-100 ml-6 space-y-12 pb-10">
                                         {(selectedContract.logs || []).slice().reverse().map((log: AuditLog, i: number) => (
                                             <div key={i} className="relative pl-12 animate-fade-in-up">
-                                                <div className="absolute -left-[11px] top-1 w-5 h-5 bg-white border-2 border-primary-600 rounded-full flex items-center justify-center shadow-md print:hidden"><div className="w-2 h-2 bg-primary-600 rounded-full" /></div>
+                                                <div className="absolute -left-[11px] top-1 w-5 h-5 bg-white border-2 border-primary-600 rounded-full flex items-center justify-center shadow-md"><div className="w-2 h-2 bg-primary-600 rounded-full" /></div>
                                                 <div className="bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm transition-all hover:border-primary-200">
                                                     <div className="flex justify-between items-center mb-5"><span className="px-3 py-1 bg-primary-600 text-white text-[9px] font-black uppercase italic rounded-lg tracking-widest">{log.action.replace(/_/g, ' ')}</span><span className="text-[9px] font-bold text-slate-400 bg-white border border-slate-200 px-3 py-1 rounded-xl">{new Date(log.timestamp).toLocaleString()}</span></div>
                                                     <p className="text-[13px] font-black text-slate-900 leading-snug mb-5 uppercase italic tracking-tighter">{log.details}</p>
@@ -852,5 +869,114 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                 </div>
             )}
         </div>
+    );
+};
+
+// --- CONTRACT PRINT LAYOUT ---
+const ContractPrintLayout: React.FC<{ contract: any, tenant: any, equipments: Equipment[] }> = ({ contract, tenant, equipments }) => {
+    return (
+        <div className="bg-white text-slate-900 p-12 max-w-[21cm] mx-auto font-sans leading-relaxed">
+            {/* Header: Empresa (Nexus Standard) */}
+            <div className="border-b-4 border-slate-800 pb-6 mb-8 flex justify-between items-center bg-slate-50 p-6 rounded-lg">
+                <div className="flex gap-6 items-center">
+                    {tenant?.logo_url ? (
+                        <div className="w-24 h-24 bg-white rounded-xl border border-slate-200 p-2 flex items-center justify-center shadow-sm">
+                            <img src={tenant.logo_url} alt="Logo" className="max-w-full max-h-full object-contain" />
+                        </div>
+                    ) : (
+                        <div className="w-24 h-24 bg-slate-800 rounded-xl flex items-center justify-center text-white font-black text-2xl italic">NEXUS</div>
+                    )}
+                    <div className="space-y-1">
+                        <h1 className="text-2xl font-black uppercase italic tracking-tighter text-slate-900">{tenant?.company_name || tenant?.name || 'Nexus Pro'}</h1>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">PMOC - Plano de Manutenção, Operação e Controle</p>
+                        <div className="flex gap-4 text-[9px] font-bold text-slate-400 mt-2">
+                             <span>CNPJ: {tenant?.cnpj || 'Não informado'}</span>
+                             <span>Telefone: {tenant?.phone || 'Não informado'}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="text-right">
+                    <div className="bg-slate-900 text-white px-4 py-1.5 rounded-lg text-[10px] font-black uppercase italic mb-2 tracking-widest">Protocolo Master</div>
+                    <span className="text-xl font-black text-slate-900 italic tracking-tighter">{contract.pmocCode || contract.display_id}</span>
+                </div>
+            </div>
+
+            {/* Document Info */}
+            <div className="grid grid-cols-2 gap-8 mb-8 border border-slate-300 rounded-lg p-6 bg-white shadow-sm">
+                <div className="space-y-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary-600 mb-2 border-b border-primary-50">Dados do Contratante</h3>
+                    <div><label className="block text-[8px] font-black text-slate-400 uppercase">Razão Social / Nome</label><div className="font-black text-slate-900 uppercase text-sm italic">{contract.customerName}</div></div>
+                    <div><label className="block text-[8px] font-black text-slate-400 uppercase">Endereço da Prestação</label><div className="text-[10px] font-bold text-slate-600 uppercase italic">{contract.customerAddress || 'Não informado'}</div></div>
+                </div>
+                <div className="space-y-4">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary-600 mb-2 border-b border-primary-50">Resumo do Plano</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div><label className="block text-[8px] font-black text-slate-400 uppercase">Período</label><div className="font-bold text-slate-900 text-[11px] uppercase italic">{contract.periodicity}</div></div>
+                        <div><label className="block text-[8px] font-black text-slate-400 uppercase">Início do Ciclo</label><div className="font-bold text-slate-900 text-[11px]">{new Date(contract.scheduled_date).toLocaleDateString()}</div></div>
+                        <div><label className="block text-[8px] font-black text-slate-400 uppercase">Mensalidade</label><div className="font-black text-emerald-600 text-[11px]">R$ {contract.contractValue?.toLocaleString()}</div></div>
+                        <div><label className="block text-[8px] font-black text-slate-400 uppercase">Visitas/Ano</label><div className="font-bold text-slate-900 text-[11px] italic">{(contract.visitCount || 1) * 12} Visitas</div></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Equipment Table */}
+            <div className="mb-10 border border-slate-300 rounded-lg overflow-hidden shadow-sm">
+                <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 flex justify-between items-center">
+                    <span className="font-black text-[9px] uppercase italic tracking-widest text-slate-700">Relação de Ativos Vinculados (PMOC)</span>
+                    <span className="bg-white px-3 py-0.5 rounded-full text-[8px] font-black text-slate-500 uppercase">{contract.equipmentIds?.length} Itens</span>
+                </div>
+                <table className="w-full text-left">
+                    <thead>
+                        <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase italic border-b border-slate-200">
+                            <th className="px-4 py-3">Equipamento / Modelo</th>
+                            <th className="px-4 py-3">Série / TAG</th>
+                            <th className="px-4 py-3 text-center">Localização</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                        {contract.equipmentIds?.map((id: string) => {
+                            const eq = equipments.find(e => e.id === id);
+                            return (
+                                <tr key={id} className="hover:bg-slate-50/50">
+                                    <td className="px-4 py-3 text-[11px] font-black text-slate-900 uppercase italic">{eq?.model}</td>
+                                    <td className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">{eq?.serialNumber}</td>
+                                    <td className="px-4 py-3 text-[10px] text-center font-bold text-slate-400 uppercase italic italic">{eq?.location || 'ÁREA TÉCNICA'}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Terms & Conditions */}
+            <div className="border border-slate-300 rounded-lg overflow-hidden mb-12 shadow-sm break-inside-avoid">
+                <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-black text-[9px] uppercase italic tracking-widest text-slate-700">Termos, Escopo e Acordos Comerciais</div>
+                <div className="p-8 bg-white text-[11px] text-slate-700 font-medium whitespace-pre-wrap leading-loose italic">
+                    {contract.contractTerms || 'Os serviços serão executados de acordo com as normas da ANVISA e resoluções técnicas vigentes para PMOC.'}
+                </div>
+            </div>
+
+            {/* Signatures */}
+            <div className="grid grid-cols-2 gap-16 mt-20 break-inside-avoid">
+                <div className="text-center space-y-4">
+                    <div className="h-[2px] bg-slate-300 w-full mb-4" />
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Responsável Técnico / Emitente</p>
+                    <p className="font-black text-slate-900 uppercase italic text-sm">{tenant?.name || tenant?.company_name}</p>
+                </div>
+                <div className="text-center space-y-4">
+                    <div className="h-[2px] bg-slate-300 w-full mb-4" />
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Aprovação / Contratante</p>
+                    <p className="font-black text-slate-900 uppercase italic text-sm">{contract.customerName}</p>
+                </div>
+            </div>
+
+            {/* Footer */}
+            <div className="mt-16 pt-6 border-t border-slate-100 flex justify-between items-center opacity-40 grayscale">
+                 <div className="flex items-center gap-3">
+                     <Layers size={14} />
+                     <span className="text-[8px] font-black uppercase tracking-widest italic">Nexus Pro — Gestão de Ativos & Climatização</span>
+                 </div>
+                 <span className="text-[8px] font-bold text-slate-400 uppercase">Gerado em: {new Date().toLocaleString()}</span>
+            </div>
     );
 };
