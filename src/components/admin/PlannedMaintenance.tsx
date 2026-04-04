@@ -142,6 +142,12 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
             const currentLogs: AuditLog[] = selectedContract ? selectedContract.logs || [] : [];
             let newLogs: AuditLog[] = [];
 
+            if (pendingAction === 'CREATE' || pendingAction === 'EDIT') {
+                if (contractPayload.equipmentIds.length === 0) {
+                    throw new Error('Selecione pelo menos um equipamento para este contrato.');
+                }
+            }
+
             if (pendingAction === 'CREATE') {
                 newLogs.push({ timestamp: now, user: user?.name || 'Sistema', action: 'CONTRATO_CRIADO', details: `Registro ${pmocCode} ativado. Valor: R$ ${contractValue}`, reason: changeReason });
             }
@@ -432,10 +438,16 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                     <X size={16} /> Cancelar
                                 </Button>
                                 <Button
-                                    onClick={() => setIsAuditModalOpen(true)}
+                                    onClick={() => {
+                                        if (selectedEquipIds.length === 0) {
+                                            alert("⚠️ Selecione pelo menos um equipamento no 'Dados Técnicos' para prosseguir.");
+                                            return;
+                                        }
+                                        setIsAuditModalOpen(true);
+                                    }}
                                     variant="primary"
                                     size="sm"
-                                    className="h-10 px-8 gap-2 bg-[#1c2d4f] hover:bg-[#253a66] shadow-lg shadow-primary-900/20"
+                                    className={`h-10 px-8 gap-2 bg-[#1c2d4f] hover:bg-[#253a66] shadow-lg shadow-primary-900/20 ${selectedEquipIds.length === 0 ? 'opacity-50 grayscale' : ''}`}
                                 >
                                     <Save size={16} /> Salvar Alterações
                                 </Button>
@@ -722,56 +734,112 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
 
             {isViewModalOpen && selectedContract && (
                 <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-6">
-                    <div className="bg-white rounded-[4rem] w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in-up flex h-[750px]">
-                        <div className="w-80 bg-slate-50 p-10 flex flex-col border-r border-slate-100">
-                            <div className="text-center mb-10"><div className="w-20 h-20 bg-primary-600 rounded-[2.5rem] mx-auto flex items-center justify-center text-white mb-4 shadow-xl"><Briefcase size={32} /></div><p className="text-[11px] font-black text-primary-500 uppercase">{selectedContract.pmocCode}</p></div>
-                            <nav className="space-y-2 flex-1">
-                                <button onClick={() => setViewTab('details')} className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${viewTab === 'details' ? 'bg-white text-primary-600 shadow-lg translate-x-2' : 'text-slate-400'}`}><ListFilter size={18} /> Ativos</button>
-                                <button onClick={() => setViewTab('terms')} className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${viewTab === 'terms' ? 'bg-white text-primary-600 shadow-lg translate-x-2' : 'text-slate-400'}`}><FileSignature size={18} /> Termos</button>
-                                <button onClick={() => setViewTab('history')} className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-[10px] font-black uppercase transition-all ${viewTab === 'history' ? 'bg-white text-primary-600 shadow-lg translate-x-2' : 'text-slate-400'}`}><History size={18} /> Histórico</button>
-                            </nav>
-                            <button onClick={() => setIsViewModalOpen(false)} className="py-5 bg-slate-900 text-white rounded-3xl text-[10px] font-black uppercase tracking-widest">Fechar Módulo</button>
+                    <div className="bg-white rounded-[2.5rem] w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col h-[85vh]">
+                        {/* HEADER - Nexus Premium Standard (Print Version Compatible) */}
+                        <div className="px-10 py-6 border-b border-slate-200 flex justify-between items-center bg-white shrink-0 print:hidden">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary-900/20">
+                                    <Briefcase size={24} />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight truncate max-w-md">
+                                        {selectedContract.customerName}
+                                    </h2>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{selectedContract.pmocCode || selectedContract.display_id}</span>
+                                        <div className="w-1 h-1 rounded-full bg-slate-300" />
+                                        <StatusBadge status={selectedContract.status} />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    onClick={() => window.print()}
+                                    variant="secondary"
+                                    size="sm"
+                                    className="h-10 px-6 gap-2 text-primary-600 border-primary-100 bg-primary-50/50"
+                                >
+                                    <Printer size={16} /> Imprimir PMOC
+                                </Button>
+                                <Button
+                                    onClick={() => setIsViewModalOpen(false)}
+                                    variant="secondary"
+                                    size="sm"
+                                    className="h-10 px-6 gap-2 text-slate-500 border-slate-200"
+                                >
+                                    <X size={16} /> Fechar
+                                </Button>
+                            </div>
                         </div>
-                        <div className="flex-1 p-12 overflow-y-auto custom-scrollbar bg-white">
+
+                        {/* TABS - Synchronized with Create/Edit */}
+                        <div className="px-10 border-b border-slate-200 bg-white flex gap-8 shrink-0 print:hidden">
+                             {[
+                                { id: 'details', label: 'Dados Técnicos', icon: Settings2 },
+                                { id: 'terms', label: 'Comercial & Termos', icon: DollarSign },
+                                { id: 'history', label: 'Histórico Nexus', icon: History }
+                            ].map(tab => (
+                                <button 
+                                    key={tab.id}
+                                    onClick={() => setViewTab(tab.id as any)}
+                                    className={`flex items-center gap-2 py-4 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all
+                                        ${viewTab === tab.id ? 'border-[#1c2d4f] text-[#1c2d4f]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    <tab.icon size={14} /> {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex-1 p-12 overflow-y-auto custom-scrollbar bg-slate-50/30">
                             {viewTab === 'details' ? (
                                 <div className="space-y-10 animate-fade-in">
-                                    <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 flex justify-between items-center"><div className="space-y-1"><h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Plano Master Nexus</h4><p className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter truncate max-w-md">{selectedContract.customerName}</p></div><StatusBadge status={selectedContract.status} /></div>
-                                    <div className="grid grid-cols-4 gap-4">
-                                        <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Mensalidade</h5><p className="text-sm font-black text-emerald-600 italic">R$ {selectedContract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
-                                        <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Período</h5><p className="text-sm font-black text-primary-600 uppercase italic">{selectedContract.periodicity}</p></div>
-                                        <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Visitas/Ciclo</h5><p className="text-sm font-black text-slate-900 uppercase italic">{selectedContract.visitCount || 1} Visita(s)</p></div>
-                                        <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Peças Incl.</h5><p className={`text-sm font-black uppercase italic ${selectedContract.includesParts ? 'text-emerald-500' : 'text-red-400'}`}>{selectedContract.includesParts ? 'Sim' : 'Não'}</p></div>
+                                    <div className="grid grid-cols-4 gap-4 print:grid-cols-2">
+                                        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Mensalidade</h5><p className="text-sm font-black text-emerald-600 italic">R$ {selectedContract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
+                                        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Período</h5><p className="text-sm font-black text-primary-600 uppercase italic">{selectedContract.periodicity}</p></div>
+                                        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Visitas/Ciclo</h5><p className="text-sm font-black text-slate-900 uppercase italic">{selectedContract.visitCount || 1} Visita(s)</p></div>
+                                        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm"><h5 className="text-[8px] font-black text-slate-400 uppercase mb-2">Peças Incl.</h5><p className={`text-sm font-black uppercase italic ${selectedContract.includesParts ? 'text-emerald-500' : 'text-red-400'}`}>{selectedContract.includesParts ? 'Sim' : 'Não'}</p></div>
                                     </div>
                                     <div className="space-y-4">
                                         <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-4"><Box size={14} /> Ativos Vinculados ({selectedContract.equipmentIds?.length})</h5>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 gap-6 print:grid-cols-1">
                                             {selectedContract.equipmentIds?.map((id: string) => {
                                                 const eq = equipments.find(e => e.id === id);
-                                                return <div key={id} className="p-6 bg-slate-50/50 rounded-3xl border border-slate-300 flex items-center gap-5 transition-all hover:bg-white hover:shadow-xl group"><div className="p-3 bg-white rounded-2xl shadow-lg shadow-slate-200/50 group-hover:bg-primary-50 transition-colors"><Box size={20} className="text-primary-400" /></div><div><p className="text-[12px] font-black text-slate-900 uppercase italic">{eq?.model}</p><p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">S/N: {eq?.serialNumber}</p></div></div>
+                                                return (
+                                                    <div key={id} className="p-6 bg-white rounded-3xl border border-slate-200 flex items-center gap-5 transition-all shadow-sm group">
+                                                        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-primary-50 transition-colors">
+                                                            <Box size={20} className="text-primary-400" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[12px] font-black text-slate-900 uppercase italic">{eq?.model}</p>
+                                                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">S/N: {eq?.serialNumber}</p>
+                                                        </div>
+                                                    </div>
+                                                );
                                             })}
                                         </div>
                                     </div>
                                 </div>
                             ) : viewTab === 'terms' ? (
-                                <div className="space-y-8 animate-fade-in">
+                                <div className="space-y-8 animate-fade-in max-w-4xl mx-auto">
                                     <div className="flex items-center gap-4 border-b border-slate-200 pb-8"><FileSignature className="text-primary-600" size={24} /><h4 className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Termos e Condições do Acordo</h4></div>
-                                    <div className="bg-slate-50 p-12 rounded-[4rem] border border-slate-100 shadow-inner">
-                                        <div className="bg-white p-16 rounded-[3rem] shadow-xl min-h-[400px] text-sm text-slate-700 font-medium leading-loose italic">
+                                    <div className="bg-white p-12 rounded-[4rem] border border-slate-200 shadow-sm">
+                                        <div className="bg-slate-50 p-16 rounded-[3rem] shadow-inner min-h-[400px] text-sm text-slate-700 font-medium leading-loose italic">
                                             {selectedContract.contractTerms || 'Nenhum termo adicional registrado para este contrato.'}
                                         </div>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-12 animate-fade-in">
-                                    <div className="flex items-center gap-4 border-b border-slate-200 pb-8"><Activity className="text-primary-600" size={24} /><h4 className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Timeline de Auditoria Nexus</h4></div>
+                                <div className="space-y-12 animate-fade-in max-w-4xl mx-auto">
+                                    <div className="flex items-center gap-4 border-b border-slate-200 pb-8 print:hidden"><History className="text-primary-600" size={24} /><h4 className="text-sm font-black text-slate-900 uppercase italic tracking-tighter">Timeline de Auditoria Nexus</h4></div>
                                     <div className="relative border-l-2 border-slate-100 ml-6 space-y-12 pb-10">
                                         {(selectedContract.logs || []).slice().reverse().map((log: AuditLog, i: number) => (
                                             <div key={i} className="relative pl-12 animate-fade-in-up">
-                                                <div className="absolute -left-[11px] top-1 w-5 h-5 bg-white border-2 border-primary-600 rounded-full flex items-center justify-center shadow-md"><div className="w-2 h-2 bg-primary-600 rounded-full" /></div>
-                                                <div className="bg-slate-50 p-8 rounded-[3rem] border border-slate-200 shadow-sm transition-all hover:border-primary-200">
+                                                <div className="absolute -left-[11px] top-1 w-5 h-5 bg-white border-2 border-primary-600 rounded-full flex items-center justify-center shadow-md print:hidden"><div className="w-2 h-2 bg-primary-600 rounded-full" /></div>
+                                                <div className="bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm transition-all hover:border-primary-200">
                                                     <div className="flex justify-between items-center mb-5"><span className="px-3 py-1 bg-primary-600 text-white text-[9px] font-black uppercase italic rounded-lg tracking-widest">{log.action.replace(/_/g, ' ')}</span><span className="text-[9px] font-bold text-slate-400 bg-white border border-slate-200 px-3 py-1 rounded-xl">{new Date(log.timestamp).toLocaleString()}</span></div>
                                                     <p className="text-[13px] font-black text-slate-900 leading-snug mb-5 uppercase italic tracking-tighter">{log.details}</p>
-                                                    <div className="p-6 bg-white rounded-[2rem] border border-primary-50 shadow-inner"><p className="text-[8px] font-black text-primary-500 uppercase mb-2 italic">Justificativa Operacional:</p><p className="text-[12px] font-bold text-slate-600 italic leading-relaxed">"{log.reason}"</p></div>
+                                                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 shadow-inner"><p className="text-[8px] font-black text-primary-500 uppercase mb-2 italic">Justificativa Operacional:</p><p className="text-[12px] font-bold text-slate-600 italic leading-relaxed">"{log.reason}"</p></div>
                                                     <div className="flex items-center gap-3 mt-8 pt-6 border-t border-slate-200"><div className="w-8 h-8 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center shadow-sm"><UserIcon size={16} /></div><span className="text-[10px] font-black text-slate-900 uppercase italic tracking-widest">{log.user}</span></div>
                                                 </div>
                                             </div>
