@@ -155,38 +155,6 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
             const currentLogs: AuditLog[] = selectedContract ? selectedContract.logs || [] : [];
             let newLogs: AuditLog[] = [];
 
-            const contractPayload = {
-                id: (pendingAction === 'EDIT' || pendingAction === 'TOGGLE') ? selectedContract?.id : undefined,
-                pmocCode: pmocCode,
-                title: `CONTRATO Master: ${contractTitle}`,
-                description: `Contrato de manutenção preventiva - ${selectedCustomerId}`,
-                customerName: selectedCustomerId,
-                customerAddress: customers.find(c => c.name === selectedCustomerId)?.address || '',
-                status: (pendingAction === 'TOGGLE') ? (pendingStatus || selectedContract?.status) : (selectedContract?.status || OrderStatus.PENDING),
-                priority: selectedContract?.priority || OrderPriority.MEDIUM,
-                operation_type: 'Manutenção Preventiva',
-                scheduled_date: startDate,
-                periodicity: periodicity,
-                maintenance_day: maintenanceDay,
-                equipment_ids: selectedEquipIds,
-                logs: [...currentLogs, ...newLogs],
-                alertSettings: {
-                    enabled: enableAlerts,
-                    daysBefore: alertDaysBefore,
-                    frequency: alertFrequency
-                },
-                contractValue: parsedValue,
-                includes_parts: includesParts,
-                visitCount: visitCount,
-                contractTerms: contractTerms
-            };
-
-            if (pendingAction === 'CREATE' || pendingAction === 'EDIT') {
-                if (contractPayload.equipment_ids.length === 0) {
-                    throw new Error('Selecione pelo menos um equipamento para este contrato.');
-                }
-            }
-
             if (pendingAction === 'CREATE') {
                 newLogs.push({ timestamp: now, user: user?.name || 'Sistema', action: 'CONTRATO_CRIADO', details: `Registro ${pmocCode} ativado. Valor: R$ ${contractValue}`, reason: changeReason });
             }
@@ -200,7 +168,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
             const updatedLogs = [...currentLogs, ...newLogs];
             const customer = customers.find(c => c.name === (selectedContract?.customerName || selectedCustomerId));
 
-            const contractPayload = {
+            const finalPayload = {
                 pmocCode: pmocCode,
                 title: `CONTRATO Master: ${contractTitle || selectedContract?.title.replace('CONTRATO Master: ', '')}`,
                 description: `Gestão PMOC: ${selectedEquipIds.length || selectedContract?.equipmentIds.length} ativos.`,
@@ -212,18 +180,23 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                 operationType: 'Manutenção Preventiva',
                 periodicity: periodicity,
                 maintenanceDay: maintenanceDay,
-                equipmentIds: selectedEquipIds.length > 0 ? selectedEquipIds : selectedContract?.equipmentIds,
+                equipmentIds: selectedEquipIds.length > 0 ? selectedEquipIds : selectedContract?.equipmentIds || [],
                 logs: updatedLogs,
                 alertSettings: { enabled: enableAlerts, daysBefore: alertDaysBefore, frequency: alertFrequency },
-                // New Fields
                 contractValue: parsedValue,
                 includesParts: includesParts,
                 visitCount: visitCount,
                 contractTerms: contractTerms
             };
 
-            if (pendingAction === 'CREATE') await onCreateOrder(contractPayload);
-            else await onEditOrder({ ...selectedContract!, ...contractPayload });
+            if (pendingAction === 'CREATE' || pendingAction === 'EDIT') {
+                if (!finalPayload.equipmentIds || finalPayload.equipmentIds.length === 0) {
+                    throw new Error('Selecione pelo menos um equipamento para este contrato.');
+                }
+            }
+
+            if (pendingAction === 'CREATE') await onCreateOrder(finalPayload);
+            else await onEditOrder({ ...selectedContract!, ...finalPayload });
 
             setIsAuditModalOpen(false);
             setIsModalOpen(false);
