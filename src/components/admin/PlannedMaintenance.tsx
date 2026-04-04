@@ -903,83 +903,82 @@ const ContractPrintLayout: React.FC<{ contract: any, tenant: any, equipments: Eq
     };
 
     return (
-        <div className="bg-white text-[10px] leading-tight font-sans p-10 print:p-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-            {/* Print Header — Identical to OS */}
-            <div className="flex justify-between items-start pb-6 border-b-2 border-slate-800 mb-6">
-                <div className="flex gap-5 items-center">
+        <div className="bg-white text-[10px] leading-tight font-poppins p-8 print:p-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+            {/* Print Header */}
+            <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-6">
+                <div className="flex gap-4 items-center">
                     {companyLogo ? (
-                        <img src={companyLogo} alt="Logo" className="h-20 w-auto object-contain" />
+                        <img src={companyLogo} alt="Logo" className="h-14 w-auto object-contain" />
                     ) : (
-                        <div className="bg-slate-900 p-3 rounded-xl flex items-center justify-center min-w-[70px] min-h-[70px] text-white">
-                            <Hexagon size={36} className="text-white fill-white/10" />
+                        <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px] text-white">
+                            <Hexagon size={32} className="text-white fill-white/10" />
                         </div>
                     )}
-                    <div className="space-y-1.5">
-                        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter italic">{companyName}</h1>
-                        <div className="text-[10px] text-slate-600 max-w-[450px]">
-                            {companyAddress && <div className="flex items-center gap-1.5 font-medium"><MapPin size={10} className="text-slate-400" /> {companyAddress}</div>}
-                            <div className="flex gap-4 mt-1">
-                                {companyPhone && <span className="flex items-center gap-1.5 font-bold"><Phone size={10} className="text-slate-400" /> {companyPhone}</span>}
-                                {companyEmail && <span className="flex items-center gap-1.5 font-medium"><Globe size={10} className="text-slate-400" /> {companyEmail}</span>}
+                    <div className="space-y-0.5">
+                        <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
+                        <div className="text-[9px] text-slate-600 max-w-[400px]">
+                            {companyAddress && <div>{companyAddress}</div>}
+                            <div className="flex gap-3 mt-0.5">
+                                {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
+                                {companyEmail && <span>Email: {companyEmail}</span>}
                             </div>
-                            {companyDoc && <div className="mt-1 font-bold text-slate-400">CNPJ: {companyDoc}</div>}
+                            {companyDoc && <div className="mt-0.5">CNPJ: {companyDoc}</div>}
                         </div>
                     </div>
                 </div>
                 <div className="text-right">
-                    <div className="border-2 border-slate-800 px-6 py-3 rounded-2xl bg-slate-50">
-                        <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Contrato PMOC</div>
-                        <div className="text-3xl font-black text-slate-900 tracking-tighter">#{contract.pmocCode || contract.display_id}</div>
+                    <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
+                        <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Contrato de Manutenção</div>
+                        <div className="text-2xl font-black text-slate-900 tracking-tighter">#{contract.pmocCode || contract.display_id}</div>
                     </div>
-                    <div className="text-[9px] font-bold text-slate-400 mt-3 uppercase tracking-widest leading-none">
+                    <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
                         Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                 </div>
             </div>
 
-            <div className="space-y-5">
-                {/* Dados do Contrato e Cliente */}
-                <div className="border border-slate-300 rounded-2xl overflow-hidden break-inside-avoid shadow-sm">
-                    <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-black text-[10px] uppercase tracking-widest text-slate-700 italic">Identificação e Parâmetros do Plano</div>
+            <div className="space-y-4">
+                {/* Dados do chamado e Cliente */}
+                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid shadow-sm">
+                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Contrato e Cliente</div>
                     <div className="grid grid-cols-12 divide-x divide-slate-200">
-                        <div className="col-span-7 p-4 space-y-4">
-                            <div><label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Contratante / Razão Social</label><div className="font-black text-slate-900 text-base uppercase italic tracking-tight">{contract.customerName}</div></div>
-                            <div><label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Endereço da Prestação</label><div className="font-bold text-slate-700 text-[11px] uppercase italic">{contract.customerAddress || 'Endereço não disponível'}</div></div>
+                        <div className="col-span-7 p-3 space-y-3">
+                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-sm uppercase">{contract.customerName}</div></div>
+                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{contract.customerAddress || '—'}</div></div>
                         </div>
-                        <div className="col-span-5 p-4 grid grid-cols-2 gap-4 bg-slate-50/40">
-                            <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Início do Plano</label><div className="font-black text-slate-900 uppercase italic">{fmt(contract.scheduled_date)}</div></div>
-                            <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Ciclo / Periodicidade</label><div className="font-black text-primary-600 uppercase italic">{contract.periodicity}</div></div>
-                            <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Visitas por Mês</label><div className="font-black text-slate-900 uppercase italic tracking-tighter">{contract.visitCount || 1} Visita(s)</div></div>
-                            <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Peças Incluídas</label><div className={`font-black uppercase italic ${contract.includes_parts ? 'text-emerald-500' : 'text-rose-400'}`}>{contract.includes_parts ? 'Sim' : 'Não'}</div></div>
-                            <div className="col-span-2 mt-2 pt-2 border-t border-slate-200"><label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Investimento Mensal</label><div className="text-xl font-black text-emerald-600 tracking-tighter">R$ {contract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>
+                        <div className="col-span-5 p-3 grid grid-cols-2 gap-3 bg-slate-50/30">
+                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(contract.scheduled_date)}</div></div>
+                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Período</label><div className="font-bold uppercase text-primary-600">{contract.periodicity}</div></div>
+                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Visitas/Ano</label><div className="font-bold">{(contract.visitCount || 1) * 12} Visitas</div></div>
+                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Peças</label><div className={`font-bold transition-colors ${contract.includes_parts ? 'text-emerald-600' : 'text-slate-600'}`}>{contract.includes_parts ? 'SIM' : 'NÃO'}</div></div>
+                            <div className="col-span-2 mt-1 py-1 border-t border-slate-200"><label className="block text-[8px] font-bold text-slate-400 uppercase">Investimento</label><div className="text-base font-black text-emerald-600">R$ {contract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>
                         </div>
                     </div>
                 </div>
 
-                {/* Relação de Ativos Vinculados */}
-                <div className="border border-slate-300 rounded-2xl overflow-hidden break-inside-avoid shadow-sm">
-                    <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-black text-[10px] uppercase tracking-widest text-slate-700 italic flex justify-between items-center">
-                        <span>Relação de Ativos Vinculados (PMOC)</span>
-                        <span className="bg-white px-3 py-0.5 rounded-full text-[9px] font-black text-slate-500 tracking-tighter italic">{contract.equipmentIds?.length} Unidades</span>
-                    </div>
+                {/* Equipamentos Vinculados */}
+                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Equipamentos Vinculados ({contract.equipmentIds?.length})</div>
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="bg-slate-50 text-[9px] font-black text-slate-500 uppercase italic border-b border-slate-200">
-                                <th className="px-5 py-2.5">Família / Categoria</th>
-                                <th className="px-5 py-2.5">Modelo do Equipamento</th>
-                                <th className="px-5 py-2.5 font-mono">Nº Série / TAG</th>
-                                <th className="px-5 py-2.5 text-center">Localização Técnica</th>
+                            <tr className="bg-slate-50 text-[8px] font-black text-slate-500 uppercase border-b border-slate-200">
+                                <th className="px-3 py-1.5">#</th>
+                                <th className="px-3 py-1.5">Equipamento</th>
+                                <th className="px-3 py-1.5">Modelo</th>
+                                <th className="px-3 py-1.5">Nº Série</th>
+                                <th className="px-3 py-1.5">Família</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
-                            {contract.equipmentIds?.map((id: string) => {
+                            {contract.equipmentIds?.map((id: string, i: number) => {
                                 const eq = equipments.find(e => e.id === id);
                                 return (
-                                    <tr key={id} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="px-5 py-3 text-[11px] font-bold text-slate-500 uppercase italic">{eq?.family || '—'}</td>
-                                        <td className="px-5 py-3 text-[12px] font-black text-slate-900 uppercase italic tracking-tight">{eq?.model}</td>
-                                        <td className="px-5 py-3 text-[11px] font-bold text-slate-600 font-mono tracking-tighter uppercase">{eq?.serialNumber}</td>
-                                        <td className="px-5 py-3 text-[10px] text-center font-bold text-slate-400 uppercase italic whitespace-nowrap">{(eq as any)?.location || eq?.sector || 'ÁREA TÉCNICA'}</td>
+                                    <tr key={id}>
+                                        <td className="px-3 py-1.5 text-[10px] font-bold text-slate-400">{i + 1}</td>
+                                        <td className="px-3 py-1.5 text-[10px] font-bold text-slate-900 uppercase">{eq?.model}</td>
+                                        <td className="px-3 py-1.5 text-[10px] text-slate-600 uppercase">{eq?.model}</td>
+                                        <td className="px-3 py-1.5 text-[10px] text-slate-600 font-mono">{eq?.serialNumber}</td>
+                                        <td className="px-3 py-1.5 text-[10px] text-slate-600 uppercase">{eq?.family || '—'}</td>
                                     </tr>
                                 );
                             })}
@@ -987,53 +986,52 @@ const ContractPrintLayout: React.FC<{ contract: any, tenant: any, equipments: Eq
                     </table>
                 </div>
 
-                {/* Escopo e Regras */}
-                <div className="border border-slate-300 rounded-2xl overflow-hidden break-inside-avoid shadow-sm">
-                    <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-black text-[10px] uppercase tracking-widest text-slate-700 italic">Termos, Escopo e Acordos Comerciais</div>
-                    <div className="p-8 bg-white text-[12px] text-slate-700 font-medium whitespace-pre-wrap leading-relaxed italic">
+                {/* Relatório / Descrição */}
+                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Relatório / Descrição do Contrato</div>
+                    <div className="p-3 bg-white text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
                         {contract.contractTerms || 'Os serviços serão executados de acordo com a Resolução RE nº 09 da ANVISA e as normas técnicas vigentes de manutenção de sistemas de climatização (ABNT).'}
                     </div>
                 </div>
 
-                {/* Validação / Assinaturas — Identical to OS */}
-                <div className="border border-slate-300 rounded-2xl overflow-hidden break-inside-avoid mt-6 shadow-sm">
-                    <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-black text-[10px] uppercase tracking-widest text-slate-700 italic">Validação do Acordo (Assinaturas Digitais)</div>
+                {/* Validação / Assinaturas */}
+                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
+                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
                     <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
-                        <div className="p-8 flex flex-col items-center justify-center gap-4">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Emitente / Gestão Nexus</p>
-                            <div className="h-[80px] flex items-center justify-center text-slate-200 italic text-[11px] font-bold uppercase tracking-widest border border-slate-100 w-full rounded-2xl bg-slate-50/30 shadow-inner">
-                                Auditoria Central Digital
+                        <div className="p-4 flex flex-col items-center justify-center gap-3">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Responsável Técnico</p>
+                            <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-[10px] font-bold uppercase">
+                                Validação Eletrônica no Sistema
                             </div>
-                            <div className="w-full border-t border-slate-300 pt-3">
-                                <p className="text-[14px] font-black text-slate-900 uppercase italic tracking-tighter">{companyName}</p>
+                            <div className="w-full border-t border-slate-300 pt-2">
+                                <p className="text-[12px] font-black text-slate-900 uppercase">{companyName}</p>
                             </div>
                         </div>
-                        <div className="p-8 flex flex-col items-center justify-center gap-4">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Responsável / Contratante</p>
-                            <div className="h-[100px] flex items-center justify-center border-2 border-dashed border-slate-200 w-full rounded-2xl bg-slate-50/50">
-                                <span className="text-slate-300 italic text-[11px] font-black uppercase tracking-widest">Aguardando Formalização</span>
+                        <div className="p-4 flex flex-col items-center justify-center gap-3">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Responsável pela Conformidade (Cliente)</p>
+                            <div className="h-[80px] flex items-center justify-center">
+                                <span className="text-slate-300 italic text-[10px] font-bold uppercase">Aguardando assinatura</span>
                             </div>
-                            <div className="w-full border-t border-slate-300 pt-3">
-                                <p className="text-[14px] font-black text-slate-900 uppercase italic tracking-tighter">{contract.customerName}</p>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Data: ____/____/________</p>
+                            <div className="w-full border-t border-slate-300 pt-2">
+                                <p className="text-[12px] font-black text-slate-900 uppercase">{contract.customerName}</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Footer — Identical to OS */}
-            <div className="mt-12 pt-6 border-t-2 border-slate-800 flex justify-between items-center text-slate-500 grayscale opacity-60">
-                <div className="flex items-center gap-3">
-                    <Layers size={18} className="text-slate-900 origin-left scale-75" />
+            {/* Footer */}
+            <div className="mt-8 pt-4 border-t-2 border-slate-800 flex justify-between items-center text-slate-500">
+                <div className="flex items-center gap-2">
+                    <Layers size={18} className="text-slate-900 opacity-80" />
                     <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-900 leading-none">Nexus Pro — Gestão Intelligence</p>
-                        <p className="text-[8px] font-bold uppercase tracking-tighter mt-1 italic">Documento emitido eletronicamente pela plataforma master</p>
+                        <p className="text-[8px] font-bold uppercase tracking-widest text-slate-900 leading-none">Nexus Pro — Gestão de Ativos</p>
+                        <p className="text-[7px] uppercase tracking-tight mt-0.5">Documento emitido eletronicamente. Uma solução DUNO Project.</p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">Uma solução DUNO Project</p>
-                    <p className="text-[8px] uppercase tracking-tight mt-0.5 font-bold italic">Auditável na plataforma central via QrCode ou Protocolo.</p>
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-900">Protocolo Auditável</p>
+                    <p className="text-[7px] uppercase tracking-tight mt-0.5">Auditável na plataforma central via QrCode ou Protocolo.</p>
                 </div>
             </div>
         </div>
