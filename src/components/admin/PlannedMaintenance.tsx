@@ -70,6 +70,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     const [isCustomerListOpen, setIsCustomerListOpen] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
+    const [tenant, setTenant] = useState<any>(null);
     const ITEMS_PER_PAGE = 12;
 
     useEffect(() => {
@@ -154,8 +155,34 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
             const currentLogs: AuditLog[] = selectedContract ? selectedContract.logs || [] : [];
             let newLogs: AuditLog[] = [];
 
+            const contractPayload = {
+                id: (pendingAction === 'EDIT' || pendingAction === 'TOGGLE') ? selectedContract?.id : undefined,
+                pmocCode: pmocCode,
+                title: `CONTRATO Master: ${contractTitle}`,
+                description: `Contrato de manutenção preventiva - ${selectedCustomerId}`,
+                customerName: selectedCustomerId,
+                customerAddress: customers.find(c => c.name === selectedCustomerId)?.address || '',
+                status: (pendingAction === 'TOGGLE') ? (pendingStatus || selectedContract?.status) : (selectedContract?.status || OrderStatus.PENDING),
+                priority: selectedContract?.priority || OrderPriority.MEDIUM,
+                operation_type: 'Manutenção Preventiva',
+                scheduled_date: startDate,
+                periodicity: periodicity,
+                maintenance_day: maintenanceDay,
+                equipment_ids: selectedEquipIds,
+                logs: [...currentLogs, ...newLogs],
+                alertSettings: {
+                    enabled: enableAlerts,
+                    daysBefore: alertDaysBefore,
+                    frequency: alertFrequency
+                },
+                contractValue: parsedValue,
+                includes_parts: includesParts,
+                visitCount: visitCount,
+                contractTerms: contractTerms
+            };
+
             if (pendingAction === 'CREATE' || pendingAction === 'EDIT') {
-                if (contractPayload.equipmentIds.length === 0) {
+                if (contractPayload.equipment_ids.length === 0) {
                     throw new Error('Selecione pelo menos um equipamento para este contrato.');
                 }
             }
@@ -940,7 +967,7 @@ const ContractPrintLayout: React.FC<{ contract: any, tenant: any, equipments: Eq
                                 <tr key={id} className="hover:bg-slate-50/50">
                                     <td className="px-4 py-3 text-[11px] font-black text-slate-900 uppercase italic">{eq?.model}</td>
                                     <td className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase">{eq?.serialNumber}</td>
-                                    <td className="px-4 py-3 text-[10px] text-center font-bold text-slate-400 uppercase italic italic">{eq?.location || 'ÁREA TÉCNICA'}</td>
+                                    <td className="px-4 py-3 text-[10px] text-center font-bold text-slate-400 uppercase italic italic">{(eq as any)?.location || eq?.sector || 'ÁREA TÉCNICA'}</td>
                                 </tr>
                             );
                         })}
@@ -978,5 +1005,6 @@ const ContractPrintLayout: React.FC<{ contract: any, tenant: any, equipments: Eq
                  </div>
                  <span className="text-[8px] font-bold text-slate-400 uppercase">Gerado em: {new Date().toLocaleString()}</span>
             </div>
+        </div>
     );
 };
