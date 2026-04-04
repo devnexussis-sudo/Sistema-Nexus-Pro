@@ -1,9 +1,18 @@
--- 🏗️ NEXUS PRO - NUCLEAR SCHEMA REPAIR: CONTRACTS
--- Restaura colunas básicas e avançadas para o módulo de Contratos/PMOC
--- Data: 2026-04-03 21:15:43 (Local)
+-- 🏗️ NEXUS PRO - COMPLETE SCHEMA RECONCILIATION: CONTRACTS
+-- Restaura TODAS as colunas para a tabela de Contratos/PMOC
+-- Data: 2026-04-03 21:19:15 (Local)
 
 DO $$ BEGIN
-    -- Colunas Básicas de Identificação
+    -- Colunas Estruturais
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'title') THEN
+        ALTER TABLE contracts ADD COLUMN title TEXT DEFAULT 'Contrato Master';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'description') THEN
+        ALTER TABLE contracts ADD COLUMN description TEXT DEFAULT '';
+    END IF;
+
+    -- Colunas de Cliente
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'customer_name') THEN
         ALTER TABLE contracts ADD COLUMN customer_name TEXT;
     END IF;
@@ -12,9 +21,22 @@ DO $$ BEGIN
         ALTER TABLE contracts ADD COLUMN customer_address TEXT;
     END IF;
 
+    -- Colunas de Estado e Prioridade
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'status') THEN
+        ALTER TABLE contracts ADD COLUMN status TEXT DEFAULT 'PENDENTE';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'priority') THEN
+        ALTER TABLE contracts ADD COLUMN priority TEXT DEFAULT 'MÉDIA';
+    END IF;
+
     -- Colunas de Operação/PMOC
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'operation_type') THEN
         ALTER TABLE contracts ADD COLUMN operation_type TEXT DEFAULT 'Manutenção Preventiva';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'scheduled_date') THEN
+        ALTER TABLE contracts ADD COLUMN scheduled_date DATE DEFAULT CURRENT_DATE;
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'periodicity') THEN
@@ -33,7 +55,7 @@ DO $$ BEGIN
         ALTER TABLE contracts ADD COLUMN logs JSONB DEFAULT '[]';
     END IF;
 
-    -- Colunas de Alertas e Faturamento Comercial
+    -- Colunas Avançadas (Alertas e Comercial)
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'alert_settings') THEN
         ALTER TABLE contracts ADD COLUMN alert_settings JSONB DEFAULT '{"enabled": false, "days_before": 5, "frequency": 1}';
     END IF;
@@ -54,7 +76,15 @@ DO $$ BEGIN
         ALTER TABLE contracts ADD COLUMN contract_terms TEXT DEFAULT '';
     END IF;
 
+    -- Colunas de Auditoria
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'created_at') THEN
+        ALTER TABLE contracts ADD COLUMN created_at TIMESTAMPTZ DEFAULT NOW();
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'contracts' AND column_name = 'updated_at') THEN
+        ALTER TABLE contracts ADD COLUMN updated_at TIMESTAMPTZ DEFAULT NOW();
+    END IF;
+
 END $$;
 
--- Comentário para auditoria de schema cache
-COMMENT ON TABLE contracts IS 'Nexus Pro: Tabela de contratos master completa com suporte a PMOC, Alertas e Faturamento Comercial.';
+COMMENT ON TABLE contracts IS 'Nexus Pro: Tabela de contratos master com especificação BigTech PMOC e Comercial.';
