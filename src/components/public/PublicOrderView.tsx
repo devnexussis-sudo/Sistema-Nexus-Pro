@@ -787,7 +787,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 )
               }
               <div className="min-w-0 flex-1">
-                <h1 className="text-sm font-bold text-slate-900 uppercase tracking-tight truncate leading-none mb-1.5">{companyName}</h1>
+                <h1 className="text-sm font-bold text-slate-900 uppercase tracking-tight sm:truncate leading-none mb-1.5">{companyName}</h1>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   {companyDoc && (
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
@@ -805,8 +805,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     </span>
                   )}
                   {companyAddress && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-widest leading-normal">
-                      <MapPin size={9} className="text-[#3e5b99] shrink-0" /> {companyAddress}
+                    <span className="flex items-center gap-1 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-widest leading-tight">
+                      <MapPin size={10} className="text-[#3e5b99] shrink-0" /> <span className="flex-1">{companyAddress}</span>
                     </span>
                   )}
                 </div>

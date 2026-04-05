@@ -1,6 +1,6 @@
 
 import { CacheManager } from '../lib/cache';
-import { adminAuthProxy, supabase } from '../lib/supabase';
+import { adminAuthProxy, supabase, publicSupabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
 import { User, UserGroup, UserRole } from '../types';
 import type { DbTenant, DbTenantInsert, DbTenantStats, DbUser, DbUserGroup } from '../types/database';
@@ -74,20 +74,35 @@ export const TenantService = {
 
             // Busca tenant específico
             try {
+                // Tenta primeiro com cliente AUTENTICADO
                 const { data, error } = await supabase
                     .from('tenants')
                     .select('*')
                     .eq('id', tid)
                     .abortSignal(signal)
-                    .single();
+                    .maybeSingle();
 
-                if (error) {
-                    console.error('[TenantService] Erro ao buscar tenant por ID:', error);
+                if (!error && data) {
+                    console.log('[TenantService] ✅ Tenant carregado (auth):', data?.name || data?.company_name);
+                    return data;
+                }
+
+                // Fallback: Tenta com cliente PÚBLICO (anon) se o acima falhar por RLS/Sessão
+                const { data: publicData, error: publicError } = await publicSupabase
+                    .from('tenants')
+                    .select('*')
+                    .eq('id', tid)
+                    .maybeSingle();
+
+                if (publicError) {
+                    console.error('[TenantService] Erro ao buscar tenant publicamente:', publicError);
                     return null;
                 }
 
-                console.log('[TenantService] ✅ Tenant carregado:', data?.name || data?.company_name);
-                return data;
+                if (publicData) {
+                    console.log('[TenantService] ✅ Tenant carregado (public):', publicData?.name || publicData?.company_name);
+                }
+                return publicData;
             } catch (e) {
                 console.error('[TenantService] Erro crítico ao buscar tenant por ID:', e);
                 return null;
