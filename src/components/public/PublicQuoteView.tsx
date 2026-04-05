@@ -549,7 +549,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                 ) : (
                                     <span className="text-slate-300 italic text-xs font-bold uppercase">Registro de Recusa Auditado</span>
                                 )}
-                                <div className="absolute bottom-1 right-2 text-xs text-rose-400 uppercase tracking-widest">Duno Secure Audit</div>
+                                <div className="absolute bottom-1 right-2 text-xs text-rose-400 uppercase tracking-widest"></div>
                             </div>
                         </div>
                     </div>
