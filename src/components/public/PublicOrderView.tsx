@@ -304,7 +304,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   if (!order) return (
     <div className="public-view-wrapper">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
         .public-view-wrapper, .public-view-wrapper * {
             font-family: 'Poppins', sans-serif !important;
         }
@@ -740,7 +740,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   if (isPrint) return (
     <div className="public-view-wrapper">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
         .public-view-wrapper, .public-view-wrapper * {
             font-family: 'Poppins', sans-serif !important;
         }
@@ -753,7 +753,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   return (
     <div className="public-view-wrapper">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
         .public-view-wrapper, .public-view-wrapper * {
             font-family: 'Poppins', sans-serif !important;
         }
@@ -1321,14 +1321,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* ── FOOTER NEXUS ── */}
         <footer className="mt-8 sm:mt-12 lg:mt-auto border-t border-slate-200 bg-white print:hidden">
-          <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-            {/* Logo Nexus — Ajustada conforme solicitação (redução de 45% e faixa mais estreita) */}
+          <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <NexusBranding size="lg" className="opacity-80 transform scale-[0.6] sm:scale-[0.85] origin-left -my-2 sm:-my-1" />
+              <NexusBranding size="lg" className="opacity-80 transform scale-[0.55] sm:scale-[0.7] origin-left" />
             </div>
-            <div className="text-center sm:text-right space-y-0.5 sm:space-y-1 mt-[-10px] sm:mt-0">
-              <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma solução DUNO</p>
-              <p className="text-[7px] sm:text-[8px] text-slate-300 uppercase tracking-widest">
+            <div className="text-center sm:text-right space-y-0.5">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Uma solução DUNO</p>
+              <p className="text-[7px] text-slate-300 uppercase tracking-widest">
                 Documento emitido eletronicamente · Autenticidade garantida pela plataforma
               </p>
             </div>
