@@ -56,7 +56,7 @@ const SectionHeader: React.FC<{ icon: React.ReactNode; title: string; color?: st
 const InfoPill: React.FC<{ label: string; value: string; mono?: boolean }> = ({ label, value, mono }) => (
   <div className="flex flex-col gap-1">
     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{label}</span>
-    <span className={`text-xs font-bold text-slate-800 ${mono ? '' : 'uppercase'}`}>{value || '—'}</span>
+    <span className={`text-sm font-bold text-slate-800 ${mono ? '' : 'uppercase'}`}>{value || '—'}</span>
   </div>
 );
 
@@ -175,7 +175,7 @@ const CollapsibleFormSection: React.FC<{
                           </p>
                         </div>
                         {text !== null && (
-                          <p className={`text-xs font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
+                          <p className={`text-sm font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
                             ? 'text-emerald-600'
                             : 'text-slate-800'
                             }`}>
@@ -455,8 +455,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[8px] uppercase tracking-wider text-slate-700">Dados do chamado e Cliente</div>
           <div className="grid grid-cols-12 divide-x divide-slate-200">
             <div className="col-span-7 p-2.5 space-y-2">
-              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-xs uppercase">{order.customerName}</div></div>
-              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{displayAddress || 'N/A'}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-sm uppercase">{order.customerName}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-sm uppercase">{displayAddress || 'N/A'}</div></div>
             </div>
             <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(order.createdAt)}</div></div>
@@ -502,9 +502,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
             <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[8px] uppercase tracking-wider text-slate-700">Dados do Equipamento</div>
             <div className="p-3 bg-white grid grid-cols-3 gap-4">
-              <div className="col-span-1"><label className="block text-[8px] font-bold text-slate-400 uppercase">Equipamento</label><div className="font-bold text-slate-900 text-xs uppercase">{order.equipmentName || '—'}</div></div>
-              <div className="col-span-1"><label className="block text-[8px] font-bold text-slate-400 uppercase">Modelo</label><div className="font-bold text-slate-900 text-xs uppercase">{order.equipmentModel || '—'}</div></div>
-              <div className="col-span-1"><label className="block text-[8px] font-bold text-slate-400 uppercase">Nº Sér / ID</label><div className="font-bold text-slate-900 text-xs uppercase ">{order.equipmentSerial || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[8px] font-bold text-slate-400 uppercase">Equipamento</label><div className="font-bold text-slate-900 text-sm uppercase">{order.equipmentName || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[8px] font-bold text-slate-400 uppercase">Modelo</label><div className="font-bold text-slate-900 text-sm uppercase">{order.equipmentModel || '—'}</div></div>
+              <div className="col-span-1"><label className="block text-[8px] font-bold text-slate-400 uppercase">Nº Sér / ID</label><div className="font-bold text-slate-900 text-sm uppercase ">{order.equipmentSerial || '—'}</div></div>
             </div>
           </div>
         )}
@@ -552,7 +552,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             </table></div>
             <div className="bg-slate-800 text-white px-3 py-2 flex justify-end gap-6 items-center border-t border-slate-800">
               <span className="text-[8px] uppercase font-bold tracking-widest text-slate-300">Total</span>
-              <span className="text-xs font-bold tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              <span className="text-sm font-bold tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         )}
@@ -785,7 +785,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 )
               }
               <div className="min-w-0 flex-1">
-                <h1 className="text-xs font-bold text-slate-900 uppercase tracking-tight truncate leading-none mb-1.5">{companyName}</h1>
+                <h1 className="text-sm font-bold text-slate-900 uppercase tracking-tight truncate leading-none mb-1.5">{companyName}</h1>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   {companyDoc && (
                     <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
@@ -893,7 +893,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 {displayAddress ? (
                   <div className="flex items-start gap-2">
                     <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
-                    <p className="text-xs text-slate-500 leading-snug">{displayAddress}</p>
+                    <p className="text-sm text-slate-500 leading-snug">{displayAddress}</p>
                   </div>
                 ) : (
                   <p className="text-[8px] text-slate-300 uppercase tracking-widest italic">Endereço não informado</p>
@@ -950,7 +950,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <Box size={18} className="text-slate-300" />
                   </div>
                   <div className="space-y-0.5">
-                    <p className="text-xs font-bold text-slate-900 uppercase leading-snug">{order.equipmentName || '—'}</p>
+                    <p className="text-sm font-bold text-slate-900 uppercase leading-snug">{order.equipmentName || '—'}</p>
                     <p className="text-[8px] font-bold text-slate-500 uppercase">
                       {[order.equipmentModel && `Modelo: ${order.equipmentModel}`, order.equipmentSerial && `Série: ${order.equipmentSerial}`].filter(Boolean).join(' · ')}
                     </p>
@@ -1001,7 +1001,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             {order.description && (
               <div className="p-5 bg-[#1c2d4f]/5 rounded-xl border border-[#1c2d4f]/10">
                 <p className="text-[8px] font-bold text-[#1c2d4f] uppercase tracking-widest mb-2">Descrição do Serviço Executado</p>
-                <p className="text-xs font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">{order.description}</p>
+                <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">{order.description}</p>
               </div>
             )}
           </div>
@@ -1014,7 +1014,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             return (
               <div className="bg-red-50 rounded-3xl border border-red-100 shadow-md shadow-red-100/50 p-8 sm:p-10">
                 <SectionHeader icon={<ShieldAlert size={15} />} title="Aviso de Impedimento" color="text-red-600" />
-                <p className="text-xs font-bold text-red-800 italic mb-4">"{reason}"</p>
+                <p className="text-sm font-bold text-red-800 italic mb-4">"{reason}"</p>
                 {blockPhoto && (
                   <a href={blockPhoto} target="_blank" rel="noreferrer" className="block">
                     <img src={blockPhoto} alt="Foto do impedimento" className="w-full max-w-sm rounded-xl border border-red-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 240}} />
@@ -1167,13 +1167,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   {techReport && (
                     <div>
                       <p className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Relatório Técnico</p>
-                      <p className="text-xs text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{techReport}</p>
+                      <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{techReport}</p>
                     </div>
                   )}
                   {partsUsed && (
                     <div>
                       <p className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Peças Utilizadas</p>
-                      <p className="text-xs text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{partsUsed}</p>
+                      <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{partsUsed}</p>
                     </div>
                   )}
                   {(cName || cDoc || fd.signature) && (
@@ -1280,7 +1280,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     </div>
                     <div>
                       <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Técnico Responsável</p>
-                      <p className="text-xs font-bold text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
+                      <p className="text-sm font-bold text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
                       {tech?.email && <p className="text-[8px] text-slate-400 mt-0.5">{tech.email}</p>}
                     </div>
                     <div className="w-full border-t-2 border-dashed border-slate-200 pt-3">
@@ -1313,7 +1313,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                     <div>
                       <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Responsável pela Assinatura</p>
                       {clientName ? (
-                        <p className="text-xs font-bold text-slate-900 uppercase">{clientName}</p>
+                        <p className="text-sm font-bold text-slate-900 uppercase">{clientName}</p>
                       ) : (
                         <p className="text-[8px] font-bold text-slate-300 uppercase italic">Nome não informado</p>
                       )}

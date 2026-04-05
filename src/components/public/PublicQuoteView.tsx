@@ -41,7 +41,7 @@ const SectionHeader: React.FC<{ icon: React.ReactNode; title: string; color?: st
 const InfoPill: React.FC<{ label: string; value: string; mono?: boolean }> = ({ label, value, mono }) => (
     <div className="flex flex-col gap-1">
         <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{label}</span>
-        <span className={`text-xs font-bold text-slate-800 ${mono ? '' : 'uppercase'}`}>{value || '—'}</span>
+        <span className={`text-sm font-bold text-slate-800 ${mono ? '' : 'uppercase'}`}>{value || '—'}</span>
     </div>
 );
 
@@ -303,7 +303,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 <div className="bg-white p-10 rounded-[3rem] shadow-xl text-center max-w-sm">
                     <AlertCircle size={48} className="text-rose-500 mx-auto mb-4" />
                     <h2 className="text-xl font-bold text-slate-900 uppercase italic mb-2">Acesso Negado</h2>
-                    <p className="text-xs text-slate-500 font-bold uppercase">{error || 'Esta proposta não está mais disponível.'}</p>
+                    <p className="text-sm text-slate-500 font-bold uppercase">{error || 'Esta proposta não está mais disponível.'}</p>
                 </div>
             </div>
         </div>
@@ -320,7 +320,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 uppercase italic tracking-tighter mb-4">
                     {isSuccess ? 'Proposta Aprovada!' : 'Proposta Recusada'}
                 </h2>
-                <p className="text-xs sm:text-xs font-bold text-slate-500 uppercase leading-relaxed mb-8">
+                <p className="text-sm sm:text-sm font-bold text-slate-500 uppercase leading-relaxed mb-8">
                     {isSuccess
                         ? `Obrigado, ${approverName.split(' ')[0]}! Recebemos sua assinatura digital. Nossa equipe técnica entrará em contato em breve.`
                         : `Obrigado pelo seu feedback. Registramos a recusa da proposta e notificamos nossa equipe comercial.`
@@ -329,11 +329,11 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 <div className="p-4 sm:p-6 bg-slate-50 rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 mb-8 grid grid-cols-2 gap-4 text-left">
                     <div>
                         <p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Código do Orçamento</p>
-                        <p className="text-xs sm:text-xs font-bold text-[#1c2d4f] italic tracking-tighter break-all">{quote.displayId || quote.id.split('-')[0].toUpperCase()}</p>
+                        <p className="text-sm sm:text-sm font-bold text-[#1c2d4f] italic tracking-tighter break-all">{quote.displayId || quote.id.split('-')[0].toUpperCase()}</p>
                     </div>
                     <div className="border-l border-slate-200 pl-4 flex flex-col justify-center">
                         <p className="text-[8px] font-bold text-slate-400 uppercase mb-1">{isSuccess ? 'Data da Aprovação' : 'Data da Recusa'}</p>
-                        <p className="text-xs sm:text-xs font-bold text-slate-800 tracking-tight">
+                        <p className="text-sm sm:text-sm font-bold text-slate-800 tracking-tight">
                             {quote?.updatedAt ? new Date(quote.updatedAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR')}
                         </p>
                     </div>
@@ -396,11 +396,11 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                 <div className="p-4 grid grid-cols-2 gap-4 bg-white">
                     <div>
                         <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-widest">Identificação do Cliente</span>
-                        <span className="font-bold text-slate-900 text-xs uppercase">{quote.customerName}</span>
+                        <span className="font-bold text-slate-900 text-sm uppercase">{quote.customerName}</span>
                     </div>
                     <div>
                         <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-widest">Local de Execução / Faturamento</span>
-                        <span className="font-medium text-slate-700 text-xs uppercase">{quote.customerAddress || 'Não Informado'}</span>
+                        <span className="font-medium text-slate-700 text-sm uppercase">{quote.customerAddress || 'Não Informado'}</span>
                     </div>
                 </div>
             </div>
@@ -411,7 +411,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     <div className="bg-slate-100 px-4 py-2 border-b border-slate-300">
                         <h3 className="font-bold text-[8px] uppercase tracking-widest text-slate-700">Objeto e Escopo Técnico</h3>
                     </div>
-                    <div className="p-4 bg-white text-xs text-slate-800 font-medium whitespace-pre-wrap leading-relaxed italic">
+                    <div className="p-4 bg-white text-sm text-slate-800 font-medium whitespace-pre-wrap leading-relaxed italic">
                         {quote.description}
                     </div>
                 </div>
@@ -434,12 +434,12 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             {quote.items.map((it: any, i: number) => (
                                 <tr key={i}>
                                     <td className="px-4 py-3 text-center font-bold text-slate-400 text-[8px] border-r border-slate-200 bg-slate-50/30">{String(i + 1).padStart(2, '0')}</td>
-                                    <td className="px-4 py-3 text-xs uppercase font-bold text-slate-800 border-r border-slate-200 leading-snug">{it.description || it.title}</td>
-                                    <td className="px-4 py-3 text-xs text-center font-bold text-slate-600 border-r border-slate-200">{it.quantity}</td>
-                                    <td className="px-4 py-3 text-xs text-right text-slate-600  border-r border-slate-200">
+                                    <td className="px-4 py-3 text-sm uppercase font-bold text-slate-800 border-r border-slate-200 leading-snug">{it.description || it.title}</td>
+                                    <td className="px-4 py-3 text-sm text-center font-bold text-slate-600 border-r border-slate-200">{it.quantity}</td>
+                                    <td className="px-4 py-3 text-sm text-right text-slate-600  border-r border-slate-200">
                                         R$ {(it.unitPrice || it.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-right font-bold text-[#1c2d4f]  bg-slate-50/50">
+                                    <td className="px-4 py-3 text-sm text-right font-bold text-[#1c2d4f]  bg-slate-50/50">
                                         R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </td>
                                 </tr>
@@ -466,13 +466,13 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     return (
                                         <>
                                             <span className="text-[8px] uppercase font-bold tracking-widest text-[#a8b8d8]/70 mb-0.5">Subtotal</span>
-                                            <span className="text-xs font-bold tracking-tighter text-white/60 line-through">
+                                            <span className="text-sm font-bold tracking-tighter text-white/60 line-through">
                                                 R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </span>
                                             <span className="text-[8px] uppercase font-bold tracking-widest text-rose-300 mt-1">
                                                 Desconto Aplicado {type === 'percent' ? `(${disc}%)` : ''}
                                             </span>
-                                            <span className="text-xs font-bold text-rose-300">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                            <span className="text-sm font-bold text-rose-300">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                             <div className="w-full border-t border-white/20 mt-2 pt-2 text-right">
                                                 <span className="text-[8px] uppercase font-bold tracking-widest text-[#a8b8d8] mb-1 block text-right">Investimento Total</span>
                                                 <span className="text-2xl font-bold tracking-tighter">
@@ -506,7 +506,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     <div className="p-6 grid grid-cols-2 gap-6 bg-white">
                         <div className="flex flex-col gap-2">
                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Responsável pela Aprovação</span>
-                            <span className="text-xs font-bold text-slate-900 uppercase">{quote.approvedByName}</span>
+                            <span className="text-sm font-bold text-slate-900 uppercase">{quote.approvedByName}</span>
                             <span className="text-[8px] font-bold text-slate-500 uppercase">Data e hora da assinatura: {new Date(quote.approvedAt).toLocaleString('pt-BR')}</span>
                         </div>
                         <div className="border border-slate-200 rounded-lg h-24 flex flex-col items-center justify-center relative bg-slate-50/50">
@@ -529,13 +529,13 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                         <span className="font-bold text-[8px] uppercase tracking-widest text-rose-800">Recusa do Orçamento Formalizada</span>
                     </div>
                     <div className="p-6 bg-white flex flex-col gap-4">
-                        <div className="text-rose-900 font-bold italic text-xs uppercase tracking-tight">
+                        <div className="text-rose-900 font-bold italic text-sm uppercase tracking-tight">
                             Motivo Registrado: {quote.rejectionReason || 'Recusa efetuada via link público pelo cliente.'}
                         </div>
                         <div className="grid grid-cols-2 gap-6 border-t border-rose-100 pt-4">
                             <div className="flex flex-col gap-2">
                                 <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Recusado por</span>
-                                <span className="text-xs font-bold text-slate-900 uppercase">{quote.approvedByName || 'Cliente'}</span>
+                                <span className="text-sm font-bold text-slate-900 uppercase">{quote.approvedByName || 'Cliente'}</span>
                                 <span className="text-[8px] font-bold text-slate-500 uppercase">Data e hora: {quote.approvedAt ? new Date(quote.approvedAt).toLocaleString('pt-BR') : 'N/D'}</span>
                             </div>
                             <div className="border border-rose-100 rounded-lg h-24 flex flex-col items-center justify-center relative bg-rose-50/30">
@@ -609,7 +609,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                 )
                             }
                             <div className="min-w-0 flex-1">
-                                <h1 className="text-xs font-bold text-slate-900 uppercase tracking-tight truncate leading-none mb-1.5">{companyName}</h1>
+                                <h1 className="text-sm font-bold text-slate-900 uppercase tracking-tight truncate leading-none mb-1.5">{companyName}</h1>
                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                                     {companyDoc && (
                                         <span className="text-[8px] font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
@@ -706,7 +706,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                 {quote.customerAddress ? (
                                     <div className="flex items-start gap-2 pt-2 border-t border-slate-200">
                                         <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
-                                        <p className="text-xs text-slate-500 leading-snug">{quote.customerAddress}</p>
+                                        <p className="text-sm text-slate-500 leading-snug">{quote.customerAddress}</p>
                                     </div>
                                 ) : (
                                     <p className="text-[8px] text-slate-300 uppercase tracking-widest italic pt-2 border-t border-slate-200">Endereço não informado</p>
@@ -728,7 +728,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                 {quote.description && (
                                     <div className="col-span-2 pt-3 border-t border-slate-200">
                                         <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Objeto / Escopo Técnico</p>
-                                        <p className="text-xs text-slate-600 font-medium italic">{quote.description}</p>
+                                        <p className="text-sm text-slate-600 font-medium italic">{quote.description}</p>
                                     </div>
                                 )}
                             </div>
@@ -755,7 +755,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                     </div>
                                     <div className="text-right pl-12 sm:pl-0 border-t sm:border-0 border-slate-100 pt-3 sm:pt-0">
                                         <p className="text-[8px] font-bold text-slate-400 uppercase sm:hidden mb-0.5">Subtotal</p>
-                                        <p className="text-xs font-bold text-slate-900 tracking-tighter">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        <p className="text-sm font-bold text-slate-900 tracking-tighter">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     </div>
                                 </div>
                             ))}
@@ -782,12 +782,12 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                         <>
                                             <div className="flex justify-between items-center py-1 w-full sm:w-64">
                                                 <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Subtotal</p>
-                                                <p className="text-xs font-bold text-slate-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                <p className="text-sm font-bold text-slate-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                             </div>
                                             {dv > 0 && (
                                                 <div className="flex justify-between items-center py-1 w-full sm:w-64">
                                                     <p className="text-[8px] font-bold text-rose-500 uppercase tracking-widest">Desconto Aplicado {type === 'percent' ? `(${disc}%)` : ''}</p>
-                                                    <p className="text-xs font-bold text-rose-500 tracking-tight">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                    <p className="text-sm font-bold text-rose-500 tracking-tight">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                                 </div>
                                             )}
                                             <div className="flex justify-between items-center pt-3 mt-1 border-t border-slate-200 w-full sm:w-64">
@@ -814,7 +814,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                             
                             <div className="mb-8 p-4 bg-rose-50 border border-rose-100 rounded-2xl relative z-10">
                                 <p className="text-[8px] font-bold text-rose-800 tracking-widest uppercase mb-1">Motivo da Recusa</p>
-                                <p className="text-xs font-bold text-rose-600/80 italic uppercase">
+                                <p className="text-sm font-bold text-rose-600/80 italic uppercase">
                                     {quote.rejectionReason || rejectionReason || 'Nenhum motivo específico informado.'}
                                 </p>
                             </div>
@@ -889,7 +889,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                         value={rejectionReason}
                                         onChange={e => setRejectionReason(e.target.value)}
                                         placeholder="Por que esta proposta está sendo recusada?"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all min-h-[80px]"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all min-h-[80px]"
                                     />
                                 </div>
 
@@ -901,7 +901,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                             value={approverName}
                                             onChange={e => setApproverName(e.target.value)}
                                             placeholder="Nome completo"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-rose-200 transition-all"
                                         />
                                     </div>
                                 </div>
@@ -934,7 +934,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                 <button
                                     disabled={isSubmitting}
                                     onClick={handleConfirmReject}
-                                    className="flex-[2] py-4 bg-rose-600 text-white rounded-xl text-[8px] sm:text-xs font-bold uppercase shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 hover:bg-rose-700 transition-all hover:-translate-y-0.5"
+                                    className="flex-[2] py-4 bg-rose-600 text-white rounded-xl text-[8px] sm:text-sm font-bold uppercase shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 hover:bg-rose-700 transition-all hover:-translate-y-0.5"
                                 >
                                     {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Enviar Recusa Oficial</>}
                                 </button>
@@ -956,7 +956,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                             value={approverName}
                                             onChange={e => setApproverName(e.target.value)}
                                             placeholder="Nome completo"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-emerald-200 transition-all"
                                         />
                                     </div>
                                 </div>
@@ -989,7 +989,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                                 <button
                                     disabled={isSubmitting}
                                     onClick={handleApprove}
-                                    className="flex-[2] py-4 bg-emerald-600 text-white rounded-xl text-[8px] sm:text-xs font-bold uppercase shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all hover:-translate-y-0.5"
+                                    className="flex-[2] py-4 bg-emerald-600 text-white rounded-xl text-[8px] sm:text-sm font-bold uppercase shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all hover:-translate-y-0.5"
                                 >
                                     {isSubmitting ? <span className="animate-spin"><Loader2 size={16} /></span> : <><Send size={16} /> Assinar e Aprovar Online</>}
                                 </button>
