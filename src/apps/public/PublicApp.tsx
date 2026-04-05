@@ -64,8 +64,8 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
         }
         if (!fetchedPublicOrder) {
             return (
-                <div className="min-h-screen bg-[#111422] flex flex-col items-center justify-center text-white">
-                    <h2 className="text-xl font-black uppercase italic">Ordem de Serviço não encontrada</h2>
+                <div className="min-h-screen bg-[#111422] flex flex-col items-center justify-center text-white font-poppins" style={{ fontFamily: "'Poppins', sans-serif" }}>
+                    <h2 className="text-xl font-bold uppercase tracking-wider italic">Ordem de Serviço não encontrada</h2>
                 </div>
             );
         }
