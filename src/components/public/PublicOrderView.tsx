@@ -295,6 +295,48 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)
   const [freshCustomerAddress, setFreshCustomerAddress] = React.useState<string | null>(null);
   const [formTemplates, setFormTemplates] = React.useState<Record<string, any>>({});
+  const [orderVisits, setOrderVisits] = React.useState<any[]>([]);
+
+  // 📝 1. Consolidação de Dados (Merge OS + Visitas) - Senior Pattern
+  const mergedFormData = React.useMemo(() => {
+    if (!order) return {};
+    
+    const getFormData = (fd: any) => {
+      if (!fd) return {};
+      return typeof fd === 'string' ? (() => { try { return JSON.parse(fd); } catch { return {}; } })() : fd;
+    };
+
+    const base = getFormData(order.formData);
+    const merged = { ...base };
+
+    // Mescla dados estruturados de todas as visitas (prioridade para a mais recente)
+    orderVisits.forEach(v => {
+      const vFd = getFormData(v.formData);
+      Object.assign(merged, vFd);
+    });
+
+    return merged;
+  }, [order?.formData, orderVisits]);
+
+  const findNormalizedField = (token: string, data: Record<string, any>) => {
+    const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+    const searchToken = normalize(token);
+    
+    if (data[token] !== undefined) return data[token];
+    const found = Object.entries(data).find(([k]) => normalize(k).includes(searchToken));
+    return found ? found[1] : null;
+  };
+
+  // 🖊️ Extração de Identidade (Assinaturas)
+  const signatureInfo = React.useMemo(() => {
+    if (!order) return { signature: null, name: null, doc: null };
+
+    const signature = (order as any).signature || (order as any).client_signature_url || mergedFormData.signature || findNormalizedField('assinaturadocliente', mergedFormData) || findNormalizedField('assinatura', mergedFormData);
+    const name = (order as any).signatureName || (order as any).client_signature_name || mergedFormData.signatureName || findNormalizedField('assinaturadoclientenome', mergedFormData) || findNormalizedField('responsavelpelorecebi', mergedFormData) || findNormalizedField('responsavel', mergedFormData) || findNormalizedField('nome', mergedFormData);
+    const doc = (order as any).signatureDoc || (order as any).signature_doc || mergedFormData.signatureDoc || findNormalizedField('assinaturadoclientecpf', mergedFormData) || findNormalizedField('cpf', mergedFormData);
+
+    return { signature, name, doc };
+  }, [order, mergedFormData]);
 
   // Busca templates de formulários para garantir a ORDEM das perguntas
   React.useEffect(() => {
@@ -444,69 +486,53 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  const totalItems = order.items?.reduce((acc, i) => acc + i.total, 0) || 0;
-  const hasForm = order.formData && Object.keys(order.formData).length > 0;
+  const totalItems = (order.items || []).reduce((acc, i) => acc + (i.total || 0), 0);
   // Endereço exibido: fresco do cadastro ou gravado na OS
   // Guard contra literal 'null' que pode vir do banco
   const sanitize = (v?: string | null) => v && String(v).toLowerCase() !== 'null' && v.trim() !== '' ? v.trim() : null;
   const displayAddress = sanitize(freshCustomerAddress) || sanitize(order.customerAddress);
 
-  // ── PRINT LAYOUT ─────────────────────────────────────────────────────────────
+  // ── PRINT LAYOUT PREPARATION ──
   const formItemsPrint: Array<{ key: string, text: string | null, photos: string[] }> = [];
-  let formDataPrint: Record<string, any> = {};
-  if (hasForm) {
-    formDataPrint = typeof order.formData === 'string'
-      ? (() => { try { return JSON.parse(order.formData); } catch { return {}; } })()
-      : (order.formData || {});
+  
+  const SYSTEM_KEYS = new Set([
+    'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+    'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+    'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+    'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+    'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
+    'clientName', 'customerName', 'customerAddress', 'tenantId',
+    'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+    'extra_photos', 'photos', 'equipment_ids'
+  ]);
 
-    const SYSTEM_KEYS = new Set([
-      'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
-      'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-      'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
-      'finishedAt', 'completedAt', 'technical_report', 'parts_used',
-      'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
-      'clientName', 'customerName', 'customerAddress', 'tenantId',
-      'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
-      'extra_photos', 'photos', 'equipment_ids'
-    ]);
-
-    const isSignatureKey = (k: string) =>
-      k.toLowerCase().includes('assinatura') ||
-      k.toLowerCase().includes('signature') ||
-      k.toLowerCase().includes('cpf') ||
-      k.toLowerCase().includes('nascimento');
-
-    const isImageVal = (v: any) =>
-      typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('data:video') || v.startsWith('http'));
-
-    Object.entries(formDataPrint)
-      .filter(([key]) => !SYSTEM_KEYS.has(key) && !isSignatureKey(key))
-      .forEach(([key, val]) => {
-        let text: string | null = null;
-        let photos: string[] = [];
-        if (Array.isArray(val)) {
-          const textParts = val.filter((v: any) => typeof v === 'string' && !isImageVal(v));
-          photos = val.filter((v: any) => isImageVal(v));
-          if (textParts.length > 0) text = textParts.join(', ');
-        } else if (isImageVal(val)) {
-          photos = [val as string];
-        } else if (val !== null && val !== undefined && val !== '') {
-          text = String(val);
-        }
-        if (text !== null || photos.length > 0) formItemsPrint.push({ key, text, photos });
-      });
-  }
-
-  const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
-  const findFd = (token: string) => {
-    if (formDataPrint[token] !== undefined) return formDataPrint[token];
-    const found = Object.entries(formDataPrint).find(([k]) => normalize(k).includes(normalize(token)));
-    return found ? found[1] : null;
+  const isSignatureKey = (k: string) => {
+    const lower = k.toLowerCase();
+    return lower.includes('assinatura') || lower.includes('signature') || lower.includes('cpf') || lower.includes('nascimento');
   };
 
-  const clientSigPrint = (order as any).signature || (order as any).client_signature_url || formDataPrint.signature || findFd('assinaturadocliente') || findFd('assinatura');
-  const clientNamePrint = (order as any).signatureName || (order as any).client_signature_name || formDataPrint.signatureName || findFd('assinaturadoclientenome') || findFd('responsavelpelorecebi') || findFd('responsavel');
-  const clientDocPrint = (order as any).signatureDoc || (order as any).signature_doc || formDataPrint.signatureDoc || findFd('assinaturadoclientecpf') || findFd('cpf');
+  const isImageVal = (v: any) => typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('data:video') || v.startsWith('http'));
+
+  Object.entries(mergedFormData)
+    .filter(([key]) => !SYSTEM_KEYS.has(key) && !isSignatureKey(key))
+    .forEach(([key, val]) => {
+      let text: string | null = null;
+      let photos: string[] = [];
+      if (Array.isArray(val)) {
+        const textParts = val.filter((v: any) => typeof v === 'string' && !isImageVal(v));
+        photos = val.filter((v: any) => isImageVal(v));
+        if (textParts.length > 0) text = textParts.join(', ');
+      } else if (isImageVal(val)) {
+        photos = [val as string];
+      } else if (val !== null && val !== undefined && val !== '') {
+        text = String(val);
+      }
+      if (text !== null || photos.length > 0) formItemsPrint.push({ key, text, photos });
+    });
+
+  const clientSigPrint = signatureInfo.signature;
+  const clientNamePrint = signatureInfo.name;
+  const clientDocPrint = signatureInfo.doc;
 
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
