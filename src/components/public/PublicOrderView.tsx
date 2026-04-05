@@ -70,7 +70,8 @@ const CollapsibleFormSection: React.FC<{
   title?: string;
   subtitle?: string;
   icon?: React.ReactNode;
-}> = ({ formData, order, onImageClick, title = "Formulário Técnico", subtitle, icon }) => {
+  parts?: any[];
+}> = ({ formData, order, onImageClick, title = "Formulário Técnico", subtitle, icon, parts }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const SYSTEM_KEYS = new Set([
@@ -229,6 +230,49 @@ const CollapsibleFormSection: React.FC<{
               </div>
             ));
           })()}
+
+          {/* ── PEÇAS VINCULADAS AO EQUIPAMENTO ── */}
+          {parts && parts.length > 0 && (
+            <div className="mt-8 pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-top-4 duration-700">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Package size={16} />
+                </div>
+                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-700">Peças & Insumos Utilizados</h4>
+              </div>
+              
+              <div className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/30">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-100/50 text-slate-500 font-bold uppercase tracking-tighter">
+                      <th className="px-4 py-3">Descrição do Item</th>
+                      <th className="px-4 py-3 text-center">Qtd</th>
+                      <th className="px-4 py-3 text-right">Unitário</th>
+                      <th className="px-4 py-3 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {parts.map((it, idx) => (
+                      <tr key={it.id || idx} className="hover:bg-white/50 transition-colors">
+                        <td className="px-4 py-3 font-bold text-slate-700 uppercase">{it.description}</td>
+                        <td className="px-4 py-3 text-center font-bold text-slate-900">{it.quantity}</td>
+                        <td className="px-4 py-3 text-right text-slate-500">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-100/30 border-t border-slate-100">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subtotal Peças</td>
+                      <td className="px-4 py-3 text-right font-bold text-[#1c2d4f]">
+                        R$ {parts.reduce((acc, it) => acc + (it.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -667,6 +711,43 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                            ))}
                         </div>
                       )}
+                      {/* Peças vinculadas ao item no print */}
+                      {(() => {
+                        const eqParts = (order.items || []).filter(it => {
+                          if (!eq) return false;
+                          const itEqId = it.equipmentId;
+                          const itEqName = (it.equipmentName || '').toLowerCase();
+                          const eName = (eq.equipment_name || eq.equipmentName || '').toLowerCase();
+                          const eId = eq.id || eq.equipmentId;
+                          return (itEqId && (itEqId === eId || itEqId === eq.equipment_id)) || 
+                                 (itEqName && (itEqName === eName || eName.includes(itEqName)));
+                        });
+                        
+                        if (eqParts.length === 0) return null;
+
+                        return (
+                          <div className="mt-3 bg-slate-50 rounded-md border border-slate-200 overflow-hidden break-inside-avoid">
+                            <table className="w-full text-left">
+                              <thead>
+                                <tr className="bg-slate-100 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                                  <th className="px-2 py-1">Peças Utilizadas neste Equipamento</th>
+                                  <th className="px-2 py-1 text-center w-10">Qtd</th>
+                                  <th className="px-2 py-1 text-right w-20">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {eqParts.map((pIt, pIdx) => (
+                                  <tr key={pIdx}>
+                                    <td className="px-2 py-1 text-[9px] font-bold text-slate-700 uppercase">{pIt.description}</td>
+                                    <td className="px-2 py-1 text-[9px] text-center font-bold text-slate-900">{pIt.quantity}</td>
+                                    <td className="px-2 py-1 text-[9px] text-right font-bold text-slate-900">R$ {pIt.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -1146,6 +1227,18 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   const serial = eq ? (eq.equipment_serial || eq.equipmentSerial) : null;
                   const fam = eq ? (eq.equipment_family || eq.equipmentFamily) : null;
                   
+                  // Busca peças vinculadas a este equipamento específico
+                  const eqParts = (order.items || []).filter(it => {
+                    if (!eq) return false;
+                    const itEqId = it.equipmentId;
+                    const itEqName = (it.equipmentName || '').toLowerCase();
+                    const eName = (eq.equipment_name || eq.equipmentName || '').toLowerCase();
+                    const eId = eq.id || eq.equipmentId;
+                    
+                    return (itEqId && (itEqId === eId || itEqId === eq.equipment_id)) || 
+                           (itEqName && (itEqName === eName || eName.includes(itEqName)));
+                  });
+
                   return (
                     <CollapsibleFormSection
                       key={groupName}
@@ -1155,6 +1248,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       title={title}
                       icon={<Box size={16} />}
                       subtitle={`${fam ? fam + ' · ' : ''}${serial ? 'S/N: ' + serial : 'Checklist do Atendimento'}`}
+                      parts={eqParts}
                     />
                   );
                 })}
