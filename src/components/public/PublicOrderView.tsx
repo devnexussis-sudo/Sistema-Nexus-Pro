@@ -242,6 +242,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const [linkedEquipments, setLinkedEquipments] = React.useState<any[]>([]);
   // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)
   const [freshCustomerAddress, setFreshCustomerAddress] = React.useState<string | null>(null);
+  const [activeTab, setActiveTab] = React.useState(0);
 
   React.useEffect(() => {
     const fetchTenantData = async () => {
@@ -1083,48 +1084,91 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             </div>
           )}
 
-          {/* ── FORMULÁRIOS POR EQUIPAMENTO ── */}
+          {/* ── FORMULÁRIOS POR EQUIPAMENTO (EM ABAS) ── */}
           {linkedEquipments.length > 0 ? (
-            linkedEquipments.map((eq: any, i: number) => {
-              const eqFormData: Record<string, any> =
-                typeof eq.form_data === 'string'
-                  ? (() => { try { return JSON.parse(eq.form_data); } catch { return {}; } })()
-                  : (eq.form_data || {});
-              // Merge com o form_data da OS para o 1º equipamento (legado)
-              const mergedFormData = i === 0
-                ? { ...(order.formData as Record<string, any> || {}), ...eqFormData }
-                : eqFormData;
-              const hasData = Object.keys(mergedFormData).length > 0;
-              return hasData ? (
-                <div key={eq.id || i} className="space-y-2">
-                  <div className="flex flex-col gap-1 py-3 px-4 mb-3 bg-[#1c2d4f]/5 rounded-xl border border-[#1c2d4f]/10">
-                    <div className="flex items-center gap-2">
-                      <Box size={16} className="text-[#3e5b99] shrink-0" />
-                      <p className="text-xs font-bold text-[#1c2d4f] uppercase tracking-wide">
-                        {eq.equipment_name || eq.equipmentName}
-                        {(eq.equipment_family || eq.equipmentFamily) ? ` · ${eq.equipment_family || eq.equipmentFamily}` : ''}
-                      </p>
-                    </div>
-                    {(eq.equipment_serial || eq.equipmentSerial) && (
-                      <p className="text-xs font-bold text-[#3e5b99] uppercase ml-6">
-                        Nº Série / Patrimonio: {eq.equipment_serial || eq.equipmentSerial}
-                      </p>
-                    )}
-                  </div>
-                  <CollapsibleFormSection
-                    formData={mergedFormData}
-                    order={order}
-                    onImageClick={setFullscreenImage}
-                  />
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
+              <div className="p-6 sm:p-8">
+                <SectionHeader icon={<ClipboardList size={15} />} title="Formulários e Checklists" />
+                
+                {/* Navegação por Abas (Equipamentos) */}
+                <div className="flex flex-wrap gap-2 mb-8 p-1.5 bg-slate-50 rounded-2xl border border-slate-100">
+                  {linkedEquipments.map((eq: any, i: number) => (
+                    <button
+                      key={eq.id || i}
+                      onClick={() => setActiveTab(i)}
+                      className={`flex-1 min-w-[140px] px-4 py-3 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${
+                        activeTab === i 
+                          ? 'bg-[#1c2d4f] text-white shadow-xl shadow-slate-200 scale-[1.02]' 
+                          : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'
+                      }`}
+                    >
+                      <Box size={14} className={activeTab === i ? 'text-white/60' : 'text-slate-300'} />
+                      <span className="truncate max-w-[150px]">
+                        {eq.equipment_name || eq.equipmentName || `Equip. ${i + 1}`}
+                      </span>
+                    </button>
+                  ))}
                 </div>
-              ) : null;
-            })
+
+                {/* Conteúdo da Aba Ativa */}
+                {linkedEquipments.map((eq: any, i: number) => {
+                  if (activeTab !== i) return null;
+                  
+                  const eqFormData: Record<string, any> =
+                    typeof eq.form_data === 'string'
+                      ? (() => { try { return JSON.parse(eq.form_data); } catch { return {}; } })()
+                      : (eq.form_data || {});
+                      
+                  // Merge com o form_data da OS para o 1º equipamento (legado ou formulário principal)
+                  const mergedFormData = i === 0
+                    ? { ...(order.formData as Record<string, any> || {}), ...eqFormData }
+                    : eqFormData;
+                    
+                  const hasData = Object.keys(mergedFormData).length > 0;
+
+                  return hasData ? (
+                    <div key={eq.id || i} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div className="flex flex-col gap-1 py-4 px-5 mb-6 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <Box size={16} className="text-[#3e5b99] shrink-0" />
+                          <p className="text-sm font-bold text-[#1c2d4f] uppercase tracking-wide">
+                            {eq.equipment_name || eq.equipmentName}
+                            {(eq.equipment_family || eq.equipmentFamily) ? ` · ${eq.equipment_family || eq.equipmentFamily}` : ''}
+                          </p>
+                        </div>
+                        {(eq.equipment_serial || eq.equipmentSerial) && (
+                          <div className="flex items-center gap-1.5 ml-6">
+                            <Tag size={10} className="text-slate-300" />
+                            <p className="text-[10px] font-bold text-[#3e5b99] uppercase tracking-wider">
+                              SÉRIE / PATRIMÔNIO: {eq.equipment_serial || eq.equipmentSerial}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <CollapsibleFormSection
+                        formData={mergedFormData}
+                        order={order}
+                        onImageClick={setFullscreenImage}
+                      />
+                    </div>
+                  ) : (
+                    <div key={eq.id || i} className="flex flex-col items-center justify-center py-12 text-center text-slate-300 gap-3">
+                      <ClipboardList size={32} className="opacity-20" />
+                      <p className="text-xs font-bold uppercase tracking-[0.2em]">Não há formulário preenchido para este equipamento.</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           ) : hasForm ? (
-            <CollapsibleFormSection
-              formData={order.formData as Record<string, any>}
-              order={order}
-              onImageClick={setFullscreenImage}
-            />
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-6 sm:p-8">
+              <SectionHeader icon={<ClipboardList size={15} />} title="Formulário do Atendimento" />
+              <CollapsibleFormSection
+                formData={order.formData as Record<string, any>}
+                order={order}
+                onImageClick={setFullscreenImage}
+              />
+            </div>
           ) : null}
 
           {/* ── CARD DE CONCLUSÃO ── */}

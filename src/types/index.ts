@@ -462,6 +462,7 @@ export interface QuoteItem {
 export interface Quote {
   id: string;          // UUID interno gerado pelo Postgres (PK)
   displayId?: string;  // Identificador Soberano Nexus (ex: ORC-2926001)
+  tenantId?: string;   // Multi-tenancy
   customerName: string;
   customerAddress: string;
   title: string;
