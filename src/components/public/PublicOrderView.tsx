@@ -1087,47 +1087,78 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           )}
 
 
-          {/* ── FORMULÁRIOS POR EQUIPAMENTO (LISTA COLAPSÁVEL) ── */}
-          {linkedEquipments.length > 0 ? (
-            <div className="space-y-6">
-              {linkedEquipments.map((eq: any, i: number) => {
-                const eqFormData: Record<string, any> =
-                  typeof eq.form_data === 'string'
-                    ? (() => { try { return JSON.parse(eq.form_data); } catch { return {}; } })()
-                    : (eq.form_data || {});
-                    
-                // Merge com o form_data da OS para o 1º equipamento (legado ou formulário principal)
-                const mergedFormData = i === 0
-                  ? { ...(order.formData as Record<string, any> || {}), ...eqFormData }
-                  : eqFormData;
+          {/* ── FORMULÁRIOS AGRUPADOS POR EQUIPAMENTO/GRUPO ── */}
+          {(() => {
+            const getFormData = (fd: any) => {
+               if (!fd) return {};
+               if (typeof fd === 'string') {
+                 try { return JSON.parse(fd); } catch { return {}; }
+               }
+               return fd;
+            };
+
+            // 1. Coleta todos os dados de formulário (OS + Equipamentos)
+            const allData: Record<string, any> = { ...getFormData(order.formData) };
+            linkedEquipments.forEach(eq => {
+              const eqFd = getFormData(eq.form_data);
+              Object.assign(allData, eqFd);
+            });
+
+            // 2. Agrupa itens pelo prefixo [Grupo]
+            const groups: Record<string, Record<string, any>> = {};
+            Object.entries(allData).forEach(([key, val]) => {
+               // Remove chaves de sistema antes de agrupar para evitar cards vazios
+               const SYSTEM_KEYS = new Set([
+                'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+                'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+                'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+                'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+                'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
+                'clientName', 'customerName', 'customerAddress', 'tenantId',
+                'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+                'extra_photos', 'photos', 'equipment_ids', 'videoUrl', 'video_url'
+               ]);
+               if (SYSTEM_KEYS.has(key)) return;
+               if (key.toLowerCase().includes('assinatura') || key.toLowerCase().includes('signature')) return;
+
+               const match = key.match(/^\[(.*?)\]\s*(?:-|$)/);
+               const groupName = match ? match[1] : 'Relatório Geral';
+               if (!groups[groupName]) groups[groupName] = {};
+               groups[groupName][key] = val;
+            });
+
+            const groupEntries = Object.entries(groups);
+            if (groupEntries.length === 0) return null;
+
+            return (
+              <div className="space-y-8">
+                {groupEntries.map(([groupName, groupData]) => {
+                  // Tenta encontrar metadados do equipamento correspondente
+                  const eq = linkedEquipments.find(e => {
+                    const eName = (e.equipment_name || e.equipmentName || '').toLowerCase();
+                    const gn = groupName.toLowerCase();
+                    return gn.includes(eName) || eName.includes(gn);
+                  });
+
+                  const title = eq ? (eq.equipment_name || eq.equipmentName) : groupName;
+                  const serial = eq ? (eq.equipment_serial || eq.equipmentSerial) : null;
+                  const fam = eq ? (eq.equipment_family || eq.equipmentFamily) : null;
                   
-                const hasData = Object.keys(mergedFormData).length > 0;
-                if (!hasData) return null;
-
-                const name = eq.equipment_name || eq.equipmentName || "Equipamento";
-                const serial = eq.equipment_serial || eq.equipmentSerial;
-                const fam = eq.equipment_family || eq.equipmentFamily;
-
-                return (
-                  <CollapsibleFormSection
-                    key={eq.id || i}
-                    formData={mergedFormData}
-                    order={order}
-                    onImageClick={setFullscreenImage}
-                    title={name}
-                    icon={<Box size={16} />}
-                    subtitle={`${fam ? fam + ' · ' : ''}${serial ? 'S/N: ' + serial : 'Checklist preenchido'}`}
-                  />
-                );
-              })}
-            </div>
-          ) : hasForm ? (
-            <CollapsibleFormSection
-              formData={order.formData as Record<string, any>}
-              order={order}
-              onImageClick={setFullscreenImage}
-            />
-          ) : null}
+                  return (
+                    <CollapsibleFormSection
+                      key={groupName}
+                      formData={groupData}
+                      order={order}
+                      onImageClick={setFullscreenImage}
+                      title={title}
+                      icon={<Box size={16} />}
+                      subtitle={`${fam ? fam + ' · ' : ''}${serial ? 'S/N: ' + serial : 'Checklist do Atendimento'}`}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* ── CARD DE CONCLUSÃO ── */}
           {(() => {
