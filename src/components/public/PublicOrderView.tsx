@@ -319,7 +319,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   }, [order?.formData, orderVisits]);
 
   const findNormalizedField = (token: string, data: Record<string, any>) => {
-    const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+    const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
     const searchToken = normalize(token);
     
     if (data[token] !== undefined) return data[token];
@@ -327,13 +327,33 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     return found ? found[1] : null;
   };
 
-  // 🖊️ Extração de Identidade (Assinaturas)
+  // 🖊️ Extração de Identidade (Assinaturas) - UNIFICADO (Web + Print)
   const signatureInfo = React.useMemo(() => {
     if (!order) return { signature: null, name: null, doc: null };
 
-    const signature = (order as any).signature || (order as any).client_signature_url || formDataPrint.signature || findNormalizedField('assinaturadocliente', formDataPrint) || findNormalizedField('assinatura', formDataPrint);
-    const name = (order as any).signatureName || (order as any).client_signature_name || formDataPrint.signatureName || findNormalizedField('assinaturadoclientenome', formDataPrint) || findNormalizedField('responsavelpelorecebi', formDataPrint) || findNormalizedField('responsavel', formDataPrint) || findNormalizedField('nome', formDataPrint);
-    const doc = (order as any).signatureDoc || (order as any).signature_doc || formDataPrint.signatureDoc || findNormalizedField('assinaturadoclientecpf', formDataPrint) || findNormalizedField('cpf', formDataPrint);
+    // 🎯 PRIORIDADE: order.signature (nível raiz) ou mapeamentos diretos no formData
+    const signature = (order as any).signature || 
+      (order as any).client_signature_url || 
+      formDataPrint.signature || 
+      findNormalizedField('assinaturadocliente', formDataPrint) || 
+      findNormalizedField('assinatura', formDataPrint);
+
+    // 🎯 Nome: Prio no digitado no app, depois mapeamentos directos e normalizados
+    const name = (order as any).signatureName || 
+      (order as any).client_signature_name || 
+      formDataPrint.signatureName || 
+      formDataPrint.clientName || 
+      findNormalizedField('assinaturadoclientenome', formDataPrint) || 
+      findNormalizedField('responsavelpelorecebi', formDataPrint) || 
+      findNormalizedField('responsavel', formDataPrint) ||
+      findNormalizedField('nome', formDataPrint);
+
+    const doc = (order as any).signatureDoc || 
+      (order as any).signature_doc || 
+      formDataPrint.signatureDoc || 
+      formDataPrint.clientDoc ||
+      findNormalizedField('assinaturadoclientecpf', formDataPrint) || 
+      findNormalizedField('cpf', formDataPrint);
 
     return { signature, name, doc };
   }, [order, formDataPrint]);
@@ -491,6 +511,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   // Guard contra literal 'null' que pode vir do banco
   const sanitize = (v?: string | null) => v && String(v).toLowerCase() !== 'null' && v.trim() !== '' ? v.trim() : null;
   const displayAddress = sanitize(freshCustomerAddress) || sanitize(order.customerAddress);
+  
+  // 🎯 Dados de assinatura unificados para o Print
+  const clientSigPrint = signatureInfo.signature;
+  const clientNamePrint = signatureInfo.name;
+  const clientDocPrint = signatureInfo.doc;
 
   // ── PRINT LAYOUT PREPARATION ──
   const formItemsPrint: Array<{ key: string, text: string | null, photos: string[] }> = [];
@@ -1502,36 +1527,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               ? (() => { try { return JSON.parse(order.formData); } catch { return {}; } })()
               : (order.formData || {});
 
-            const normalize = (s: string) =>
-              s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-
-            const findFd = (token: string) => {
-              if (fd[token] !== undefined) return fd[token];
-              const found = Object.entries(fd).find(([k]) => normalize(k).includes(normalize(token)));
-              return found ? found[1] : null;
-            };
-
-            // 🎯 PRIORIDADE: order.signature (nível raiz) é o campo correto pós-finalização
-            // O técnico coleta: nome do responsável + assinatura no app antes de encerrar
-            const clientSig = (order as any).signature ||
-              fd.signature ||
-              findFd('assinaturadocliente') ||
-              findFd('assinatura');
-
-            // 🎯 Nome: SEMPRE o que o responsável digitou no app antes de assinar
-            // Nunca usar customerName como fallback (seria o nome cadastrado, não quem assinou)
-            const clientName = (order as any).signatureName ||
-              fd.signatureName ||
-              fd.clientName ||
-              findFd('assinaturadoclientenome') ||
-              findFd('responsavelpelorecebi') ||
-              findFd('responsavel');
-
-            const clientDoc = (order as any).signatureDoc ||
-              fd.signatureDoc ||
-              fd.clientDoc ||
-              findFd('assinaturadoclientecpf') ||
-              findFd('cpf');
+            // 🎯 Usar os dados já extraídos e unificados no topo do componente
+            const clientSig = signatureInfo.signature;
+            const clientName = signatureInfo.name;
+            const clientDoc = signatureInfo.doc;
 
             return (
               <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
