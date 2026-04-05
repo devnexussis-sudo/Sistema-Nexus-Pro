@@ -680,83 +680,77 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 </div>
                 <div className="divide-y divide-slate-100 bg-white">
                   {items.map((item, iIdx) => (
-                    <div key={iIdx} className="p-2.5 break-inside-avoid">
-                      <div className="flex flex-col gap-2">
+                    <div key={iIdx} className="p-2 break-inside-avoid">
+                      <div className="flex gap-4">
                         <div className="flex-1">
-                           <div className="bg-slate-50 rounded px-1.5 py-0.5 mb-1.5 inline-block border border-slate-200">
+                           <div className="bg-slate-50 rounded px-1.5 py-0.5 mb-1 inline-block border border-slate-200">
                              <p className="text-[9px] font-bold uppercase tracking-tight text-slate-600">
                                {item.key.replace(/^\[.*?\]\s*-\s*/, '')}
                              </p>
                            </div>
                            {item.text && (
-                             <p className={`text-[11px] font-bold uppercase ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>
+                             <p className={`text-[10px] font-bold uppercase ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>
                                {item.text}
                              </p>
                            )}
                         </div>
                         {item.photos.length > 0 && (
-                          <div className="grid grid-cols-4 gap-2 w-full mt-1">
-                            {item.photos.slice(0, 4).map((p, pIdx) => (
-                              <div key={pIdx} className="border border-slate-200 rounded p-0.5 h-[130px] overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
-                                {isVideoUrl(p) ? <Video size={16} className="text-slate-300" /> : <img src={p} className="w-full h-full object-cover" />}
+                          <div className="grid grid-cols-3 gap-2 w-[340px] shrink-0">
+                            {item.photos.slice(0, 3).map((p, pIdx) => (
+                              <div key={pIdx} className="border border-slate-200 rounded p-0.5 h-[100px] overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
+                                {isVideoUrl(p) ? <Video size={14} className="text-slate-300" /> : <img src={p} className="w-full h-full object-cover" />}
                               </div>
                             ))}
-                            {item.photos.length > 4 && (
-                               <div className="col-span-4 text-[8px] text-slate-400 text-right italic">+ {item.photos.length - 4} fotos no link digital</div>
+                            {item.photos.length > 3 && (
+                               <div className="col-span-3 text-[8px] text-slate-400 text-right italic">+ {item.photos.length - 3} fotos no link digital</div>
                             )}
                           </div>
                         )}
                       </div>
-                      {/* Se houver muitas fotos (>3), ou fotos grandes, podemos querer um grid completo abaixo em vez de lateral */}
-                      {item.photos.length > 3 && false && ( /* Desativado por enquanto para manter compacto */
-                        <div className="grid grid-cols-4 gap-1 mt-2">
-                           {item.photos.map((p, pIdx) => (
-                              <div key={pIdx} className="border border-slate-200 rounded p-0.5 h-[80px] overflow-hidden flex items-center justify-center bg-slate-50">
-                                <img src={p} className="w-full h-full object-cover text-[8px]" />
-                              </div>
-                           ))}
-                        </div>
-                      )}
-                      {/* Peças vinculadas ao item no print */}
-                      {(() => {
-                        const eqParts = (order.items || []).filter(it => {
-                          if (!eq) return false;
-                          const itEqId = it.equipmentId;
-                          const itEqName = (it.equipmentName || '').toLowerCase();
-                          const eName = (eq.equipment_name || eq.equipmentName || '').toLowerCase();
-                          const eId = eq.id || eq.equipmentId;
-                          return (itEqId && (itEqId === eId || itEqId === eq.equipment_id)) || 
-                                 (itEqName && (itEqName === eName || eName.includes(itEqName)));
-                        });
-                        
-                        if (eqParts.length === 0) return null;
-
-                        return (
-                          <div className="mt-3 bg-slate-50 rounded-md border border-slate-200 overflow-hidden break-inside-avoid">
-                            <table className="w-full text-left">
-                              <thead>
-                                <tr className="bg-slate-100 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
-                                  <th className="px-2 py-1">Peças Utilizadas neste Equipamento</th>
-                                  <th className="px-2 py-1 text-center w-10">Qtd</th>
-                                  {showPrices && <th className="px-2 py-1 text-right w-20">Total</th>}
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {eqParts.map((pIt, pIdx) => (
-                                  <tr key={pIdx}>
-                                    <td className="px-2 py-1 text-[9px] font-bold text-slate-700 uppercase">{pIt.description}</td>
-                                    <td className="px-2 py-1 text-[9px] text-center font-bold text-slate-900">{pIt.quantity}</td>
-                                    {showPrices && <td className="px-2 py-1 text-[9px] text-right font-bold text-slate-900">R$ {pIt.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })()}
                     </div>
                   ))}
                 </div>
+
+                {/* Peças vinculadas ao TODO o checklist do equipamento (NO FINAL) */}
+                {(() => {
+                  const eqParts = (order.items || []).filter(it => {
+                    if (!eq) return false;
+                    const itEqId = it.equipmentId;
+                    const itEqName = (it.equipmentName || '').toLowerCase();
+                    const eName = (eq.equipment_name || eq.equipmentName || '').toLowerCase();
+                    const eId = eq.id || eq.equipmentId;
+                    return (itEqId && (itEqId === eId || itEqId === eq.equipment_id)) || 
+                           (itEqName && (itEqName === eName || eName.includes(itEqName)));
+                  });
+                  
+                  if (eqParts.length === 0) return null;
+
+                  return (
+                    <div className="p-3 border-t border-slate-200 bg-slate-50/50 break-inside-avoid">
+                      <div className="bg-slate-50 rounded-md border border-slate-300 overflow-hidden">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="bg-slate-200/50 text-[8px] font-bold text-slate-600 uppercase border-b border-slate-300">
+                              <th className="px-3 py-1.5">Peças Utilizadas neste Equipamento</th>
+                              <th className="px-3 py-1.5 text-center w-12">Qtd</th>
+                              {showPrices && <th className="px-3 py-1.5 text-right w-24">Total</th>}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {eqParts.map((pIt, pIdx) => (
+                              <tr key={pIdx}>
+                                <td className="px-3 py-1.5 text-[9px] font-bold text-slate-700 uppercase">{pIt.description}</td>
+                                <td className="px-3 py-1.5 text-[9px] text-center font-bold text-slate-900">{pIt.quantity}</td>
+                                {showPrices && <td className="px-3 py-1.5 text-[9px] text-right font-bold text-slate-900">R$ {pIt.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
+
               </div>
             );
           });
