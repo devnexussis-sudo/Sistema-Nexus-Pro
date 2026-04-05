@@ -567,73 +567,104 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         )}
 
-        {/* Formulários por equipamento (print) */}
-        {linkedEquipments.length > 0 ? (
-          linkedEquipments.map((eq: any, eqIdx: number) => {
-            const eqFd: Record<string, any> =
-              typeof eq.form_data === 'string'
-                ? (() => { try { return JSON.parse(eq.form_data); } catch { return {}; } })()
-                : (eq.form_data || {});
-            const mergedFd = eqIdx === 0
-              ? { ...(typeof order.formData === 'string' ? (() => { try { return JSON.parse(order.formData as string); } catch { return {}; } })() : (order.formData || {})), ...eqFd }
-              : eqFd;
-            const SYSTEM_KEYS_P = new Set([
-              'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
-              'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-              'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
-              'finishedAt', 'completedAt', 'technical_report', 'parts_used',
-              'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
-              'clientName', 'customerName', 'customerAddress', 'tenantId',
-              'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
-              'extra_photos', 'photos', 'equipment_ids'
-            ]);
-            const isSigKey = (k: string) =>
-              k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
-              k.toLowerCase().includes('cpf') || k.toLowerCase().includes('nascimento');
-            const isImgV = (v: any) => typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'));
-            const items = Object.entries(mergedFd)
-              .filter(([k]) => !SYSTEM_KEYS_P.has(k) && !isSigKey(k))
-              .map(([key, val]) => {
-                let text: string | null = null;
-                let photos: string[] = [];
-                if (Array.isArray(val)) {
-                  const tp = val.filter((v: any) => typeof v === 'string' && !isImgV(v));
-                  photos = val.filter((v: any) => isImgV(v));
-                  if (tp.length > 0) text = tp.join(', ');
-                } else if (isImgV(val)) {
-                  photos = [val as string];
-                } else if (val !== null && val !== undefined && val !== '') {
-                  text = String(val);
-                }
-                return { key, text, photos };
-              })
-              .filter(({ text, photos }) => text !== null || photos.length > 0);
-            if (items.length === 0) return null;
+        {/* Formulários agrupados por equipamento (print) */}
+        {(() => {
+          const getFD = (fd: any) => {
+            if (!fd) return {};
+            if (typeof fd === 'string') { try { return JSON.parse(fd); } catch { return {}; } }
+            return fd;
+          };
+
+          const allFD: Record<string, any> = { ...getFD(order.formData) };
+          linkedEquipments.forEach(eq => Object.assign(allFD, getFD(eq.form_data)));
+
+          const grps: Record<string, any[]> = {};
+          const SYS_KEYS = new Set([
+            'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+            'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+            'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+            'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+            'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
+            'clientName', 'customerName', 'customerAddress', 'tenantId',
+            'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+            'extra_photos', 'photos', 'equipment_ids', 'videoUrl', 'video_url'
+          ]);
+
+          Object.entries(allFD).forEach(([key, val]) => {
+            if (SYS_KEYS.has(key) || key.toLowerCase().includes('assinatura')) return;
+            const match = key.match(/^\[(.*?)\]\s*(?:-|$)/);
+            const gName = match ? match[1] : 'Relatório Geral';
+            if (!grps[gName]) grps[gName] = [];
+            
+            let text: string | null = null;
+            let photos: string[] = [];
+            const isImg = (v: any) => typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('http'));
+
+            if (Array.isArray(val)) {
+              text = val.filter(v => typeof v === 'string' && !isImg(v)).join(', ');
+              photos = val.filter(v => isImg(v));
+            } else if (isImg(val)) {
+              photos = [val as string];
+            } else if (val !== null && val !== undefined && val !== '') {
+              text = String(val);
+            }
+            if (text || photos.length > 0) grps[gName].push({ key, text, photos });
+          });
+
+          const grpEntries = Object.entries(grps);
+          if (grpEntries.length === 0) return null;
+
+          return grpEntries.map(([gName, items], gIdx) => {
+            const eq = linkedEquipments.find(e => {
+              const eN = (e.equipment_name || e.equipmentName || '').toLowerCase();
+              return gName.toLowerCase().includes(eN) || eN.includes(gName.toLowerCase());
+            });
+
             return (
-              <div key={eq.id || eqIdx} className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">
-                  Checklist — {eq.equipment_name || eq.equipmentName}{(eq.equipment_family || eq.equipmentFamily) ? ` · ${eq.equipment_family || eq.equipmentFamily}` : ''}
+              <div key={gIdx} className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-3">
+                <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[10px] uppercase tracking-wider text-slate-700 flex justify-between items-center">
+                  <span>Checklist — {eq ? (eq.equipment_name || eq.equipmentName) : gName}</span>
+                  {eq && (eq.equipment_serial || eq.equipmentSerial) && (
+                    <span className="text-[9px] text-slate-500">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
+                  )}
                 </div>
                 <div className="divide-y divide-slate-100 bg-white">
-                  {items.map((item, idx) => (
-                    <div key={idx} className="p-3 break-inside-avoid">
-                      <div className="bg-slate-100 rounded inline-block px-2 py-1 mb-1.5">
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-700">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key.replace(/^\[.*?\]\s*-\s*/, '')}</p>
+                  {items.map((item, iIdx) => (
+                    <div key={iIdx} className="p-2 break-inside-avoid">
+                      <div className="flex gap-4">
+                        <div className="flex-1">
+                           <div className="bg-slate-50 rounded px-1.5 py-0.5 mb-1 inline-block border border-slate-200">
+                             <p className="text-[9px] font-bold uppercase tracking-tight text-slate-600">
+                               {item.key.replace(/^\[.*?\]\s*-\s*/, '')}
+                             </p>
+                           </div>
+                           {item.text && (
+                             <p className={`text-[10px] font-bold uppercase ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>
+                               {item.text}
+                             </p>
+                           )}
+                        </div>
+                        {item.photos.length > 0 && (
+                          <div className="grid grid-cols-3 gap-1.5 w-[280px] shrink-0">
+                            {item.photos.slice(0, 3).map((p, pIdx) => (
+                              <div key={pIdx} className="border border-slate-200 rounded p-0.5 h-[60px] overflow-hidden flex items-center justify-center bg-slate-50">
+                                {isVideoUrl(p) ? <Video size={12} className="text-slate-300" /> : <img src={p} className="w-full h-full object-cover" />}
+                              </div>
+                            ))}
+                            {item.photos.length > 3 && (
+                               <div className="col-span-3 text-[8px] text-slate-400 text-right italic">+ {item.photos.length - 3} fotos no link digital</div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {item.text && <p className={`text-xs font-bold uppercase leading-snug ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.text}</p>}
-                      {item.photos.length > 0 && (
-                        <div className="flex flex-wrap gap-3 mt-3">
-                          {item.photos.map((p, pIdx) => (
-                            <div key={pIdx} className="border border-slate-200 rounded p-1 w-[200px] h-[150px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
-                              {isVideoUrl(p) ? (
-                                <div className="text-xs font-bold text-slate-400 uppercase flex flex-col items-center gap-1">
-                                  <Video size={18} /> [VÍDEO]
-                                </div>
-                              ) : (
-                                <img src={p} className="w-full h-full object-contain" alt="Evidência" />
-                              )}
-                            </div>
-                          ))}
+                      {/* Se houver muitas fotos (>3), ou fotos grandes, podemos querer um grid completo abaixo em vez de lateral */}
+                      {item.photos.length > 3 && false && ( /* Desativado por enquanto para manter compacto */
+                        <div className="grid grid-cols-4 gap-1 mt-2">
+                           {item.photos.map((p, pIdx) => (
+                              <div key={pIdx} className="border border-slate-200 rounded p-0.5 h-[80px] overflow-hidden flex items-center justify-center bg-slate-50">
+                                <img src={p} className="w-full h-full object-cover text-[8px]" />
+                              </div>
+                           ))}
                         </div>
                       )}
                     </div>
@@ -641,37 +672,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 </div>
               </div>
             );
-          })
-        ) : formItemsPrint.length > 0 ? (
-          <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Formulário / Checklist Técnico de Execução</div>
-            <div className="divide-y divide-slate-100 bg-white">
-              {formItemsPrint.map((item, idx) => (
-                <div key={idx} className="p-3 break-inside-avoid">
-                  <div className="bg-slate-100 rounded inline-block px-2 py-1 mb-1.5">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-700">{!isNaN(Number(item.key)) ? `Pergunta ${item.key}` : item.key.replace(/^\[.*?\]\s*-\s*/, '')}</p>
-                  </div>
-                  {item.text && <p className={`text-xs font-bold uppercase leading-snug ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>{item.text}</p>}
-                  {item.photos.length > 0 && (
-                    <div className="flex flex-wrap gap-3 mt-3">
-                      {item.photos.map((p, pIdx) => (
-                        <div key={pIdx} className="border border-slate-200 rounded p-1 w-[200px] h-[150px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
-                          {isVideoUrl(p) ? (
-                            <div className="text-xs font-bold text-slate-400 uppercase flex flex-col items-center gap-1">
-                              <Video size={18} /> [VÍDEO]
-                            </div>
-                          ) : (
-                            <img src={p} className="w-full h-full object-contain" alt="Evidência fotográfica" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
+          });
+        })()}
 
         {/* ── Evidências Fotográficas Adicionais (print) ── */}
         {(() => {
