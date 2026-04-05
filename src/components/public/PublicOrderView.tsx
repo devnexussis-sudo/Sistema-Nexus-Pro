@@ -695,10 +695,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                            )}
                         </div>
                         {item.photos.length > 0 && (
-                          <div className="grid grid-cols-3 gap-1.5 w-[280px] shrink-0">
+                          <div className="grid grid-cols-3 gap-2 w-[320px] shrink-0">
                             {item.photos.slice(0, 3).map((p, pIdx) => (
-                              <div key={pIdx} className="border border-slate-200 rounded p-0.5 h-[60px] overflow-hidden flex items-center justify-center bg-slate-50">
-                                {isVideoUrl(p) ? <Video size={12} className="text-slate-300" /> : <img src={p} className="w-full h-full object-cover" />}
+                              <div key={pIdx} className="border border-slate-200 rounded p-0.5 h-[82px] overflow-hidden flex items-center justify-center bg-slate-50">
+                                {isVideoUrl(p) ? <Video size={14} className="text-slate-300" /> : <img src={p} className="w-full h-full object-cover" />}
                               </div>
                             ))}
                             {item.photos.length > 3 && (
@@ -784,14 +784,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Evidências Fotográficas e de Conclusão</div>
               <div className="p-3 bg-white flex flex-wrap gap-3">
                 {(order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url) && (
-                  <div className="border border-slate-200 rounded p-1 w-[200px] h-[150px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid shadow-inner relative">
-                    <Video size={18} className="absolute text-slate-400 opacity-50 z-10" />
+                  <div className="border border-slate-200 rounded p-1 w-[240px] h-[180px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid shadow-inner relative">
+                    <Video size={20} className="absolute text-slate-400 opacity-50 z-10" />
                     <video src={order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url} className="w-full h-full object-cover opacity-60 mix-blend-multiply" />
-                    <span className="absolute bottom-1 bg-black/60 text-white text-xs font-bold px-1.5 py-0.5 rounded uppercase">Vídeo anexado</span>
+                    <span className="absolute bottom-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase leading-none">Vídeo anexado</span>
                   </div>
                 )}
                 {allValidExtrasPrint.map((url: string, i: number) => (
-                  <div key={i} className="border border-slate-200 rounded p-1 w-[200px] h-[150px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
+                  <div key={i} className="border border-slate-200 rounded p-1 w-[240px] h-[180px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid">
                     <img src={url} className="w-full h-full object-contain" alt={`Evidência Adicional ${i + 1}`} />
                   </div>
                 ))}
