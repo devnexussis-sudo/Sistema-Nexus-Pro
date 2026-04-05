@@ -880,8 +880,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 )}
               </div>
               <div className="w-full border-t border-slate-300 pt-2">
+                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Assinado por:</p>
                 <p className="text-xs font-bold text-slate-900 uppercase">{clientNamePrint || 'Não Informado'}</p>
-                {clientDocPrint && <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{clientDocPrint}</p>}
+                {clientDocPrint && <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mt-0.5">{clientDocPrint}</p>}
               </div>
             </div>
           </div>
