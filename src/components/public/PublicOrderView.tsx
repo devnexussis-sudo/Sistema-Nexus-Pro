@@ -555,10 +555,6 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       if (text !== null || photos.length > 0) formItemsPrint.push({ key, text, photos });
     });
 
-  const clientSigPrint = signatureInfo.signature;
-  const clientNamePrint = signatureInfo.name;
-  const clientDocPrint = signatureInfo.doc;
-
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
     <div className="bg-white text-[10px] leading-tight font-poppins p-4 print:p-2 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
