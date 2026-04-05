@@ -1325,7 +1325,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             });
 
             // 3. Ordena os grupos e as perguntas dentro dos grupos
-            const normalizeForSort = (s: string) => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+            const normalizeForSort = (s: string) => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[\d\s.]*/, '').replace(/[^a-z0-9]/g, '');
 
             const sortedGroups = Object.entries(groups).map(([groupName, groupData]) => {
                const currentFormId = order.formId;
@@ -1337,27 +1337,45 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   return gn.includes(eName) || eName.includes(gn);
                });
                const specificOrder = eqMatch?.form_id ? (formTemplates[eqMatch.form_id] || []) : [];
-               const combinedOrder = [...templateOrder, ...specificOrder];
+               
+               // Coleta ordem combinada dos templates envolvidos (Geral + Específico)
+               const combinedOrder = Array.from(new Set([...templateOrder, ...specificOrder]));
 
-               // Converte groupData em entries e ordena
-               const entries = Object.entries(groupData);
+               // Converte para entradas anexando índice original para garantir estabilidade
+               const entries = Object.entries(groupData).map((e, i) => ({ 
+                 key: e[0], 
+                 val: e[1], 
+                 originalIdx: i 
+               }));
+
                if (combinedOrder.length > 0) {
                  const normalizedOrder = combinedOrder.map(normalizeForSort);
                  
                  entries.sort((a, b) => {
-                   const cleanA = normalizeForSort(a[0].replace(/^\[.*?\]\s*-\s*/, ''));
-                   const cleanB = normalizeForSort(b[0].replace(/^\[.*?\]\s*-\s*/, ''));
+                   const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
+                   const cleanB = normalizeForSort(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
                    
-                   let idxA = normalizedOrder.findIndex(label => cleanA === label || cleanA.includes(label) || label.includes(cleanA));
-                   let idxB = normalizedOrder.findIndex(label => cleanB === label || cleanB.includes(label) || label.includes(cleanB));
+                   // 1. Tenta encontrar índice exato (após normalização básica)
+                   let idxA = normalizedOrder.indexOf(cleanA);
+                   let idxB = normalizedOrder.indexOf(cleanB);
                    
-                   if (idxA === -1) idxA = 999;
-                   if (idxB === -1) idxB = 999;
+                   // 2. Fallback prefixado (apenas se necessário)
+                   if (idxA === -1) idxA = normalizedOrder.findIndex(label => cleanA === label || cleanA.startsWith(label));
+                   if (idxB === -1) idxB = normalizedOrder.findIndex(label => cleanB === label || cleanB.startsWith(label));
                    
-                   return idxA - idxB;
+                   // Lógica de desempate e itens extra-template
+                   if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                   if (idxA !== -1) return -1;
+                   if (idxB !== -1) return 1;
+                   
+                   // Se nenhum está no template, mantém a sequência original em que foram criados/salvos
+                   return a.originalIdx - b.originalIdx;
                  });
                }
-               return { groupName, groupData: Object.fromEntries(entries) };
+               
+               // Reconstrói o groupData ordenadamente
+               const orderedEntries = entries.map(e => [e.key, e.val]);
+               return { groupName, groupData: Object.fromEntries(orderedEntries) };
             });
 
             if (sortedGroups.length === 0) return null;
