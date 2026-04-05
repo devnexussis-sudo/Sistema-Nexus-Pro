@@ -504,9 +504,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     return found ? found[1] : null;
   };
 
-  const clientSigPrint = (order as any).signature || formDataPrint.signature || findFd('assinaturadocliente') || findFd('assinatura');
-  const clientNamePrint = (order as any).signatureName || formDataPrint.signatureName || findFd('assinaturadoclientenome') || findFd('responsavelpelorecebi') || findFd('responsavel');
-  const clientDocPrint = (order as any).signatureDoc || formDataPrint.signatureDoc || findFd('assinaturadoclientecpf') || findFd('cpf');
+  const clientSigPrint = (order as any).signature || (order as any).client_signature_url || formDataPrint.signature || findFd('assinaturadocliente') || findFd('assinatura');
+  const clientNamePrint = (order as any).signatureName || (order as any).client_signature_name || formDataPrint.signatureName || findFd('assinaturadoclientenome') || findFd('responsavelpelorecebi') || findFd('responsavel');
+  const clientDocPrint = (order as any).signatureDoc || (order as any).signature_doc || formDataPrint.signatureDoc || findFd('assinaturadoclientecpf') || findFd('cpf');
 
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
