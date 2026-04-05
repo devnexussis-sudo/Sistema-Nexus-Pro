@@ -478,52 +478,53 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
-    <div className="bg-white text-xs leading-tight font-poppins p-6 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div className="bg-white text-[10px] leading-tight font-poppins p-4 print:p-2 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
       {/* Print Header */}
-      <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
-        <div className="flex gap-4 items-center">
+      <div className="flex justify-between items-start pb-2 border-b-2 border-slate-800 mb-2">
+        <div className="flex gap-3 items-center">
           {companyLogo
-            ? <img src={companyLogo} alt="Logo" className="h-16 w-auto object-contain" />
-            : <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px] text-white"><Hexagon size={32} className="text-white fill-white/10" /></div>
+            ? <img src={companyLogo} alt="Logo" className="h-12 w-auto object-contain" />
+            : <div className="bg-slate-900 p-1.5 rounded-lg flex items-center justify-center min-w-[50px] min-h-[50px] text-white"><Hexagon size={24} className="text-white fill-white/10" /></div>
           }
-          <div className="space-y-1">
-            <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
-            <div className="text-xs text-slate-600 max-w-[400px]">
-              {companyAddress && <div>{companyAddress}</div>}
-              <div className="flex gap-3 mt-0.5">
+          <div className="space-y-0.5">
+            <h1 className="text-lg font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
+            <div className="text-[9px] text-slate-600 max-w-[400px]">
+              {companyAddress && <div className="leading-tight">{companyAddress}</div>}
+              <div className="flex gap-2 mt-0.5">
                 {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
                 {companyEmail && <span>Email: {companyEmail}</span>}
               </div>
-              {companyDoc && <div className="mt-0.5">CNPJ: {companyDoc}</div>}
             </div>
           </div>
         </div>
         <div className="text-right">
-          <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ordem de Serviço</div>
-            <div className="text-2xl font-bold text-slate-900 tracking-tighter">#{order.displayId || order.id.slice(0, 8).toUpperCase()}</div>
+          <div className="border-2 border-slate-800 px-3 py-1 rounded-lg bg-slate-50">
+            <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Ordem de Serviço</div>
+            <div className="text-xl font-bold text-slate-900 tracking-tighter">#{order.displayId || order.id.slice(0, 8).toUpperCase()}</div>
           </div>
-          <div className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-wide">
-            Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </div>
+          <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-wide">
+            Emissão: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </p>
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-          <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Dados do chamado e Cliente</div>
           <div className="grid grid-cols-12 divide-x divide-slate-200">
-            <div className="col-span-7 p-2.5 space-y-2">
-              <div><label className="block text-xs font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-sm uppercase">{order.customerName}</div></div>
-              <div><label className="block text-xs font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-sm uppercase">{displayAddress || 'N/A'}</div></div>
+            <div className="col-span-12 bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Atendimento e Cliente</div>
+            <div className="col-span-7 p-2 grid grid-cols-2 gap-x-4 gap-y-2">
+              <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-xs uppercase">{order.customerName}</div></div>
+              <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço de Execução</label><div className="font-medium text-slate-700 text-xs uppercase leading-tight">{displayAddress || 'N/A'}</div></div>
             </div>
-            <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
-              <div><label className="block text-xs font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(order.createdAt)}</div></div>
-              <div><label className="block text-xs font-bold text-slate-400 uppercase">Tipo</label><div className="font-bold uppercase">{order.operationType || 'Manutenção'}</div></div>
-              <div><label className="block text-xs font-bold text-slate-400 uppercase">Agendado</label><div className="font-bold">{order.scheduledDate ? `${fmt(order.scheduledDate)}${order.scheduledTime ? ' ' + order.scheduledTime : ''}` : '—'}</div></div>
-              <div><label className="block text-xs font-bold text-slate-400 uppercase">Conclusão</label><div className="font-bold">{fmtDT(order.endDate)}</div></div>
-              <div><label className="block text-xs font-bold text-slate-400 uppercase">Status</label><div className="font-bold text-xs border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{order.status}</div></div>
-              <div><label className="block text-xs font-bold text-slate-400 uppercase">Técnico</label><div className="font-bold uppercase">{tech?.name || 'N/A'}</div></div>
+            <div className="col-span-5 p-2 grid grid-cols-2 gap-2 bg-slate-50/50">
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(order.createdAt)}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Tipo</label><div className="font-bold uppercase text-[9px]">{order.operationType || 'Manutenção'}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Conclusão</label><div className="font-bold">{fmtDT(order.endDate)}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Técnico</label><div className="font-bold uppercase text-[9px] truncate">{tech?.name || 'N/A'}</div></div>
+              <div className="col-span-2 flex items-center justify-between pt-1 border-t border-slate-200/50">
+                 <label className="text-[8px] font-bold text-slate-400 uppercase">Status Final</label>
+                 <div className="font-black text-[8px] border border-slate-300 px-1.5 py-0.5 rounded bg-white uppercase">{order.status}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -570,8 +571,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {order.description && (
           <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Relatório / Descrição do Serviço</div>
-            <div className="p-3 bg-white text-xs text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
+            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Relatório / Descrição do Serviço</div>
+            <div className="p-2 bg-white text-[9px] text-slate-800 font-medium whitespace-pre-wrap leading-tight">
               {order.description}
             </div>
           </div>
@@ -579,8 +580,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {(order.status === 'IMPEDIDO' || formDataPrint.impediment_reason || (order.notes && order.notes.includes('IMPEDIMENTO'))) && (
           <div className="border border-red-300 rounded-lg overflow-hidden break-inside-avoid shadow-sm text-red-900">
-            <div className="bg-red-100 px-3 py-1.5 border-b border-red-300 font-bold text-xs uppercase tracking-wider text-red-700">Aviso de Impedimento / Pendência</div>
-            <div className="p-3 bg-red-50 text-xs font-medium whitespace-pre-wrap italic">
+            <div className="bg-red-100 px-3 py-1 border-b border-red-300 font-bold text-[9px] uppercase tracking-wider text-red-700">Aviso de Impedimento / Pendência</div>
+            <div className="p-2 bg-red-50 text-[9px] font-medium whitespace-pre-wrap italic leading-tight">
               {formDataPrint.impediment_reason || (order.notes ? order.notes.replace('IMPEDIMENTO: ', '') : 'Motivo não mapeado detalhadamente.')}
             </div>
           </div>
@@ -588,30 +589,30 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {showPrices && order.showValueToClient && order.items && order.items.length > 0 && (
           <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Composição (Peças e Serviços)</div>
+            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Composição Financeira</div>
             <div className="overflow-x-auto w-full"><table className="w-full text-left">
               <thead>
-                <tr className="bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200">
-                  <th className="px-3 py-2">Descrição do Item</th>
-                  <th className="px-3 py-2 text-center w-16">Qtd</th>
-                  <th className="px-3 py-2 text-right w-24">V. Unitário</th>
-                  <th className="px-3 py-2 text-right w-24">Total</th>
+                <tr className="bg-slate-50 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                  <th className="px-3 py-1">Item</th>
+                  <th className="px-3 py-1 text-center w-12">Qtd</th>
+                  <th className="px-3 py-1 text-right w-20">Unit.</th>
+                  <th className="px-3 py-1 text-right w-20">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {order.items.map((it: any, i: number) => (
                   <tr key={i}>
-                    <td className="px-3 py-2 text-xs uppercase font-bold text-slate-800">{it.description}</td>
-                    <td className="px-3 py-2 text-xs text-center font-bold text-slate-600">{it.quantity}</td>
-                    <td className="px-3 py-2 text-xs text-right text-slate-600 ">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-3 py-2 text-xs text-right font-bold text-slate-900 ">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-3 py-1 text-[9px] uppercase font-bold text-slate-800">{it.description}</td>
+                    <td className="px-3 py-1 text-[9px] text-center font-bold text-slate-600">{it.quantity}</td>
+                    <td className="px-3 py-1 text-[9px] text-right text-slate-600">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-3 py-1 text-[9px] text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
               </tbody>
             </table></div>
-            <div className="bg-slate-800 text-white px-3 py-2 flex justify-end gap-6 items-center border-t border-slate-800">
-              <span className="text-xs uppercase font-bold tracking-widest text-slate-300">Total</span>
-              <span className="text-sm font-bold tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <div className="bg-slate-800 text-white px-3 py-1.5 flex justify-end gap-6 items-center border-t border-slate-800">
+              <span className="text-[8px] uppercase font-bold tracking-widest text-slate-300">Total Geral</span>
+              <span className="text-[11px] font-bold tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         )}
@@ -670,7 +671,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             });
 
             return (
-              <div key={gIdx} className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-3">
+              <div key={gIdx} className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-2">
                 <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[10px] uppercase tracking-wider text-slate-700 flex justify-between items-center">
                   <span>Checklist — {eq ? (eq.equipment_name || eq.equipmentName) : gName}</span>
                   {eq && (eq.equipment_serial || eq.equipmentSerial) && (
