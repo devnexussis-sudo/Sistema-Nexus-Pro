@@ -14,7 +14,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function processQueue() {
     console.log('🔍 Procurando vídeos pendentes para compressão AV1...');
-    
+
     // 1. Pega o próximo da fila
     const { data: job, error } = await supabase
         .from('video_processing_queue')
@@ -48,30 +48,47 @@ async function processQueue() {
             writer.on('error', reject);
         });
 
-        // 3. COMPRESSÃO AV1 (Mágica aqui)
-        console.log('⚖️ Iniciando compressão AV1 (libaom-av1)...');
+        // 3. COMPRESSÃO CIRÚRGICA (NASA-GRADE)
+        console.log('⚖️ Salvando...');
         await new Promise((resolve, reject) => {
             ffmpeg(inputPath)
-                .videoCodec('libaom-av1') // Codec AV1
-                // CRF 35 para bom balanço entre tamanho e qualidade
-                // cpu-used 6-8 para velocidade em CPUs modernas
-                .addOptions(['-crf 35', '-cpu-used 6', '-b:v 0']) 
+                .videoCodec('libx264')
+                // Forçamos a escala e garantimos que os valores sejam divisíveis por 2 (yuv420p constraint)
+                .videoFilters([
+                    'scale=432:768:force_original_aspect_ratio=decrease',
+                    'pad=432:768:(ow-iw)/2:(oh-ih)/2',
+                    'setsar=1'
+                ])
+                .outputOptions([
+                    '-crf 23',             // Qualidade constante (Padrão ouro H.264)
+                    '-preset fast',        // Equilíbrio eficiência/tempo
+                    '-r 30',               // Força 30fps (Corrige os 59fps observados)
+                    '-b:v 900k',           // Bitrate de vídeo alvo
+                    '-maxrate 1100k',      // Teto para evitar picos que estourem o tamanho
+                    '-bufsize 2000k',      // Buffer de 2s para controle de taxa
+                    '-pix_fmt yuv420p',    // Padrão de cor universal para Android/iOS
+                    '-movflags +faststart' // Streaming-ready
+                ])
+                .audioCodec('aac')
+                .audioChannels(1)          // Mono
+                .audioBitrate('64k')       // 64kbps audio
+                .audioFrequency(44100)     // 44.1kHz
                 .on('progress', (progress) => {
-                    if (progress.percent) console.log(`⏳ Progresso: ${progress.percent.toFixed(1)}%`);
+                    if (progress.percent) console.log(`⏳ Progresso NASA: ${progress.percent.toFixed(1)}%`);
                 })
                 .on('end', resolve)
                 .on('error', (err) => {
-                    console.error('❌ Erro FFmpeg:', err);
+                    console.error('❌ Erro Crítico FFmpeg:', err);
                     reject(err);
                 })
                 .save(outputPath);
         });
 
         // 4. Upload do vídeo otimizado
-        console.log('📤 Subindo vídeo otimizado para o Storage...');
+        console.log('📤 Finalizando...');
         const fileContent = fs.readFileSync(outputPath);
         const fileName = `orders/${job.order_id}/videos/optimized_av1_${Date.now()}.webm`;
-        
+
         const { data: uploadData, error: uploadError } = await supabase.storage
             .from('nexus-files')
             .upload(fileName, fileContent, { contentType: 'video/webm', upsert: true });
@@ -85,13 +102,13 @@ async function processQueue() {
         const finalSizeMB = (stats.size / 1024 / 1024).toFixed(2);
 
         console.log(`✨ Atualizando banco de dados com a nova URL: ${optimizedUrl}`);
-        
-        await supabase.from('orders').update({ 
+
+        await supabase.from('orders').update({
             video_url: optimizedUrl,
-            video_status: 'optimized' 
+            video_status: 'optimized'
         }).eq('id', job.order_id);
 
-        await supabase.from('video_processing_queue').update({ 
+        await supabase.from('video_processing_queue').update({
             status: 'done',
             optimized_url: optimizedUrl,
             optimized_size_mb: finalSizeMB,
@@ -106,9 +123,9 @@ async function processQueue() {
 
     } catch (err) {
         console.error('❌ Erro fatal no processamento:', err);
-        await supabase.from('video_processing_queue').update({ 
-            status: 'error', 
-            error_message: err.message 
+        await supabase.from('video_processing_queue').update({
+            status: 'error',
+            error_message: err.message
         }).eq('id', job.id);
     }
 

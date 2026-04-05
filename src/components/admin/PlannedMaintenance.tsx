@@ -874,7 +874,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
 };
 
 // --- CONTRACT PRINT LAYOUT ---
-// Redeigned to match exactly the Order Service (OS) standard as requested
+// Redeigned to match exactly the Order Service (OS) standard as requested by USER
 const ContractPrintLayout: React.FC<{ contract: any, tenant: any, equipments: Equipment[] }> = ({ contract, tenant, equipments }) => {
     const companyName = tenant?.company_name || tenant?.name || 'Nexus Pro';
     const companyLogo = tenant?.logo_url;
@@ -902,136 +902,183 @@ const ContractPrintLayout: React.FC<{ contract: any, tenant: any, equipments: Eq
         return date.toLocaleDateString('pt-BR');
     };
 
+    const currentTimestamp = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+
     return (
         <div className="bg-white text-[10px] leading-tight font-poppins p-8 print:p-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-            {/* Print Header */}
-            <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-6">
-                <div className="flex gap-4 items-center">
+            {/* Upper Metadata Bar — Following the image style */}
+            <div className="flex justify-between items-center mb-6 px-1 text-[9px] font-medium text-slate-400">
+                <span>{currentTimestamp}</span>
+                <span className="font-black tracking-[0.3em] uppercase opacity-40 italic">DUNO</span>
+                <span className="w-[100px] text-right" />
+            </div>
+
+            {/* Print Header Section */}
+            <div className="flex justify-between items-start pb-4 border-b-2 border-slate-900 mb-2">
+                <div className="flex gap-5 items-center">
                     {companyLogo ? (
-                        <img src={companyLogo} alt="Logo" className="h-14 w-auto object-contain" />
+                        <img src={companyLogo} alt="Logo" className="h-[70px] w-auto object-contain" />
                     ) : (
-                        <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px] text-white">
-                            <Hexagon size={32} className="text-white fill-white/10" />
+                        <div className="bg-[#1c2d4f] p-3 rounded-2xl flex items-center justify-center min-w-[70px] min-h-[70px] text-white shadow-lg">
+                            <Layers size={36} className="text-white" />
                         </div>
                     )}
-                    <div className="space-y-0.5">
-                        <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
-                        <div className="text-[9px] text-slate-600 max-w-[400px]">
+                    <div className="space-y-1">
+                        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none italic">{companyName}</h1>
+                        <div className="text-[10px] text-slate-500 max-w-[450px] leading-relaxed">
                             {companyAddress && <div>{companyAddress}</div>}
-                            <div className="flex gap-3 mt-0.5">
-                                {companyPhone && <span className="font-semibold">Tel: {companyPhone}</span>}
+                            <div className="flex gap-4 mt-0.5">
+                                {companyPhone && <span className="font-bold">Tel: {companyPhone}</span>}
                                 {companyEmail && <span>Email: {companyEmail}</span>}
                             </div>
-                            {companyDoc && <div className="mt-0.5">CNPJ: {companyDoc}</div>}
+                            {companyDoc && <div className="mt-0.5 font-bold uppercase">CNPJ: {companyDoc}</div>}
                         </div>
                     </div>
                 </div>
                 <div className="text-right">
-                    <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
-                        <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Contrato de Manutenção</div>
-                        <div className="text-2xl font-black text-slate-900 tracking-tighter">#{contract.pmocCode || contract.display_id}</div>
+                    <div className="border-[3px] border-slate-900 px-8 py-5 rounded-[2rem] bg-white shadow-xl shadow-slate-200/50">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 leading-none">Contrato de Manutenção</div>
+                        <div className="text-3xl font-black text-slate-900 tracking-tighter leading-none italic">#{contract.pmocCode || contract.display_id}</div>
                     </div>
-                    <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
-                        Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {/* Emission outside box per model */}
+                    <div className="mt-3 px-3">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                            Emissão: {currentTimestamp.split(' ')[0]} às {currentTimestamp.split(' ')[1]}
+                        </span>
                     </div>
                 </div>
             </div>
-
-            <div className="space-y-4">
-                {/* Dados do chamado e Cliente */}
-                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid shadow-sm">
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Contrato e Cliente</div>
-                    <div className="grid grid-cols-12 divide-x divide-slate-200">
-                        <div className="col-span-7 p-3 space-y-3">
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-sm uppercase">{contract.customerName}</div></div>
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{contract.customerAddress || '—'}</div></div>
+            
+            <div className="space-y-6 mt-8">
+                {/* Section 1: Dados do Contrato e Cliente — Balanced Columns */}
+                <div className="border-2 border-slate-200 rounded-[2.5rem] overflow-hidden shadow-sm">
+                    <div className="bg-slate-50 px-6 py-2.5 border-b-2 border-slate-200 font-black text-[10px] uppercase tracking-[0.2em] text-slate-500 italic">Dados do Contrato e Cliente</div>
+                    <div className="grid grid-cols-12 divide-x-2 divide-slate-100">
+                        <div className="col-span-7 p-6 space-y-5">
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cliente</label>
+                                <div className="font-black text-slate-900 text-base uppercase italic leading-none">{contract.customerName}</div>
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Endereço de Atendimento</label>
+                                <div className="font-bold text-slate-700 text-[11px] uppercase leading-snug">{contract.customerAddress || '—'}</div>
+                            </div>
                         </div>
-                        <div className="col-span-5 p-3 grid grid-cols-2 gap-3 bg-slate-50/30">
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(contract.scheduled_date)}</div></div>
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Período</label><div className="font-bold uppercase text-primary-600">{contract.periodicity}</div></div>
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Visitas/Ano</label><div className="font-bold">{(contract.visitCount || 1) * 12} Visitas</div></div>
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Peças</label><div className={`font-bold transition-colors ${contract.includes_parts ? 'text-emerald-600' : 'text-slate-600'}`}>{contract.includes_parts ? 'SIM' : 'NÃO'}</div></div>
-                            <div className="col-span-2 mt-1 py-1 border-t border-slate-200"><label className="block text-[8px] font-bold text-slate-400 uppercase">Investimento</label><div className="text-base font-black text-emerald-600">R$ {contract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>
+                        <div className="col-span-5 p-6 grid grid-cols-2 gap-y-5 gap-x-4 bg-slate-50/20">
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Abertura</label>
+                                <div className="font-black text-slate-900 text-[11px] uppercase">{fmt(contract.scheduledDate)}</div>
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tipo</label>
+                                <div className="font-black text-primary-600 text-[11px] uppercase italic">Contrato Preventivo</div>
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Periodicidade</label>
+                                <div className="font-black text-slate-900 text-[11px] uppercase italic">{contract.periodicity}</div>
+                            </div>
+                            <div>
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Visitas/Ciclo</label>
+                                <div className="font-black text-slate-900 text-[11px] uppercase italic">{contract.visitCount || 1} Visita(s)</div>
+                            </div>
+                            <div className="col-span-2 pt-4 border-t border-dashed border-slate-200">
+                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Investimento Mensal</label>
+                                <div className="text-xl font-black text-emerald-600 italic leading-none">R$ {contract.contractValue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Equipamentos Vinculados */}
-                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Equipamentos Vinculados ({contract.equipmentIds?.length})</div>
-                    <table className="w-full text-left">
+                {/* Section 2: Equipamentos Vinculados — High Detail Table */}
+                <div className="border-2 border-slate-200 rounded-[2rem] overflow-hidden shadow-sm">
+                    <div className="bg-slate-50 px-6 py-2.5 border-b-2 border-slate-200 font-black text-[10px] uppercase tracking-[0.2em] text-slate-500 italic">Ativos Vinculados ao Contrato ({contract.equipmentIds?.length || 0})</div>
+                    <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-slate-50 text-[8px] font-black text-slate-500 uppercase border-b border-slate-200">
-                                <th className="px-3 py-1.5">#</th>
-                                <th className="px-3 py-1.5">Equipamento</th>
-                                <th className="px-3 py-1.5">Modelo</th>
-                                <th className="px-3 py-1.5">Nº Série</th>
-                                <th className="px-3 py-1.5">Família</th>
+                            <tr className="bg-slate-100 text-[9px] font-black text-slate-500 uppercase italic tracking-widest border-b border-slate-200">
+                                <th className="px-6 py-3 w-12 text-center">#</th>
+                                <th className="px-6 py-3">Equipamento</th>
+                                <th className="px-6 py-3">Modelo</th>
+                                <th className="px-6 py-3">Nº Série / ID</th>
+                                <th className="px-6 py-3">Família</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {contract.equipmentIds?.map((id: string, i: number) => {
                                 const eq = equipments.find(e => e.id === id);
                                 return (
-                                    <tr key={id}>
-                                        <td className="px-3 py-1.5 text-[10px] font-bold text-slate-400">{i + 1}</td>
-                                        <td className="px-3 py-1.5 text-[10px] font-bold text-slate-900 uppercase">{eq?.model}</td>
-                                        <td className="px-3 py-1.5 text-[10px] text-slate-600 uppercase">{eq?.model}</td>
-                                        <td className="px-3 py-1.5 text-[10px] text-slate-600 font-mono">{eq?.serialNumber}</td>
-                                        <td className="px-3 py-1.5 text-[10px] text-slate-600 uppercase">{eq?.family || '—'}</td>
+                                    <tr key={id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
+                                        <td className="px-6 py-3 text-[10px] font-black text-slate-300 text-center">{i + 1}</td>
+                                        <td className="px-6 py-3 text-[11px] font-black text-slate-900 uppercase italic">{eq?.name || eq?.model || 'EQUIPAMENTO'}</td>
+                                        <td className="px-6 py-3 text-[11px] text-slate-600 uppercase font-medium">{eq?.model}</td>
+                                        <td className="px-6 py-3 text-[11px] text-slate-600 font-black tracking-tighter uppercase">{eq?.serialNumber}</td>
+                                        <td className="px-6 py-3 text-[11px] text-slate-600 uppercase font-bold text-primary-600/60 ">{eq?.familyName || eq?.family || '—'}</td>
                                     </tr>
                                 );
                             })}
+                            {(!contract.equipmentIds || contract.equipmentIds.length === 0) && (
+                                <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-300 uppercase font-black italic text-[10px]">Nenhum equipamento vinculado a este contrato</td></tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
 
-                {/* Relatório / Descrição */}
-                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Relatório / Descrição do Contrato</div>
-                    <div className="p-3 bg-white text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
-                        {contract.contractTerms || 'Os serviços serão executados de acordo com a Resolução RE nº 09 da ANVISA e as normas técnicas vigentes de manutenção de sistemas de climatização (ABNT).'}
+                {/* Section 3: Relatório / Descrição do Serviço */}
+                <div className="border-2 border-slate-200 rounded-[2rem] overflow-hidden shadow-sm">
+                    <div className="bg-slate-50 px-6 py-2.5 border-b-2 border-slate-200 font-black text-[10px] uppercase tracking-[0.2em] text-slate-500 italic">Termos e Descrição do Contrato</div>
+                    <div className="p-8 bg-white text-[12px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed italic">
+                        {contract.contractTerms || 'Os serviços serão executados de acordo com a Resolução RE nº 09 da ANVISA e as normas técnicas vigentes de manutenção de sistemas de climatização (ABNT). Este contrato prevê visitas preventivas programadas conforme a periodicidade selecionada.'}
                     </div>
                 </div>
 
-                {/* Validação / Assinaturas */}
-                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
-                    <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
-                        <div className="p-4 flex flex-col items-center justify-center gap-3">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Responsável Técnico</p>
-                            <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-[10px] font-bold uppercase">
-                                Validação Eletrônica no Sistema
+                {/* Section 4: Validation & Signatures — Mirrors the Premium OS Style */}
+                <div className="border-2 border-slate-200 rounded-[2.5rem] overflow-hidden shadow-sm mt-8">
+                    <div className="bg-slate-50 px-6 py-2.5 border-b-2 border-slate-200 font-black text-[10px] uppercase tracking-[0.2em] text-slate-500 italic">Validação e Assinaturas (Nexus Audit)</div>
+                    <div className="grid grid-cols-2 divide-x-2 divide-slate-100 bg-white text-center">
+                        {/* Technical Side */}
+                        <div className="p-10 flex flex-col items-center justify-center gap-6">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Responsável Técnico</p>
+                            <div className="h-[60px] flex flex-col items-center justify-center">
+                                <div className="text-primary-600/40 italic text-[12px] font-black uppercase tracking-widest leading-none">
+                                    Validação Eletrônica no Sistema
+                                </div>
+                                <div className="text-[8px] font-bold text-slate-300 uppercase mt-2">Protocolo Autenticado</div>
                             </div>
-                            <div className="w-full border-t border-slate-300 pt-2">
-                                <p className="text-[12px] font-black text-slate-900 uppercase">{companyName}</p>
+                            <div className="w-full border-t border-slate-200 pt-5">
+                                <p className="text-base font-black text-slate-900 uppercase italic tracking-tighter">{companyName}</p>
                             </div>
                         </div>
-                        <div className="p-4 flex flex-col items-center justify-center gap-3">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Responsável pela Conformidade (Cliente)</p>
-                            <div className="h-[80px] flex items-center justify-center">
-                                <span className="text-slate-300 italic text-[10px] font-bold uppercase">Aguardando assinatura</span>
+
+                        {/* Customer Side */}
+                        <div className="p-10 flex flex-col items-center justify-center gap-6">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Responsável pela Conformidade (Cliente)</p>
+                            <div className="h-[60px] flex flex-col items-center justify-center">
+                                <span className="text-slate-200 italic text-[12px] font-black uppercase tracking-widest leading-none">
+                                    Aguardando Formalização
+                                </span>
+                                <span className="text-[8px] font-bold text-slate-300 uppercase mt-2 italic">Protocolo Digital Pendente</span>
                             </div>
-                            <div className="w-full border-t border-slate-300 pt-2">
-                                <p className="text-[12px] font-black text-slate-900 uppercase">{contract.customerName}</p>
+                            <div className="w-full border-t border-slate-200 pt-5">
+                                <p className="text-base font-black text-slate-900 uppercase italic tracking-tighter">{contract.customerName}</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Footer */}
-            <div className="mt-8 pt-4 border-t-2 border-slate-800 flex justify-between items-center text-slate-500">
-                <div className="flex items-center gap-2">
-                    <Layers size={18} className="text-slate-900 opacity-80" />
+            {/* Footer with Branding */}
+            <div className="mt-16 pt-8 border-t-[3px] border-slate-900 flex justify-between items-center opacity-70">
+                <div className="flex items-center gap-4">
+                    <div className="bg-[#1c2d4f] p-2 rounded-lg text-white">
+                        <Layers size={20} />
+                    </div>
                     <div>
-                        <p className="text-[8px] font-bold uppercase tracking-widest text-slate-900 leading-none">Nexus Pro — Gestão de Ativos</p>
-                        <p className="text-[7px] uppercase tracking-tight mt-0.5">Documento emitido eletronicamente. Uma solução DUNO Project.</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-900 leading-none">Nexus Pro — Gestão Master de Ativos</p>
+                        <p className="text-[9px] font-bold uppercase tracking-tight mt-1 text-slate-400 italic">Documento emitido eletronicamente pela plataforma inteligente DUNO Project.</p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-900">Protocolo Auditável</p>
-                    <p className="text-[7px] uppercase tracking-tight mt-0.5">Auditável na plataforma central via QrCode ou Protocolo.</p>
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-900 italic">Protocolo Auditável Central</p>
+                    <p className="text-[9px] font-bold uppercase tracking-tight mt-1 text-slate-400">Verifique a autenticidade deste documento no portal administrativo.</p>
                 </div>
             </div>
         </div>

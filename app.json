@@ -3,7 +3,6 @@
     "name": "DUNO",
     "slug": "nexus-mobile",
     "version": "1.0.3",
-    "sdkVersion": "52.0.0",
     "orientation": "portrait",
     "backgroundColor": "#ffffff",
     "icon": "./assets/images/app-icon-duno-v6.png",
@@ -43,15 +42,7 @@
         "FOREGROUND_SERVICE",
         "POST_NOTIFICATIONS",
         "MODIFY_AUDIO_SETTINGS",
-        "INTERNET",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_BACKGROUND_LOCATION",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_LOCATION",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.INTERNET"
+        "INTERNET"
       ]
     },
     "web": {
@@ -79,7 +70,28 @@
       ],
       "expo-web-browser",
       "expo-av",
-      "expo-screen-orientation"
+      "expo-screen-orientation",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "packagingOptions": {
+              "pickFirst": [
+                "**/builddef.lst",
+                "**/META-INF/DEPENDENCIES",
+                "**/META-INF/LICENSE",
+                "**/META-INF/LICENSE.txt",
+                "**/META-INF/NOTICE",
+                "**/META-INF/NOTICE.txt",
+                "**/META-INF/kotlinx-coroutines-core.kotlin_module"
+              ]
+            }
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
