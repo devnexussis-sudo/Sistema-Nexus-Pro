@@ -71,7 +71,8 @@ const CollapsibleFormSection: React.FC<{
   subtitle?: string;
   icon?: React.ReactNode;
   parts?: any[];
-}> = ({ formData, order, onImageClick, title = "Formulário Técnico", subtitle, icon, parts }) => {
+  showPrices?: boolean;
+}> = ({ formData, order, onImageClick, title = "Formulário Técnico", subtitle, icon, parts, showPrices }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const SYSTEM_KEYS = new Set([
@@ -137,6 +138,7 @@ const CollapsibleFormSection: React.FC<{
             <p className="text-sm font-bold text-slate-900 uppercase tracking-wide">{title}</p>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               {subtitle || `${textCount} ${textCount === 1 ? 'resposta' : 'respostas'}${photoCount > 0 ? ` · ${photoCount} foto${photoCount > 1 ? 's' : ''}` : ''}`}
+              {parts && parts.length > 0 && showPrices && ` · R$ ${parts.reduce((acc, it) => acc + (it.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
             </p>
           </div>
         </div>
@@ -247,8 +249,8 @@ const CollapsibleFormSection: React.FC<{
                     <tr className="bg-slate-100/50 text-slate-500 font-bold uppercase tracking-tighter">
                       <th className="px-4 py-3">Descrição do Item</th>
                       <th className="px-4 py-3 text-center">Qtd</th>
-                      <th className="px-4 py-3 text-right">Unitário</th>
-                      <th className="px-4 py-3 text-right">Total</th>
+                      {showPrices && <th className="px-4 py-3 text-right">Unitário</th>}
+                      {showPrices && <th className="px-4 py-3 text-right">Total</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -256,19 +258,21 @@ const CollapsibleFormSection: React.FC<{
                       <tr key={it.id || idx} className="hover:bg-white/50 transition-colors">
                         <td className="px-4 py-3 font-bold text-slate-700 uppercase">{it.description}</td>
                         <td className="px-4 py-3 text-center font-bold text-slate-900">{it.quantity}</td>
-                        <td className="px-4 py-3 text-right text-slate-500">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        {showPrices && <td className="px-4 py-3 text-right text-slate-500">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                        {showPrices && <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-slate-100/30 border-t border-slate-100">
-                    <tr>
-                      <td colSpan={3} className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subtotal Peças</td>
-                      <td className="px-4 py-3 text-right font-bold text-[#1c2d4f]">
-                        R$ {parts.reduce((acc, it) => acc + (it.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tfoot>
+                  {showPrices && (
+                    <tfoot className="bg-slate-100/30 border-t border-slate-100">
+                      <tr>
+                        <td colSpan={3} className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subtotal Peças</td>
+                        <td className="px-4 py-3 text-right font-bold text-[#1c2d4f]">
+                          R$ {parts.reduce((acc, it) => acc + (it.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
@@ -285,6 +289,7 @@ const CollapsibleFormSection: React.FC<{
 
 export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, isPrint = false, tenantProp }) => {
   const [tenant, setTenant] = React.useState<any>(tenantProp || null);
+  const showPrices = tenant?.metadata?.showItemPricesInPublicView !== false;
   const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
   const [linkedEquipments, setLinkedEquipments] = React.useState<any[]>([]);
   // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)
@@ -581,7 +586,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         )}
 
-        {order.showValueToClient && order.items && order.items.length > 0 && (
+        {showPrices && order.showValueToClient && order.items && order.items.length > 0 && (
           <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
             <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Composição (Peças e Serviços)</div>
             <div className="overflow-x-auto w-full"><table className="w-full text-left">
@@ -732,7 +737,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                 <tr className="bg-slate-100 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
                                   <th className="px-2 py-1">Peças Utilizadas neste Equipamento</th>
                                   <th className="px-2 py-1 text-center w-10">Qtd</th>
-                                  <th className="px-2 py-1 text-right w-20">Total</th>
+                                  {showPrices && <th className="px-2 py-1 text-right w-20">Total</th>}
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
@@ -740,7 +745,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   <tr key={pIdx}>
                                     <td className="px-2 py-1 text-[9px] font-bold text-slate-700 uppercase">{pIt.description}</td>
                                     <td className="px-2 py-1 text-[9px] text-center font-bold text-slate-900">{pIt.quantity}</td>
-                                    <td className="px-2 py-1 text-[9px] text-right font-bold text-slate-900">R$ {pIt.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    {showPrices && <td className="px-2 py-1 text-[9px] text-right font-bold text-slate-900">R$ {pIt.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                                   </tr>
                                 ))}
                               </tbody>
@@ -1130,8 +1135,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       <tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
                         <th className="px-5 py-3">Descrição</th>
                         <th className="px-5 py-3 text-center w-20">Qtd</th>
-                        <th className="px-5 py-3 text-right w-28">Unitário</th>
-                        <th className="px-5 py-3 text-right w-28">Total</th>
+                        {showPrices && <th className="px-5 py-3 text-right w-28">Unitário</th>}
+                        {showPrices && <th className="px-5 py-3 text-right w-28">Total</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -1147,8 +1152,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                             {item.fromStock && <span className="text-xs font-bold text-emerald-600 uppercase mt-1 block">✦ Estoque Técnico</span>}
                           </td>
                           <td className="px-5 py-3.5 text-center text-xs text-slate-500 font-bold">{item.quantity}</td>
-                          <td className="px-5 py-3.5 text-right text-xs  text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                          <td className="px-5 py-3.5 text-right text-xs font-bold text-slate-900 ">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          {showPrices && <td className="px-5 py-3.5 text-right text-xs  text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                          {showPrices && <td className="px-5 py-3.5 text-right text-xs font-bold text-slate-900 ">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -1156,15 +1161,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 </div>
 
                 {/* Total bar */}
-                <div className="mt-4 flex items-center justify-between bg-[#1c2d4f] text-white px-6 py-4 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <DollarSign size={18} className="opacity-60" />
-                    <span className="text-xs font-bold uppercase tracking-widest opacity-70">Total do Atendimento</span>
+                {showPrices && (
+                  <div className="mt-4 flex items-center justify-between bg-[#1c2d4f] text-white px-6 py-4 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <DollarSign size={18} className="opacity-60" />
+                      <span className="text-xs font-bold uppercase tracking-widest opacity-70">Total do Atendimento</span>
+                    </div>
+                    <span className="text-xl font-bold  tracking-tighter">
+                      R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
                   </div>
-                  <span className="text-xl font-bold  tracking-tighter">
-                    R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -1249,6 +1256,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       icon={<Box size={16} />}
                       subtitle={`${fam ? fam + ' · ' : ''}${serial ? 'S/N: ' + serial : 'Checklist do Atendimento'}`}
                       parts={eqParts}
+                      showPrices={showPrices}
                     />
                   );
                 })}

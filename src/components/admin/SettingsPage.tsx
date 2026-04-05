@@ -42,6 +42,7 @@ interface SystemParams {
   sessionTimeout: string;
   backupFrequency: 'daily' | 'weekly' | 'monthly';
   showItemPricesInApp: boolean;
+  showItemPricesInPublicView: boolean;
   allowOsSharing: boolean;
 }
 
@@ -83,6 +84,7 @@ export const SettingsPage: React.FC = () => {
     sessionTimeout: '2h',
     backupFrequency: 'daily',
     showItemPricesInApp: false,
+    showItemPricesInPublicView: true,
     allowOsSharing: true,
   });
 
@@ -123,6 +125,7 @@ export const SettingsPage: React.FC = () => {
         osPrefix: osPref,
         osInitialNumber: osStart,
         showItemPricesInApp: data.metadata?.showItemPricesInApp ?? false,
+        showItemPricesInPublicView: data.metadata?.showItemPricesInPublicView ?? true,
         allowOsSharing: data.metadata?.allowOsSharing ?? true,
       }));
 
@@ -256,6 +259,7 @@ export const SettingsPage: React.FC = () => {
         metadata: {
           ...data?.metadata,
           showItemPricesInApp: params.showItemPricesInApp,
+          showItemPricesInPublicView: params.showItemPricesInPublicView,
           techAdvancedSettings: params.techAdvancedSettings,
           allowOsSharing: params.allowOsSharing,
         }
@@ -798,6 +802,27 @@ export const SettingsPage: React.FC = () => {
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
                           Se ativado, o técnico poderá compartilhar o link público de uma OS concluída via WhatsApp ou e-mail.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.showItemPricesInPublicView ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <Globe size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Exibir Preço Público</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, showItemPricesInPublicView: !params.showItemPricesInPublicView })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.showItemPricesInPublicView ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.showItemPricesInPublicView ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Se desativado, os valores financeiros de peças e serviços NÃO aparecerão no link público nem na impressão.
                         </p>
                       </div>
                     </div>
