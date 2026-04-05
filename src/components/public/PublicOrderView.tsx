@@ -298,7 +298,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const [orderVisits, setOrderVisits] = React.useState<any[]>([]);
 
   // 📝 1. Consolidação de Dados (Merge OS + Visitas) - Senior Pattern
-  const mergedFormData = React.useMemo(() => {
+  const formDataPrint = React.useMemo(() => {
     if (!order) return {};
     
     const getFormData = (fd: any) => {
@@ -331,12 +331,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const signatureInfo = React.useMemo(() => {
     if (!order) return { signature: null, name: null, doc: null };
 
-    const signature = (order as any).signature || (order as any).client_signature_url || mergedFormData.signature || findNormalizedField('assinaturadocliente', mergedFormData) || findNormalizedField('assinatura', mergedFormData);
-    const name = (order as any).signatureName || (order as any).client_signature_name || mergedFormData.signatureName || findNormalizedField('assinaturadoclientenome', mergedFormData) || findNormalizedField('responsavelpelorecebi', mergedFormData) || findNormalizedField('responsavel', mergedFormData) || findNormalizedField('nome', mergedFormData);
-    const doc = (order as any).signatureDoc || (order as any).signature_doc || mergedFormData.signatureDoc || findNormalizedField('assinaturadoclientecpf', mergedFormData) || findNormalizedField('cpf', mergedFormData);
+    const signature = (order as any).signature || (order as any).client_signature_url || formDataPrint.signature || findNormalizedField('assinaturadocliente', formDataPrint) || findNormalizedField('assinatura', formDataPrint);
+    const name = (order as any).signatureName || (order as any).client_signature_name || formDataPrint.signatureName || findNormalizedField('assinaturadoclientenome', formDataPrint) || findNormalizedField('responsavelpelorecebi', formDataPrint) || findNormalizedField('responsavel', formDataPrint) || findNormalizedField('nome', formDataPrint);
+    const doc = (order as any).signatureDoc || (order as any).signature_doc || formDataPrint.signatureDoc || findNormalizedField('assinaturadoclientecpf', formDataPrint) || findNormalizedField('cpf', formDataPrint);
 
     return { signature, name, doc };
-  }, [order, mergedFormData]);
+  }, [order, formDataPrint]);
 
   // Busca templates de formulários para garantir a ORDEM das perguntas
   React.useEffect(() => {
@@ -513,7 +513,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   const isImageVal = (v: any) => typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('data:video') || v.startsWith('http'));
 
-  Object.entries(mergedFormData)
+  Object.entries(formDataPrint)
     .filter(([key]) => !SYSTEM_KEYS.has(key) && !isSignatureKey(key))
     .forEach(([key, val]) => {
       let text: string | null = null;
