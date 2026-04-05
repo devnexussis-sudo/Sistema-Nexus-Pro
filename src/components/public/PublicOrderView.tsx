@@ -294,7 +294,39 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const [linkedEquipments, setLinkedEquipments] = React.useState<any[]>([]);
   // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)
   const [freshCustomerAddress, setFreshCustomerAddress] = React.useState<string | null>(null);
+  const [formTemplates, setFormTemplates] = React.useState<Record<string, any>>({});
 
+  // Busca templates de formulários para garantir a ORDEM das perguntas
+  React.useEffect(() => {
+    const fetchTemplates = async () => {
+      const ids = new Set<string>();
+      if (order?.formId) ids.add(order.formId);
+      linkedEquipments.forEach(eq => {
+        if (eq.form_id) ids.add(eq.form_id);
+      });
+
+      if (ids.size === 0) return;
+
+      try {
+        const { data } = await supabase
+          .from('form_templates')
+          .select('id, schema')
+          .in('id', Array.from(ids));
+        
+        if (data) {
+          const map: Record<string, string[]> = {};
+          data.forEach(t => {
+            const fields = (t.schema as any)?.fields || [];
+            map[t.id] = fields.map((f: any) => f.label || f.title || '');
+          });
+          setFormTemplates(map);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar templates:', err);
+      }
+    };
+    fetchTemplates();
+  }, [order?.formId, linkedEquipments.length]); // Somente re-executa se o ID do formulário ou qtd de equipamentos mudar
   React.useEffect(() => {
     const fetchTenantData = async () => {
       if (tenantProp) {
@@ -659,6 +691,38 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               text = String(val);
             }
             if (text || photos.length > 0) grps[gName].push({ key, text, photos });
+          });
+
+          // 2. Ordena os itens dentro de cada grupo conforme o template do formulário
+          const normalizeForSort = (s: string) => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+
+          Object.keys(grps).forEach(gName => {
+            const currentFormId = order.formId;
+            const templateOrder = currentFormId ? (formTemplates[currentFormId] || []) : [];
+            
+            const eqMatch = linkedEquipments.find(e => {
+               const eN = (e.equipment_name || e.equipmentName || '').toLowerCase();
+               return gName.toLowerCase().includes(eN) || eN.includes(gName.toLowerCase());
+            });
+            const specificOrder = eqMatch?.form_id ? (formTemplates[eqMatch.form_id] || []) : [];
+            const combinedOrder = [...templateOrder, ...specificOrder];
+
+            if (combinedOrder.length > 0) {
+              const normalizedOrder = combinedOrder.map(normalizeForSort);
+              
+              grps[gName].sort((a, b) => {
+                const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
+                const cleanB = normalizeForSort(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
+                
+                let idxA = normalizedOrder.findIndex(label => cleanA === label || cleanA.includes(label) || label.includes(cleanA));
+                let idxB = normalizedOrder.findIndex(label => cleanB === label || cleanB.includes(label) || label.includes(cleanB));
+                
+                if (idxA === -1) idxA = 999;
+                if (idxB === -1) idxB = 999;
+                
+                return idxA - idxB;
+              });
+            }
           });
 
           const grpEntries = Object.entries(grps);
@@ -1212,12 +1276,47 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                groups[groupName][key] = val;
             });
 
-            const groupEntries = Object.entries(groups);
-            if (groupEntries.length === 0) return null;
+            // 3. Ordena os grupos e as perguntas dentro dos grupos
+            const normalizeForSort = (s: string) => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+
+            const sortedGroups = Object.entries(groups).map(([groupName, groupData]) => {
+               const currentFormId = order.formId;
+               const templateOrder = currentFormId ? (formTemplates[currentFormId] || []) : [];
+               
+               const eqMatch = linkedEquipments.find(e => {
+                  const eName = (e.equipment_name || e.equipmentName || '').toLowerCase();
+                  const gn = groupName.toLowerCase();
+                  return gn.includes(eName) || eName.includes(gn);
+               });
+               const specificOrder = eqMatch?.form_id ? (formTemplates[eqMatch.form_id] || []) : [];
+               const combinedOrder = [...templateOrder, ...specificOrder];
+
+               // Converte groupData em entries e ordena
+               const entries = Object.entries(groupData);
+               if (combinedOrder.length > 0) {
+                 const normalizedOrder = combinedOrder.map(normalizeForSort);
+                 
+                 entries.sort((a, b) => {
+                   const cleanA = normalizeForSort(a[0].replace(/^\[.*?\]\s*-\s*/, ''));
+                   const cleanB = normalizeForSort(b[0].replace(/^\[.*?\]\s*-\s*/, ''));
+                   
+                   let idxA = normalizedOrder.findIndex(label => cleanA === label || cleanA.includes(label) || label.includes(cleanA));
+                   let idxB = normalizedOrder.findIndex(label => cleanB === label || cleanB.includes(label) || label.includes(cleanB));
+                   
+                   if (idxA === -1) idxA = 999;
+                   if (idxB === -1) idxB = 999;
+                   
+                   return idxA - idxB;
+                 });
+               }
+               return { groupName, groupData: Object.fromEntries(entries) };
+            });
+
+            if (sortedGroups.length === 0) return null;
 
             return (
               <div className="space-y-8">
-                {groupEntries.map(([groupName, groupData]) => {
+                {sortedGroups.map(({ groupName, groupData }) => {
                   // Tenta encontrar metadados do equipamento correspondente
                   const eq = linkedEquipments.find(e => {
                     const eName = (e.equipment_name || e.equipmentName || '').toLowerCase();
