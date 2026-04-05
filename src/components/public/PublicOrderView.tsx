@@ -163,8 +163,15 @@ const CollapsibleFormSection: React.FC<{
               return acc;
             }, {} as Record<string, (typeof formItems[0] & { cleanKey?: string })[]>);
 
-            return Object.entries(groupedItems).map(([group, items]) => (
-              <div key={group} className="space-y-4">
+            const groupOrder = Array.from(new Set(formItems.map(item => {
+              const match = item.key.match(/^\[(.*?)\]\s*(?:-|$)/);
+              return match ? match[1] : 'Ficha Técnica';
+            })));
+
+            return groupOrder.map(group => {
+              const items = groupedItems[group];
+              return (
+                <div key={group} className="space-y-4">
                 {group !== 'Ficha Técnica' && Object.keys(groupedItems).length > 1 && (
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center border border-emerald-100">
@@ -741,7 +748,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           });
 
           // 2. Ordena os itens dentro de cada grupo conforme o template do formulário
-          const normalizeForSort = (s: string) => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+          const normalizeForSort = (s: string) => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[\d\s.]*/, '').replace(/[^a-z0-9]/g, '');
 
           Object.keys(grps).forEach(gName => {
             const currentFormId = order.formId;
@@ -752,22 +759,29 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                return gName.toLowerCase().includes(eN) || eN.includes(gName.toLowerCase());
             });
             const specificOrder = eqMatch?.form_id ? (formTemplates[eqMatch.form_id] || []) : [];
-            const combinedOrder = [...templateOrder, ...specificOrder];
+            const combinedOrder = Array.from(new Set([...templateOrder, ...specificOrder]));
 
             if (combinedOrder.length > 0) {
               const normalizedOrder = combinedOrder.map(normalizeForSort);
+              
+              // Garante estabilidade usando índice original
+              grps[gName].forEach((item: any, idx: number) => item.originalIdx = idx);
               
               grps[gName].sort((a, b) => {
                 const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
                 const cleanB = normalizeForSort(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
                 
-                let idxA = normalizedOrder.findIndex(label => cleanA === label || cleanA.includes(label) || label.includes(cleanA));
-                let idxB = normalizedOrder.findIndex(label => cleanB === label || cleanB.includes(label) || label.includes(cleanB));
+                let idxA = normalizedOrder.indexOf(cleanA);
+                let idxB = normalizedOrder.indexOf(cleanB);
                 
-                if (idxA === -1) idxA = 999;
-                if (idxB === -1) idxB = 999;
+                if (idxA === -1) idxA = normalizedOrder.findIndex(label => cleanA === label || cleanA.startsWith(label));
+                if (idxB === -1) idxB = normalizedOrder.findIndex(label => cleanB === label || cleanB.startsWith(label));
                 
-                return idxA - idxB;
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                
+                return (a.originalIdx || 0) - (b.originalIdx || 0);
               });
             }
           });
@@ -1355,25 +1369,25 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                    const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
                    const cleanB = normalizeForSort(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
                    
-                   // 1. Tenta encontrar índice exato (após normalização básica)
+                   // 🏃‍♂️ Nexus Engine: Prioridade para match exato
                    let idxA = normalizedOrder.indexOf(cleanA);
                    let idxB = normalizedOrder.indexOf(cleanB);
                    
-                   // 2. Fallback prefixado (apenas se necessário)
+                   // Fallback para similaridade controlada
                    if (idxA === -1) idxA = normalizedOrder.findIndex(label => cleanA === label || cleanA.startsWith(label));
                    if (idxB === -1) idxB = normalizedOrder.findIndex(label => cleanB === label || cleanB.startsWith(label));
                    
-                   // Lógica de desempate e itens extra-template
+                   // Decisão de posicionamento
                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
                    if (idxA !== -1) return -1;
                    if (idxB !== -1) return 1;
                    
-                   // Se nenhum está no template, mantém a sequência original em que foram criados/salvos
+                   // Nexus Stability: Mantém a ordem de criação/gravação para campos extras
                    return a.originalIdx - b.originalIdx;
                  });
                }
                
-               // Reconstrói o groupData ordenadamente
+               // Reconstrói o groupData garantindo interatividade no mobile
                const orderedEntries = entries.map(e => [e.key, e.val]);
                return { groupName, groupData: Object.fromEntries(orderedEntries) };
             });
