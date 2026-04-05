@@ -172,55 +172,55 @@ const CollapsibleFormSection: React.FC<{
               const items = groupedItems[group];
               return (
                 <div key={group} className="space-y-4">
-                {group !== 'Ficha Técnica' && Object.keys(groupedItems).length > 1 && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center border border-emerald-100">
-                      <CheckCircle2 size={12} className="text-emerald-600" />
-                    </div>
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
-                  </div>
-                )}
-                <div className="grid gap-4">
-                  {items.map(({ key, cleanKey, text, photos }) => (
-                    <div key={key} className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-                      {/* Pergunta + Resposta */}
-                      <div className="px-4 pt-4 pb-3">
-                        <div className="bg-slate-200/40 rounded px-2.5 py-1.5 mb-2.5 border border-slate-200/50 inline-block">
-                          <p className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                            {!isNaN(Number(cleanKey)) ? `Pergunta nº ${cleanKey}` : cleanKey}
-                          </p>
-                        </div>
-                        {text !== null && (
-                          <p className={`text-sm font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
-                            ? 'text-emerald-600'
-                            : 'text-slate-800'
-                            }`}>
-                            {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
-                            {text}
-                          </p>
-                        )}
-                        {text === null && photos.length > 0 && (
-                          <p className="text-xs font-bold text-slate-400 italic">Evidência fotográfica</p>
-                        )}
+                  {group !== 'Ficha Técnica' && Object.keys(groupedItems).length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                        <CheckCircle2 size={12} className="text-emerald-600" />
                       </div>
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
+                    </div>
+                  )}
+                  <div className="grid gap-4">
+                    {items.map(({ key, cleanKey, text, photos }) => (
+                      <div key={key} className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+                        {/* Pergunta + Resposta */}
+                        <div className="px-4 pt-4 pb-3">
+                          <div className="bg-slate-200/40 rounded px-2.5 py-1.5 mb-2.5 border border-slate-200/50 inline-block">
+                            <p className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                              {!isNaN(Number(cleanKey)) ? `Pergunta nº ${cleanKey}` : cleanKey}
+                            </p>
+                          </div>
+                          {text !== null && (
+                            <p className={`text-sm font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
+                              ? 'text-emerald-600'
+                              : 'text-slate-800'
+                              }`}>
+                              {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
+                              {text}
+                            </p>
+                          )}
+                          {text === null && photos.length > 0 && (
+                            <p className="text-xs font-bold text-slate-400 italic">Evidência fotográfica</p>
+                          )}
+                        </div>
 
-                      {/* Fotos da mesma pergunta */}
-                      {photos.length > 0 && (
-                        <div className="flex flex-wrap gap-3 px-3 pb-3 mt-2">
-                          {photos.map((url, i) => (
-                            <div
-                              key={i}
-                              className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
-                              onClick={() => onImageClick(url)}
-                            >
-                              {isVideoUrl(url) ? (
-                                <div className="w-full h-full relative flex items-center justify-center bg-black">
-                                  <video src={url} className="w-full h-full object-cover opacity-60" />
-                                  <div className="absolute inset-0 flex items-center justify-center shadow-inner">
-                                    <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
-                                      <Play size={14} className="text-white fill-white ml-0.5" />
+                        {/* Fotos da mesma pergunta */}
+                        {photos.length > 0 && (
+                          <div className="flex flex-wrap gap-3 px-3 pb-3 mt-2">
+                            {photos.map((url, i) => (
+                              <div
+                                key={i}
+                                className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
+                                onClick={() => onImageClick(url)}
+                              >
+                                {isVideoUrl(url) ? (
+                                  <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                    <video src={url} className="w-full h-full object-cover opacity-60" />
+                                    <div className="absolute inset-0 flex items-center justify-center shadow-inner">
+                                      <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
+                                        <Play size={14} className="text-white fill-white ml-0.5" />
+                                      </div>
                                     </div>
-                                  </div>
                                 </div>
                               ) : (
                                 <img
@@ -237,8 +237,9 @@ const CollapsibleFormSection: React.FC<{
                   ))}
                 </div>
               </div>
-            ));
-          })()}
+            );
+          });
+        })()}
 
           {/* ── PEÇAS VINCULADAS AO EQUIPAMENTO ── */}
           {parts && parts.length > 0 && (
