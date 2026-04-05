@@ -30,6 +30,7 @@ interface PublicOrderViewProps {
   order: ServiceOrder | null;
   techs: User[];
   isPrint?: boolean;
+  tenantProp?: any;
 }
 
 const isVideoUrl = (url: string | null) => {
@@ -235,8 +236,8 @@ const CollapsibleFormSection: React.FC<{
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, isPrint = false }) => {
-  const [tenant, setTenant] = React.useState<any>(null);
+export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, isPrint = false, tenantProp }) => {
+  const [tenant, setTenant] = React.useState<any>(tenantProp || null);
   const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
   const [linkedEquipments, setLinkedEquipments] = React.useState<any[]>([]);
   // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)
@@ -244,6 +245,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   React.useEffect(() => {
     const fetchTenantData = async () => {
+      if (tenantProp) {
+        setTenant(tenantProp);
+        return;
+      }
       if (order) {
         try {
           const tenantId = (order as any).tenant_id || order?.tenantId;
@@ -255,7 +260,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       }
     };
     fetchTenantData();
-  }, [order?.id]);
+  }, [order?.id, tenantProp]);
 
   // Carrega todos os equipamentos vinculados via RPC (bypassa RLS)
   React.useEffect(() => {
@@ -786,8 +791,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   </div>
                 )
               }
-              <div className="min-w-0 flex-1">
-                <h1 className="text-sm font-bold text-slate-900 uppercase tracking-tight sm:truncate leading-none mb-1.5">{companyName}</h1>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-tight sm:truncate leading-none mb-1">{companyName}</h1>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   {companyDoc && (
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-1">
@@ -821,10 +826,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 window.print();
                 document.title = originalTitle;
               }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
+              className="flex items-center justify-center h-10 w-10 sm:w-auto sm:px-4 sm:py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#2a457a] transition-all shadow-md active:scale-95 shrink-0"
             >
-              <Printer size={14} />
-              <span className="hidden sm:inline">Imprimir PDF</span>
+              <Printer size={16} />
+              <span className="hidden sm:inline ml-2">Imprimir PDF</span>
             </button>
           </div>
         </header>

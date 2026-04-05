@@ -21,6 +21,7 @@ try {
 
 interface PublicQuoteViewProps {
     id: string;
+    tenantProp?: any;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,7 +48,7 @@ const InfoPill: React.FC<{ label: string; value: string; mono?: boolean }> = ({ 
     </div>
 );
 
-export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
+export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp }) => {
     const [quote, setQuote] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [isRejected, setIsRejected] = useState(false);
-    const [tenant, setTenant] = useState<any>(null);
+    const [tenant, setTenant] = useState<any>(tenantProp || null);
 
     // Form States
     const [approverName, setApproverName] = useState('');
@@ -111,14 +112,18 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id }) => {
                     setQuote(data);
                     setLoading(false); // Libera IMEDIATAMENTE a UI principal
 
-                    // 2. Fetch Assíncrono do Tenant (Background)
-                    const tenantId = data.tenant_id || data.tenantId;
-                    if (tenantId) {
-                        try {
-                            const tenantData = await DataService.getTenantById(tenantId);
-                            if (isMounted) setTenant(tenantData);
-                        } catch (tenantErr) {
-                            console.warn("Erro ao buscar dados da empresa em background", tenantErr);
+                    // 2. Fetch Assíncrono do Tenant (Background) - Somente se não veio via prop
+                    if (tenantProp) {
+                        setTenant(tenantProp);
+                    } else {
+                        const tenantId = data.tenant_id || data.tenantId;
+                        if (tenantId) {
+                            try {
+                                const tenantData = await DataService.getTenantById(tenantId);
+                                if (isMounted) setTenant(tenantData);
+                            } catch (tenantErr) {
+                                console.warn("Erro ao buscar dados da empresa em background", tenantErr);
+                            }
                         }
                     }
                 } else {

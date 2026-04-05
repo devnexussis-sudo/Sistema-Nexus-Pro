@@ -14,6 +14,7 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
     const [fetchedPublicOrder, setFetchedPublicOrder] = useState<ServiceOrder | null>(null);
     const [isFetchingPublicOrder, setIsFetchingPublicOrder] = useState(false);
     const [techs, setTechs] = useState<User[]>([]);
+    const [tenant, setTenant] = useState<any>(null);
 
     useEffect(() => {
         if (publicOrderId) {
@@ -30,12 +31,21 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
                         setIsFetchingPublicOrder(false); // Libera o "loading" giratório IMEDIATAMENTE após pegar a OS
                     }
 
-                    // 2. Fetch secundário de Técnicos que não bloqueia a UI
+                    // 2. Fetch secundário de Técnicos e Empresa que não bloqueia a UI primária
                     if (order && order.tenantId && isMounted) {
                         try {
-                            const t = await DataService.getPublicTechnicians(order.tenantId);
-                            if (isMounted) setTechs(t);
-                        } catch (e) { console.warn("Erro ao buscar técnicos secundários", e); }
+                            const [t, tenantData] = await Promise.all([
+                                DataService.getPublicTechnicians(order.tenantId),
+                                DataService.getTenantById(order.tenantId)
+                            ]);
+                            if (isMounted) {
+                                setTechs(t);
+                                setTenant(tenantData);
+                                console.log('🏢 [PublicApp] Tenant Loaded:', tenantData?.name);
+                            }
+                        } catch (e) { 
+                            console.warn("Erro ao buscar dados secundários", e); 
+                        }
                     }
                 } catch (e) {
                     console.error(e);
@@ -46,8 +56,24 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
         }
     }, [publicOrderId]);
 
+    useEffect(() => {
+        if (publicQuoteId) {
+            let isMounted = true;
+            (async () => {
+                try {
+                    const data = await DataService.getPublicQuoteById(publicQuoteId);
+                    if (data && data.tenantId && isMounted) {
+                        const tenantData = await DataService.getTenantById(data.tenantId);
+                        if (isMounted) setTenant(tenantData);
+                    }
+                } catch (e) { console.warn("Error fetching quote tenant", e); }
+            })();
+            return () => { isMounted = false; };
+        }
+    }, [publicQuoteId]);
+
     if (publicQuoteId) {
-        return <PublicQuoteView id={publicQuoteId} />;
+        return <PublicQuoteView id={publicQuoteId} tenantProp={tenant} />;
     }
 
     if (publicOrderId) {
@@ -69,7 +95,7 @@ export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuote
                 </div>
             );
         }
-        return <PublicOrderView order={fetchedPublicOrder} techs={techs} />;
+        return <PublicOrderView order={fetchedPublicOrder} techs={techs} tenantProp={tenant} />;
     }
 
     return null;
