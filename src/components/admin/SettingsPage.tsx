@@ -9,7 +9,7 @@ import {
   ShieldCheck, Briefcase, Hash, CreditCard, Settings,
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
   ShieldAlert, Terminal, X, UploadCloud, Languages,
-  BellRing, Database, History, HardDrive, Loader2, Loader, Share2
+  BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle
 } from 'lucide-react';
 
 interface CompanyData {
@@ -44,6 +44,7 @@ interface SystemParams {
   showItemPricesInApp: boolean;
   showItemPricesInPublicView: boolean;
   allowOsSharing: boolean;
+  allowMultipleInProgress: boolean;
 }
 
 export const SettingsPage: React.FC = () => {
@@ -86,6 +87,7 @@ export const SettingsPage: React.FC = () => {
     showItemPricesInApp: false,
     showItemPricesInPublicView: true,
     allowOsSharing: true,
+    allowMultipleInProgress: false,
   });
 
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
@@ -127,6 +129,7 @@ export const SettingsPage: React.FC = () => {
         showItemPricesInApp: data.metadata?.showItemPricesInApp ?? false,
         showItemPricesInPublicView: data.metadata?.showItemPricesInPublicView ?? true,
         allowOsSharing: data.metadata?.allowOsSharing ?? true,
+        allowMultipleInProgress: data.metadata?.allowMultipleInProgress ?? false,
       }));
 
       setDbInfo({ slug: data.slug || '', id: data.id });
@@ -262,6 +265,7 @@ export const SettingsPage: React.FC = () => {
           showItemPricesInPublicView: params.showItemPricesInPublicView,
           techAdvancedSettings: params.techAdvancedSettings,
           allowOsSharing: params.allowOsSharing,
+          allowMultipleInProgress: params.allowMultipleInProgress,
         }
       };
 
@@ -823,6 +827,27 @@ export const SettingsPage: React.FC = () => {
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
                           Se desativado, os valores financeiros de peças e serviços NÃO aparecerão no link público nem na impressão.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.allowMultipleInProgress ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <PlayCircle size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">OS Simultâneas</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, allowMultipleInProgress: !params.allowMultipleInProgress })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.allowMultipleInProgress ? 'bg-amber-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.allowMultipleInProgress ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Se ativado, o técnico poderá iniciar uma nova OS sem finalizar outra que esteja em andamento. Se desativado, será obrigatório concluir a OS atual antes de iniciar outra.
                         </p>
                       </div>
                     </div>

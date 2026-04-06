@@ -96,8 +96,10 @@ const CollapsibleFormSection: React.FC<{
     typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('data:video') || v.startsWith('http'));
 
   // Monta lista de itens do formulário: cada item pode ter texto e/ou fotos
-  // Preserva a ORDEM original das perguntas
-  const formItems = Object.entries(formData)
+  // Preserva a ORDEM original das perguntas via template (se disponível)
+  const templateFields = (order as any).templateFields as string[] || [];
+  
+  let formItems = Object.entries(formData)
     .filter(([key]) => !SYSTEM_KEYS.has(key) && !isSignatureKey(key))
     .map(([key, val]) => {
       let text: string | null = null;
@@ -117,6 +119,29 @@ const CollapsibleFormSection: React.FC<{
       return { key, text, photos };
     })
     .filter(({ text, photos }) => text !== null || photos.length > 0);
+
+  // 🎯 ORDENAÇÃO CIRÚRGICA: Usa o templateFields se disponível
+  if (templateFields.length > 0) {
+    const normalize = (s: string) => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[\d\s.]*/, '').replace(/[^a-z0-9]/g, '');
+    const normalizedTemplate = templateFields.map(normalize);
+    
+    formItems.sort((a, b) => {
+      const cleanA = normalize(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
+      const cleanB = normalize(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
+      
+      let idxA = normalizedTemplate.indexOf(cleanA);
+      let idxB = normalizedTemplate.indexOf(cleanB);
+      
+      // Fallback para "starts with" caso o label tenha mudado levemente
+      if (idxA === -1) idxA = normalizedTemplate.findIndex(t => cleanA.startsWith(t) || t.startsWith(cleanA));
+      if (idxB === -1) idxB = normalizedTemplate.findIndex(t => cleanB.startsWith(t) || t.startsWith(cleanB));
+      
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return 0;
+    });
+  }
 
   if (formItems.length === 0) return null;
 
@@ -1421,11 +1446,14 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                            (itEqName && (itEqName === eName || eName.includes(itEqName)));
                   });
 
+                  const currentFormId = eq?.form_id || order.formId;
+                  const tplFields = currentFormId ? (formTemplates[currentFormId] || []) : [];
+
                   return (
                     <CollapsibleFormSection
                       key={groupName}
                       formData={groupData}
-                      order={order}
+                      order={{ ...order, templateFields: tplFields } as any}
                       onImageClick={setFullscreenImage}
                       title={title}
                       icon={<Box size={16} />}
