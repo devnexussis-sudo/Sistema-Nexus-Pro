@@ -5,6 +5,7 @@ import { supabase } from './supabase';
 
 export interface TenantSettings {
     showStockPrice: boolean;
+    allowMultipleInProgress: boolean;
 }
 
 export class TenantService {
@@ -19,7 +20,7 @@ export class TenantService {
             const userId = authService.getCurrentUserId();
             if (!userId) {
                 console.log('[TenantService] No userId found, returning default settings');
-                return { showStockPrice: false };
+                return { showStockPrice: false, allowMultipleInProgress: false };
             }
 
             if (!forceRefresh && this.settingsCache[userId]) {
@@ -37,7 +38,7 @@ export class TenantService {
 
             if (userError || !userData?.tenant_id) {
                 console.warn('[TenantService] Error or no tenant_id for user:', userError?.message);
-                return { showStockPrice: false };
+                return { showStockPrice: false, allowMultipleInProgress: false };
             }
 
             const tenantId = userData.tenant_id;
@@ -59,11 +60,12 @@ export class TenantService {
             console.log('[TenantService] 📦 Dados do tenant recebidos:', JSON.stringify(tenantData));
 
             // Mapeamento flexível de colunas - Priorizando o que o painel salva (metadata.showItemPricesInApp)
-            const settings = {
+            const settings: TenantSettings = {
                 showStockPrice: tenantData?.metadata?.showItemPricesInApp ??
                     tenantData?.show_stock_price ??
                     tenantData?.settings?.show_stock_price ??
-                    false
+                    false,
+                allowMultipleInProgress: tenantData?.metadata?.allowMultipleInProgress ?? false,
             };
 
             console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}`);
@@ -73,7 +75,7 @@ export class TenantService {
         } catch (error) {
             console.error('[TenantService] 💥 Exceção:', error);
             logger.log(`TenantService exception: ${error}`, 'error');
-            return { showStockPrice: false };
+            return { showStockPrice: false, allowMultipleInProgress: false };
         }
     }
 

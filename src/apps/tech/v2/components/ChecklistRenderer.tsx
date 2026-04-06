@@ -89,52 +89,84 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
                             </div>
                         )}
 
-                        {/* FOTO - Integrado diretamente no checklist */}
+                        {/* FOTO - Integrado diretamente no checklist (Suporte a MÚLTIPLAS FOTOS - 7 Max) */}
                         {field.type === FormFieldType.PHOTO && (
-                            <div>
-                                {answers[field.id] ? (
-                                    <div className="relative aspect-video rounded-lg overflow-hidden border border-primary-500/30 group">
-                                        <img src={answers[field.id]} alt="Evidência" className="w-full h-full object-cover" />
-                                        {!readOnly && (
-                                            <button
-                                                onClick={() => onAnswerChange(field.id, null)}
-                                                className="absolute top-2 right-2 bg-rose-500/90 p-2 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                        )}
-                                        <div className="absolute bottom-2 left-2 bg-primary-500/90 px-3 py-1.5 rounded-lg text-[9px] text-white font-black uppercase tracking-widest flex items-center gap-2">
-                                            <Check size={12} /> Foto Salva
-                                        </div>
-                                    </div>
-                                ) : !readOnly ? (
-                                    <label className="flex flex-col items-center justify-center aspect-video rounded-lg border-2 border-dashed border-slate-200 bg-white active:bg-slate-100 transition-all cursor-pointer">
-                                        {uploading[field.id] ? (
-                                            <div className="animate-spin w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full" />
-                                        ) : (
-                                            <>
-                                                <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 mb-2 border border-slate-100">
-                                                    <Camera size={24} />
+                            <div className="space-y-3">
+                                {(() => {
+                                    const rawVal = answers[field.id];
+                                    const photos = Array.isArray(rawVal) ? rawVal : (rawVal ? [rawVal] : []);
+                                    
+                                    return (
+                                        <>
+                                            {photos.length > 0 && (
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {photos.map((url, idx) => (
+                                                        <div key={idx} className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 shadow-sm group bg-white">
+                                                            <img src={url} alt={`Evidência ${idx + 1}`} className="w-full h-full object-cover" />
+                                                            {!readOnly && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const newPhotos = photos.filter((_, i) => i !== idx);
+                                                                        onAnswerChange(field.id, newPhotos);
+                                                                    }}
+                                                                    className="absolute top-1.5 right-1.5 bg-rose-500/90 p-1.5 rounded-full text-white shadow-lg active:scale-90 transition-all"
+                                                                >
+                                                                    <X size={12} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Tirar ou Anexar Foto</span>
-                                            </>
-                                        )}
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            capture="environment"
-                                            className="hidden"
-                                            disabled={readOnly}
-                                            onChange={(e) => {
-                                                if (e.target.files?.[0]) handlePhotoUpload(field.id, e.target.files[0]);
-                                            }}
-                                        />
-                                    </label>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center aspect-video rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
-                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sem foto anexada</span>
-                                    </div>
-                                )}
+                                            )}
+                                            
+                                            {!readOnly && photos.length < 7 && (
+                                                <label className="flex flex-col items-center justify-center h-24 rounded-lg border-2 border-dashed border-primary-100 bg-primary-50/30 active:bg-primary-50 transition-all cursor-pointer">
+                                                    {uploading[field.id] ? (
+                                                        <div className="animate-spin w-6 h-6 border-4 border-primary-500 border-t-transparent rounded-full" />
+                                                    ) : (
+                                                        <>
+                                                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-primary-500 mb-1.5 border border-primary-100 shadow-sm">
+                                                                <Camera size={20} />
+                                                            </div>
+                                                            <span className="text-[10px] font-black uppercase text-primary-600 tracking-widest">
+                                                                {photos.length === 0 ? "Anexar Foto" : `Adicionar Mais (${photos.length}/7)`}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        capture="environment"
+                                                        className="hidden"
+                                                        disabled={readOnly}
+                                                        onChange={async (e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (!file) return;
+                                                            
+                                                            setUploading(prev => ({ ...prev, [field.id]: true }));
+                                                            try {
+                                                                const blob = await DataService.processAndCompress(file);
+                                                                const url = await DataService.uploadBlob(blob, `checklist_photos/${Date.now()}_${field.id}`);
+                                                                const newPhotos = [...photos, url];
+                                                                onAnswerChange(field.id, newPhotos);
+                                                            } catch (err) {
+                                                                alert("Erro no upload.");
+                                                            } finally {
+                                                                setUploading(prev => ({ ...prev, [field.id]: false }));
+                                                            }
+                                                        }}
+                                                    />
+                                                </label>
+                                            )}
+                                            
+                                            {readOnly && photos.length === 0 && (
+                                                <div className="flex items-center justify-center h-20 rounded-lg border border-slate-100 bg-slate-50">
+                                                    <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Sem fotos anexadas</span>
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         )}
                     </div>

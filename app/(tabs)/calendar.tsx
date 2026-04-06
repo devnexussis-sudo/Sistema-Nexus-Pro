@@ -1,7 +1,7 @@
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { STATUS_CONFIG } from '@/constants/mock-data';
+import { OrderStatus, STATUS_CONFIG } from '@/constants/mock-data';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -152,7 +152,13 @@ export default function CalendarScreen() {
               onPress={() => router.push(`/os/${item.id}`)}
             >
               <View style={styles.timeIndicator}>
-                <Text style={styles.timeText}>{item.scheduledTime?.substring(0, 5) || '12:00'}</Text>
+                <Ionicons name="time-outline" size={16} color="#6366f1" style={{ marginBottom: 2 }} />
+                <Text style={styles.timeText}>{item.scheduledTime?.substring(0, 5) || '--:--'}</Text>
+                <Text style={styles.timeDateText}>
+                  {item.scheduledDate
+                    ? new Date(item.scheduledDate + 'T00:00:00').toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit' })
+                    : ''}
+                </Text>
               </View>
 
               <View style={styles.cardContent}>
@@ -225,7 +231,13 @@ const styles = StyleSheet.create({
   timeText: {
     fontWeight: 'bold',
     color: '#1c2d4f',
-    fontSize: 14,
+    fontSize: 15,
+  },
+  timeDateText: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '600',
+    marginTop: 2,
   },
   cardContent: {
     flex: 1,

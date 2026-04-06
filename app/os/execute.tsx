@@ -9,7 +9,7 @@ import { TenantService } from '@/services/tenant-service';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as VideoThumbnails from 'expo-video-thumbnails';
@@ -65,11 +65,14 @@ export default function ExecuteOSScreen() {
     const [videoProcessingStatus, setVideoProcessingStatus] = useState<string | null>(null); // null=idle, string=msg
     const [videoSizeMB, setVideoSizeMB] = useState<number | null>(null);
     const [myStock, setMyStock] = useState<TechStockItem[]>([]);
+    const [isVideoSourceModalVisible, setIsVideoSourceModalVisible] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [viewerVisible, setViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [isUploadingPhoto, setIsUploadingPhoto] = useState<string | null>(null);
     const [isPartsVisible, setIsPartsVisible] = useState(false);
+    const [isPhotoSourceModalVisible, setIsPhotoSourceModalVisible] = useState(false);
+    const [photoSourceTarget, setPhotoSourceTarget] = useState<{ type: 'extra' | 'field', eqKey?: string, fieldId?: string } | null>(null);
     const signatureRef = useRef<any>(null);
     const scrollViewRef = useRef<ScrollView>(null);
 
@@ -430,16 +433,9 @@ export default function ExecuteOSScreen() {
         }
     };
 
-    const handleTakeExtraPhoto = async () => {
-        Alert.alert(
-            'Adicionar Anexo',
-            'Escolha a origem da imagem:',
-            [
-                { text: 'Câmera', onPress: () => processPhotoChoice('camera', uploadExtraPhoto) },
-                { text: 'Galeria', onPress: () => processPhotoChoice('library', uploadExtraPhoto) },
-                { text: 'Cancelar', style: 'cancel' }
-            ]
-        );
+    const handleTakeExtraPhoto = () => {
+        setPhotoSourceTarget({ type: 'extra' });
+        setIsPhotoSourceModalVisible(true);
     };
 
     const uploadExtraPhoto = async (uri: string) => {
@@ -499,10 +495,13 @@ export default function ExecuteOSScreen() {
                 allowsEditing: false,
             });
             if (!result.canceled && result.assets?.[0]?.uri) {
+                setIsVideoSourceModalVisible(false);
                 startBackstageVideoProcess(result.assets[0].uri);
             }
         } catch {
             Alert.alert('Erro', 'Não foi possível acessar a galeria.');
+        } finally {
+            setIsVideoSourceModalVisible(false);
         }
     };
 
@@ -534,25 +533,35 @@ export default function ExecuteOSScreen() {
 
             // A partir daqui, o card de vídeo já aparece na tela!
             // Começa o processamento pesado:
-            setVideoProcessingStatus('Comprimindo (H265) Mágica Backstage...');
+            setVideoProcessingStatus('Carregando...');
 
             // ─── Ponto B: Compressão Cross-Platform (iOS e Android) ─────────────
-            setVideoProcessingStatus('Otimizando (H264/432x768/Mono)...');
+            setVideoProcessingStatus('Carregando...');
             let compressedUri = localUri;
             
             try {
-                // Removemos bibliotecas nativas exclusivas para suportar perfeitamente iOS e Android
+                // Voltando ao compressor padrão (mais robusto no mobile React Native) 
                 const { Video } = require('react-native-compressor');
                 
-                // Parâmetros de Compressão Otimizada (Balanceia Resolução e Tamanho)
+                // Aplicando as especificações de Engenharia de Precisão (NASA standard):
+                // - Codec: H264 (Compatibilidade Universal)
+                // - Resolução: 480p (Otimizado para mobile/relatórios)
+                // - Target Bitrate: ~320 kbps (Garante < 4MB/min com margem operacional)
                 const compressionResult = await Video.compress(
                     localUri,
                     {
-                        compressionMethod: 'auto',
+                        compressionMethod: 'manual', 
+                        maxWidth: 480,
+                        maxHeight: 854,
+                        bitrate: 384000,         // Taxa de 384kbps (aprox 2.8 MB/min, com Qualidade Aceitável)
+                        fps: 24,                 // 24fps para mais bits por frame
+                        videoCodec: 'H264',
+                        audioBitrate: 64000,     // Áudio sem distorcer
+                        outputSampleRate: 44100, // Áudio em 44.1kHz
                         minimumFileSizeForCompress: 0,
                     } as any,
                     (progress) => {
-                        setVideoProcessingStatus(`Otimizando... ${Math.round(progress * 100)}%`);
+                        setVideoProcessingStatus(`Carregando... ${Math.round(progress * 100)}%`);
                     }
                 );
                 
@@ -560,7 +569,7 @@ export default function ExecuteOSScreen() {
                     compressedUri = compressionResult;
                 }
             } catch (err) {
-                console.warn('[Video] Falha na compressão nativa, usando original:', err);
+                console.warn('[Video] Falha na compressão via react-native-compressor nativo:', err);
             }
 
             // Mede a redução conseguida
@@ -569,7 +578,7 @@ export default function ExecuteOSScreen() {
             setVideoSizeMB(Math.round(sizeMB * 10) / 10);
             
             // ─── Ponto C: UPLOAD BACKGROUND ─────────────────────────────────────
-            setVideoProcessingStatus('Sincronizando com nuvem...');
+            setVideoProcessingStatus('Finalizando...');
             const netInfo = await NetInfo.fetch();
             
             if (!netInfo.isConnected || syncService.isOfflineModeEnabled()) {
@@ -602,15 +611,8 @@ export default function ExecuteOSScreen() {
     };
 
     const handleTakeFieldPhoto = (eqKey: string, fieldId: string) => {
-        Alert.alert(
-            'Adicionar Foto',
-            'Escolha a origem da imagem:',
-            [
-                { text: 'Câmera', onPress: () => processPhotoChoice('camera', (uri) => uploadFieldPhoto(uri, eqKey, fieldId)) },
-                { text: 'Galeria', onPress: () => processPhotoChoice('library', (uri) => uploadFieldPhoto(uri, eqKey, fieldId)) },
-                { text: 'Cancelar', style: 'cancel' }
-            ]
-        );
+        setPhotoSourceTarget({ type: 'field', eqKey, fieldId });
+        setIsPhotoSourceModalVisible(true);
     };
 
     const uploadFieldPhoto = async (uri: string, eqKey: string, fieldId: string) => {
@@ -639,8 +641,8 @@ export default function ExecuteOSScreen() {
             setFormsConfig(prev => {
                 const newConfig = { ...prev };
                 const currentPhotos = Array.isArray(newConfig[eqKey].data[fieldId]) ? newConfig[eqKey].data[fieldId] : [];
-                if (currentPhotos.length >= 3) {
-                    Alert.alert('Limite', 'Máximo 3 fotos.');
+                if (currentPhotos.length >= 7) {
+                    Alert.alert('Limite', 'Máximo 7 fotos.');
                     return prev;
                 }
                 newConfig[eqKey].data = { ...newConfig[eqKey].data, [fieldId]: [...currentPhotos, finalUri] };
@@ -855,7 +857,7 @@ export default function ExecuteOSScreen() {
                 const photos = Array.isArray(data[field.id]) ? data[field.id] : (data[field.id] ? [data[field.id]] : []);
                 return (
                     <View key={field.id} style={styles.dynamicFieldControl}>
-                        <Text style={styles.dynamicFieldLabel}>{field.label} ({photos.length}/3)</Text>
+                        <Text style={styles.dynamicFieldLabel}>{field.label} ({photos.length}/7)</Text>
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 }}>
                             {photos.map((photoUri: string, index: number) => (
                                 <Pressable key={index} style={{ position: 'relative', width: 100, height: 100, borderRadius: 8, overflow: 'hidden' }}
@@ -870,7 +872,7 @@ export default function ExecuteOSScreen() {
                                     </Pressable>
                                 </Pressable>
                             ))}
-                            {photos.length < 3 && (
+                            {photos.length < 7 && (
                                 <Pressable style={[styles.photoFieldPlaceholder, { width: 100, height: 100, margin: 0 }]}
                                     onPress={() => handleTakeFieldPhoto(eqKey, field.id)} disabled={isUploadingPhoto === `${eqKey}_${field.id}`}>
                                     {isUploadingPhoto === `${eqKey}_${field.id}` ? <Text style={{ fontSize: 10, color: '#666' }}>Enviando...</Text> : <><Ionicons name="camera" size={24} color="#666" /><Text style={{ fontSize: 10, color: '#666', fontWeight: 'bold' }}>Adicionar</Text></>}
@@ -1044,10 +1046,9 @@ export default function ExecuteOSScreen() {
                                 <View style={styles.cardContent}>
                                     {videoUri ? (
                                         <Pressable
-                                            style={styles.videoPreviewCard}
-                                            disabled={isUploadingVideo}
+                                            style={styles.attachedVideoCard}
                                             onPress={() => {
-                                                const playUri = videoUri.startsWith('http')
+                                                const playUri = videoUri.startsWith('http') 
                                                     ? videoUri : (videoUri.startsWith('/') ? `file://${videoUri}` : videoUri);
                                                 Linking.openURL(playUri).catch(() => Alert.alert('Erro', 'Não foi possível reproduzir o vídeo.'));
                                             }}
@@ -1079,17 +1080,7 @@ export default function ExecuteOSScreen() {
                                             </View>
                                         </Pressable>
                                     ) : (
-                                        <Pressable style={styles.videoRecordButton} onPress={() => {
-                                            Alert.alert(
-                                                'Anexar Vídeo',
-                                                'Escolha a origem do vídeo:',
-                                                [
-                                                  { text: 'Gravar Vídeo', onPress: handleTakeVideo },
-                                                  { text: 'Da Galeria', onPress: handlePickVideoFromGallery },
-                                                  { text: 'Cancelar', style: 'cancel' }
-                                                ]
-                                            );
-                                        }}>
+                                        <Pressable style={styles.videoRecordButton} onPress={() => setIsVideoSourceModalVisible(true)}>
                                             <Ionicons name="videocam" size={24} color="#059669" />
                                             <View style={{ flex: 1, marginLeft: 12 }}>
                                                 <Text style={styles.videoRecordTitle}>Anexar Vídeo</Text>
@@ -1099,6 +1090,7 @@ export default function ExecuteOSScreen() {
                                     )}
                                 </View>
                             </View>
+
 
                             {/* EXTRA PHOTOS */}
                             <View style={{ marginTop: 20 }}>
@@ -1428,6 +1420,113 @@ export default function ExecuteOSScreen() {
                     </View>
                 </View>
             </Modal>
+            
+            {/* MODAL: SELEÇÃO DE ORIGEM DO VÍDEO (THEMED) */}
+            <Modal
+                visible={isVideoSourceModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setIsVideoSourceModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.bottomSheet}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Anexar Vídeo</Text>
+                            <Pressable onPress={() => setIsVideoSourceModalVisible(false)}>
+                                <Ionicons name="close" size={24} color="#666" />
+                            </Pressable>
+                        </View>
+                        
+                        <View style={{ padding: 20, gap: 12 }}>
+                            <Pressable 
+                                style={[styles.themedChoiceBtn, { backgroundColor: '#1c2d4f' }]} 
+                                onPress={() => {
+                                    setIsVideoSourceModalVisible(false);
+                                    handleTakeVideo();
+                                }}
+                            >
+                                <Ionicons name="camera" size={20} color="#fff" />
+                                <Text style={styles.themedChoiceText}>Gravar Vídeo Agora</Text>
+                            </Pressable>
+                            
+                            <Pressable 
+                                style={[styles.themedChoiceBtn, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1' }]} 
+                                onPress={handlePickVideoFromGallery}
+                            >
+                                <Ionicons name="images" size={20} color="#1c2d4f" />
+                                <Text style={[styles.themedChoiceText, { color: '#1c2d4f' }]}>Escolher da Galeria</Text>
+                            </Pressable>
+                            
+                            <Pressable 
+                                style={{ marginTop: 8, padding: 12, alignItems: 'center' }} 
+                                onPress={() => setIsVideoSourceModalVisible(false)}
+                            >
+                                <Text style={{ color: '#64748b', fontWeight: '600' }}>Cancelar</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* MODAL: SELEÇÃO DE ORIGEM DA FOTO (THEMED) */}
+            <Modal
+                visible={isPhotoSourceModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setIsPhotoSourceModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.bottomSheet}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Anexar Imagem</Text>
+                            <Pressable onPress={() => setIsPhotoSourceModalVisible(false)}>
+                                <Ionicons name="close" size={24} color="#666" />
+                            </Pressable>
+                        </View>
+                        
+                        <View style={{ padding: 20, gap: 12 }}>
+                            <Pressable 
+                                style={[styles.themedChoiceBtn, { backgroundColor: '#1c2d4f' }]} 
+                                onPress={() => {
+                                    setIsPhotoSourceModalVisible(false);
+                                    if (!photoSourceTarget) return;
+                                    const callback = photoSourceTarget.type === 'extra' 
+                                        ? uploadExtraPhoto 
+                                        : (uri: string) => uploadFieldPhoto(uri, photoSourceTarget.eqKey!, photoSourceTarget.fieldId!);
+                                    
+                                    processPhotoChoice('camera', callback);
+                                }}
+                            >
+                                <Ionicons name="camera" size={20} color="#fff" />
+                                <Text style={styles.themedChoiceText}>Tirar Foto Agora</Text>
+                            </Pressable>
+                            
+                            <Pressable 
+                                style={[styles.themedChoiceBtn, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1' }]} 
+                                onPress={() => {
+                                    setIsPhotoSourceModalVisible(false);
+                                    if (!photoSourceTarget) return;
+                                    const callback = photoSourceTarget.type === 'extra' 
+                                        ? uploadExtraPhoto 
+                                        : (uri: string) => uploadFieldPhoto(uri, photoSourceTarget.eqKey!, photoSourceTarget.fieldId!);
+                                    
+                                    processPhotoChoice('library', callback);
+                                }}
+                            >
+                                <Ionicons name="images" size={20} color="#1c2d4f" />
+                                <Text style={[styles.themedChoiceText, { color: '#1c2d4f' }]}>Escolher da Galeria</Text>
+                            </Pressable>
+                            
+                            <Pressable 
+                                style={{ marginTop: 8, padding: 12, alignItems: 'center' }} 
+                                onPress={() => setIsPhotoSourceModalVisible(false)}
+                            >
+                                <Text style={{ color: '#64748b', fontWeight: '600' }}>Cancelar</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
 
         </KeyboardAvoidingView>
     );
@@ -1443,6 +1542,8 @@ const styles = StyleSheet.create({
     textArea: { minHeight: 90, textAlignVertical: 'top' },
     pickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
     optionBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: '#f8fafc' },
+    themedChoiceBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16, borderRadius: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+    themedChoiceText: { color: '#fff', fontSize: 16, fontWeight: '700' },
     optionBtnSelected: { backgroundColor: '#0f172a', borderColor: '#0f172a' },
     optionText: { color: '#475569', fontWeight: '600', fontSize: 13 },
     optionTextSelected: { color: '#ffffff', fontWeight: 'bold', fontSize: 13 },

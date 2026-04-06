@@ -1,7 +1,7 @@
 
 import { Tabs } from 'expo-router';
 import { useState } from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, useColorScheme as useDeviceColorScheme } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { HeaderRightToggle } from '@/components/header-right-toggle';
@@ -11,15 +11,23 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const deviceTheme = useDeviceColorScheme();
+  const isDarkDevice = deviceTheme === 'dark';
   const [isMenuVisible, setMenuVisible] = useState(false);
 
   return (
     <>
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: '#1c2d4f',
+          tabBarActiveTintColor: isDarkDevice ? '#ffffff' : '#1c2d4f',
+          tabBarInactiveTintColor: isDarkDevice ? '#cbd5e1' : '#94a3b8',
           headerShown: true,
           tabBarButton: HapticTab,
+          tabBarStyle: {
+            backgroundColor: isDarkDevice ? '#1e293b' : '#ffffff',
+            borderTopColor: isDarkDevice ? '#334155' : '#e5e7eb',
+            borderTopWidth: 1,
+          },
           headerStyle: {
             backgroundColor: '#1c2d4f',
           },

@@ -2,7 +2,7 @@
 import { OrderStatus, ServiceOrder } from '@/constants/mock-data';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decode } from 'base64-arraybuffer';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { authService } from './auth-service';
 import { CacheService } from './cache-service';
 import { logger } from './logger';

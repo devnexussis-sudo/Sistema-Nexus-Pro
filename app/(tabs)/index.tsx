@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, Linking } from 'react-native';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -37,32 +37,58 @@ const OrderCard = ({ order, onShare, onPress, allowShare }: { order: any; onShar
 
     <Text style={styles.customerName}>{order.customer}</Text>
     <View style={styles.detailRow}>
-      <Ionicons name="location-outline" size={14} color="#666" />
-      <Text style={styles.addressText}>{order.address}</Text>
+      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Ionicons name="location-outline" size={14} color="#666" />
+        <Text style={[styles.addressText, { flex: 1 }]} numberOfLines={1}>{order.address}</Text>
+      </View>
     </View>
 
-    <View style={styles.cardFooter}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-        <Ionicons name={order.status === 'completed' ? "checkmark-circle-outline" : "calendar-outline"} size={14} color={order.status === 'completed' ? '#10b981' : "#999"} />
-        <Text style={[styles.dateText, order.status === 'completed' && { color: '#059669', fontWeight: 'bold' }]}>
-          {order.status === 'completed' ? `Concluída em: ${order.date}` : order.date}
+    {/* Horário do Agendamento */}
+    {(order.scheduledDate || order.scheduledTime) && (
+      <View style={styles.scheduleRow}>
+        <Ionicons name="time-outline" size={14} color="#6366f1" />
+        <Text style={styles.scheduleText}>
+          {order.scheduledDate
+            ? new Date(order.scheduledDate + 'T00:00:00').toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+            : ''}
+          {order.scheduledTime ? ` às ${order.scheduledTime.substring(0, 5)}` : ''}
         </Text>
       </View>
+    )}
+
+    <View style={[styles.cardFooter, { flexDirection: 'row', gap: 8 }]}>
+      <Pressable 
+        style={[styles.gpsButton, { flex: 1, backgroundColor: '#eff6ff', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, borderColor: '#bfdbfe', justifyContent: 'center' }]} 
+        onPress={(e) => {
+          e.stopPropagation();
+          const query = encodeURIComponent(order.address);
+          const iosUrl = `http://maps.apple.com/?daddr=${query}`;
+          const androidUrl = `https://www.google.com/maps/dir/?api=1&destination=${query}`;
+          const url = Platform.select({ ios: iosUrl, android: androidUrl });
+          
+          if (Linking && url) {
+              Linking.openURL(url).catch(() => {
+                  Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+              });
+          }
+        }}
+      >
+        <Ionicons name="navigate-circle" size={16} color="#2563eb" />
+        <Text style={[styles.gpsButtonText, { color: '#2563eb', fontSize: 12, fontWeight: 'bold', textAlign: 'center' }]}>Abrir GPS</Text>
+      </Pressable>
 
       {allowShare && order.status === 'completed' && order.publicToken ? (
         <Pressable
-          style={styles.shareButton}
+          style={[styles.shareButton, { flex: 1, paddingVertical: 10, paddingHorizontal: 12, justifyContent: 'center' }]}
           onPress={(e) => {
             e.stopPropagation();
             onShare(order.publicToken, order.displayId || order.id);
           }}
         >
           <Ionicons name="share-social-outline" size={16} color="#10b981" />
-          <Text style={styles.shareButtonText}>Compartilhar</Text>
+          <Text style={[styles.shareButtonText, { fontSize: 12, textAlign: 'center' }]}>Compartilhar</Text>
         </Pressable>
-      ) : (
-        <Ionicons name="chevron-forward" size={20} color="#ccc" />
-      )}
+      ) : null}
     </View>
   </Pressable>
 );
@@ -355,10 +381,10 @@ export default function HomeScreen() {
           <Text style={styles.offlineBadgeText}>
             {pendingSyncCount} {pendingSyncCount === 1 ? 'OS Pendente' : 'OS Pendentes'} de Sincronização
           </Text>
-          <Pressable onPress={() => syncService.triggerSync()} style={styles.syncBtn}>
-            <Ionicons name="sync-outline" size={16} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', marginLeft: 4 }}>Sincronizar</Text>
-          </Pressable>
+          <View style={styles.syncBtn}>
+            <Ionicons name="information-circle-outline" size={16} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold', marginLeft: 4 }}>Mude para Online para enviar</Text>
+          </View>
         </View>
       )}
 
@@ -539,8 +565,10 @@ const styles = StyleSheet.create({
   offlineBadgeText: { color: '#fff', fontSize: 13, fontWeight: 'bold', flex: 1 },
   syncBtn: { backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, flexDirection: 'row', alignItems: 'center' },
   customerName: { fontSize: 14, color: '#333', fontWeight: '600', marginBottom: 4 },
-  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
   addressText: { fontSize: 12, color: '#666' },
+  scheduleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, backgroundColor: '#f5f3ff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#e9e5ff' },
+  scheduleText: { fontSize: 12, color: '#6366f1', fontWeight: '700' },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#f0f0f0', paddingTop: 12 },
   dateText: { fontSize: 12, color: '#999' },
   shareButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ecfdf5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#a7f3d0', gap: 6 },
@@ -551,4 +579,6 @@ const styles = StyleSheet.create({
   pageButton: { padding: 8, borderRadius: 8, backgroundColor: '#f0f0f0' },
   disabledButton: { opacity: 0.5 },
   pageText: { fontSize: 14, color: '#333', fontWeight: '600' },
+  gpsButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0' },
+  gpsButtonText: { fontSize: 10, fontWeight: 'bold', color: '#1c2d4f' },
 });

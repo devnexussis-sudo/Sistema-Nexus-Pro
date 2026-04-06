@@ -1,16 +1,29 @@
 {
   "build": {
     "development": {
+      "node": "18.20.4",
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "NODE_ENV": "development"
+      }
     },
     "preview": {
+      "node": "18.20.4",
       "android": {
         "buildType": "apk"
       },
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "NODE_ENV": "production"
+      }
     },
-    "production": {}
+    "production": {
+      "node": "18.20.4",
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
   },
   "submit": {
     "production": {}

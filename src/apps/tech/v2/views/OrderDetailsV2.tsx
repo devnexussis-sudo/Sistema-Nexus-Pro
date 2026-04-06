@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ServiceOrder, OrderStatus, OrderPriority, FormTemplate, VisitStatusEnum } from '../../../../types';
+import { Linking, Platform } from 'react-native';
+import { ServiceOrder, OrderStatus, OrderPriority, FormTemplate, VisitStatusEnum, FormFieldType } from '../../../../types';
 import {
     X,
     Navigation,
@@ -153,8 +154,15 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
             };
 
             const newPhotos = [];
-            for (let i = 0; i < files.length; i++) {
-                const b64 = await compressImage(files[i]);
+            const remainingSlots = 7 - impedimentPhotos.length;
+            const filesToProcess = Array.from(files).slice(0, remainingSlots);
+            
+            if (files.length > remainingSlots) {
+                alert(`Limite de 7 fotos atingido. Apenas as primeiras ${remainingSlots} novas fotos foram adicionadas.`);
+            }
+
+            for (let i = 0; i < filesToProcess.length; i++) {
+                const b64 = await compressImage(filesToProcess[i]);
                 newPhotos.push(b64);
             }
             setImpedimentPhotos(prev => [...prev, ...newPhotos]);
@@ -299,10 +307,10 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                             active: true,
                             serviceTypes: [],
                             fields: [
-                                { id: 'gl_status', type: 'SELECT', label: 'Status do Equipamento', required: true, options: ['Funcionando', 'Parado', 'Com Defeito'] },
-                                { id: 'gl_photo_1', type: 'PHOTO', label: 'Foto Inicial', required: true },
-                                { id: 'gl_desc', type: 'LONG_TEXT', label: 'Relatório Técnico', required: true },
-                                { id: 'gl_photo_2', type: 'PHOTO', label: 'Foto Final', required: false }
+                                { id: 'gl_status', type: FormFieldType.SELECT, label: 'Status do Equipamento', required: true, options: ['Funcionando', 'Parado', 'Com Defeito'] },
+                                { id: 'gl_photo_1', type: FormFieldType.PHOTO, label: 'Foto Inicial', required: true },
+                                { id: 'gl_desc', type: FormFieldType.LONG_TEXT, label: 'Relatório Técnico', required: true },
+                                { id: 'gl_photo_2', type: FormFieldType.PHOTO, label: 'Foto Final', required: false }
                             ]
                         };
                     }
@@ -437,7 +445,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                     }}
                     className="w-full h-14 bg-indigo-600 text-white rounded-lg font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-indigo-700 shadow-lg shadow-indigo-200"
                 >
-                    {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" /> : <Play size={20} fill="currentColor" />}
+                    {isLoading ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full" /> : <Play size={20} color="white" />}
                     Executar OS
                 </button>
             );
@@ -470,7 +478,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         onClick={() => setActiveSection('checklist')}
                         className="w-full h-14 bg-primary-500 text-white rounded-lg font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md shadow-primary-200"
                     >
-                        Ir para Checklist <ChevronDown className="rotate-[-90deg]" size={18} />
+                        Ir para Checklist <ChevronDown style={{ transform: 'rotate(-90deg)' }} size={18} />
                     </button>
                 );
             }
@@ -480,7 +488,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         onClick={() => setActiveSection('finish')}
                         className="w-full h-14 bg-slate-900 text-white rounded-lg font-black uppercase text-xs tracking-widest shadow-none flex items-center justify-center gap-2 active:scale-95 transition-all"
                     >
-                        Ir para Finalização <ChevronDown className="rotate-[-90deg]" size={18} />
+                        Ir para Finalização <ChevronDown style={{ transform: 'rotate(-90deg)' }} size={18} />
                     </button>
                 );
             }
@@ -573,12 +581,19 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 <div>
                                     <h1 className="text-xl font-bold text-slate-900 leading-tight mb-2">{order.customerName}</h1>
                                     <div className="flex items-start gap-2 text-slate-500">
-                                        <MapPin size={16} className="text-primary-500 shrink-0 mt-0.5" />
+                                        <MapPin size={16} style={{ color: '#4f46e5' }} />
                                         <p className="text-sm font-medium leading-snug">{order.customerAddress || 'Endereço não informado'}</p>
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => order.customerAddress && window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.customerAddress)}`, '_blank')}
+                                    onClick={() => {
+                                        if (order.customerAddress) {
+                                            const encoded = encodeURIComponent(order.customerAddress);
+                                            // Geo URL is better to trigger the device app selector
+                                            const url = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
+                                            Linking.openURL(url);
+                                        }
+                                    }}
                                     className="w-12 h-12 rounded-lg bg-primary-50 border border-primary-100 flex items-center justify-center text-primary-600 active:scale-95 transition-transform"
                                 >
                                     <Navigation size={22} />
@@ -592,7 +607,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 <div className="space-y-1">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Agendamento</span>
                                     <div className="flex items-center gap-2 text-slate-800">
-                                        <Calendar size={16} className="text-primary-500" />
+                                        <Calendar size={16} style={{ color: '#4f46e5' }} />
                                         <span className="text-sm font-bold">
                                             {new Date(order.scheduledDate || order.createdAt).toLocaleDateString()}
                                         </span>
@@ -615,7 +630,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 <div className="space-y-1">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Equipamento</span>
                                     <div className="flex items-start gap-2 text-slate-800">
-                                        <Info size={16} className="text-primary-500 shrink-0 mt-0.5" />
+                                        <Info size={16} color="#4f46e5" />
                                         <div>
                                             <p className="text-sm font-bold leading-tight">{order.equipmentName || 'Não identificado'}</p>
                                             <p className="text-xs text-slate-400 font-medium mt-0.5">S/N: {order.equipmentSerial || '---'}</p>
@@ -634,7 +649,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 {/* SECTION: Histórico / Visitas (Encapsulamento de Protocolo) */}
                                 <div className="space-y-4 pt-4 border-t border-slate-100">
                                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                                        <Clock size={16} className="text-primary-500" /> Histórico do Protocolo
+                                        <Clock size={16} color="#4f46e5" /> Histórico do Protocolo
                                     </h3>
                                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
                                         <OrderTimeline orderId={order.id} />
@@ -651,7 +666,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                             {/* Aviso de OS bloqueada (somente leitura) */}
                             {isOsLocked && (
                                 <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 flex items-start gap-3">
-                                    <Ban size={18} className="text-slate-400 shrink-0 mt-0.5" />
+                                    <Ban size={18} color="#94a3b8" />
                                     <p className="text-xs text-slate-500 font-medium">
                                         Esta OS foi concluída. O formulário está em modo somente leitura.
                                     </p>
@@ -661,7 +676,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                 <>
                                     {order.status !== OrderStatus.COMPLETED && !isOsLocked && (
                                         <div className="bg-primary-50 rounded-lg p-4 border border-primary-100 flex items-start gap-3">
-                                            <Info size={20} className="text-primary-600 mt-0.5 shrink-0" />
+                                            <Info size={20} color="#4f46e5" />
                                             <p className="text-xs text-primary-800 font-medium leading-relaxed">
                                                 Preencha todos os itens obrigatórios para finalizar o serviço.
                                             </p>
@@ -701,7 +716,17 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                     <div className="bg-white p-4 rounded-xl border border-emerald-100 text-left">
                                         <p className="text-[10px] font-black uppercase text-emerald-400 tracking-widest mb-1">Assinado por</p>
                                         <p className="text-sm font-bold text-slate-800">{order.signatureName}</p>
-                                        {/* TODO: Mostrar data de conclusão se disponível */}
+                                        <div className="w-full h-px bg-slate-100 my-2"></div>
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Finalizado em</p>
+                                        <div className="flex items-center gap-1.5 text-slate-700">
+                                            <Calendar size={12} color="#94a3b8" />
+                                            <p className="text-xs font-bold">
+                                                {(order as any).finishedAt 
+                                                    ? new Date((order as any).finishedAt).toLocaleDateString() + ' • ' + new Date((order as any).finishedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                                    : '---'
+                                                }
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
@@ -789,7 +814,7 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                         <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl space-y-5 animate-in zoom-in-95">
                             <div className="text-center space-y-2">
                                 <div className="w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-500 mb-2 border border-indigo-100">
-                                    <Play size={28} className="ml-1" fill="currentColor" />
+                                    <Play size={28} color="white" />
                                 </div>
                                 <h3 className="text-lg font-black text-slate-900 uppercase italic">Execução da OS</h3>
                                 <p className="text-xs text-slate-500 font-bold uppercase tracking-tight max-w-[200px] mx-auto">

@@ -2,8 +2,7 @@
   "expo": {
     "name": "DUNO",
     "slug": "nexus-mobile",
-    "version": "1.0.3",
-    "sdkVersion": "52.0.0",
+    "version": "1.0.4",
     "orientation": "portrait",
     "backgroundColor": "#ffffff",
     "icon": "./assets/images/app-icon-duno-v6.png",
@@ -29,7 +28,7 @@
     },
     "android": {
       "package": "com.nexus.mobile",
-      "versionCode": 5,
+      "versionCode": 6,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
@@ -41,6 +40,7 @@
         "ACCESS_BACKGROUND_LOCATION",
         "RECORD_AUDIO",
         "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
         "POST_NOTIFICATIONS",
         "MODIFY_AUDIO_SETTINGS",
         "INTERNET",
@@ -50,8 +50,7 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_LOCATION",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.INTERNET"
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -77,17 +76,39 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-      "expo-web-browser",
       "expo-av",
-      "expo-screen-orientation"
+      "expo-screen-orientation",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "packagingOptions": {
+              "pickFirst": [
+                "**/builddef.lst",
+                "**/META-INF/DEPENDENCIES",
+                "**/META-INF/LICENSE",
+                "**/META-INF/LICENSE.txt",
+                "**/META-INF/NOTICE",
+                "**/META-INF/NOTICE.txt",
+                "**/META-INF/kotlinx-coroutines-core.kotlin_module"
+              ]
+            }
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "origin": false
+      },
       "eas": {
-        "projectId": "e71b4ee7-d8b0-4d6f-8935-365f5d6274be"
+        "projectId": "7caab797-5453-4704-8029-c84d7a8153a1"
       }
     }
   }

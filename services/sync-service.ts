@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { supabase } from './supabase';
 
 const OFFLINE_ORDERS_KEY = '@nexus_offline_today_orders';
@@ -113,9 +113,8 @@ class SyncService {
         await this.saveQueue(queue);
 
         // Notify user implicitly through badge update
-
-        // Attempt immediate sync if online
-        this.triggerSync();
+        // NOTE: Sync will only happen when user toggles back to online mode
+        console.log('[Sync] Tarefa adicionada à fila offline. Será sincronizada ao voltar para modo online.');
     }
 
     async removeFromQueue(taskId: string) {
@@ -307,8 +306,10 @@ class SyncService {
     private startListening() {
         if (!this.unsubscribeNetInfo) {
             this.unsubscribeNetInfo = NetInfo.addEventListener(state => {
+                // Only monitor connection state - do NOT auto-sync
+                // Sync will only happen when user explicitly toggles offline mode off
                 if (state.isConnected && this.offlineModeEnabled) {
-                    this.triggerSync();
+                    console.log('[Sync] Conexão detectada, mas sync aguardando mudança manual para modo online.');
                 }
             });
         }

@@ -335,8 +335,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
       // Verifica limite de fotos ANTES de processar
       const currentVal = answers[fieldId];
       let currentPhotos = Array.isArray(currentVal) ? currentVal : (currentVal ? [currentVal] : []);
-      if (currentPhotos.length >= 3) {
-        alert("Limite máximo de 3 fotos atingido para este campo.");
+      if (currentPhotos.length >= 7) {
+        alert("Limite máximo de 7 fotos atingido para este campo.");
         setUploadingFields(prev => ({ ...prev, [fieldId]: false }));
         return;
       }
@@ -597,7 +597,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                         <button onClick={() => setAnswers(prev => ({ ...prev, impediment_photos: prev['impediment_photos'].filter((_: any, idx: number) => idx !== i) }))} className="absolute top-1 right-1 bg-red-500/80 text-white p-1.5 rounded-lg shadow-lg backdrop-blur-sm"><X size={12} /></button>
                       </div>
                     ))}
-                    {(!answers['impediment_photos'] || answers['impediment_photos'].length < 3) && (
+                    {(!answers['impediment_photos'] || answers['impediment_photos'].length < 7) && (
                       <button
                         onClick={() => handlePhotoUpload('impediment_photos')}
                         className="h-28 border-2 border-dashed border-red-100 rounded-xl flex flex-col items-center justify-center text-red-300 gap-2 hover:bg-red-50 transition-colors"
@@ -706,7 +706,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                               return (
                                 <div className="space-y-4">
                                   {photos.length > 0 && (
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                       {photos.map((photo: string, idx: number) => (
                                         <div key={idx} className="relative group">
                                           <img
@@ -732,8 +732,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                                         </div>
                                       ))}
 
-                                      {/* Botão de Adicionar Mais (se < 3) */}
-                                      {photos.length < 3 && localStatus !== OrderStatus.COMPLETED && (
+                                      {/* Botão de Adicionar Mais (se < 7) */}
+                                      {photos.length < 7 && localStatus !== OrderStatus.COMPLETED && (
                                         <button
                                           key={`btn-add-${field.id}`}
                                           disabled={uploadingFields[field.id]}

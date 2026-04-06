@@ -7,7 +7,7 @@ import { supabase } from '@/services/supabase';
 import { syncService } from '@/services/sync-service';
 import { Ionicons } from '@expo/vector-icons';
 import { decode } from 'base64-arraybuffer';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';

@@ -251,24 +251,33 @@ export const TechDashboardV2: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        <div className="px-4 py-3 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center">
+                                        <div className="px-3 py-2.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     if (order.customerAddress) {
-                                                        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.customerAddress)}`, '_blank');
+                                                        const encoded = encodeURIComponent(order.customerAddress);
+                                                        // Direct Google Maps search link acts as a universal deep link
+                                                        const url = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
+                                                        window.open(url, '_blank');
                                                     } else {
                                                         alert("Endereço não disponível.");
                                                     }
                                                 }}
-                                                className="text-xs font-semibold text-primary-600 flex items-center gap-1.5 hover:underline"
+                                                className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-black uppercase tracking-widest text-indigo-700 flex items-center gap-2 active:scale-95 transition-all hover:bg-indigo-100 shadow-sm"
                                             >
-                                                <MapPin size={14} />
-                                                Abrir Mapa
+                                                <MapPin size={14} fill="currentColor" />
+                                                Abrir GPS
                                             </button>
-                                            <span className="text-slate-300">
+                                            <div className="flex items-center gap-1.5 text-slate-400">
+                                                <span className="text-[10px] font-bold uppercase tracking-tight">Detalhes</span>
                                                 <ChevronRight size={16} />
-                                            </span>
+                                            </div>
+                                        </div>
+                                            <div className="flex items-center gap-1.5 text-slate-400">
+                                                <span className="text-[10px] font-bold uppercase tracking-tight">Detalhes</span>
+                                                <ChevronRight size={16} />
+                                            </div>
                                         </div>
                                     </div>
                                 ))

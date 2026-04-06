@@ -5,7 +5,9 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { STATUS_CONFIG } from '@/constants/mock-data';
 import { OrderService } from '@/services/order-service';
+import { supabase } from '@/services/supabase';
 import { syncService } from '@/services/sync-service';
+import { TenantService } from '@/services/tenant-service';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -22,6 +24,7 @@ export default function OrderDetailsScreen() {
     const [modalVisible, setModalVisible] = useState(false);
     const [impedimentReason, setImpedimentReason] = useState('');
     const [loading, setLoading] = useState(true);
+    const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
 
     // Image viewer state
     const [viewerVisible, setViewerVisible] = useState(false);
@@ -29,6 +32,10 @@ export default function OrderDetailsScreen() {
     // Block photo state
     const [impedimentPhotoUri, setImpedimentPhotoUri] = useState<string | null>(null);
     const [isUploadingBlock, setIsUploadingBlock] = useState(false);
+    // Concurrent OS control
+    const [allowMultipleInProgress, setAllowMultipleInProgress] = useState(false);
+    // Form templates for sorting and display
+    const [formTemplates, setFormTemplates] = useState<Record<string, string[]>>({});
 
     useFocusEffect(
         useCallback(() => {
@@ -36,6 +43,11 @@ export default function OrderDetailsScreen() {
 
             const fetchOrder = async () => {
                 try {
+                    // Load tenant settings for concurrent OS control
+                    TenantService.getSettings().then(settings => {
+                        if (isActive) setAllowMultipleInProgress(settings.allowMultipleInProgress);
+                    }).catch(() => {});
+
                     // MODO OFFLINE: tentar cache local primeiro
                     if (syncService.isOfflineModeEnabled()) {
                         const raw = await syncService.getOrderDetail(id as string);
@@ -73,6 +85,31 @@ export default function OrderDetailsScreen() {
         }, [id])
     );
 
+    // Fetch templates whenever order changes to ensure sorting is available
+    useFocusEffect(
+        useCallback(() => {
+            if (!order) return;
+            const ids = new Set<string>();
+            if (order.formId) ids.add(order.formId);
+            if (order.equipments) {
+                order.equipments.forEach((eq: any) => {
+                    if (eq.form_id) ids.add(eq.form_id);
+                });
+            }
+            if (ids.size === 0) return;
+
+            OrderService.getFormTemplates().then(templates => {
+                const map: Record<string, string[]> = {};
+                templates.forEach((t: any) => {
+                    if (ids.has(t.id)) {
+                        map[t.id] = (t.fields || t.schema?.fields || []).map((f: any) => f.label || f.title || '');
+                    }
+                });
+                setFormTemplates(map);
+            }).catch(err => console.error('[OS Detail] Error fetching templates:', err));
+        }, [order?.id, order?.formId, order?.equipments?.length])
+    );
+
     if (loading) {
         return (
             <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -93,99 +130,58 @@ export default function OrderDetailsScreen() {
 
     const openGPS = () => {
         const query = encodeURIComponent(order.address);
-        const url = Platform.select({
-            ios: `maps:0,0?q=${query}`,
-            android: `geo:0,0?q=${query}`,
-        });
+        const iosUrl = `http://maps.apple.com/?daddr=${query}`;
+        const androidUrl = `https://www.google.com/maps/dir/?api=1&destination=${query}`;
+        const url = Platform.select({ ios: iosUrl, android: androidUrl });
 
         if (url) {
-            Linking.openURL(url).catch((err) => console.error('Error opening map: ', err));
+            Linking.openURL(url).catch(() => {
+                Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+            });
         }
     };
 
-    const handleExecute = () => {
+    // Check if technician has another OS in progress
+    const checkConcurrentOS = async (): Promise<boolean> => {
+        if (allowMultipleInProgress) return true; // Setting allows it
+        // If this OS is already in_progress, allow continuing it
+        if (order.status === 'in_progress' || order.status === 'EM ANDAMENTO') return true;
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user?.id;
+            if (!userId) return true;
+            const { data: inProgressOrders } = await supabase
+                .from('orders')
+                .select('id, display_id')
+                .eq('assigned_to', userId)
+                .in('status', ['EM ANDAMENTO'])
+                .neq('id', id as string)
+                .limit(1);
+            if (inProgressOrders && inProgressOrders.length > 0) {
+                const osId = inProgressOrders[0].display_id || inProgressOrders[0].id.substring(0, 8);
+                Alert.alert(
+                    'OS em Andamento',
+                    `Você possui a OS ${osId} em andamento. Finalize-a antes de iniciar outra.`,
+                    [{ text: 'Entendi' }]
+                );
+                return false;
+            }
+        } catch (e) {
+            console.error('[OS Detail] Error checking concurrent OS:', e);
+        }
+        return true;
+    };
+
+    const handleExecute = async () => {
         // MODO OFFLINE: ir direto para execução sem mudar status no servidor
         if (syncService.isOfflineModeEnabled()) {
             router.push({ pathname: '/os/execute', params: { id: id as string } });
             return;
         }
-
-        if (order.status === 'assigned') {
-            Alert.alert(
-                'Iniciar OS',
-                'Deseja iniciar o deslocamento ou já está no local do cliente?',
-                [
-                    { text: 'Cancelar', style: 'cancel' },
-                    {
-                        text: 'Iniciar Deslocamento', onPress: async () => {
-                            setLoading(true);
-                            try {
-                                await OrderService.startDisplacement(id as string);
-                                // Force network refresh AND manually update state to guarantee immediate UI reaction
-                                const updated = await OrderService.getOrderById(id as string, true);
-                                setOrder(updated || { ...order, status: 'traveling' });
-                            } catch (err: any) {
-                                Alert.alert('Erro no Deslocamento', err?.message || String(err));
-                            } finally {
-                                setLoading(false);
-                            }
-                        }
-                    },
-                    {
-                        text: 'Já estou no cliente', onPress: async () => {
-                            try {
-                                await OrderService.startExecution(id as string);
-                                router.push({ pathname: '/os/execute', params: { id: id as string } });
-                            } catch (err: any) {
-                                Alert.alert('Erro na Execução', err?.message || String(err));
-                            }
-                        }
-                    }
-                ]
-            );
-        } else if (order.status === 'traveling') {
-            Alert.alert(
-                'Chegada no Local',
-                'Confirmar chegada no local do cliente e iniciar o serviço?',
-                [
-                    { text: 'Ainda não', style: 'cancel' },
-                    {
-                        text: 'Cheguei', onPress: async () => {
-                            try {
-                                await OrderService.startExecution(id as string);
-                                router.push({ pathname: '/os/execute', params: { id: id as string } });
-                            } catch (err: any) {
-                                Alert.alert('Erro na Chegada', err?.message || String(err));
-                            }
-                        }
-                    }
-                ]
-            );
-        } else {
-            Alert.alert(
-                'Acessar Execução',
-                'Deseja ir para a tela de execução?',
-                [
-                    { text: 'Não', style: 'cancel' },
-                    {
-                        text: 'Sim',
-                        onPress: async () => {
-                            try {
-                                if (order.status !== 'in_progress' && order.status !== 'EM ANDAMENTO') {
-                                    await OrderService.startExecution(id as string);
-                                }
-                                router.push({
-                                    pathname: '/os/execute',
-                                    params: { id: id as string }
-                                });
-                            } catch (err: any) {
-                                Alert.alert('Erro na Execução', err?.message || String(err));
-                            }
-                        }
-                    }
-                ]
-            );
-        }
+        // Check concurrent OS restriction
+        const canProceed = await checkConcurrentOS();
+        if (!canProceed) return;
+        setIsStatusModalVisible(true);
     };
 
     const handleBlock = () => {
@@ -280,12 +276,27 @@ export default function OrderDetailsScreen() {
                         <Ionicons name="location-outline" size={14} color="#64748b" style={{ marginRight: 6 }} />
                         <ThemedText type="subtitle" style={{ fontSize: 12, textTransform: 'uppercase', color: '#64748b', letterSpacing: 0.5 }}>Endereço</ThemedText>
                     </View>
-                    <Text style={[styles.addressText, { marginTop: 2 }]}>{order.address}</Text>
-
-                    <Pressable style={styles.gpsButton} onPress={openGPS}>
-                        <Ionicons name="navigate" size={16} color="#3b82f6" />
-                        <Text style={styles.gpsButtonText}>Abrir no GPS</Text>
-                    </Pressable>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginTop: 2, marginBottom: 12 }}>
+                        <Text style={[styles.addressText, { flex: 1, marginTop: 0, marginBottom: 0 }]}>{order.address}</Text>
+                        <Pressable 
+                            style={[styles.gpsButton, { paddingVertical: 8, paddingHorizontal: 12, marginBottom: 0 }]} 
+                            onPress={() => {
+                                const query = encodeURIComponent(order.address);
+                                const iosUrl = `http://maps.apple.com/?daddr=${query}`;
+                                const androidUrl = `https://www.google.com/maps/dir/?api=1&destination=${query}`;
+                                const url = Platform.select({ ios: iosUrl, android: androidUrl });
+                                
+                                if (Linking && url) {
+                                    Linking.openURL(url).catch(() => {
+                                        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+                                    });
+                                }
+                            }}
+                        >
+                            <Ionicons name="navigate" size={16} color="#2563eb" />
+                            <Text style={[styles.gpsButtonText, { color: '#2563eb', fontSize: 12, fontWeight: 'bold' }]}>GPS</Text>
+                        </Pressable>
+                    </View>
                 </View>
 
                 {/* Problem Description */}
@@ -397,9 +408,40 @@ export default function OrderDetailsScreen() {
                                             const match = key.match(/^\[(.*?)\]\s*(?:-|$)/);
                                             const groupName = match ? match[1] : 'Geral';
                                             if (!acc[groupName]) acc[groupName] = [];
-                                            acc[groupName].push([key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' '), val]);
+                                            acc[groupName].push([key, val]);
                                             return acc;
                                         }, {} as Record<string, [string, any][]>);
+
+                                        // 🎯 ORDENAÇÃO CIRÚRGICA: Usa o template para ordenar perguntas de cada grupo
+                                        Object.keys(groupedEntries).forEach(group => {
+                                            const eqMatch = order.equipments?.find((e: any) => {
+                                                const eName = (e.equipment_model || e.equipment_name || '').toLowerCase();
+                                                return group.toLowerCase().includes(eName) || eName.includes(group.toLowerCase());
+                                            });
+                                            const tplId = eqMatch?.form_id || order.formId;
+                                            const tpl = tplId ? (formTemplates[tplId] || []) : [];
+
+                                            if (tpl.length > 0) {
+                                                const normalize = (s: string) => s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^[\d\s.]*/, '').replace(/[^a-z0-9]/g, '');
+                                                const normalizedTpl = tpl.map(normalize);
+                                                
+                                                groupedEntries[group].sort((a, b) => {
+                                                    const cleanA = normalize(a[0].replace(/^\[.*?\]\s*-\s*/, ''));
+                                                    const cleanB = normalize(b[0].replace(/^\[.*?\]\s*-\s*/, ''));
+                                                    
+                                                    let idxA = normalizedTpl.indexOf(cleanA);
+                                                    let idxB = normalizedTpl.indexOf(cleanB);
+                                                    
+                                                    if (idxA === -1) idxA = normalizedTpl.findIndex(t => cleanA.startsWith(t) || t.startsWith(cleanA));
+                                                    if (idxB === -1) idxB = normalizedTpl.findIndex(t => cleanB.startsWith(t) || t.startsWith(cleanB));
+                                                    
+                                                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                                                    if (idxA !== -1) return -1;
+                                                    if (idxB !== -1) return 1;
+                                                    return 0;
+                                                });
+                                            }
+                                        });
 
                                         if (Object.keys(groupedEntries).length === 0) return null;
 
@@ -411,7 +453,8 @@ export default function OrderDetailsScreen() {
                                                     </View>
                                                 )}
                                                 <View style={styles.checklistItemsContainer}>
-                                                    {items.map(([cleanKey, val]) => {
+                                                    {items.map(([fullKey, val]) => {
+                                                        const cleanKey = fullKey.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ');
                                                         const isImageUrl = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image'));
                                                         const isImageArray = Array.isArray(val) && val.every(v => isImageUrl(v));
                                                         const isSingleImage = isImageUrl(val);
@@ -583,6 +626,13 @@ export default function OrderDetailsScreen() {
                                 {order.formData?.clientName && (
                                     <Text style={styles.clientNameText}>Responsável: {order.formData.clientName}</Text>
                                 )}
+                                {order.completedDate && (
+                                    <View style={{ marginTop: 8, padding: 8, backgroundColor: '#f1f5f9', borderRadius: 8, borderStyle: 'dashed', borderWidth: 1, borderColor: '#cbd5e1' }}>
+                                        <Text style={{ fontSize: 10, color: '#475569', fontWeight: 'bold', textAlign: 'center', textTransform: 'uppercase' }}>
+                                            Concluído em: {new Date(order.completedDate).toLocaleDateString('pt-BR')} às {new Date(order.completedDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                        </Text>
+                                    </View>
+                                )}
                             </View>
                         )}
                     </View>
@@ -666,6 +716,75 @@ export default function OrderDetailsScreen() {
                 imageUri={selectedImage}
                 onClose={() => setViewerVisible(false)}
             />
+
+            {/* SELECTION MODAL (NASA Standard) */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={isStatusModalVisible}
+                onRequestClose={() => setIsStatusModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { padding: 0, overflow: 'hidden' }]}>
+                        <View style={{ backgroundColor: '#1e293b', padding: 20, alignItems: 'center' }}>
+                            <Ionicons name="flash-outline" size={32} color="#fff" />
+                            <Text style={[styles.modalTitle, { color: '#fff', marginBottom: 0, marginTop: 10 }]}>Execução da OS</Text>
+                        </View>
+                        
+                        <View style={{ padding: 20, gap: 12 }}>
+                            <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', marginBottom: 10, fontWeight: '700', textTransform: 'uppercase' }}>
+                                Selecione a ação desejada:
+                            </Text>
+
+                            {order.status === 'assigned' && (
+                                <Pressable 
+                                    style={[styles.modalButton, { flex: 0, backgroundColor: '#3b82f6', paddingVertical: 16, width: '100%' }]} 
+                                    onPress={async () => {
+                                        setIsStatusModalVisible(false);
+                                        setLoading(true);
+                                        try {
+                                            await OrderService.startDisplacement(id as string);
+                                            const updated = await OrderService.getOrderById(id as string, true);
+                                            setOrder(updated);
+                                        } catch (e: any) { Alert.alert('Erro', e.message); }
+                                        finally { setLoading(false); }
+                                    }}
+                                >
+                                    <Ionicons name="car-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+                                    <Text style={[styles.confirmButtonText, { fontSize: 14 }]}>Iniciar Deslocamento</Text>
+                                </Pressable>
+                            )}
+
+                            {(order.status === 'assigned' || order.status === 'traveling' || order.status === 'in_progress' || order.status === 'EM ANDAMENTO') ? (
+                                <Pressable 
+                                    style={[styles.modalButton, { flex: 0, backgroundColor: '#10b981', paddingVertical: 16, width: '100%' }]} 
+                                    onPress={async () => {
+                                        setIsStatusModalVisible(false);
+                                        try {
+                                            if (order.status !== 'in_progress' && order.status !== 'EM ANDAMENTO') {
+                                                await OrderService.startExecution(id as string);
+                                            }
+                                            router.push({ pathname: '/os/execute', params: { id: id as string } });
+                                        } catch (e: any) { Alert.alert('Erro', e.message); }
+                                    }}
+                                >
+                                    <Ionicons name="play-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+                                    <Text style={[styles.confirmButtonText, { fontSize: 14 }]}>
+                                        {order.status === 'traveling' ? 'Cheguei no Local' : 'Executar Serviço'}
+                                    </Text>
+                                </Pressable>
+                            ) : null}
+
+                            <Pressable 
+                                style={[styles.modalButton, { flex: 0, backgroundColor: '#f1f5f9', paddingVertical: 16, width: '100%' }]} 
+                                onPress={() => setIsStatusModalVisible(false)}
+                            >
+                                <Text style={[styles.cancelButtonText, { fontSize: 14, fontWeight: 'bold' }]}>Voltar</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
 
         </ThemedView>
     );

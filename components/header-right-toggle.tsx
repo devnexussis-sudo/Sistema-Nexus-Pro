@@ -2,7 +2,7 @@ import { syncService } from '@/services/sync-service';
 import { Ionicons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View, Switch } from 'react-native';
 
 export function HeaderRightToggle() {
     const [isOfflineMode, setIsOfflineMode] = useState(syncService.isOfflineModeEnabled());
@@ -32,11 +32,10 @@ export function HeaderRightToggle() {
     const isBusy = isLoading || isSyncing;
     const busyLabel = isSyncing ? 'Sincronizando...' : label;
 
-    const handleToggle = async () => {
+    const handleToggle = async (newValue: boolean) => {
         if (isBusy) return;
-        const goingOffline = !isOfflineMode;
-
-        if (goingOffline) {
+        
+        if (newValue) {
             if (!isConnected) {
                 await syncService.toggleOfflineMode(true);
                 setIsOfflineMode(true);
@@ -58,7 +57,6 @@ export function HeaderRightToggle() {
             }
         } else {
             // Volta online: toggleOfflineMode chama triggerSync internamente
-            // O spinner aparece via subscribeSyncing — não precisa de estado local
             setIsOfflineMode(false);
             await syncService.toggleOfflineMode(false);
             Alert.alert('✅ Online', 'Conectado. Dados sincronizados!');
@@ -66,24 +64,33 @@ export function HeaderRightToggle() {
     };
 
     const isEffectivelyOffline = isOfflineMode || !isConnected;
-    const color = isBusy ? '#f59e0b' : isEffectivelyOffline ? '#ef4444' : '#10b981';
+    const activeColor = '#ef4444'; // Red for offline
+    const inactiveColor = '#10b981'; // Green for online
 
     return (
-        <Pressable style={styles.container} onPress={handleToggle} disabled={isBusy}>
-            <View style={[styles.badge, { backgroundColor: color }]}>
-                {isBusy ? (
-                    <>
-                        <ActivityIndicator size="small" color="#fff" />
-                        <Text style={styles.text}>{busyLabel}</Text>
-                    </>
-                ) : (
-                    <>
-                        <Ionicons name={isEffectivelyOffline ? 'cloud-offline' : 'cloud-done'} size={14} color="#fff" />
-                        <Text style={styles.text}>{isEffectivelyOffline ? 'Offline' : 'Online'}</Text>
-                    </>
-                )}
-            </View>
-        </Pressable>
+        <View style={styles.container}>
+            {isBusy ? (
+                <View style={[styles.badge, { backgroundColor: '#f59e0b' }]}>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={styles.text}>{busyLabel}</Text>
+                </View>
+            ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#f8fafc', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 20 }}>
+                    <Switch
+                        trackColor={{ false: inactiveColor, true: activeColor }}
+                        thumbColor="#ffffff"
+                        ios_backgroundColor={inactiveColor}
+                        onValueChange={handleToggle}
+                        value={isEffectivelyOffline}
+                        disabled={isBusy}
+                        style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                    />
+                    <Text style={{ fontSize: 11, fontWeight: 'bold', color: isEffectivelyOffline ? activeColor : inactiveColor, marginRight: 4 }}>
+                        {isEffectivelyOffline ? 'Offline' : 'Online'}
+                    </Text>
+                </View>
+            )}
+        </View>
     );
 }
 
