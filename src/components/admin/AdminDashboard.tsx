@@ -19,7 +19,6 @@ import {
   LayoutDashboard,
   Loader2,
   PackageSearch,
-  Play,
   Plus,
   PlusCircle,
   Printer,
@@ -30,19 +29,20 @@ import {
   Trash2,
   UserCheck,
   User as UserIcon,
-  Video,
-  X
+  X,
+  Play,
+  Video
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePagedOrders } from '../../hooks/nexusHooks';
 import { useOrderExport } from '../../hooks/useOrderExport';
-import { supabase } from '../../lib/supabase';
 import { DataService } from '../../services/dataService';
 import { EquipmentService } from '../../services/equipmentService';
 import { FormService } from '../../services/formService';
 import { VisitService } from '../../services/visitService';
+import { supabase } from '../../lib/supabase';
 import { type Customer, OrderStatus, type ServiceOrder, type ServiceVisit, type User, VisitStatusEnum } from '../../types';
 import { PublicOrderView } from '../public/PublicOrderView';
 import { OrderTimeline } from '../shared/OrderTimeline';
@@ -82,11 +82,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
-  const [ordersToPrint, setOrdersToPrint] = useState<ServiceOrder[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
-  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
-  const [orderVisits, setOrderVisits] = useState<any[]>([]);
-  const [orderImpediments, setOrderImpediments] = useState<OrderImpediment[]>([]);
+   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+   const [orderVisits, setOrderVisits] = useState<any[]>([]);
+   const [orderImpediments, setOrderImpediments] = useState<OrderImpediment[]>([]);
 
   // ── Edição Inline ──────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
@@ -137,7 +136,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('scheduled');
   // techFilter armazena o techId (UUID), não o nome — enviado direto para o servidor
   const [techFilter, setTechFilter] = useState<string>('ALL');
-  const [showFilters, setShowFilters] = useState(false);
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
 
   // Filtros memorizados para evitar re-renders desnecessários
@@ -183,49 +181,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const { handleExportExcel: exportToExcel } = useOrderExport();
 
   const handleExportExcel = () => {
-    if (selectedOrderIds.length === 0) return;
-
-    // Exporta apenas os itens selecionados
+    // Exporta os itens da página atual (ou apenas os selecionados)
+    const base = pagedOrders;
     exportToExcel({
-      orders: pagedOrders,
-      filteredOrders: pagedOrders.filter(o => selectedOrderIds.includes(o.id)),
+      orders: base,
+      filteredOrders: selectedOrderIds.length > 0
+        ? pagedOrders.filter(o => selectedOrderIds.includes(o.id))
+        : pagedOrders,
       selectedOrderIds,
       techs
     });
   };
 
-  const handleBatchPrint = async () => {
-    let toPrint: ServiceOrder[] = [];
-    if (selectedOrderIds.length > 0) {
-      const local = pagedOrders.filter(o => selectedOrderIds.includes(o.id));
-      if (local.length === selectedOrderIds.length) {
-        toPrint = local;
-      } else {
-        try {
-          const chunks = [];
-          for (let i = 0; i < selectedOrderIds.length; i += 100) chunks.push(selectedOrderIds.slice(i, i + 100));
-          let allFetched: ServiceOrder[] = [];
-          const { OrderService } = await import('../../services/orderService');
-          for (const chunk of chunks) {
-            const { data } = await supabase.from('orders').select('*').in('id', chunk);
-            if (data) {
-              allFetched = [...allFetched, ...data.map((d: any) => OrderService._mapOrderFromDB(d))];
-            }
-          }
-          if (allFetched.length > 0) {
-            toPrint = allFetched;
-          } else {
-            toPrint = local;
-          }
-        } catch {
-          toPrint = local;
-        }
-      }
-    } else {
-      toPrint = pagedOrders;
-    }
-
-    setOrdersToPrint(toPrint);
+  const handleBatchPrint = () => {
     setIsBatchPrinting(true);
     document.body.classList.add('is-printing');
     // Tempo maior para garantir renderização de imagens e componentes
@@ -234,7 +202,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       // Em alguns browsers o print é non-blocking, então usamos listener para garantir
       const cleanup = () => {
         setIsBatchPrinting(false);
-        setOrdersToPrint([]);
         document.body.classList.remove('is-printing');
         window.removeEventListener('afterprint', cleanup);
       };
@@ -249,18 +216,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handlePrintOrder = (orderId: string) => {
-    const orderToPrint = pagedOrders.find(o => o.id === orderId) || selectedOrder;
-    if (!orderToPrint) return;
-
     setSelectedOrderIds([orderId]);
-    setOrdersToPrint([orderToPrint as ServiceOrder]);
     setIsBatchPrinting(true);
     document.body.classList.add('is-printing');
     setTimeout(() => {
       window.print();
       const cleanup = () => {
         setIsBatchPrinting(false);
-        setOrdersToPrint([]);
         document.body.classList.remove('is-printing');
         window.removeEventListener('afterprint', cleanup);
       };
@@ -292,7 +254,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         .eq('order_id', selectedOrder.id)
         .order('created_at', { ascending: true })
         .then(({ data }) => {
-          if (data) setOrderImpediments(data);
+           if (data) setOrderImpediments(data);
         });
 
       // Busca o template para mapear IDs para Labels no checklist
@@ -703,8 +665,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       // Atualiza o estado local da OS para refletir o estado real do banco
       // (status=ATRIBUÍDO, mantendo o form_data preservado intacto O Histórico de Impedimentos)
       const preservedHistory = Array.isArray(selectedOrder.formData?.impediment_history)
-        ? selectedOrder.formData.impediment_history
-        : [];
+         ? selectedOrder.formData.impediment_history
+         : [];
 
       const freshOrder: ServiceOrder = {
         ...selectedOrder,
@@ -718,7 +680,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         videoUrl: undefined,
       };
       setSelectedOrder(freshOrder);
-
+      
       // Força recarregamento da query `orders` via usePagedOrders
       await ordersRefetch();
     } catch (e: any) {
@@ -848,7 +810,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50 overflow-hidden">
       {/* Search & Filter Toolbar */}
       <div className="mb-6 space-y-4">
-        {/* Row 1: Search & Date Filters & Toggle */}
+        {/* Row 1: Search & Date Filters */}
         <div className="flex flex-col xl:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
@@ -861,97 +823,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 h-11 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
-            >
-              <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros Avançados'}
-            </button>
+          <div className="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-md shadow-sm">
+            <div className="flex items-center px-3 py-1.5 border-r border-slate-100">
+              <select
+                value={dateTypeFilter}
+                onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
+                className="bg-transparent text-xs font-semibold text-slate-600 outline-none cursor-pointer"
+              >
+                <option value="scheduled">Agendamento</option>
+                <option value="created">Abertura</option>
+                <option value="completed">Conclusão</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 px-2">
+              <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent border-none text-xs font-medium text-slate-600 outline-none focus:text-slate-900" />
+              <span className="text-xs text-slate-300 font-medium">até</span>
+              <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent border-none text-xs font-medium text-slate-600 outline-none focus:text-slate-900" />
+            </div>
           </div>
         </div>
 
-        {/* Collapsible Filters Row */}
-        {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Período</label>
-              <div className="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-xl shadow-lg shadow-slate-200/50 h-11">
-                <div className="flex items-center px-3 h-full border-r border-slate-100">
-                  <select
-                    value={dateTypeFilter}
-                    onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
-                    className="bg-transparent text-xs font-semibold text-slate-600 outline-none cursor-pointer"
-                  >
-                    <option value="scheduled">Agendamento</option>
-                    <option value="created">Abertura</option>
-                    <option value="completed">Conclusão</option>
-                  </select>
-                </div>
-                <div className="flex items-center gap-2 px-2 flex-1">
-                  <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none focus:text-slate-900 w-full" />
-                  <span className="text-[10px] text-slate-300 font-bold">até</span>
-                  <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none focus:text-slate-900 w-full" />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
-              <div className="flex items-center bg-white border border-slate-200 rounded-xl pl-3 pr-1 h-11 shadow-lg shadow-slate-200/50">
-                <Filter size={14} className="text-slate-400 mr-2" />
-                <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                  <option value="ALL">Todos Status</option>
-                  {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Responsável</label>
-              <div className="flex items-center bg-white border border-slate-200 rounded-xl pl-3 pr-1 h-11 shadow-lg shadow-slate-200/50">
-                <UserCheck size={14} className="text-slate-400 mr-2" />
-                <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
-                  <option value="ALL">Todos Técnicos</option>
-                  {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-end pb-1.5">
-              <button
-                onClick={() => {
-                  setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
-                  onDateChange('', '');
-                  setSelectedOrderIds([]);
-                }}
-                className="h-10 px-4 text-xs font-bold text-slate-400 hover:text-rose-500 transition-colors uppercase tracking-widest"
-              >
-                Resetar Filtros
-              </button>
-            </div>
+        {/* Row 2: Secondary Filters & Actions */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center bg-white border border-slate-200 rounded-md pl-3 pr-1 h-10 min-w-[160px] shadow-sm">
+            <Filter size={14} className="text-slate-400 mr-2" />
+            <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="ALL">Status: Todos</option>
+              {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
-        )}
 
-        {/* Row for Actions (Export, New, etc.) */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Fast Filters */}
-            <div className="flex gap-2">
-              {['today', 'week', 'month'].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => handleFastFilter(type as any)}
-                  className="px-3 py-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-primary-600 border border-slate-200 rounded-lg hover:border-primary-100 hover:bg-primary-50/50 transition-all"
-                >
-                  {type === 'today' ? 'Hoje' : type === 'week' ? '7 Dias' : '30 Dias'}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center bg-white border border-slate-200 rounded-md pl-3 pr-1 h-10 min-w-[160px] shadow-sm">
+            <UserCheck size={14} className="text-slate-400 mr-2" />
+            <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
+              <option value="ALL">Técnico: Todos</option>
+              {/* value = techId — filtros server-side usam o UUID diretamente */}
+              {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
           </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
+              onDateChange('', '');
+              setSelectedOrderIds([]);
+            }}
+            className="h-10 px-4 text-xs font-bold text-slate-500 hover:text-slate-700"
+          >
+            Limpar Filtros
+          </Button>
 
           <div className="flex items-center gap-3 ml-auto">
-
+            {/* Exportação Geral (Baseada em Filtros) */}
+            {selectedOrderIds.length === 0 && (
+              <div className="flex items-center gap-2 mr-2">
+                <button
+                  onClick={handleExportExcel}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-100/50"
+                  title="Exportar Filtrados para Excel"
+                >
+                  <FileSpreadsheet size={14} /> Exportar Excel
+                </button>
+              </div>
+            )}
 
             {/* Ações em Lote (Seleção) */}
             {selectedOrderIds.length > 0 && (
@@ -1003,11 +939,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       {/* Main Table Container - Premium Look */}
-      <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
+      <div className="bg-white border border-slate-200/60 rounded-xl shadow-sm flex flex-col overflow-hidden flex-1 ring-1 ring-slate-100">
         <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
-              <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
+            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 shadow-sm">
+              <tr className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-left">
                 <th className="px-3 py-2 w-12 text-center text-slate-400">
                   <input
                     type="checkbox"
@@ -1020,8 +956,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
                   <div className="flex items-center gap-1">Protocolo {getSortIcon('displayId')}</div>
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
-                  <div className="flex items-center gap-1">Modalidade {getSortIcon('operationType')}</div>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
+                  <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
+                </th>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
+                  <div className="flex items-center gap-1">Abertura {getSortIcon('createdAt')}</div>
                 </th>
                 <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
                   <div className="flex items-center gap-1">Cliente {getSortIcon('customerName')}</div>
@@ -1029,11 +968,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('assignedTo')}>
                   <div className="flex items-center justify-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
-                  <div className="flex items-center gap-1">Abertura {getSortIcon('createdAt')}</div>
-                </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
-                  <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
+                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
+                  <div className="flex items-center gap-1">Modalidade {getSortIcon('operationType')}</div>
                 </th>
                 <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('endDate')}>
                   <div className="flex items-center gap-1">Conclusão {getSortIcon('endDate')}</div>
@@ -1072,35 +1008,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <span className="font-medium text-slate-700 text-[12px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 group-hover:bg-white group-hover:border-slate-300 transition-colors">
+                      <span className="font-bold text-slate-700 text-[11px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 group-hover:bg-white group-hover:border-slate-300 transition-colors">
                         {order.displayId || order.id}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-500 tracking-wide whitespace-nowrap">
-                      {order.operationType || '---'}
+                    <td className="px-3 py-2 text-[11px] font-semibold text-slate-700 whitespace-nowrap">
+                      {formatDateDisplay(order.scheduledDate)}
                     </td>
-                    <td className="px-3 py-2 text-[13px] text-slate-800 tracking-tight truncate max-w-[160px]">
+                    <td className="px-3 py-2 text-[11px] text-slate-500 font-medium uppercase tracking-wide whitespace-nowrap">
+                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
+                    </td>
+                    <td className="px-3 py-2 font-bold text-xs text-slate-800 tracking-tight truncate max-w-[160px]">
                       {order.customerName}
                     </td>
+
                     <td className="px-3 py-2">
                       <div className="flex justify-center">
                         {assignedTech ? (
-                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-lg shadow-slate-200/50 transition-all shrink-0">
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-50 border border-slate-200 group-hover:bg-white inset-shadow-sm transition-all shrink-0">
                             <img src={assignedTech.avatar} className="w-4 h-4 rounded-full object-cover shadow-sm" />
-                            <span className="text-[11px] text-slate-600 truncate max-w-[60px]">{assignedTech?.name?.split(' ')[0]}</span>
+                            <span className="text-[9px] font-black text-slate-600 uppercase truncate max-w-[60px]">{assignedTech?.name?.split(' ')[0]}</span>
                           </div>
-                        ) : <span className="text-[11px] text-slate-300 tracking-widest">-</span>}
+                        ) : <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">-</span>}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-slate-500 tracking-wide whitespace-nowrap">
-                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString('pt-BR') : '---'}
+
+                    <td className="px-3 py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+                      {order.operationType || '---'}
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
-                      {formatDateDisplay(order.scheduledDate)}
-                    </td>
-                    <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
+                    <td className="px-3 py-2 text-[11px] font-bold text-slate-700 whitespace-nowrap">
                       {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
                     </td>
+
                     <td className="px-3 py-2 whitespace-nowrap"><StatusBadge status={order.status} /></td>
                     <td className="px-3 py-2 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
@@ -1126,7 +1065,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }) : (
                 <tr>
                   <td colSpan={10} className="py-32 text-center bg-slate-50/30">
-                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-lg shadow-slate-200/50">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
                       <Search size={24} className="text-slate-300" />
                     </div>
                     <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Nenhuma atividade localizada</p>
@@ -1174,7 +1113,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center gap-3">
-                    <h2 className="text-base font-semibold text-slate-900 font-poppins">Ordem de Serviço #{selectedOrder.displayId || selectedOrder.id}</h2>
+                    <h2 className="text-base font-bold text-slate-900">Ordem de Serviço #{selectedOrder.displayId || selectedOrder.id}</h2>
                     <StatusBadge status={selectedOrder.status} />
                     {isEditing && (
                       <span className="text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
@@ -1231,14 +1170,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={(e) => handleOpenPublicView(selectedOrder, e)}
-                      className="h-9 px-4 gap-2 border-primary-200 text-primary-700 hover:bg-primary-50"
-                    >
-                      <Share2 size={14} /> Visualizar
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
                       onClick={() => handlePrintOrder(selectedOrder.id)}
                       className="h-9 px-4 gap-2"
                     >
@@ -1254,22 +1185,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             {/* TABS */}
-            <div className="px-6 border-b border-slate-200 bg-white flex gap-6 shrink-0 overflow-x-auto">
+            <div className="px-6 border-b border-slate-100 bg-white flex gap-6 shrink-0 overflow-x-auto">
               {[
-                { id: 'overview', label: 'dados gerais', icon: LayoutDashboard },
-                { id: 'equipments', label: `ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
-                { id: 'forms', label: 'formulários', icon: ClipboardList },
-                { id: 'visits', label: `visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
-                { id: 'history', label: `histórico${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: History },
-                { id: 'media', label: 'galeria', icon: Camera },
-                { id: 'costs', label: 'peças e custos', icon: DollarSign },
-                { id: 'audit', label: 'assinaturas', icon: ShieldCheck }
+                { id: 'overview', label: 'Dados Gerais', icon: LayoutDashboard },
+                { id: 'equipments', label: `Equipamentos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
+                { id: 'forms', label: 'Formulários', icon: ClipboardList },
+                { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
+                { id: 'history', label: `Histórico${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: History },
+                { id: 'media', label: 'Galeria', icon: Camera },
+                { id: 'costs', label: 'Peças e Custos', icon: DollarSign },
+                { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
               ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 py-4 text-xs font-medium border-b-2 transition-all whitespace-nowrap font-poppins
-                    ${activeTab === tab.id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                  className={`flex items-center gap-2 py-4 text-xs font-semibold border-b-2 transition-all whitespace-nowrap
+                    ${activeTab === tab.id ? 'border-primary-500 text-slate-900' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                 >
                   <tab.icon size={15} /> {tab.label}
                 </button>
@@ -1292,19 +1223,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
                         <div className="space-y-1.5">
-                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Cliente / Razão Social</label>
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cliente / Razão Social</label>
                           {/* Cliente é estruturalmente fixo — não pode ser alterado */}
                           <div className="text-sm font-semibold text-slate-900">{selectedOrder.customerName}</div>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Endereço de Atendimento</label>
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Endereço de Atendimento</label>
                           {isEditing
                             ? <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
                             : <div className="text-sm text-slate-600 font-medium leading-relaxed">{selectedOrder.customerAddress || 'Não informado'}</div>
                           }
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Agendamento (Visita)</label>
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Agendamento (Visita)</label>
                           <div className="text-sm text-slate-400 font-medium italic flex items-center gap-2">
                             <Clock size={14} /> Gerenciado na aba Visitas
                           </div>
@@ -1314,7 +1245,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <div className="text-sm text-slate-600 font-bold">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</div>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Modalidade do Atendimento</label>
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Modalidade do Atendimento</label>
                           {isEditing
                             ? (
                               <select
@@ -1343,14 +1274,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </h3>
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Descrição das Atividades</label>
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Descrição das Atividades</label>
                           {isEditing
                             ? <textarea rows={5} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
                             : <div className="p-4 bg-slate-50/50 rounded-md border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[120px] font-medium">{selectedOrder.description || "Nenhuma observação técnica registrada."}</div>
                           }
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Notas Internas</label>
+                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Notas Internas</label>
                           {isEditing
                             ? <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" placeholder="Notas opcionais..." value={editDraft.notes ?? ''} onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))} />
                             : selectedOrder.notes && (
@@ -1370,14 +1301,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Right Column: Metadata */}
                   <div className="col-span-12 lg:col-span-4 space-y-6">
                     {/* Dates Card */}
-                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
+                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
                       <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><Clock size={16} className="text-slate-400" /> Cronograma</h3>
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                           <span className="text-xs font-semibold text-slate-400">Abertura</span>
                           <span className="text-xs font-bold text-slate-700">{new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
                         </div>
-                        <div className="flex justify-between items-center pb-3 border-b border-slate-200">
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                           <span className="text-xs font-semibold text-slate-400">Agendamento</span>
                           <span className="text-xs font-bold text-[#1c2d4f]">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</span>
                         </div>
@@ -1400,7 +1331,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     {/* Tech Card */}
-                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
+                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
                       <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><UserCheck size={16} className="text-slate-400" /> Recursos</h3>
                       {(() => {
                         const tech = techs.find(t => t.id === selectedOrder.assignedTo);
@@ -1482,7 +1413,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           const hasFormData = Object.keys(selectedOrder.formData || {}).some(k => k.startsWith(eqPrefix)) || !!(eq.formData && Object.keys(eq.formData).length > 0);
                           const isActive = selectedOrder.status !== 'CONCLUÍDO' && selectedOrder.status !== 'CANCELADO';
                           return (
-                            <div key={eq.id || idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-lg shadow-slate-200/50 hover:border-primary-200 transition-all">
+                            <div key={eq.id || idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-primary-200 transition-all">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="w-10 h-10 bg-primary-50 border border-primary-100 rounded-lg flex items-center justify-center shrink-0">
                                   <Box size={18} className="text-primary-400" />
@@ -1690,8 +1621,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     const isMediaArray = (v: any) => Array.isArray(v) && v.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video')));
 
                     return (
-                      <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 overflow-hidden">
-                        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-200 bg-emerald-50">
+                      <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-emerald-50">
                           <div className="w-8 h-8 bg-white border border-emerald-200 rounded-lg flex items-center justify-center">
                             <ClipboardList size={14} className="text-emerald-500" />
                           </div>
@@ -1759,8 +1690,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   const isComplete = answered === fields.length && fields.length > 0;
                   const isPending = answered === 0;
                   return (
-                    <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 overflow-hidden">
-                      <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-200 bg-slate-50">
+                    <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                      <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50">
                         <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
                           <ClipboardList size={14} className="text-slate-400" />
                         </div>
@@ -1791,65 +1722,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="max-w-4xl mx-auto space-y-8">
                     {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
                     {(() => {
-                      // Lista para agrupar todas as ocorrências de impedimentos (para render) sem deduplicação destrutiva
-                      const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
+                        // Lista para agrupar todas as ocorrências de impedimentos (para render) sem deduplicação destrutiva
+                        const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
 
-                      // 1. CARREGAMENTO MESTRE: Nova Tabela Estruturada (Imutável e Independente)
-                      orderImpediments.forEach((imp, i) => {
-                        impediments.push({
-                          title: `Impedimento Registrado — Evento ${i + 1}`,
-                          reason: imp.reason,
-                          photo: imp.photoUrl,
-                          date: imp.createdAt
+                        // 1. CARREGAMENTO MESTRE: Nova Tabela Estruturada (Imutável e Independente)
+                        orderImpediments.forEach((imp, i) => {
+                           impediments.push({
+                              title: `Impedimento Registrado — Evento ${i + 1}`,
+                              reason: imp.reason,
+                              photo: imp.photoUrl,
+                              date: imp.createdAt
+                           });
                         });
-                      });
 
-                      // 2. LEGADO: Busca em Visitas passadas apenas se não houver registros na nova tabela (migração suave)
-                      if (impediments.length === 0) {
-                        [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
-                          const vFd: any = v.formData || {};
-                          const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
-                          if (reason) {
-                            impediments.push({
-                              title: `Impedimento — Visita nº ${v.visitNumber}`,
-                              reason: reason,
-                              photo: vFd.blockPhotoUrl,
-                              date: vFd.blockedAt || v.updatedAt
-                            });
-                          }
-                        });
-                      }
+                        // 2. LEGADO: Busca em Visitas passadas apenas se não houver registros na nova tabela (migração suave)
+                        if (impediments.length === 0) {
+                           [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
+                               const vFd: any = v.formData || {};
+                               const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
+                               if (reason) {
+                                   impediments.push({
+                                       title: `Impedimento — Visita nº ${v.visitNumber}`,
+                                       reason: reason,
+                                       photo: vFd.blockPhotoUrl,
+                                       date: vFd.blockedAt || v.updatedAt
+                                   });
+                               }
+                           });
+                        }
 
-                      if (impediments.length === 0) return null;
+                        if (impediments.length === 0) return null;
 
-                      // Deduplicador Inteligente baseado no motivo e foto (sem depender exclusivamente da data)
-                      const uniqueImpediments = impediments.filter((value, index, self) =>
-                        index === self.findIndex((t) => (
-                          t.reason === value.reason &&
-                          (t.photo === value.photo || (!t.photo && !value.photo))
-                        ))
-                      );
+                        // Deduplicador Inteligente baseado no motivo e foto (sem depender exclusivamente da data)
+                        const uniqueImpediments = impediments.filter((value, index, self) =>
+                           index === self.findIndex((t) => (
+                              t.reason === value.reason && 
+                              (t.photo === value.photo || (!t.photo && !value.photo))
+                           ))
+                        );
 
-                      return (
-                        <div className="space-y-4 mb-6">
-                          {uniqueImpediments.map((imp, idx) => (
-                            <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
-                              <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
-                              <div className="flex-1">
-                                <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
-                                {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
-                                <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
-                                {imp.photo && (
-                                  <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
-                                    <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{ maxHeight: 200 }} />
-                                    <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
-                                  </a>
-                                )}
+                        return (
+                          <div className="space-y-4 mb-6">
+                            {uniqueImpediments.map((imp, idx) => (
+                              <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
+                                <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
+                                <div className="flex-1">
+                                  <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
+                                  {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
+                                  <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
+                                  {imp.photo && (
+                                    <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
+                                      <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 200}} />
+                                      <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
+                                    </a>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
+                            ))}
+                          </div>
+                        );
                     })()}
 
                     {formsTabLoading ? (
@@ -1857,7 +1788,120 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <Loader2 size={22} className="animate-spin text-primary-400" />
                         <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando formulários...</span>
                       </div>
-                    ) : osEquipments.length > 0 ? (
+                    ) : (() => {
+                      // ── Seção: Dados por Atendimento (agrupamento explícito por visita) ──
+                      const VISIT_SYSTEM_KEYS = new Set([
+                        'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+                        'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+                        'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+                        'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+                        'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
+                        'clientName', 'customerName', 'customerAddress', 'tenantId',
+                        'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+                        'extra_photos', 'photos', 'equipment_ids', 'impediment_history',
+                        'blockPhotoUrls'
+                      ]);
+                      const vIsSignatureKey = (k: string) =>
+                        k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
+                        k.toLowerCase().includes('cpf') || k.toLowerCase().includes('nascimento');
+                      const vIsMedia = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image') || v.startsWith('data:video'));
+                      const vIsMediaArray = (v: any) => Array.isArray(v) && (v as any[]).every((i: any) => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video')));
+                      const filterEntries = (fd: any) => Object.entries(fd || {})
+                        .filter(([k]) => !VISIT_SYSTEM_KEYS.has(k) && !vIsSignatureKey(k))
+                        .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? (v as any[]).length > 0 : true));
+                      const renderVisitEntries = (entries: [string, any][]) => (
+                        <div className="divide-y divide-slate-50">
+                          {entries.map(([key, val]) => (
+                            <div key={key} className="px-5 py-3 flex justify-between gap-6 items-center hover:bg-slate-50/50">
+                              <p className="text-[12px] font-medium text-slate-700 flex-1">
+                                {!isNaN(Number(key)) ? `Pergunta ${key}` : key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ')}
+                              </p>
+                              {vIsMedia(val) ? (
+                                <div className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(String(val))}>
+                                  {String(val).match(/\.mp4|video/i) ? (
+                                    <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
+                                      <video src={String(val)} className="w-full h-full object-cover opacity-50" />
+                                      <Play size={10} className="text-white fill-white absolute" />
+                                    </div>
+                                  ) : (
+                                    <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                                  )}
+                                </div>
+                              ) : vIsMediaArray(val) ? (
+                                <div className="flex gap-1.5 flex-wrap">
+                                  {(val as string[]).slice(0, 4).map((m: string, i: number) => (
+                                    <div key={i} className="cursor-zoom-in" onClick={() => setFullscreenImage(m)}>
+                                      <img src={m} className="w-10 h-10 rounded-md object-cover border border-slate-200" alt="foto" />
+                                    </div>
+                                  ))}
+                                  {(val as string[]).length > 4 && <span className="text-[10px] text-slate-400 font-bold self-center">+{(val as string[]).length - 4}</span>}
+                                </div>
+                              ) : (
+                                <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                  {Array.isArray(val) ? String(val).replace(/,/g, ', ') : String(val)}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+
+                      const osMainEntries = filterEntries(selectedOrder.formData);
+                      const visitsWithData = [...orderVisits]
+                        .sort((a, b) => (a.visitNumber || 0) - (b.visitNumber || 0))
+                        .map(v => ({ ...v, _entries: filterEntries(v.formData) }))
+                        .filter(v => v._entries.length > 0);
+                      const hasAtendimentoData = osMainEntries.length > 0 || visitsWithData.length > 0;
+
+                      return (
+                        <div className="space-y-8">
+                          {/* Seção: dados por atendimento */}
+                          {hasAtendimentoData && (
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-px flex-1 bg-slate-100" />
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 flex items-center gap-1.5">
+                                  <ClipboardList size={11} /> Dados por Atendimento
+                                </span>
+                                <div className="h-px flex-1 bg-slate-100" />
+                              </div>
+                              {osMainEntries.length > 0 && (
+                                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                  <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-indigo-50/50">
+                                    <div className="w-7 h-7 bg-indigo-50 border border-indigo-100 rounded-md flex items-center justify-center"><ClipboardList size={13} className="text-indigo-400" /></div>
+                                    <div className="flex-1">
+                                      <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">Atendimento Principal</p>
+                                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">Dados gravados diretamente na OS</p>
+                                    </div>
+                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-slate-200">{osMainEntries.length} campo{osMainEntries.length !== 1 ? 's' : ''}</span>
+                                  </div>
+                                  {renderVisitEntries(osMainEntries)}
+                                </div>
+                              )}
+                              {visitsWithData.map((v: any) => {
+                                const stBadge: Record<string, string> = { completed: 'bg-emerald-50 text-emerald-700 border-emerald-100', blocked: 'bg-rose-50 text-rose-700 border-rose-100', paused: 'bg-amber-50 text-amber-700 border-amber-100' };
+                                const stLabel: Record<string, string> = { completed: '✓ Concluído', blocked: '✗ Impedido', paused: '⏸ Pausado' };
+                                return (
+                                  <div key={v.visitNumber} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                    <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                                      <div className="w-7 h-7 bg-blue-50 border border-blue-100 rounded-md flex items-center justify-center"><CalendarPlus size={13} className="text-blue-400" /></div>
+                                      <div className="flex-1">
+                                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">Visita nº {v.visitNumber}</p>
+                                        {v.updatedAt && <p className="text-[10px] text-slate-400 font-medium mt-0.5">{new Date(v.updatedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>}
+                                      </div>
+                                      <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${stBadge[v.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>{stLabel[v.status] || v.status}</span>
+                                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-slate-200">{v._entries.length} campo{v._entries.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    {renderVisitEntries(v._entries)}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Seção: formulários por equipamento (template-based view) */}
+                          <div className="space-y-4">
+                            {osEquipments.length > 0 ? (
                       /* ── Modo multi-equipamento: 1 seção por equipamento ── */
                       osEquipments.map((eq: any, eqIdx: number) => {
                         const templates = resolveTemplate(eq.equipmentFamily || '');
@@ -1903,6 +1947,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         )
                     )}
+                          </div>{/* /space-y-4 template forms */}
 
                     {/* ── CARD DE IMPEDIMENTO ── */}
                     {(() => {
@@ -1911,12 +1956,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       const impReason = fd.impedimento_motivo || fd.impediment_reason;
                       const impDate = fd.impediment_at;
                       const impParts = fd.impedimento_peca_nome ? {
-                        nome: fd.impedimento_peca_nome,
-                        modelo: fd.impedimento_peca_modelo,
-                        codigo: fd.impedimento_peca_codigo
+                          nome: fd.impedimento_peca_nome,
+                          modelo: fd.impedimento_peca_modelo,
+                          codigo: fd.impedimento_peca_codigo
                       } : null;
                       const impPhotos = fd.impedimento_fotos || [];
-
+                      
                       const hasImpedimentData = impType || impReason || impParts;
 
                       if (!hasImpedimentData) return null;
@@ -1974,8 +2019,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-3">Evidências (Fotos)</p>
                                 <div className="flex flex-wrap gap-3">
                                   {impPhotos.map((url: string, idx: number) => (
-                                    <div
-                                      key={idx}
+                                    <div 
+                                      key={idx} 
                                       className="w-24 h-24 rounded-lg overflow-hidden border border-rose-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
                                       onClick={() => setFullscreenImage(url)}
                                     >
@@ -2051,7 +2096,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <div className="flex flex-col gap-1.5 ml-auto">
                                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Assinatura Coletada</p>
                                     <div
-                                      className="h-12 w-32 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1 cursor-zoom-in hover:shadow-lg shadow-slate-200/50 transition-all"
+                                      className="h-12 w-32 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1 cursor-zoom-in hover:shadow-sm transition-all"
                                       onClick={() => setFullscreenImage(fd.signature)}
                                     >
                                       <img src={fd.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
@@ -2060,59 +2105,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 )}
                               </div>
                             )}
-                            {(() => {
-                              const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
-                              const photos = Array.isArray(extras) ? extras : (typeof extras === "string" ? [extras] : []);
-                              const validPhotos = photos.filter((p: any) => typeof p === "string" && (p.startsWith("http") || p.startsWith("data:image")));
+                              {(() => {
+                                const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
+                                const photos = Array.isArray(extras) ? extras : (typeof extras === "string" ? [extras] : []);
+                                const validPhotos = photos.filter((p: any) => typeof p === "string" && (p.startsWith("http") || p.startsWith("data:image")));
 
-                              return (
-                                <div className="px-6 py-4 space-y-4">
-                                  {(selectedOrder.videoUrl || fd.videoUrl || fd.video_url) && (
-                                    <div className="pt-2 border-t border-indigo-50">
-                                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <Video size={12} /> Vídeo de Conclusão (Evidência)
-                                      </p>
-                                      <div className="flex flex-wrap gap-3">
-                                        <div
-                                          className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative group"
-                                          onClick={() => setFullscreenImage(selectedOrder.videoUrl || fd.videoUrl || fd.video_url)}
-                                        >
-                                          <video
-                                            src={selectedOrder.videoUrl || fd.videoUrl || fd.video_url}
-                                            className="w-full h-full object-cover opacity-60"
-                                            preload="metadata"
-                                          />
-                                          <div className="absolute inset-0 flex items-center justify-center">
-                                            <Play size={16} className="text-white fill-white" />
+                                return (
+                                  <div className="px-6 py-4 space-y-4">
+                                    {(selectedOrder.videoUrl || fd.videoUrl || fd.video_url) && (
+                                      <div className="pt-2 border-t border-indigo-50">
+                                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                          <Video size={12} /> Vídeo de Conclusão (Evidência)
+                                        </p>
+                                        <div className="flex flex-wrap gap-3">
+                                          <div
+                                            className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative group"
+                                            onClick={() => setFullscreenImage(selectedOrder.videoUrl || fd.videoUrl || fd.video_url)}
+                                          >
+                                            <video 
+                                              src={selectedOrder.videoUrl || fd.videoUrl || fd.video_url} 
+                                              className="w-full h-full object-cover opacity-60" 
+                                              preload="metadata"
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                              <Play size={16} className="text-white fill-white" />
+                                            </div>
                                           </div>
                                         </div>
                                       </div>
-                                    </div>
-                                  )}
+                                    )}
 
-                                  {validPhotos.length > 0 && (
-                                    <div className="pt-2 border-t border-indigo-50">
-                                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3">Anexos de Conclusão (Fotos)</p>
-                                      <div className="flex flex-wrap gap-3">
-                                        {validPhotos.map((url: string, i: number) => (
-                                          <div
-                                            key={i}
-                                            className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
-                                            onClick={() => setFullscreenImage(url)}
-                                          >
-                                            <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
-                                          </div>
-                                        ))}
+                                    {validPhotos.length > 0 && (
+                                      <div className="pt-2 border-t border-indigo-50">
+                                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3">Anexos de Conclusão (Fotos)</p>
+                                        <div className="flex flex-wrap gap-3">
+                                          {validPhotos.map((url: string, i: number) => (
+                                            <div
+                                              key={i}
+                                              className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
+                                              onClick={() => setFullscreenImage(url)}
+                                            >
+                                              <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
+                                            </div>
+                                          ))}
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
+                                    )}
+                                  </div>
+                                );
+                              })()}
                           </div>
                         </div>
                       );
                     })()}
+                        </div>{/* /space-y-8 outer wrapper */}
+                      );
+                    })()
+                    }
                   </div>
                 );
               })()}
@@ -2122,64 +2171,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="max-w-4xl mx-auto space-y-6">
                   {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
                   {(() => {
-                    const seenKeys = new Set<string>();
-                    const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
+                      const seenKeys = new Set<string>();
+                      const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
 
-                    const addEntry = (title: string, entry: { reason?: string; photoUrl?: string; blockedAt?: string }) => {
-                      const key = entry.blockedAt || (title + (entry.reason || ''));
-                      if (seenKeys.has(key)) return;
-                      seenKeys.add(key);
-                      impediments.push({ title, reason: entry.reason || 'Sem motivo.', photo: entry.photoUrl, date: entry.blockedAt });
-                    };
+                      const addEntry = (title: string, entry: { reason?: string; photoUrl?: string; blockedAt?: string }) => {
+                          const key = entry.blockedAt || (title + (entry.reason || ''));
+                          if (seenKeys.has(key)) return;
+                          seenKeys.add(key);
+                          impediments.push({ title, reason: entry.reason || 'Sem motivo.', photo: entry.photoUrl, date: entry.blockedAt });
+                      };
 
-                    [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
-                      const vFd: any = v.formData || {};
-                      if (Array.isArray(vFd.impediment_history) && vFd.impediment_history.length > 0) {
-                        vFd.impediment_history.forEach((entry: any) =>
-                          addEntry(`Impedimento — Visita nº ${v.visitNumber}`, entry)
-                        );
-                      } else {
-                        const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
-                        if (reason) addEntry(`Impedimento — Visita nº ${v.visitNumber}`, { reason, photoUrl: vFd.blockPhotoUrl, blockedAt: vFd.blockedAt });
-                      }
-                    });
-
-                    // OS atual — SEMPRE lida
-                    const osFd: any = selectedOrder.formData || {};
-                    if (Array.isArray(osFd.impediment_history) && osFd.impediment_history.length > 0) {
-                      osFd.impediment_history.forEach((entry: any) =>
-                        addEntry('Impedimento (Atual)', entry)
-                      );
-                    } else if (osFd.blockReason || selectedOrder.status === 'IMPEDIDO') {
-                      addEntry('Impedimento (Atual)', {
-                        reason: osFd.blockReason || osFd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
-                        photoUrl: osFd.blockPhotoUrl,
-                        blockedAt: osFd.blockedAt,
+                      [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
+                          const vFd: any = v.formData || {};
+                          if (Array.isArray(vFd.impediment_history) && vFd.impediment_history.length > 0) {
+                              vFd.impediment_history.forEach((entry: any) =>
+                                  addEntry(`Impedimento — Visita nº ${v.visitNumber}`, entry)
+                              );
+                          } else {
+                              const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
+                              if (reason) addEntry(`Impedimento — Visita nº ${v.visitNumber}`, { reason, photoUrl: vFd.blockPhotoUrl, blockedAt: vFd.blockedAt });
+                          }
                       });
-                    }
 
-                    if (impediments.length === 0) return null;
+                      // OS atual — SEMPRE lida
+                      const osFd: any = selectedOrder.formData || {};
+                      if (Array.isArray(osFd.impediment_history) && osFd.impediment_history.length > 0) {
+                          osFd.impediment_history.forEach((entry: any) =>
+                              addEntry('Impedimento (Atual)', entry)
+                          );
+                      } else if (osFd.blockReason || selectedOrder.status === 'IMPEDIDO') {
+                          addEntry('Impedimento (Atual)', {
+                              reason: osFd.blockReason || osFd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
+                              photoUrl: osFd.blockPhotoUrl,
+                              blockedAt: osFd.blockedAt,
+                          });
+                      }
 
-                    return (
-                      <div className="space-y-4 mb-6">
-                        {impediments.map((imp, idx) => (
-                          <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
-                            <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
-                            <div className="flex-1">
-                              <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
-                              {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
-                              <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
-                              {imp.photo && (
-                                <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
-                                  <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{ maxHeight: 200 }} />
-                                  <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
-                                </a>
-                              )}
+                      if (impediments.length === 0) return null;
+
+                      return (
+                        <div className="space-y-4 mb-6">
+                          {impediments.map((imp, idx) => (
+                            <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
+                              <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
+                              <div className="flex-1">
+                                <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
+                                {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
+                                <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
+                                {imp.photo && (
+                                  <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
+                                    <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 200}} />
+                                    <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
+                                  </a>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
+                          ))}
+                        </div>
+                      );
                   })()}
 
                   {/* Agrupar e Renderizar os Checklists de Todas as Visitas */}
@@ -2205,7 +2254,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {validVisits.map((visit, index) => {
                           const vFormData = visit.formData || {};
                           return (
-                            <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-lg shadow-slate-200/50 overflow-hidden">
+                            <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
                               <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                                 <div>
                                   <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -2239,7 +2288,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                         {/* 2. DADOS DO FORMULÁRIO MASTER (SE NÃO ESTIVEREM NAS VISITAS) */}
                         {osFormData && (
-                          <div className="bg-white border border-slate-200 rounded-lg shadow-lg shadow-slate-200/50 overflow-hidden">
+                          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
                             <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                               <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Dados Globais do Formulário (OS)</h3>
                               <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
@@ -2283,7 +2332,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
 
                     const rawMedia: { key: string, url: string, type: 'image' | 'video' }[] = [];
-
+                    
                     // Incluir o vídeo principal da OS se não estiver no form_data
                     if (selectedOrder.videoUrl) {
                       rawMedia.push({ key: 'Vídeo da OS', url: selectedOrder.videoUrl, type: 'video' });
@@ -2292,7 +2341,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     allForms.forEach(form => {
                       Object.entries(form).forEach(([key, val]) => {
                         if (Array.isArray(val)) {
-                          val.forEach(url => {
+                          val.forEach(url => { 
                             if (typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:image') || url.startsWith('data:video'))) {
                               rawMedia.push({ key, url, type: isVideoUrl(url) ? 'video' : 'image' });
                             }
@@ -2331,13 +2380,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }
 
                     return groupKeys.map(key => (
-                      <div key={key} className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
-                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-200 flex items-center gap-2">
+                      <div key={key} className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
                           <Camera size={16} className="text-slate-400" /> {key}
                         </h4>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {groupedMedia[key].map((p, i) => (
-                            <div key={i} className="flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-lg shadow-slate-200/50 group hover:border-[#1c2d4f] transition-all">
+                            <div key={i} className="flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm group hover:border-[#1c2d4f] transition-all">
                               <div
                                 className="aspect-[4/3] bg-slate-50 cursor-zoom-in relative"
                                 onClick={() => setFullscreenImage(p.url)}
@@ -2359,7 +2408,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 )}
                                 <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors" />
                               </div>
-                              <div className="p-3 bg-slate-50/50 border-t border-slate-200 flex-1 flex flex-col justify-between">
+                              <div className="p-3 bg-slate-50/50 border-t border-slate-100 flex-1 flex flex-col justify-between">
                                 <p className="text-[10px] leading-snug font-bold text-slate-700 uppercase tracking-tight line-clamp-2" title={key}>{key}</p>
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2 bg-slate-100 self-start px-2 py-0.5 rounded">{p.type === 'video' ? `Vídeo #${i + 1}` : `Foto #${i + 1}`}</p>
                               </div>
@@ -2388,9 +2437,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="bg-white border border-slate-200 rounded-lg shadow-lg shadow-slate-200/50 overflow-hidden">
+                  <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
                     <table className="w-full text-left">
-                      <thead className="bg-slate-100/80 text-[11px] font-semibold text-slate-600 border-b border-slate-300 font-poppins">
+                      <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
                         <tr>
                           <th className="px-6 py-3">Item / Serviço</th>
                           <th className="px-4 py-3 text-center">Quant.</th>
@@ -2491,7 +2540,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                     <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Validação Técnica</h3>
                     <p className="text-xs text-slate-500 mt-2 mb-8 font-medium">Revisado e assinado eletronicamente pelo responsável de campo</p>
-                    <div className="w-full pt-8 border-t border-slate-200">
+                    <div className="w-full pt-8 border-t border-slate-100">
                       <div className="text-base font-bold text-slate-800">{techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Técnico Não Identificado'}</div>
                       <div className="text-[10px] text-slate-400 font-mono mt-2 break-all bg-slate-50 p-2 rounded border border-slate-100 select-all">
                         {selectedOrder.displayId || selectedOrder.id}-VALID-{new Date(selectedOrder.createdAt).getTime()}
@@ -2538,7 +2587,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       return signatureUrl ? (
                         <div className="w-full">
                           <img src={signatureUrl} className="h-28 mx-auto object-contain mix-blend-multiply mb-6" alt="Assinatura" />
-                          <div className="pt-6 border-t border-slate-200">
+                          <div className="pt-6 border-t border-slate-100">
                             <div className="text-base font-bold text-slate-900 uppercase text-center">{name}</div>
                             {signatureDoc && <div className="text-xs font-semibold text-slate-500 font-mono text-center mt-1">CPF/Doc: {signatureDoc}</div>}
                             <div className="text-center">
@@ -2547,7 +2596,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         </div>
                       ) : (
-                        <div className="py-8 w-full border-t border-slate-200 text-center">
+                        <div className="py-8 w-full border-t border-slate-100 text-center">
                           <p className="text-xs text-slate-400 font-bold uppercase bg-slate-50 py-4 rounded-md border border-dashed border-slate-200 tracking-widest">Assinatura Pendente</p>
                         </div>
                       );
@@ -2599,7 +2648,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                   {/* Formulário de nova visita (inline) */}
                   {showNewVisitForm && (
-                    <div className="bg-white border border-primary-200 rounded-xl shadow-lg shadow-slate-200/50 p-6 space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="bg-white border border-primary-200 rounded-xl shadow-sm p-6 space-y-4 animate-in fade-in slide-in-from-top-2">
                       <h4 className="text-xs font-black uppercase tracking-widest text-primary-700">Agendar Nova Visita</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
@@ -2825,7 +2874,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                   {/* Histórico detalhado de visitas */}
                   <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-200">
+                    <div className="px-6 py-4 border-b border-slate-100">
                       <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Histórico de Visitas</h3>
                     </div>
                     <VisitHistoryTab orderId={selectedOrder.id} isActive={activeTab === 'history'} />
@@ -2839,15 +2888,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )
       }
 
-      {/* Batch Print Container — renderiza ordersToPrint completas inclusive de outras páginas */}
+      {/* Batch Print Container — usa os dados da página atual */}
       {
-        isBatchPrinting && ordersToPrint && createPortal(
+        isBatchPrinting && createPortal(
           <div id="batch-print-root" className="bg-white">
-            {ordersToPrint.map((order) => (
-              <div key={order.id} className="print:break-after-page last:print:break-after-auto w-full">
-                <PublicOrderView order={order} techs={techs} isPrint={true} />
-              </div>
-            ))}
+            {pagedOrders
+              .filter(o => selectedOrderIds.includes(o.id))
+              .map((order) => (
+                <div key={order.id} className="print:break-after-page last:print:break-after-auto w-full">
+                  <PublicOrderView order={order} techs={techs} isPrint={true} />
+                </div>
+              ))}
           </div>,
           document.body
         )
@@ -2887,7 +2938,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {isStockPickerOpen && (
         <div className="fixed inset-0 z-[1000] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
-            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center text-primary-600">
                   <PackageSearch size={18} />
@@ -2958,7 +3009,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
               <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2">
                 <Box size={12} /> {allStockItems.length} Itens no catálogo
               </p>
