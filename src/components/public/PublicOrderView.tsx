@@ -950,8 +950,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
             <div className="p-4 flex flex-col items-center justify-center gap-3">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Responsável Técnico</p>
-              <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-xs font-bold uppercase">
-                Validação Eletrônica no Sistema
+              <div className="h-[60px] flex items-center justify-center overflow-hidden">
+                {tech?.avatar ? (
+                  <img src={tech.avatar} alt="Avatar" className="max-h-full max-w-full object-contain mix-blend-multiply rounded-md" />
+                ) : (
+                  <span className="text-slate-200 italic text-xs font-bold uppercase">Validação Eletrônica no Sistema</span>
+                )}
               </div>
               <div className="w-full border-t border-slate-300 pt-2">
                 <p className="text-xs font-bold text-slate-900 uppercase">{tech?.name || 'Não Atribuído'}</p>
@@ -1214,8 +1218,16 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             {/* Timeline bar */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#1c2d4f]/10 rounded-xl flex items-center justify-center shrink-0">
-                  <UserIcon size={14} className="text-[#1c2d4f]" />
+                <div className="w-8 h-8 bg-[#1c2d4f]/10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
+                  {tech?.avatar ? (
+                    <img 
+                      src={tech.avatar} 
+                      alt={tech.name} 
+                      className="w-full h-full object-cover" 
+                    />
+                  ) : (
+                    <UserIcon size={14} className="text-[#1c2d4f]" />
+                  )}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Técnico</p>
@@ -1596,8 +1608,16 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
                   {/* Técnico */}
                   <div className="flex flex-col items-center text-center p-6 bg-slate-50 rounded-xl border border-slate-100 gap-4">
-                    <div className="w-14 h-14 bg-[#1c2d4f]/10 rounded-2xl flex items-center justify-center">
-                      <UserIcon size={24} className="text-[#1c2d4f]" />
+                    <div className="w-14 h-14 bg-[#1c2d4f]/10 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-200/50 shadow-sm">
+                      {tech?.avatar ? (
+                        <img 
+                          src={tech.avatar} 
+                          alt={tech.name} 
+                          className="w-full h-full object-cover" 
+                        />
+                      ) : (
+                        <UserIcon size={24} className="text-[#1c2d4f]" />
+                      )}
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Técnico Responsável</p>
