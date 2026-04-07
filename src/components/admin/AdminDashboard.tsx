@@ -42,6 +42,7 @@ import { DataService } from '../../services/dataService';
 import { EquipmentService } from '../../services/equipmentService';
 import { FormService } from '../../services/formService';
 import { VisitService } from '../../services/visitService';
+import { supabase } from '../../lib/supabase';
 import { type Customer, OrderStatus, type ServiceOrder, type ServiceVisit, type User, VisitStatusEnum } from '../../types';
 import { PublicOrderView } from '../public/PublicOrderView';
 import { OrderTimeline } from '../shared/OrderTimeline';
@@ -82,8 +83,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
-  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
-  const [orderVisits, setOrderVisits] = useState<any[]>([]);
+   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+   const [orderVisits, setOrderVisits] = useState<any[]>([]);
+   const [orderImpediments, setOrderImpediments] = useState<OrderImpediment[]>([]);
 
   // ── Edição Inline ──────────────────────────────────────────────
   const [isEditing, setIsEditing] = useState(false);
@@ -242,11 +244,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setEquipments([]);
 
       // Busca o técnicos da OS via RPC secundário (não bloqueante)
-      import('../../services/orderService').then(mod => {
-        mod.OrderService.getOrderVisits(selectedOrder.id).then(v => {
-          setOrderVisits(v);
-        });
+      VisitService.getVisitsByOrderId(selectedOrder.id).then(v => {
+        setOrderVisits(v);
       });
+
+      // Busca histórico estruturado de impedimentos (Nova Tabela Master)
+      supabase.from('order_impediments')
+        .select('*')
+        .eq('order_id', selectedOrder.id)
+        .order('created_at', { ascending: true })
+        .then(({ data }) => {
+           if (data) setOrderImpediments(data);
+        });
 
       // Busca o template para mapear IDs para Labels no checklist
       if (selectedOrder.formId) {
@@ -645,19 +654,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       });
       setShowNewVisitForm(false);
       setNewVisitDraft({ technicianId: '', scheduledDate: '', scheduledTime: '', notes: '' });
-      // Refresh visitas
+
+      // Refresh visitas e OS — createNewVisit já atualizou o DB corretamente.
+      // NÃO chamamos onEditOrder aqui pois isso sobrescreveria form_data no banco
+      // com um objeto vazio, destruindo o impediment_history que foi preservado.
       const updatedVisits = await VisitService.getVisitsByOrderId(selectedOrder.id);
       setVisits(updatedVisits);
-      // Sincroniza a OS via onEditOrder (caminho comprovado)
-      const updatedOrder: ServiceOrder = {
+      setOrderVisits(updatedVisits);
+
+      // Atualiza o estado local da OS para refletir o estado real do banco
+      // (status=ATRIBUÍDO, mantendo o form_data preservado intacto O Histórico de Impedimentos)
+      const preservedHistory = Array.isArray(selectedOrder.formData?.impediment_history)
+         ? selectedOrder.formData.impediment_history
+         : [];
+
+      const freshOrder: ServiceOrder = {
         ...selectedOrder,
+        status: OrderStatus.ASSIGNED,
         scheduledDate: newVisitDraft.scheduledDate,
         scheduledTime: newVisitDraft.scheduledTime || selectedOrder.scheduledTime,
         assignedTo: newVisitDraft.technicianId || selectedOrder.assignedTo,
+        signature: undefined,
+        signatureName: undefined,
+        signatureDoc: undefined,
+        videoUrl: undefined,
       };
-      await onEditOrder(updatedOrder);
-      setSelectedOrder(updatedOrder);
-      ordersRefetch();
+      setSelectedOrder(freshOrder);
+      
+      // Força recarregamento da query `orders` via usePagedOrders
+      await ordersRefetch();
     } catch (e: any) {
       const msg = (e.message || '').startsWith('INVALID_') ? e.message.split(': ')[1] : e.message;
       alert(msg || 'Erro ao criar visita.');
@@ -1452,10 +1477,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: FORMULÁRIOS — 1 bloco por equipamento */}
               {activeTab === 'forms' && (() => {
                 const opType = selectedOrder.operationType || '';
-                const allFormData: Record<string, any> = {
-                  ...(selectedOrder.formData || {}),
-                  ...orderVisits.reduce((acc: any, v: any) => ({ ...acc, ...(v.formData || {}) }), {}),
-                };
+                // ── Merge seguro: NUNCA sobrescrevemos impediment_history via spread ──
+                const allFormData: Record<string, any> = (() => {
+                  const base: any = { ...(selectedOrder.formData || {}) };
+                  // Acumula impediment_history de TODAS as fontes
+                  const allHistory: any[] = [
+                    ...(Array.isArray(base.impediment_history) ? base.impediment_history : []),
+                  ];
+                  for (const v of orderVisits) {
+                    const vFd: any = v.formData || {};
+                    // Mescla campos não-impediment normalmente
+                    Object.entries(vFd).forEach(([k, val]) => {
+                      if (k !== 'impediment_history') base[k] = val;
+                    });
+                    // Acumula impediment_history em vez de sobrescrever
+                    if (Array.isArray(vFd.impediment_history)) {
+                      allHistory.push(...vFd.impediment_history);
+                    }
+                  }
+                  // Dedup por blockedAt para evitar duplicatas entre fontes
+                  const seen = new Set<string>();
+                  base.impediment_history = allHistory.filter(e => {
+                    const key = e?.blockedAt || JSON.stringify(e);
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                  });
+                  return base;
+                })();
 
                 // Resolve o template correto para um dado equipamento
                 const resolveTemplate = (eqFamily: string) => {
@@ -1671,23 +1720,188 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                 return (
                   <div className="max-w-4xl mx-auto space-y-8">
-                    {/* Alerta de impedimento */}
-                    {selectedOrder.status === 'IMPEDIDO' && (
-                      <div className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
-                        <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
-                        <div>
-                          <h4 className="text-sm font-bold text-rose-900">Serviço Impedido</h4>
-                          <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.'}</p>
-                        </div>
-                      </div>
-                    )}
+                    {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
+                    {(() => {
+                        // Lista para agrupar todas as ocorrências de impedimentos (para render) sem deduplicação destrutiva
+                        const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
+
+                        // 1. CARREGAMENTO MESTRE: Nova Tabela Estruturada (Imutável e Independente)
+                        orderImpediments.forEach((imp, i) => {
+                           impediments.push({
+                              title: `Impedimento Registrado — Evento ${i + 1}`,
+                              reason: imp.reason,
+                              photo: imp.photoUrl,
+                              date: imp.createdAt
+                           });
+                        });
+
+                        // 2. LEGADO: Busca em Visitas passadas apenas se não houver registros na nova tabela (migração suave)
+                        if (impediments.length === 0) {
+                           [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
+                               const vFd: any = v.formData || {};
+                               const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
+                               if (reason) {
+                                   impediments.push({
+                                       title: `Impedimento — Visita nº ${v.visitNumber}`,
+                                       reason: reason,
+                                       photo: vFd.blockPhotoUrl,
+                                       date: vFd.blockedAt || v.updatedAt
+                                   });
+                               }
+                           });
+                        }
+
+                        if (impediments.length === 0) return null;
+
+                        // Deduplicador Inteligente baseado no motivo e foto (sem depender exclusivamente da data)
+                        const uniqueImpediments = impediments.filter((value, index, self) =>
+                           index === self.findIndex((t) => (
+                              t.reason === value.reason && 
+                              (t.photo === value.photo || (!t.photo && !value.photo))
+                           ))
+                        );
+
+                        return (
+                          <div className="space-y-4 mb-6">
+                            {uniqueImpediments.map((imp, idx) => (
+                              <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
+                                <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
+                                <div className="flex-1">
+                                  <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
+                                  {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
+                                  <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
+                                  {imp.photo && (
+                                    <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
+                                      <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 200}} />
+                                      <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                    })()}
 
                     {formsTabLoading ? (
                       <div className="flex items-center justify-center py-16 gap-3">
                         <Loader2 size={22} className="animate-spin text-primary-400" />
                         <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando formulários...</span>
                       </div>
-                    ) : osEquipments.length > 0 ? (
+                    ) : (() => {
+                      // ── Seção: Dados por Atendimento (agrupamento explícito por visita) ──
+                      const VISIT_SYSTEM_KEYS = new Set([
+                        'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+                        'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+                        'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+                        'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+                        'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
+                        'clientName', 'customerName', 'customerAddress', 'tenantId',
+                        'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+                        'extra_photos', 'photos', 'equipment_ids', 'impediment_history',
+                        'blockPhotoUrls'
+                      ]);
+                      const vIsSignatureKey = (k: string) =>
+                        k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
+                        k.toLowerCase().includes('cpf') || k.toLowerCase().includes('nascimento');
+                      const vIsMedia = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image') || v.startsWith('data:video'));
+                      const vIsMediaArray = (v: any) => Array.isArray(v) && (v as any[]).every((i: any) => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video')));
+                      const filterEntries = (fd: any) => Object.entries(fd || {})
+                        .filter(([k]) => !VISIT_SYSTEM_KEYS.has(k) && !vIsSignatureKey(k))
+                        .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? (v as any[]).length > 0 : true));
+                      const renderVisitEntries = (entries: [string, any][]) => (
+                        <div className="divide-y divide-slate-50">
+                          {entries.map(([key, val]) => (
+                            <div key={key} className="px-5 py-3 flex justify-between gap-6 items-center hover:bg-slate-50/50">
+                              <p className="text-[12px] font-medium text-slate-700 flex-1">
+                                {!isNaN(Number(key)) ? `Pergunta ${key}` : key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ')}
+                              </p>
+                              {vIsMedia(val) ? (
+                                <div className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(String(val))}>
+                                  {String(val).match(/\.mp4|video/i) ? (
+                                    <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
+                                      <video src={String(val)} className="w-full h-full object-cover opacity-50" />
+                                      <Play size={10} className="text-white fill-white absolute" />
+                                    </div>
+                                  ) : (
+                                    <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                                  )}
+                                </div>
+                              ) : vIsMediaArray(val) ? (
+                                <div className="flex gap-1.5 flex-wrap">
+                                  {(val as string[]).slice(0, 4).map((m: string, i: number) => (
+                                    <div key={i} className="cursor-zoom-in" onClick={() => setFullscreenImage(m)}>
+                                      <img src={m} className="w-10 h-10 rounded-md object-cover border border-slate-200" alt="foto" />
+                                    </div>
+                                  ))}
+                                  {(val as string[]).length > 4 && <span className="text-[10px] text-slate-400 font-bold self-center">+{(val as string[]).length - 4}</span>}
+                                </div>
+                              ) : (
+                                <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                  {Array.isArray(val) ? String(val).replace(/,/g, ', ') : String(val)}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+
+                      const osMainEntries = filterEntries(selectedOrder.formData);
+                      const visitsWithData = [...orderVisits]
+                        .sort((a, b) => (a.visitNumber || 0) - (b.visitNumber || 0))
+                        .map(v => ({ ...v, _entries: filterEntries(v.formData) }))
+                        .filter(v => v._entries.length > 0);
+                      const hasAtendimentoData = osMainEntries.length > 0 || visitsWithData.length > 0;
+
+                      return (
+                        <div className="space-y-8">
+                          {/* Seção: dados por atendimento */}
+                          {hasAtendimentoData && (
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-px flex-1 bg-slate-100" />
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 flex items-center gap-1.5">
+                                  <ClipboardList size={11} /> Dados por Atendimento
+                                </span>
+                                <div className="h-px flex-1 bg-slate-100" />
+                              </div>
+                              {osMainEntries.length > 0 && (
+                                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                  <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-indigo-50/50">
+                                    <div className="w-7 h-7 bg-indigo-50 border border-indigo-100 rounded-md flex items-center justify-center"><ClipboardList size={13} className="text-indigo-400" /></div>
+                                    <div className="flex-1">
+                                      <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">Atendimento Principal</p>
+                                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">Dados gravados diretamente na OS</p>
+                                    </div>
+                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-slate-200">{osMainEntries.length} campo{osMainEntries.length !== 1 ? 's' : ''}</span>
+                                  </div>
+                                  {renderVisitEntries(osMainEntries)}
+                                </div>
+                              )}
+                              {visitsWithData.map((v: any) => {
+                                const stBadge: Record<string, string> = { completed: 'bg-emerald-50 text-emerald-700 border-emerald-100', blocked: 'bg-rose-50 text-rose-700 border-rose-100', paused: 'bg-amber-50 text-amber-700 border-amber-100' };
+                                const stLabel: Record<string, string> = { completed: '✓ Concluído', blocked: '✗ Impedido', paused: '⏸ Pausado' };
+                                return (
+                                  <div key={v.visitNumber} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                    <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                                      <div className="w-7 h-7 bg-blue-50 border border-blue-100 rounded-md flex items-center justify-center"><CalendarPlus size={13} className="text-blue-400" /></div>
+                                      <div className="flex-1">
+                                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">Visita nº {v.visitNumber}</p>
+                                        {v.updatedAt && <p className="text-[10px] text-slate-400 font-medium mt-0.5">{new Date(v.updatedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>}
+                                      </div>
+                                      <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${stBadge[v.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>{stLabel[v.status] || v.status}</span>
+                                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-slate-200">{v._entries.length} campo{v._entries.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    {renderVisitEntries(v._entries)}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Seção: formulários por equipamento (template-based view) */}
+                          <div className="space-y-4">
+                            {osEquipments.length > 0 ? (
                       /* ── Modo multi-equipamento: 1 seção por equipamento ── */
                       osEquipments.map((eq: any, eqIdx: number) => {
                         const templates = resolveTemplate(eq.equipmentFamily || '');
@@ -1733,6 +1947,93 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         )
                     )}
+                          </div>{/* /space-y-4 template forms */}
+
+                    {/* ── CARD DE IMPEDIMENTO ── */}
+                    {(() => {
+                      const fd = allFormData || {};
+                      const impType = fd.impedimento_tipo;
+                      const impReason = fd.impedimento_motivo || fd.impediment_reason;
+                      const impDate = fd.impediment_at;
+                      const impParts = fd.impedimento_peca_nome ? {
+                          nome: fd.impedimento_peca_nome,
+                          modelo: fd.impedimento_peca_modelo,
+                          codigo: fd.impedimento_peca_codigo
+                      } : null;
+                      const impPhotos = fd.impedimento_fotos || [];
+                      
+                      const hasImpedimentData = impType || impReason || impParts;
+
+                      if (!hasImpedimentData) return null;
+
+                      return (
+                        <div className="bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 rounded-xl shadow-sm overflow-hidden mb-6">
+                          <div className="flex items-center gap-3 px-6 py-4 border-b border-rose-100 bg-rose-100/50">
+                            <div className="w-8 h-8 bg-white border border-rose-200 rounded-lg flex items-center justify-center">
+                              <Ban size={14} className="text-rose-500" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-black text-rose-800 uppercase tracking-wider">Dados de Impedimento</p>
+                              <p className="text-[10px] text-rose-500 font-medium mt-0.5">Informações registradas ao bloquear a OS</p>
+                            </div>
+                            {impDate && (
+                              <span className="text-[9px] font-black text-rose-600 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-rose-200">
+                                {new Date(impDate).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="divide-y divide-rose-50/50">
+                            {impType && (
+                              <div className="px-6 py-4 flex gap-4 items-center">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest min-w-[120px]">Tipo de Impedimento</p>
+                                <p className="text-sm font-bold text-slate-800">{impType}</p>
+                              </div>
+                            )}
+                            {impReason && (
+                              <div className="px-6 py-4">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Motivo / Detalhes</p>
+                                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-rose-100">{impReason}</p>
+                              </div>
+                            )}
+                            {impParts && (
+                              <div className="px-6 py-4">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Peça Solicitada</p>
+                                <div className="bg-white p-3 rounded-md border border-rose-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                  <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Nome da Peça</p>
+                                    <p className="text-sm font-bold text-slate-800">{impParts.nome}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Modelo</p>
+                                    <p className="text-sm font-bold text-slate-800">{impParts.modelo}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Código</p>
+                                    <p className="text-sm font-bold text-slate-800">{impParts.codigo || '-'}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {impPhotos && impPhotos.length > 0 && (
+                              <div className="px-6 py-4">
+                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-3">Evidências (Fotos)</p>
+                                <div className="flex flex-wrap gap-3">
+                                  {impPhotos.map((url: string, idx: number) => (
+                                    <div 
+                                      key={idx} 
+                                      className="w-24 h-24 rounded-lg overflow-hidden border border-rose-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
+                                      onClick={() => setFullscreenImage(url)}
+                                    >
+                                      <img src={url} alt={`Evidência ${idx}`} className="w-full h-full object-cover" />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* ── CARD DE CONCLUSÃO ── */}
                     {(() => {
@@ -1816,15 +2117,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                                           <Video size={12} /> Vídeo de Conclusão (Evidência)
                                         </p>
-                                        <div className="w-full max-w-xl bg-black rounded-lg overflow-hidden flex items-center justify-center aspect-video shadow-md border border-indigo-100">
-                                          <video 
-                                            src={selectedOrder.videoUrl || fd.videoUrl || fd.video_url} 
-                                            controls 
-                                            className="w-full h-full max-h-[400px]" 
-                                            preload="metadata"
+                                        <div className="flex flex-wrap gap-3">
+                                          <div
+                                            className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative group"
+                                            onClick={() => setFullscreenImage(selectedOrder.videoUrl || fd.videoUrl || fd.video_url)}
                                           >
-                                            Seu navegador não suporta o elemento de vídeo.
-                                          </video>
+                                            <video 
+                                              src={selectedOrder.videoUrl || fd.videoUrl || fd.video_url} 
+                                              className="w-full h-full object-cover opacity-60" 
+                                              preload="metadata"
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                              <Play size={16} className="text-white fill-white" />
+                                            </div>
+                                          </div>
                                         </div>
                                       </div>
                                     )}
@@ -1852,6 +2158,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                       );
                     })()}
+                        </div>{/* /space-y-8 outer wrapper */}
+                      );
+                    })()
+                    }
                   </div>
                 );
               })()}
@@ -1859,17 +2169,67 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: EXECUÇÃO (CHECKLIST) — mantido para backward compat */}
               {activeTab === 'execution' && (
                 <div className="max-w-4xl mx-auto space-y-6">
-                  {selectedOrder.status === 'IMPEDIDO' && (
-                    <div className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
-                      <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0">
-                        <AlertTriangle size={20} />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-rose-900">Serviço Impedido</h4>
-                        <p className="text-xs text-rose-700 mt-1 font-medium leading-relaxed">{selectedOrder.formData?.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado pelo técnico.'}</p>
-                      </div>
-                    </div>
-                  )}
+                  {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
+                  {(() => {
+                      const seenKeys = new Set<string>();
+                      const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
+
+                      const addEntry = (title: string, entry: { reason?: string; photoUrl?: string; blockedAt?: string }) => {
+                          const key = entry.blockedAt || (title + (entry.reason || ''));
+                          if (seenKeys.has(key)) return;
+                          seenKeys.add(key);
+                          impediments.push({ title, reason: entry.reason || 'Sem motivo.', photo: entry.photoUrl, date: entry.blockedAt });
+                      };
+
+                      [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
+                          const vFd: any = v.formData || {};
+                          if (Array.isArray(vFd.impediment_history) && vFd.impediment_history.length > 0) {
+                              vFd.impediment_history.forEach((entry: any) =>
+                                  addEntry(`Impedimento — Visita nº ${v.visitNumber}`, entry)
+                              );
+                          } else {
+                              const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
+                              if (reason) addEntry(`Impedimento — Visita nº ${v.visitNumber}`, { reason, photoUrl: vFd.blockPhotoUrl, blockedAt: vFd.blockedAt });
+                          }
+                      });
+
+                      // OS atual — SEMPRE lida
+                      const osFd: any = selectedOrder.formData || {};
+                      if (Array.isArray(osFd.impediment_history) && osFd.impediment_history.length > 0) {
+                          osFd.impediment_history.forEach((entry: any) =>
+                              addEntry('Impedimento (Atual)', entry)
+                          );
+                      } else if (osFd.blockReason || selectedOrder.status === 'IMPEDIDO') {
+                          addEntry('Impedimento (Atual)', {
+                              reason: osFd.blockReason || osFd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
+                              photoUrl: osFd.blockPhotoUrl,
+                              blockedAt: osFd.blockedAt,
+                          });
+                      }
+
+                      if (impediments.length === 0) return null;
+
+                      return (
+                        <div className="space-y-4 mb-6">
+                          {impediments.map((imp, idx) => (
+                            <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
+                              <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
+                              <div className="flex-1">
+                                <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
+                                {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
+                                <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
+                                {imp.photo && (
+                                  <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
+                                    <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 200}} />
+                                    <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                  })()}
 
                   {/* Agrupar e Renderizar os Checklists de Todas as Visitas */}
                   {(() => {
@@ -1962,24 +2322,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: MÍDIAS */}
               {activeTab === 'media' && (
                 <div className="space-y-8">
-                  {/* Vídeo Evidência */}
-                  {selectedOrder.videoUrl && (
-                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
-                        <Camera size={16} className="text-slate-400" /> VÍDEO EVIDÊNCIA
-                      </h4>
-                      <div className="w-full max-w-2xl bg-black rounded-lg overflow-hidden flex items-center justify-center">
-                        <video 
-                          src={selectedOrder.videoUrl} 
-                          controls 
-                          className="w-full h-auto max-h-[500px]" 
-                          preload="metadata"
-                        >
-                          Seu navegador não suporta o elemento de vídeo.
-                        </video>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Combina fotos e vídeos da OS e das visitas concluídas/pausadas */}
                   {(() => {
@@ -1989,11 +2331,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     }
                     orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
 
-                    const extractedMedia: { key: string, url: string, type: 'image' | 'video' }[] = [];
+                    const rawMedia: { key: string, url: string, type: 'image' | 'video' }[] = [];
                     
                     // Incluir o vídeo principal da OS se não estiver no form_data
                     if (selectedOrder.videoUrl) {
-                      extractedMedia.push({ key: 'Vídeo da OS', url: selectedOrder.videoUrl, type: 'video' });
+                      rawMedia.push({ key: 'Vídeo da OS', url: selectedOrder.videoUrl, type: 'video' });
                     }
 
                     allForms.forEach(form => {
@@ -2001,22 +2343,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         if (Array.isArray(val)) {
                           val.forEach(url => { 
                             if (typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:image') || url.startsWith('data:video'))) {
-                              extractedMedia.push({ key, url, type: isVideoUrl(url) ? 'video' : 'image' });
+                              rawMedia.push({ key, url, type: isVideoUrl(url) ? 'video' : 'image' });
                             }
                           });
                         } else if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image') || val.startsWith('data:video')) && !key.toLowerCase().includes('assinat') && !key.toLowerCase().includes('sign')) {
-                          extractedMedia.push({ key, url: val, type: isVideoUrl(val) ? 'video' : 'image' });
+                          rawMedia.push({ key, url: val, type: isVideoUrl(val) ? 'video' : 'image' });
                         }
                       });
+                    });
+
+                    // Filtrar duplicados globais por URL
+                    const seenUrls = new Set<string>();
+                    const extractedMedia = rawMedia.filter(m => {
+                      const cleanUrl = m.url.split('?')[0];
+                      if (seenUrls.has(cleanUrl)) return false;
+                      seenUrls.add(cleanUrl);
+                      return true;
                     });
 
                     const groupedMedia = extractedMedia.reduce((acc, curr) => {
                       const displayKey = mapIdToLabel(curr.key);
                       if (!acc[displayKey]) acc[displayKey] = [];
-                      // Evitar duplicatas exatas de URL no mesmo grupo
-                      if (!acc[displayKey].some(item => item.url === curr.url)) {
-                        acc[displayKey].push(curr);
-                      }
+                      acc[displayKey].push(curr);
                       return acc;
                     }, {} as Record<string, { url: string, type: 'image' | 'video' }[]>);
 
@@ -2284,10 +2632,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         disabled={!(
                           visits.length === 0 ||
                           visits[visits.length - 1]?.status === VisitStatusEnum.PAUSED ||
-                          visits[visits.length - 1]?.status === VisitStatusEnum.BLOCKED
+                          visits[visits.length - 1]?.status === VisitStatusEnum.BLOCKED ||
+                          selectedOrder.status === OrderStatus.BLOCKED
                         )}
-                        title={visits.length > 0 && visits[visits.length - 1]?.status !== VisitStatusEnum.PAUSED && visits[visits.length - 1]?.status !== VisitStatusEnum.BLOCKED
-                          ? 'A última visita deve estar pausada ou impedida para criar uma nova.'
+                        title={visits.length > 0 && visits[visits.length - 1]?.status !== VisitStatusEnum.PAUSED && visits[visits.length - 1]?.status !== VisitStatusEnum.BLOCKED && selectedOrder.status !== OrderStatus.BLOCKED
+                          ? 'A OS ou última visita devem estar pausadas ou impedidas.'
                           : 'Agendar nova visita'
                         }
                         className="h-9 px-5 gap-2 bg-primary-600 hover:bg-primary-700 shadow-md shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
@@ -2377,7 +2726,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       {visits.map((visit, idx) => {
                         const isLast = idx === visits.length - 1;
                         const rawStatus = visit.status;
-                        const effectiveStatus = (rawStatus === 'pending' || rawStatus === 'ongoing') && selectedOrder.status === 'CONCLUÍDO' ? 'completed' : rawStatus;
+                        // A visita mais recente (Atual) deve espelhar o status da OS se ainda não foi sincronizada
+                        const effectiveStatus = (() => {
+                          if (rawStatus === 'completed' || visit.isLocked) return 'completed';
+                          if (rawStatus === 'blocked') return 'blocked';
+                          if (rawStatus === 'paused') return 'paused';
+                          if (rawStatus === 'ongoing') {
+                            if (selectedOrder.status === 'CONCLUÍDO') return 'completed';
+                            if (selectedOrder.status === 'IMPEDIDO') return 'blocked';
+                            return 'ongoing';
+                          }
+                          if (rawStatus === 'pending') {
+                            if (selectedOrder.status === 'CONCLUÍDO') return 'completed';
+                            if (isLast && selectedOrder.status === 'IMPEDIDO') return 'blocked';
+                          }
+                          return rawStatus;
+                        })();
 
                         const canEdit = effectiveStatus !== VisitStatusEnum.COMPLETED && !visit.isLocked;
                         const isEditingThis = editingVisitId === visit.id;
