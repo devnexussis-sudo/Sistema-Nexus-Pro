@@ -1788,7 +1788,120 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <Loader2 size={22} className="animate-spin text-primary-400" />
                         <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando formulários...</span>
                       </div>
-                    ) : osEquipments.length > 0 ? (
+                    ) : (() => {
+                      // ── Seção: Dados por Atendimento (agrupamento explícito por visita) ──
+                      const VISIT_SYSTEM_KEYS = new Set([
+                        'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+                        'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+                        'impediment_reason', 'impediment_photos', 'totalValue', 'price',
+                        'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+                        'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
+                        'clientName', 'customerName', 'customerAddress', 'tenantId',
+                        'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+                        'extra_photos', 'photos', 'equipment_ids', 'impediment_history',
+                        'blockPhotoUrls'
+                      ]);
+                      const vIsSignatureKey = (k: string) =>
+                        k.toLowerCase().includes('assinatura') || k.toLowerCase().includes('signature') ||
+                        k.toLowerCase().includes('cpf') || k.toLowerCase().includes('nascimento');
+                      const vIsMedia = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image') || v.startsWith('data:video'));
+                      const vIsMediaArray = (v: any) => Array.isArray(v) && (v as any[]).every((i: any) => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video')));
+                      const filterEntries = (fd: any) => Object.entries(fd || {})
+                        .filter(([k]) => !VISIT_SYSTEM_KEYS.has(k) && !vIsSignatureKey(k))
+                        .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? (v as any[]).length > 0 : true));
+                      const renderVisitEntries = (entries: [string, any][]) => (
+                        <div className="divide-y divide-slate-50">
+                          {entries.map(([key, val]) => (
+                            <div key={key} className="px-5 py-3 flex justify-between gap-6 items-center hover:bg-slate-50/50">
+                              <p className="text-[12px] font-medium text-slate-700 flex-1">
+                                {!isNaN(Number(key)) ? `Pergunta ${key}` : key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ')}
+                              </p>
+                              {vIsMedia(val) ? (
+                                <div className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(String(val))}>
+                                  {String(val).match(/\.mp4|video/i) ? (
+                                    <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
+                                      <video src={String(val)} className="w-full h-full object-cover opacity-50" />
+                                      <Play size={10} className="text-white fill-white absolute" />
+                                    </div>
+                                  ) : (
+                                    <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
+                                  )}
+                                </div>
+                              ) : vIsMediaArray(val) ? (
+                                <div className="flex gap-1.5 flex-wrap">
+                                  {(val as string[]).slice(0, 4).map((m: string, i: number) => (
+                                    <div key={i} className="cursor-zoom-in" onClick={() => setFullscreenImage(m)}>
+                                      <img src={m} className="w-10 h-10 rounded-md object-cover border border-slate-200" alt="foto" />
+                                    </div>
+                                  ))}
+                                  {(val as string[]).length > 4 && <span className="text-[10px] text-slate-400 font-bold self-center">+{(val as string[]).length - 4}</span>}
+                                </div>
+                              ) : (
+                                <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                  {Array.isArray(val) ? String(val).replace(/,/g, ', ') : String(val)}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+
+                      const osMainEntries = filterEntries(selectedOrder.formData);
+                      const visitsWithData = [...orderVisits]
+                        .sort((a, b) => (a.visitNumber || 0) - (b.visitNumber || 0))
+                        .map(v => ({ ...v, _entries: filterEntries(v.formData) }))
+                        .filter(v => v._entries.length > 0);
+                      const hasAtendimentoData = osMainEntries.length > 0 || visitsWithData.length > 0;
+
+                      return (
+                        <div className="space-y-8">
+                          {/* Seção: dados por atendimento */}
+                          {hasAtendimentoData && (
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-px flex-1 bg-slate-100" />
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 flex items-center gap-1.5">
+                                  <ClipboardList size={11} /> Dados por Atendimento
+                                </span>
+                                <div className="h-px flex-1 bg-slate-100" />
+                              </div>
+                              {osMainEntries.length > 0 && (
+                                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                  <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-indigo-50/50">
+                                    <div className="w-7 h-7 bg-indigo-50 border border-indigo-100 rounded-md flex items-center justify-center"><ClipboardList size={13} className="text-indigo-400" /></div>
+                                    <div className="flex-1">
+                                      <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">Atendimento Principal</p>
+                                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">Dados gravados diretamente na OS</p>
+                                    </div>
+                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-slate-200">{osMainEntries.length} campo{osMainEntries.length !== 1 ? 's' : ''}</span>
+                                  </div>
+                                  {renderVisitEntries(osMainEntries)}
+                                </div>
+                              )}
+                              {visitsWithData.map((v: any) => {
+                                const stBadge: Record<string, string> = { completed: 'bg-emerald-50 text-emerald-700 border-emerald-100', blocked: 'bg-rose-50 text-rose-700 border-rose-100', paused: 'bg-amber-50 text-amber-700 border-amber-100' };
+                                const stLabel: Record<string, string> = { completed: '✓ Concluído', blocked: '✗ Impedido', paused: '⏸ Pausado' };
+                                return (
+                                  <div key={v.visitNumber} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                    <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                                      <div className="w-7 h-7 bg-blue-50 border border-blue-100 rounded-md flex items-center justify-center"><CalendarPlus size={13} className="text-blue-400" /></div>
+                                      <div className="flex-1">
+                                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">Visita nº {v.visitNumber}</p>
+                                        {v.updatedAt && <p className="text-[10px] text-slate-400 font-medium mt-0.5">{new Date(v.updatedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>}
+                                      </div>
+                                      <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${stBadge[v.status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>{stLabel[v.status] || v.status}</span>
+                                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-slate-200">{v._entries.length} campo{v._entries.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    {renderVisitEntries(v._entries)}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Seção: formulários por equipamento (template-based view) */}
+                          <div className="space-y-4">
+                            {osEquipments.length > 0 ? (
                       /* ── Modo multi-equipamento: 1 seção por equipamento ── */
                       osEquipments.map((eq: any, eqIdx: number) => {
                         const templates = resolveTemplate(eq.equipmentFamily || '');
@@ -1834,6 +1947,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         )
                     )}
+                          </div>{/* /space-y-4 template forms */}
 
                     {/* ── CARD DE IMPEDIMENTO ── */}
                     {(() => {
@@ -2044,6 +2158,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                       );
                     })()}
+                        </div>{/* /space-y-8 outer wrapper */}
+                      );
+                    })()
+                    }
                   </div>
                 );
               })()}
