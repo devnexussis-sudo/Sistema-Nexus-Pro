@@ -6,7 +6,21 @@ import { supabase } from './supabase';
 export interface TenantSettings {
     showStockPrice: boolean;
     allowMultipleInProgress: boolean;
+    // Novos controles do APP do Técnico
+    showClientContact: boolean;
+    showStockHistory: boolean;
+    allowImpediment: boolean;
+    showVisitHistory: boolean;
 }
+
+const DEFAULT_SETTINGS: TenantSettings = {
+    showStockPrice: false,
+    allowMultipleInProgress: false,
+    showClientContact: true,
+    showStockHistory: true,
+    allowImpediment: true,
+    showVisitHistory: true,
+};
 
 export class TenantService {
     private static settingsCache: Record<string, TenantSettings> = {};
@@ -20,7 +34,7 @@ export class TenantService {
             const userId = authService.getCurrentUserId();
             if (!userId) {
                 console.log('[TenantService] No userId found, returning default settings');
-                return { showStockPrice: false, allowMultipleInProgress: false };
+                return { ...DEFAULT_SETTINGS };
             }
 
             if (!forceRefresh && this.settingsCache[userId]) {
@@ -38,7 +52,7 @@ export class TenantService {
 
             if (userError || !userData?.tenant_id) {
                 console.warn('[TenantService] Error or no tenant_id for user:', userError?.message);
-                return { showStockPrice: false, allowMultipleInProgress: false };
+                return { ...DEFAULT_SETTINGS };
             }
 
             const tenantId = userData.tenant_id;
@@ -54,7 +68,7 @@ export class TenantService {
             if (tenantError) {
                 console.error(`[TenantService] ❌ Erro ao buscar tenant: ${tenantError.message}`);
                 logger.log(`Tenant settings fetch error: ${tenantError.message}`, 'warn');
-                return { showStockPrice: false };
+                return { ...DEFAULT_SETTINGS };
             }
 
             console.log('[TenantService] 📦 Dados do tenant recebidos:', JSON.stringify(tenantData));
@@ -66,16 +80,21 @@ export class TenantService {
                     tenantData?.settings?.show_stock_price ??
                     false,
                 allowMultipleInProgress: tenantData?.metadata?.allowMultipleInProgress ?? false,
+                // Novos controles — default = true (habilitado) para não afetar tenants existentes
+                showClientContact: tenantData?.metadata?.showClientContact ?? true,
+                showStockHistory: tenantData?.metadata?.showStockHistory ?? true,
+                allowImpediment: tenantData?.metadata?.allowImpediment ?? true,
+                showVisitHistory: tenantData?.metadata?.showVisitHistory ?? true,
             };
 
-            console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}`);
+            console.log(`[TenantService] ✅ Configuração final -> showStockPrice: ${settings.showStockPrice}, showClientContact: ${settings.showClientContact}, allowImpediment: ${settings.allowImpediment}, showVisitHistory: ${settings.showVisitHistory}`);
 
             this.settingsCache[userId] = settings;
             return settings;
         } catch (error) {
             console.error('[TenantService] 💥 Exceção:', error);
             logger.log(`TenantService exception: ${error}`, 'error');
-            return { showStockPrice: false, allowMultipleInProgress: false };
+            return { ...DEFAULT_SETTINGS };
         }
     }
 

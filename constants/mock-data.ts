@@ -28,6 +28,13 @@ export const PRIORITY_CONFIG: Record<string, { label: string; color: string; bg:
     'CRÍTICA': { label: 'Urgente', color: '#e11d48', bg: '#ffe4e6' },
 };
 
+export const getPriorityConfig = (t: (key: string) => string): Record<string, { label: string; color: string; bg: string }> => ({
+    'BAIXA': { label: t('priorityLow'), color: '#059669', bg: '#d1fae5' },
+    'MÉDIA': { label: t('priorityMedium'), color: '#d97706', bg: '#fef3c7' },
+    'ALTA': { label: t('priorityHigh'), color: '#ea580c', bg: '#ffedd5' },
+    'CRÍTICA': { label: t('priorityUrgent'), color: '#e11d48', bg: '#ffe4e6' },
+});
+
 const generateMockData = (): ServiceOrder[] => {
     const data: ServiceOrder[] = [];
     const statuses: OrderStatus[] = ['pending', 'assigned', 'traveling', 'in_progress', 'completed', 'canceled', 'blocked'];
@@ -67,3 +74,13 @@ export const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }
     canceled: { label: 'Cancelada', color: '#6b7280' },
     blocked: { label: 'Impedida', color: '#f43f5e' },
 };
+
+export const getStatusConfig = (t: (key: string) => string): Record<OrderStatus, { label: string; color: string }> => ({
+    pending: { label: t('statusPending'), color: '#64748b' },
+    assigned: { label: t('statusAssigned'), color: '#3b82f6' },
+    traveling: { label: t('statusTraveling'), color: '#6366f1' },
+    in_progress: { label: t('statusInProgress'), color: '#f59e0b' },
+    completed: { label: t('statusCompletedSingle'), color: '#10b981' },
+    canceled: { label: t('statusCanceled'), color: '#6b7280' },
+    blocked: { label: t('statusBlockedSingle'), color: '#f43f5e' },
+});

@@ -4,13 +4,18 @@ import { ThemedView } from '@/components/themed-view';
 import { LOCATION_TASK_NAME, startBackgroundLocation, stopBackgroundLocation } from '@/services/location-service';
 import { logger } from '@/services/logger';
 import { syncService } from '@/services/sync-service';
+import { useI18n, Lang } from '@/services/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
+const LANG_LABELS: Record<Lang, string> = { pt: 'Português', en: 'English', es: 'Español' };
+
 export default function SettingsScreen() {
     const [isGpsEnabled, setIsGpsEnabled] = useState(false);
+    const [isLangOpen, setIsLangOpen] = useState(false);
+    const { t, lang, setLang } = useI18n();
 
     useEffect(() => {
         checkGpsStatus();
@@ -51,13 +56,47 @@ export default function SettingsScreen() {
 
             {/* Settings Section */}
             <View style={styles.section}>
-                <ThemedText type="subtitle" style={styles.sectionHeader}>Geral</ThemedText>
+                <ThemedText type="subtitle" style={styles.sectionHeader}>{t('settingsGeneral')}</ThemedText>
+
+                <View style={[styles.settingRow, { marginBottom: 20 }]}>
+                    <View style={[styles.settingInfo, { overflow: 'visible' }]}>
+                        <Text style={styles.settingLabel}>{t('settingsLanguage')}</Text>
+                        
+                        <Pressable 
+                            style={styles.langDropdownBtn}
+                            onPress={() => setIsLangOpen(!isLangOpen)}
+                        >
+                            <Text style={styles.langDropdownBtnText}>{LANG_LABELS[lang]}</Text>
+                            <Ionicons name={isLangOpen ? "chevron-up" : "chevron-down"} size={20} color="#64748b" />
+                        </Pressable>
+
+                        {isLangOpen && (
+                            <View style={styles.langContainer}>
+                                {(['pt', 'en', 'es'] as Lang[]).map((l) => (
+                                    <Pressable 
+                                        key={l} 
+                                        style={[styles.langOptionContainer, lang === l && styles.langOptionContainerActive]}
+                                        onPress={() => {
+                                            setLang(l);
+                                            setIsLangOpen(false);
+                                        }}
+                                    >
+                                        <Text style={[styles.langOptionText, lang === l && styles.langOptionTextActive]}>
+                                            {LANG_LABELS[l]}
+                                        </Text>
+                                        {lang === l && <Ionicons name="checkmark" size={18} color="#1c2d4f" />}
+                                    </Pressable>
+                                ))}
+                            </View>
+                        )}
+                    </View>
+                </View>
 
                 <View style={styles.settingRow}>
                     <View style={styles.settingInfo}>
-                        <Text style={styles.settingLabel}>Habilitar GPS em 2º Plano</Text>
+                        <Text style={styles.settingLabel}>{t('settingsGps')}</Text>
                         <Text style={styles.settingDescription}>
-                            ⚠️ Modo 'Sempre Ativo' ativado para auditoria de rotas.
+                            {t('settingsGpsDesc')}
                         </Text>
                     </View>
                     <Switch
@@ -71,14 +110,14 @@ export default function SettingsScreen() {
             </View>
 
             <View style={styles.section}>
-                <ThemedText type="subtitle" style={styles.sectionHeader}>Diagnóstico</ThemedText>
+                <ThemedText type="subtitle" style={styles.sectionHeader}>{t('settingsDiag')}</ThemedText>
 
                 <Pressable style={styles.logButton} onPress={() => logger.shareLogs()}>
                     <Ionicons name="bug-outline" size={20} color="#fff" />
-                    <Text style={styles.logButtonText}>Compartilhar Logs do App</Text>
+                    <Text style={styles.logButtonText}>{t('settingsLogBtn')}</Text>
                 </Pressable>
                 <Text style={styles.logDescription}>
-                    Envie o histórico interno de erros via WhatsApp ou E-mail para facilitar o suporte em caso de falhas.
+                    {t('settingsLogDesc')}
                 </Text>
             </View>
 
@@ -147,4 +186,50 @@ const styles = StyleSheet.create({
         marginTop: 8,
         textAlign: 'center'
     },
+    langDropdownBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        marginTop: 10,
+    },
+    langDropdownBtnText: {
+        fontSize: 15,
+        color: '#1c2d4f',
+        fontWeight: '600',
+    },
+    langContainer: {
+        marginTop: 8,
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 10,
+        overflow: 'hidden',
+    },
+    langOptionContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    langOptionContainerActive: {
+        backgroundColor: '#f8fafc',
+    },
+    langOptionText: {
+        fontSize: 15,
+        color: '#64748b',
+        fontWeight: '500',
+    },
+    langOptionTextActive: {
+        color: '#1c2d4f',
+        fontWeight: '700',
+    }
 });

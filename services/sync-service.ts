@@ -46,16 +46,89 @@ class SyncService {
         await AsyncStorage.setItem(APP_OFFLINE_MODE_KEY, enabled ? 'true' : 'false');
         if (enabled) {
             this.startListening();
-            // Automatically prefetch data for today when enabling offline mode
-            this.prefetchTodayOrders().catch(e => console.error('[Sync] Auto-prefetch fail:', e));
         } else {
             this.stopListening();
-            await this.triggerSync(true);
             // Garantir que a UI atualize mesmo se a fila já estava vazia
             this.notifySyncingSubscribers(false);
             const queue = await this.getQueue();
             this.notifySubscribers(queue);
         }
+    }
+
+    /**
+     * Tests if the internet connection is stable enough to upload data.
+     * Does a real round-trip to Supabase (lightweight heartbeat query).
+     * Returns true if connection is good, false otherwise.
+     */
+    async testConnectionQuality(): Promise<boolean> {
+        try {
+            const netState = await NetInfo.fetch();
+            if (!netState.isConnected) return false;
+
+            // Real round-trip test: a lightweight query to Supabase
+            const start = Date.now();
+            const { error } = await supabase.from('tenants').select('id', { count: 'exact', head: true }).limit(1);
+            const elapsed = Date.now() - start;
+
+            if (error) {
+                console.log('[Sync] Connection test failed (query error):', error.message);
+                return false;
+            }
+
+            // If the round-trip took more than 10 seconds, consider connection unstable
+            if (elapsed > 10000) {
+                console.log(`[Sync] Connection test: too slow (${elapsed}ms)`);
+                return false;
+            }
+
+            console.log(`[Sync] Connection test passed (${elapsed}ms)`);
+            return true;
+        } catch (e) {
+            console.error('[Sync] Connection test exception:', e);
+            return false;
+        }
+    }
+
+    /**
+     * Attempts to sync all pending tasks. Returns { success, failed, total }.
+     * On failure, tasks remain in the queue (cache preserved).
+     */
+    async safeSyncBeforeOnline(): Promise<{ success: number; failed: number; total: number }> {
+        const queue = await this.getQueue();
+        const pendingTasks = queue.filter(t => t.status === 'pending' || t.status === 'error');
+
+        if (pendingTasks.length === 0) {
+            return { success: 0, failed: 0, total: 0 };
+        }
+
+        this.isSyncing = true;
+        this.notifySyncingSubscribers(true);
+
+        let success = 0;
+        let failed = 0;
+
+        for (const task of pendingTasks) {
+            await this.updateTaskStatus(task.id, 'syncing');
+            try {
+                if (task.type === 'complete_os') {
+                    await this.syncCompleteOS(task);
+                }
+                // Only remove from queue after confirmed success
+                await this.removeFromQueue(task.id);
+                success++;
+                console.log(`[Sync] Task ${task.id} synced successfully.`);
+            } catch (error: any) {
+                failed++;
+                console.error(`[Sync] Task ${task.id} failed:`, error);
+                // Keep in queue with error status - cache preserved
+                await this.updateTaskStatus(task.id, 'error', error.message);
+            }
+        }
+
+        this.isSyncing = false;
+        this.notifySyncingSubscribers(false);
+
+        return { success, failed, total: pendingTasks.length };
     }
 
     isOfflineModeEnabled() {
@@ -401,7 +474,7 @@ class SyncService {
             // Buscar OS do dia (status abertos + em andamento)
             const { data: ordersRaw, error } = await supabase
                 .from('orders')
-                .select('*')
+                .select('*, customers(*)')
                 .eq('assigned_to', userId)
                 .gte('scheduled_date', todayStr)
                 .lte('scheduled_date', todayStr)
@@ -411,7 +484,7 @@ class SyncService {
             // Também buscar OS em andamento (qualquer data)
             const { data: inProgressRaw } = await supabase
                 .from('orders')
-                .select('*')
+                .select('*, customers(*)')
                 .eq('assigned_to', userId)
                 .in('status', ['EM ANDAMENTO', 'EM DESLOCAMENTO', 'ATRIBUÍDO'])
                 .limit(50);

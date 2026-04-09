@@ -13,11 +13,13 @@ import {
     MapPin,
     Camera,
     Trash2,
-    Calendar
+    Calendar,
+    MessageCircle
 } from 'lucide-react';
 import { OrderDetailsV2 } from './OrderDetailsV2';
 import { OrderStatus, OrderPriority, ServiceOrder } from '../../../../types';
 import { DataService } from '../../../../services/dataService';
+import { CustomerService } from '../../../../services/customerService';
 import { getStatusBadge, getStatusLabel } from '../../../../lib/statusColors';
 
 export const TechDashboardV2: React.FC = () => {
@@ -252,28 +254,46 @@ export const TechDashboardV2: React.FC = () => {
                                         </div>
 
                                         <div className="px-3 py-2.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (order.customerAddress) {
-                                                        const encoded = encodeURIComponent(order.customerAddress);
-                                                        // Direct Google Maps search link acts as a universal deep link
-                                                        const url = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
-                                                        window.open(url, '_blank');
-                                                    } else {
-                                                        alert("Endereço não disponível.");
-                                                    }
-                                                }}
-                                                className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-black uppercase tracking-widest text-indigo-700 flex items-center gap-2 active:scale-95 transition-all hover:bg-indigo-100 shadow-sm"
-                                            >
-                                                <MapPin size={14} fill="currentColor" />
-                                                Abrir GPS
-                                            </button>
-                                            <div className="flex items-center gap-1.5 text-slate-400">
-                                                <span className="text-[10px] font-bold uppercase tracking-tight">Detalhes</span>
-                                                <ChevronRight size={16} />
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (order.customerAddress) {
+                                                            const encoded = encodeURIComponent(order.customerAddress);
+                                                            const url = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
+                                                            window.open(url, '_blank');
+                                                        } else {
+                                                            alert("Endereço não disponível.");
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-black uppercase tracking-widest text-indigo-700 flex items-center gap-2 active:scale-95 transition-all hover:bg-indigo-100 shadow-sm"
+                                                >
+                                                    <MapPin size={14} fill="currentColor" />
+                                                    Abrir GPS
+                                                </button>
+                                                <button
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        try {
+                                                            const allCustomers = await CustomerService.getCustomers();
+                                                            const customer = allCustomers.find(c => c.name === order.customerName);
+                                                            if (customer?.whatsapp) {
+                                                                const phone = customer.whatsapp.replace(/\D/g, '');
+                                                                const fullPhone = phone.startsWith('55') ? phone : `55${phone}`;
+                                                                window.open(`https://wa.me/${fullPhone}`, '_blank');
+                                                            } else {
+                                                                alert('WhatsApp do cliente não cadastrado.');
+                                                            }
+                                                        } catch {
+                                                            alert('Erro ao buscar contato.');
+                                                        }
+                                                    }}
+                                                    className="px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-600 flex items-center gap-1.5 active:scale-95 transition-all hover:bg-emerald-100 shadow-sm"
+                                                    title="WhatsApp do Cliente"
+                                                >
+                                                    <MessageCircle size={14} />
+                                                </button>
                                             </div>
-                                        </div>
                                             <div className="flex items-center gap-1.5 text-slate-400">
                                                 <span className="text-[10px] font-bold uppercase tracking-tight">Detalhes</span>
                                                 <ChevronRight size={16} />

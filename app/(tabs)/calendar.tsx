@@ -1,31 +1,27 @@
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { OrderStatus, STATUS_CONFIG } from '@/constants/mock-data';
+import { getStatusConfig, OrderStatus } from '@/constants/mock-data';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
+import { useI18n } from '@/services/i18n';
 
-// Configure locale for Portuguese
-LocaleConfig.locales['pt-br'] = {
-  monthNames: [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ],
-  monthNamesShort: ['Jan.', 'Fev.', 'Mar.', 'Abr.', 'Mai.', 'Jun.', 'Jul.', 'Ago.', 'Set.', 'Out.', 'Nov.', 'Dez.'],
-  dayNames: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'],
-  dayNamesShort: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
-  today: 'Hoje'
-};
-LocaleConfig.defaultLocale = 'pt-br';
+import { CALENDAR_LOCALES } from '@/services/i18n';
 
 import { ExtendedServiceOrder, OrderService } from '@/services/order-service';
 import { ActivityIndicator } from 'react-native';
 
 export default function CalendarScreen() {
   const router = useRouter();
+  const { t, lang } = useI18n();
+
+  useEffect(() => {
+    LocaleConfig.locales[lang] = CALENDAR_LOCALES[lang];
+    LocaleConfig.defaultLocale = lang;
+  }, [lang]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
@@ -106,6 +102,8 @@ export default function CalendarScreen() {
     });
   }, [orders, selectedDate]);
 
+
+
   return (
     <ThemedView style={styles.container}>
       <View style={styles.calendarContainer}>
@@ -124,16 +122,11 @@ export default function CalendarScreen() {
             textMonthFontWeight: 'bold',
           }}
         />
-        {isLoading && (
-          <View style={{ position: 'absolute', top: 10, right: 10 }}>
-            <ActivityIndicator size="small" color="#1c2d4f" />
-          </View>
-        )}
       </View>
 
       <View style={styles.listContainer}>
         <ThemedText style={styles.sectionTitle}>
-          Agendamentos do Dia ({selectedDate.split('-').reverse().join('/')})
+          {t('calendarDaySchedule')} ({selectedDate.split('-').reverse().join('/')})
         </ThemedText>
 
         <FlatList
@@ -143,7 +136,7 @@ export default function CalendarScreen() {
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Ionicons name="calendar-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>Nenhum agendamento para este dia.</Text>
+              <Text style={styles.emptyText}>{t('calendarEmpty')}</Text>
             </View>
           }
           renderItem={({ item }) => (
@@ -163,10 +156,13 @@ export default function CalendarScreen() {
 
               <View style={styles.cardContent}>
                 <View style={styles.orderHeader}>
-                  <Text style={styles.orderId}>{item.displayId || item.id}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: STATUS_CONFIG[item.status as OrderStatus]?.color + '20' }]}>
-                    <Text style={[styles.statusText, { color: STATUS_CONFIG[item.status as OrderStatus]?.color }]}>
-                      {STATUS_CONFIG[item.status as OrderStatus]?.label}
+                  <Text style={styles.orderId}>
+                    {item.displayId || item.id}
+                    {item.visitCount ? ` - ${item.visitCount} visita${item.visitCount > 1 ? 's' : ''}` : ''}
+                  </Text>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusConfig(t as any)[item.status as OrderStatus]?.color + '20' }]}>
+                    <Text style={[styles.statusText, { color: getStatusConfig(t as any)[item.status as OrderStatus]?.color }]}>
+                      {getStatusConfig(t as any)[item.status as OrderStatus]?.label}
                     </Text>
                   </View>
                 </View>
@@ -176,6 +172,11 @@ export default function CalendarScreen() {
             </Pressable>
           )}
         />
+        {isLoading && (
+          <View style={styles.loaderOverlay}>
+            <ActivityIndicator size="large" color="#1c2d4f" />
+          </View>
+        )}
       </View>
     </ThemedView>
   );
@@ -221,12 +222,13 @@ const styles = StyleSheet.create({
   },
   timeIndicator: {
     backgroundColor: '#f0f4ff',
-    padding: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderRightWidth: 1,
     borderRightColor: '#e0e0e0',
-    width: 60,
+    width: 75,
   },
   timeText: {
     fontWeight: 'bold',
@@ -282,5 +284,12 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#999',
     marginTop: 8,
+  },
+  loaderOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
   },
 });

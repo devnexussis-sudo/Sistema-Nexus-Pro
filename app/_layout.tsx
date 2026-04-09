@@ -5,9 +5,10 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { authService } from '@/services/auth-service';
+import { I18nProvider, useI18n } from '@/services/i18n';
 import { startBackgroundLocation } from '@/services/location-service';
 import { logger } from '@/services/logger';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -17,14 +18,26 @@ import { NotificationService } from '@/services/notification-service';
 import { supabase } from '@/services/supabase';
 import Constants from 'expo-constants';
 import * as Location from 'expo-location';
-import { Alert, Platform } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Text, View } from 'react-native';
 
 const isExpoGoAndroid = Platform.OS === 'android' && Constants.appOwnership === 'expo';
 const Notifications = isExpoGoAndroid ? null : require('expo-notifications');
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  return (
+    <I18nProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <LayoutContent />
+      </ThemeProvider>
+    </I18nProvider>
+  );
+}
+
+function LayoutContent() {
   const router = useRouter();
+  const { t } = useI18n();
 
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
@@ -37,7 +50,7 @@ export default function RootLayout() {
       // 1. Request Permissions & Auth
       const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
       if (locationStatus !== 'granted') {
-        Alert.alert('Permissão de Localização', 'Precisamos de acesso para registrar atendimento.');
+        Alert.alert(t('permissionLocationTitle'), t('permissionLocationBody'));
       }
 
       const isAuthenticated = await authService.checkAuthStatus();
@@ -52,47 +65,39 @@ export default function RootLayout() {
         // Setup Realtime Listener for Instant Notifications (In-App)
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          console.log("Setting up Realtime Notification Listener for:", user.id);
           const channel = supabase
             .channel(`notifications:user:${user.id}`)
             .on(
               'postgres_changes',
-              {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'notifications',
-                filter: `user_id=eq.${user.id}`
-              },
+              { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
               (payload: any) => {
-                console.log("🔔 Realtime Notification Received:", payload);
                 const notif = payload.new;
-                NotificationService.triggerLocalNotification(notif.title, notif.body, notif.data);
+                NotificationService.showLocalNotification(
+                  t('homeNewOsNotif'),
+                  `${t('homeNewOsNotifBody')} ${notif.title || '#' + notif.order_id}`
+                );
               }
             )
             .subscribe();
         }
-      }
-
-      if (!isAuthenticated) {
-        router.replace('/login');
       } else {
-        router.replace('/');
+        router.replace('/login');
       }
     };
 
     initialize();
 
-    // Listeners for foreground/background interaction
+    // Listen for incoming notifications while app is open
     if (Notifications) {
-      notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-        console.log("Notification Received in Foreground:", notification);
+      notificationListener.current = Notifications.addNotificationReceivedListener((notification: any) => {
+        console.log('[RootLayout] Notification Received:', notification);
       });
 
-      responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-        console.log("User tapped notification:", response);
-        const data = response.notification.request.content.data;
-        if (data?.orderId) {
-          router.push(`/os/${data.orderId}`);
+      // Handle notification taps
+      responseListener.current = Notifications.addNotificationResponseReceivedListener((response: any) => {
+        const orderId = response.notification.request.content.data?.orderId;
+        if (orderId) {
+          router.push(`/os/${orderId}`);
         }
       });
     }
@@ -107,7 +112,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <>
       <StatusBar style="light" backgroundColor="#1c2d4f" translucent={false} />
       <Stack
         screenOptions={{
@@ -117,12 +122,13 @@ export default function RootLayout() {
           headerBackTitle: '', // Hides back title on iOS
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="os/[id]" options={{ title: 'Detalhes da OS' }} />
-        <Stack.Screen name="settings" options={{ title: 'Configurações' }} />
-        <Stack.Screen name="profile" options={{ title: 'Meu Perfil' }} />
+        <Stack.Screen name="os/[id]" options={{ title: 'OS' }} />
+        <Stack.Screen name="os/execute" options={{ title: t('osExecute') }} />
+        <Stack.Screen name="settings" options={{ title: t('menuSettings') }} />
+        <Stack.Screen name="profile" options={{ title: t('menuProfile') }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
-    </ThemeProvider>
+    </>
   );
 }

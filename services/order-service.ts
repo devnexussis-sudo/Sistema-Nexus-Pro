@@ -97,6 +97,9 @@ export interface ExtendedServiceOrder extends ServiceOrder {
     startedDate?: string;
     completedDate?: string;
     videoUrl?: string | null;
+    title?: string;
+    rawDescription?: string;
+    visitCount?: number;
 }
 
 export class OrderService {
@@ -249,10 +252,25 @@ export class OrderService {
             ? new Date(displayDateRaw).toLocaleDateString('pt-BR', useUTC ? { timeZone: 'UTC' } : undefined)
             : 'Data n/d';
 
+        let visitCount = 0;
+        if (dbOrder.service_visits && Array.isArray(dbOrder.service_visits)) {
+            // PostgREST count query returns [{count: N}], regular select returns array of objects
+            visitCount = dbOrder.service_visits.length > 0 && typeof dbOrder.service_visits[0].count === 'number' 
+                ? dbOrder.service_visits[0].count 
+                : dbOrder.service_visits.length;
+        }
+
         return {
             id: dbOrder.id,
             tenantId: dbOrder.tenant_id,
             customer: dbOrder.customer_name || 'Cliente Desconhecido',
+            customerPhone: (() => {
+                // Supabase joins can come in various shapes depending on relationship naming
+                const rel = dbOrder.customers || dbOrder.customer;
+                if (!rel) return dbOrder.customer_phone || '';
+                const c = Array.isArray(rel) ? rel[0] : rel;
+                return c?.whatsapp || c?.phone || dbOrder.customer_phone || '';
+            })(),
             address: dbOrder.customer_address || 'Endereço não informado',
             date: dateFormatted,
             status: status,
@@ -278,6 +296,9 @@ export class OrderService {
             completedDate: completedDate,
             rawStatus: dbOrder.status,
             videoUrl: dbOrder.video_url || null,
+            title: dbOrder.title,
+            rawDescription: dbOrder.description,
+            visitCount: visitCount,
         };
     }
 
@@ -290,7 +311,7 @@ export class OrderService {
             return await CacheService.fetcher(cacheKey, async () => {
                 const { data, error } = await supabase
                     .from('orders')
-                    .select('*')
+                    .select('*, customers(*), service_visits(id)')
                     .eq('id', id)
                     .single();
 
@@ -349,15 +370,21 @@ export class OrderService {
             // Range adjustment: To catch everything in Brazil (-3h) for a given local day, 
             // we search from 00:00 UTC of that day until 02:59:59 UTC of the NEXT day.
             const nextDay = endDate ? new Date(endDate.getTime() + 24 * 60 * 60 * 1000) : null;
-            const startDateStr = startDate ? (statusFilter === 'completed' || statusFilter === 'blocked' ? `${formatLocalISO(startDate)}T00:00:00Z` : formatLocalISO(startDate)) : null;
-            const endDateStr = endDate ? (statusFilter === 'completed' || statusFilter === 'blocked' ? `${formatLocalISO(nextDay!)}T02:59:59Z` : formatLocalISO(endDate)) : null;
+            const getStartDateStr = (col: string) => {
+                if (!startDate) return null;
+                return (col === 'end_date' || col === 'updated_at') ? `${formatLocalISO(startDate)}T00:00:00Z` : formatLocalISO(startDate);
+            };
+            const getEndDateStr = (col: string) => {
+                if (!endDate) return null;
+                return (col === 'end_date' || col === 'updated_at') ? `${formatLocalISO(nextDay!)}T02:59:59Z` : formatLocalISO(endDate);
+            };
 
             // Helper to get which date column to filter by based on status
             const getDateCol = (statusFilterKey: string) => {
                 switch (statusFilterKey) {
                     case 'completed': return 'end_date';
                     case 'blocked': return 'updated_at'; // Impeded follows block date
-                    case 'in_progress': return 'start_date';
+                    case 'in_progress': return 'scheduled_date';
                     default: return 'scheduled_date';
                 }
             };
@@ -382,8 +409,12 @@ export class OrderService {
                 if (!isAdmin) q = q.eq('assigned_to', userId);
                 q = q.in('status', statuses);
                 const dateCol = getDateCol(key);
-                if (startDateStr) q = q.gte(dateCol, startDateStr);
-                if (endDateStr) q = q.lte(dateCol, endDateStr);
+                const sDate = getStartDateStr(dateCol);
+                const eDate = getEndDateStr(dateCol);
+                
+                if (sDate) q = q.gte(dateCol, sDate);
+                if (eDate) q = q.lte(dateCol, eDate);
+                
                 const { count } = await q;
                 return { [key]: count || 0 };
             });
@@ -391,8 +422,10 @@ export class OrderService {
             // "All" Stat always uses scheduled_date as base index
             let allQuery = supabase.from('orders').select('*', { count: 'exact', head: true });
             if (!isAdmin) allQuery = allQuery.eq('assigned_to', userId);
-            if (startDateStr) allQuery = allQuery.gte('scheduled_date', startDateStr);
-            if (endDateStr) allQuery = allQuery.lte('scheduled_date', endDateStr);
+            const allSDate = getStartDateStr('scheduled_date');
+            const allEDate = getEndDateStr('scheduled_date');
+            if (allSDate) allQuery = allQuery.gte('scheduled_date', allSDate);
+            if (allEDate) allQuery = allQuery.lte('scheduled_date', allEDate);
 
             const [dbStatsResults, allResult] = await Promise.all([
                 Promise.all(dbStatsPromises),
@@ -405,8 +438,10 @@ export class OrderService {
             // "Pending" Stat uses scheduled_date
             let pendingCountQuery = supabase.from('orders').select('status');
             if (!isAdmin) pendingCountQuery = pendingCountQuery.eq('assigned_to', userId);
-            if (startDateStr) pendingCountQuery = pendingCountQuery.gte('scheduled_date', startDateStr);
-            if (endDateStr) pendingCountQuery = pendingCountQuery.lte('scheduled_date', endDateStr);
+            const pSDate = getStartDateStr('scheduled_date');
+            const pEDate = getEndDateStr('scheduled_date');
+            if (pSDate) pendingCountQuery = pendingCountQuery.gte('scheduled_date', pSDate);
+            if (pEDate) pendingCountQuery = pendingCountQuery.lte('scheduled_date', pEDate);
 
             const { data: allStatuses } = await pendingCountQuery;
             if (allStatuses) {
@@ -421,32 +456,31 @@ export class OrderService {
             }
 
             // 🛠️ Main Data Query
-            let query = supabase.from('orders').select('*', { count: 'exact' });
+            let query = supabase.from('orders').select('*, customers(*), service_visits(count)', { count: 'exact' });
             if (!isAdmin) query = query.eq('assigned_to', userId);
 
             const activeDateCol = getDateCol(statusFilter);
+            const mainSDate = getStartDateStr(activeDateCol);
+            const mainEDate = getEndDateStr(activeDateCol);
 
             if (statusFilter !== 'pending') {
                 if (statusFilter !== 'all' && STATUS_GROUPS_DB[statusFilter]) {
                     query = query.in('status', STATUS_GROUPS_DB[statusFilter]);
                 }
 
-                // Special case: in_progress/traveling shows ALL regardless of date
-                if (statusFilter !== 'in_progress' && statusFilter !== 'traveling') {
-                    if (startDateStr) query = query.gte(activeDateCol, startDateStr);
-                    if (endDateStr) query = query.lte(activeDateCol, endDateStr);
-                }
+                if (mainSDate) query = query.gte(activeDateCol, mainSDate);
+                if (mainEDate) query = query.lte(activeDateCol, mainEDate);
             } else {
                 // Pending filter in DB (if possible) or at least date filter
-                if (startDateStr) query = query.gte('scheduled_date', startDateStr);
-                if (endDateStr) query = query.lte('scheduled_date', endDateStr);
+                if (mainSDate) query = query.gte('scheduled_date', mainSDate);
+                if (mainEDate) query = query.lte('scheduled_date', mainEDate);
                 // We keep the memory filter for pending statuses since they are varied
                 query = query.order('created_at', { ascending: false });
             }
 
             if (statusFilter !== 'pending') {
                 query = query
-                    .order(activeDateCol, { ascending: statusFilter === 'completed' ? false : true })
+                    .order(activeDateCol, { ascending: false })
                     .order('scheduled_time', { ascending: true })
                     .order('created_at', { ascending: false });
             }
@@ -498,7 +532,7 @@ export class OrderService {
             if (cached && !forceRefresh) return cached;
 
             return await CacheService.fetcher(cacheKey, async () => {
-                let query = supabase.from('orders').select('*');
+                let query = supabase.from('orders').select('*, customers(*), service_visits(count)');
                 const { data: userProfile } = await supabase.from('users').select('role').eq('id', userId).single();
                 const isAdmin = userProfile?.role === 'ADMIN' || userProfile?.role === 'MANAGER';
 
@@ -615,18 +649,29 @@ export class OrderService {
 
             if (error) throw error;
 
-            // 5. Update service_visits
+            // 5. Update service_visits — save form_data snapshot per visit
             try {
-                const { data: userData } = await supabase.auth.getUser();
-                if (userData?.user?.id) {
+                const { data: userData2 } = await supabase.auth.getUser();
+                if (userData2?.user?.id) {
                     await supabase.from('service_visits')
                         .update({
                             status: 'completed',
                             departure_time: new Date().toISOString(),
-                            updated_at: new Date().toISOString()
+                            updated_at: new Date().toISOString(),
+                            form_data: {
+                                ...(details.formData || {}),
+                                technical_report: details.technicalReport,
+                                parts_used: details.partsUsed,
+                                extra_photos: uploadedPhotos,
+                                signature: signatureUrl,
+                                clientName: details.clientName,
+                                clientDoc: details.clientDoc,
+                                video_url: details.videoUrl || null,
+                                completedAt: new Date().toISOString(),
+                            }
                         })
                         .eq('order_id', id)
-                        .eq('technician_id', userData.user.id)
+                        .eq('technician_id', userData2.user.id)
                         .in('status', ['pending', 'ongoing', 'paused']);
                 }
             } catch (vErr) {
@@ -641,10 +686,15 @@ export class OrderService {
         }
     }
 
-    static async blockOrder(id: string, reason: string, blockPhotoUrl?: string | null): Promise<void> {
+    static async blockOrder(
+        id: string, 
+        reason: string, 
+        blockPhotoUrls?: string[] | null,
+        additionalData?: { formData?: any, items?: OrderItem[] }
+    ): Promise<void> {
         try {
-            // Pega tenant_id e visita atual para o vínculo estruturado
-            const { data: order } = await supabase.from('orders').select('tenant_id').eq('id', id).single();
+            // Pega tenant_id, form_data e visita atual para o vínculo estruturado
+            const { data: order } = await supabase.from('orders').select('tenant_id, form_data').eq('id', id).single();
             const { data: userData } = await supabase.auth.getUser();
             const { data: currentVisit } = await supabase.from('service_visits')
                 .select('id')
@@ -655,35 +705,55 @@ export class OrderService {
                 .single();
 
             // 1. REGISTRO ESTRUTURADO (Inquebrável)
-            // Insere na nova tabela dedicada — Isso NUNCA apaga o passado.
             const { error: insertErr } = await supabase.from('order_impediments').insert({
                 tenant_id: order?.tenant_id,
                 order_id: id,
                 visit_id: currentVisit?.id,
                 technician_id: userData?.user?.id,
                 reason: reason,
-                photo_url: blockPhotoUrl,
+                photo_url: blockPhotoUrls && blockPhotoUrls.length > 0 ? JSON.stringify(blockPhotoUrls) : null,
             });
 
             if (insertErr) throw insertErr;
 
-            // 2. ATUALIZAÇÃO DE STATUS DA OS
+            // 2. ATUALIZAÇÃO DE STATUS DA OS E ANEXOS NO FORM DATA
+            const currentFormData = order?.form_data || {};
+            
+            const updatePayload: any = {
+                status: 'IMPEDIDO',
+                form_data: {
+                    ...currentFormData,
+                    ...(additionalData?.formData || {}),
+                    blockReason: reason,
+                    blockPhotoUrls: blockPhotoUrls || null,
+                    blockedAt: new Date().toISOString(),
+                }
+            };
+
+            if (additionalData?.items) {
+                updatePayload.items = additionalData.items;
+            }
+
             const { error } = await supabase
                 .from('orders')
-                .update({
-                    status: 'IMPEDIDO',
-                })
+                .update(updatePayload)
                 .eq('id', id);
 
             if (error) throw error;
 
-            // 3. ATUALIZAÇÃO DA VISITA
+            // 3. ATUALIZAÇÃO DA VISITA — salva form_data completo
             if (userData?.user?.id && currentVisit?.id) {
                 await supabase.from('service_visits')
                     .update({
                         status: 'blocked',
                         impediment_reason: reason,
-                        departure_time: new Date().toISOString()
+                        departure_time: new Date().toISOString(),
+                        form_data: {
+                            ...(additionalData?.formData || {}),
+                            blockReason: reason,
+                            blockPhotoUrls: blockPhotoUrls || null,
+                            blockedAt: new Date().toISOString(),
+                        }
                     })
                     .eq('id', currentVisit.id);
             }
@@ -697,7 +767,7 @@ export class OrderService {
     }
 
 
-    static async startDisplacement(id: string): Promise<void> {
+    static async startDisplacement(id: string, lat?: number, lon?: number): Promise<void> {
         try {
             const { error } = await supabase
                 .from('orders')
@@ -708,6 +778,36 @@ export class OrderService {
                 .eq('id', id);
 
             if (error) throw error;
+
+            try {
+                const { data: userData } = await supabase.auth.getUser();
+                if (userData?.user?.id) {
+                    const { data: visitData } = await supabase.from('service_visits')
+                        .select('id, form_data')
+                        .eq('order_id', id)
+                        .eq('technician_id', userData.user.id)
+                        .in('status', ['pending', 'paused'])
+                        .single();
+
+                    if (visitData) {
+                        const currentFormData = visitData.form_data || {};
+                        const displacement = {
+                            start_time: new Date().toISOString(),
+                            start_lat: lat,
+                            start_lon: lon
+                        };
+                        await supabase.from('service_visits')
+                            .update({
+                                form_data: { ...currentFormData, displacement },
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', visitData.id);
+                    }
+                }
+            } catch (vErr) {
+                logger.log(`Warning: Failed to update service_visits displacement: ${vErr}`, 'warn');
+            }
+
             logger.log(`Order ${id} displacement started`, 'info');
         } catch (error) {
             logger.log(`Error starting displacement: ${error}`, 'error');
@@ -715,7 +815,7 @@ export class OrderService {
         }
     }
 
-    static async startExecution(id: string): Promise<void> {
+    static async startExecution(id: string, lat?: number, lon?: number): Promise<void> {
         try {
             const { error } = await supabase
                 .from('orders')
@@ -730,15 +830,44 @@ export class OrderService {
             try {
                 const { data: userData } = await supabase.auth.getUser();
                 if (userData?.user?.id) {
-                    await supabase.from('service_visits')
-                        .update({
-                            status: 'ongoing',
-                            arrival_time: new Date().toISOString(),
-                            updated_at: new Date().toISOString()
-                        })
+                    // Get current visit first to append to form_data
+                    const { data: visitData } = await supabase.from('service_visits')
+                        .select('id, form_data')
                         .eq('order_id', id)
                         .eq('technician_id', userData.user.id)
-                        .in('status', ['pending', 'paused']);
+                        .in('status', ['pending', 'paused'])
+                        .single();
+
+                    if (visitData) {
+                         const currentFormData = visitData.form_data || {};
+                         const existingDisplacement = currentFormData.displacement || {};
+                         const updatedDisplacement = {
+                             ...existingDisplacement,
+                             arrival_time: new Date().toISOString(),
+                             arrival_lat: lat,
+                             arrival_lon: lon
+                         };
+
+                         await supabase.from('service_visits')
+                             .update({
+                                 status: 'ongoing',
+                                 arrival_time: new Date().toISOString(),
+                                 updated_at: new Date().toISOString(),
+                                 form_data: { ...currentFormData, displacement: updatedDisplacement }
+                             })
+                             .eq('id', visitData.id);
+                    } else {
+                         // Fallback just in case
+                         await supabase.from('service_visits')
+                            .update({
+                                status: 'ongoing',
+                                arrival_time: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('order_id', id)
+                            .eq('technician_id', userData.user.id)
+                            .in('status', ['pending', 'paused']);
+                    }
                 }
             } catch (vErr) {
                 logger.log(`Warning: Failed to update service_visits: ${vErr}`, 'warn');
@@ -880,6 +1009,21 @@ export class OrderService {
             };
         } catch (error) {
             return null;
+        }
+    }
+    static async getOrderVisits(orderId: string): Promise<any[]> {
+        try {
+            const { data, error } = await supabase
+                .from('service_visits')
+                .select('id, visit_number, status, technician_id, scheduled_date, scheduled_time, arrival_time, departure_time, impediment_reason, notes, form_data, created_at, updated_at')
+                .eq('order_id', orderId)
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            logger.log(`Error fetching visits for order ${orderId}: ${error}`, 'error');
+            return [];
         }
     }
 }

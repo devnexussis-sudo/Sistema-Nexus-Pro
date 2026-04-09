@@ -1,11 +1,14 @@
 
-import React from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Modal, Pressable, Alert, Image, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { syncService } from '@/services/sync-service';
 import { useRouter } from 'expo-router';
 import { authService } from '@/services/auth-service';
+import { supabase } from '@/services/supabase';
+import { useI18n } from '@/services/i18n';
+import Constants from 'expo-constants';
 
 interface MenuModalProps {
     visible: boolean;
@@ -14,18 +17,46 @@ interface MenuModalProps {
 
 export function MenuModal({ visible, onClose }: MenuModalProps) {
     const router = useRouter();
+    const { t } = useI18n();
+    const [userProfile, setUserProfile] = useState<any>(null);
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+                const { data } = await supabase.auth.getUser();
+                if (data?.user?.id) {
+                    const { data: techProfile } = await supabase.from('technicians').select('name, avatar').eq('id', data.user.id).single();
+                    if (techProfile) {
+                        setUserProfile({
+                            name: techProfile.name || data.user.email?.split('@')[0] || 'Técnico',
+                            avatar: techProfile.avatar
+                        });
+                    } else {
+                        // Fallback purely for email
+                        setUserProfile({
+                            name: data.user.email?.split('@')[0] || 'Usuário',
+                            avatar: null
+                        });
+                    }
+                }
+        };
+        fetchProfile();
+    }, []);
 
     const handleForceSync = async () => {
-        onClose();
+        setIsSyncing(true);
         await syncService.triggerSync(true);
+        setIsSyncing(false);
+        onClose();
+        router.replace('/');
     };
 
     const handleLogout = () => {
         onClose();
-        Alert.alert('Logoff', 'Deseja realmente sair do aplicativo?', [
-            { text: 'Cancelar', style: 'cancel' },
+        Alert.alert(t('menuLogout'), t('menuLogoutConfirm'), [
+            { text: t('menuCancel'), style: 'cancel' },
             {
-                text: 'Sair',
+                text: t('menuLogout'),
                 style: 'destructive',
                 onPress: async () => {
                     console.log('User logged out via Menu');
@@ -39,7 +70,7 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
 
     const menuItems = [
         {
-            title: 'Perfil',
+            title: t('menuProfile'),
             icon: 'person.circle',
             action: () => {
                 onClose();
@@ -47,7 +78,7 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
             }
         },
         {
-            title: 'Configurações',
+            title: t('menuSettings'),
             icon: 'gear',
             action: () => {
                 onClose();
@@ -55,8 +86,8 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
             }
         },
         {
-            title: 'Forçar Carregamento',
-            icon: 'arrow.clockwise.icloud',
+            title: t('menuSync'),
+            icon: 'arrow.triangle.2.circlepath',
             action: handleForceSync
         },
     ];
@@ -68,13 +99,33 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
             visible={visible}
             onRequestClose={onClose}
         >
-            <Pressable style={styles.overlay} onPress={onClose}>
+            <Pressable style={styles.overlay} onPress={!isSyncing ? onClose : null}>
                 <View style={styles.menuContainer} onStartShouldSetResponder={() => true}>
+                    {isSyncing && (
+                        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.7)', zIndex: 999, justifyContent: 'center', alignItems: 'center' }]}>
+                            <ActivityIndicator size="large" color="#1c2d4f" />
+                            <Text style={{ marginTop: 10, color: '#1c2d4f', fontWeight: 'bold' }}>{t('menuLoading')}</Text>
+                        </View>
+                    )}
                     <View style={styles.header}>
-                        <ThemedText style={styles.title}>Menu</ThemedText>
-                        <Pressable onPress={onClose} hitSlop={20}>
-                            <IconSymbol name="xmark" size={24} color="#666" />
-                        </Pressable>
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', width: '100%', marginBottom: 12 }}>
+                            <Pressable onPress={onClose} hitSlop={20} style={styles.closeButton} disabled={isSyncing}>
+                                <IconSymbol name="xmark" size={20} color="#64748b" />
+                            </Pressable>
+                        </View>
+                        
+                        <View style={styles.profileHeader}>
+                            {userProfile?.avatar ? (
+                                <Image source={{ uri: userProfile.avatar }} style={styles.avatar} />
+                            ) : (
+                                <View style={styles.avatarPlaceholder}>
+                                    <IconSymbol name="person.fill" size={36} color="#94a3b8" />
+                                </View>
+                            )}
+                            <View style={styles.profileInfo}>
+                                <Text style={styles.userName} numberOfLines={1}>{userProfile?.name || t('menuLoading')}</Text>
+                            </View>
+                        </View>
                     </View>
 
                     <View style={styles.menuItemsContainer}>
@@ -102,10 +153,10 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
                             ]}
                             onPress={handleLogout}
                         >
-                            <IconSymbol name="xmark" size={20} color="#ef4444" />
-                            <Text style={styles.logoutText}>Fazer Logoff</Text>
+                            <IconSymbol name="rectangle.portrait.and.arrow.right" size={20} color="#fff" />
+                            <Text style={styles.logoutText}>{t('menuLogout')}</Text>
                         </Pressable>
-                        <Text style={styles.versionText}>Versão 1.0.0</Text>
+                        <Text style={styles.versionText}>{t('menuVersion')} {Constants.expoConfig?.version || '03.01.26'}</Text>
                     </View>
                 </View>
             </Pressable>
@@ -133,16 +184,53 @@ const styles = StyleSheet.create({
         flexDirection: 'column',
     },
     header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 40,
+        marginBottom: 30,
         marginTop: 40, // Top Safe Area
     },
-    title: {
-        fontSize: 28, // Larger title
-        fontWeight: 'bold',
-        color: '#1c2d4f',
+    closeButton: {
+        padding: 4,
+        backgroundColor: '#f1f5f9',
+        borderRadius: 20,
+    },
+    profileHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+    },
+    avatar: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#f1f5f9',
+        borderWidth: 2,
+        borderColor: '#e2e8f0',
+    },
+    avatarPlaceholder: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#f1f5f9',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#e2e8f0',
+    },
+    profileInfo: {
+        flex: 1,
+        justifyContent: 'center',
+    },
+    userName: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#1e293b',
+        marginBottom: 2,
+    },
+    userRole: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#6366f1',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     menuItemsContainer: {
         flex: 1,
@@ -172,16 +260,19 @@ const styles = StyleSheet.create({
     logoutButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#ef4444',
+        borderRadius: 12,
         gap: 12,
-        paddingVertical: 12,
+        paddingVertical: 14,
     },
     logoutButtonPressed: {
-        opacity: 0.7,
+        opacity: 0.8,
     },
     logoutText: {
-        color: '#ef4444',
-        fontSize: 16,
-        fontWeight: '600',
+        color: '#ffffff',
+        fontSize: 18,
+        fontWeight: 'bold',
     },
     versionText: {
         color: '#999',

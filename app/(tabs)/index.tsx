@@ -1,6 +1,6 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { OrderStatus, PRIORITY_CONFIG, STATUS_CONFIG } from '@/constants/mock-data';
+import { getStatusConfig, getPriorityConfig, OrderStatus } from '@/constants/mock-data';
 import { startBackgroundLocation } from '@/services/location-service';
 import { NotificationService } from '@/services/notification-service';
 import { OrderService } from '@/services/order-service';
@@ -11,31 +11,36 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, Linking } from 'react-native';
+import { useI18n } from '@/services/i18n';
 
 const ITEMS_PER_PAGE = 10;
 
 // Internal Order Card Component
-const OrderCard = ({ order, onShare, onPress, allowShare }: { order: any; onShare: any; onPress: any; allowShare: boolean }) => (
+const OrderCard = ({ order, onShare, onPress, allowShare, showClientContact, t }: { order: any; onShare: any; onPress: any; allowShare: boolean; showClientContact: boolean; t: any }) => (
   <Pressable style={styles.orderCard} onPress={onPress}>
     <View style={styles.orderHeader}>
-      <Text style={styles.orderId}>{order.displayId || order.id}</Text>
+      <Text style={styles.orderId}>
+        {order.displayId || order.id}
+        {order.visitCount ? ` - ${order.visitCount} ${order.visitCount > 1 ? t('homeVisits') : t('homeVisit')}` : ''}
+      </Text>
       <View style={{ flexDirection: 'row', gap: 6 }}>
-        {order.priority && PRIORITY_CONFIG[order.priority] && (
-          <View style={[styles.statusBadge, { backgroundColor: PRIORITY_CONFIG[order.priority].bg }]}>
-            <Text style={[styles.statusText, { color: PRIORITY_CONFIG[order.priority].color }]}>
-              {PRIORITY_CONFIG[order.priority].label}
+        {order.priority && getPriorityConfig(t as any)[order.priority] && (
+          <View style={[styles.statusBadge, { backgroundColor: getPriorityConfig(t as any)[order.priority].bg }]}>
+            <Text style={[styles.statusText, { color: getPriorityConfig(t as any)[order.priority].color }]}>
+              {getPriorityConfig(t as any)[order.priority].label}
             </Text>
           </View>
         )}
-        <View style={[styles.statusBadge, { backgroundColor: STATUS_CONFIG[order.status as OrderStatus]?.color + '20' || '#f0f0f0' }]}>
-          <Text style={[styles.statusText, { color: STATUS_CONFIG[order.status as OrderStatus]?.color || '#666' }]}>
-            {STATUS_CONFIG[order.status as OrderStatus]?.label || order.status}
+        <View style={[styles.statusBadge, { backgroundColor: getStatusConfig(t as any)[order.status as OrderStatus]?.color + '20' || '#f0f0f0' }]}>
+          <Text style={[styles.statusText, { color: getStatusConfig(t as any)[order.status as OrderStatus]?.color || '#666' }]}>
+            {getStatusConfig(t as any)[order.status as OrderStatus]?.label || t('statusPending')}
           </Text>
         </View>
       </View>
     </View>
 
     <Text style={styles.customerName}>{order.customer}</Text>
+    
     <View style={styles.detailRow}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
         <Ionicons name="location-outline" size={14} color="#666" />
@@ -48,17 +53,60 @@ const OrderCard = ({ order, onShare, onPress, allowShare }: { order: any; onShar
       <View style={styles.scheduleRow}>
         <Ionicons name="time-outline" size={14} color="#6366f1" />
         <Text style={styles.scheduleText}>
+          <Text style={{ fontWeight: '500', color: '#666' }}>{t('homeSchedule')} </Text>
           {order.scheduledDate
             ? new Date(order.scheduledDate + 'T00:00:00').toLocaleDateString('pt-BR', { timeZone: 'UTC' })
             : ''}
-          {order.scheduledTime ? ` às ${order.scheduledTime.substring(0, 5)}` : ''}
+          {order.scheduledTime ? ` ${t('homeAt')} ${order.scheduledTime.substring(0, 5)}` : ''}
         </Text>
       </View>
     )}
 
     <View style={[styles.cardFooter, { flexDirection: 'row', gap: 8 }]}>
+      {(() => {
+        if (!showClientContact) return null;
+        return (
+          <Pressable 
+            style={[styles.whatsappButton, { flex: 1, backgroundColor: '#f0fdf4', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#bbf7d0', justifyContent: 'center', flexDirection: 'row', alignItems: 'center', gap: 6 }]} 
+            onPress={async (e) => {
+               e.stopPropagation();
+               let currentPhone = order.customerPhone || order.contactPhone || order.whatsapp || order.phone;
+               
+               if (!currentPhone && order.customer) {
+                 try {
+                   const { data, error } = await supabase
+                     .from('customers')
+                     .select('whatsapp, phone')
+                     .eq('name', order.customer)
+                     .single();
+                     
+                   if (!error && data) {
+                     currentPhone = data.whatsapp || data.phone;
+                   }
+                 } catch (err) {
+                   console.log('Error fetching customer phone:', err);
+                 }
+               }
+
+               if (currentPhone) {
+                 const numbersOnly = String(currentPhone).replace(/\D/g, '');
+                 if (numbersOnly.length >= 8) {
+                    Linking.openURL(`https://wa.me/55${numbersOnly.startsWith('55') ? numbersOnly.substring(2) : numbersOnly}`);
+                    return;
+                 }
+               }
+               
+               Alert.alert(t('homeWarning'), t('homeWhatsappNotRegistered'));
+            }}
+          >
+            <Ionicons name="logo-whatsapp" size={16} color="#16a34a" />
+            <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '800', textAlign: 'center' }}>WhatsApp</Text>
+          </Pressable>
+        );
+      })()}
+
       <Pressable 
-        style={[styles.gpsButton, { flex: 1, backgroundColor: '#eff6ff', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, borderColor: '#bfdbfe', justifyContent: 'center' }]} 
+        style={[styles.gpsButton, { flex: 1, backgroundColor: '#eff6ff', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, borderColor: '#bfdbfe', justifyContent: 'center', flexDirection: 'row', alignItems: 'center', gap: 6 }]} 
         onPress={(e) => {
           e.stopPropagation();
           const query = encodeURIComponent(order.address);
@@ -74,19 +122,19 @@ const OrderCard = ({ order, onShare, onPress, allowShare }: { order: any; onShar
         }}
       >
         <Ionicons name="navigate-circle" size={16} color="#2563eb" />
-        <Text style={[styles.gpsButtonText, { color: '#2563eb', fontSize: 12, fontWeight: 'bold', textAlign: 'center' }]}>Abrir GPS</Text>
+        <Text style={[styles.gpsButtonText, { color: '#2563eb', fontSize: 12, fontWeight: 'bold', textAlign: 'center' }]}>{t('homeOpenGPS')}</Text>
       </Pressable>
 
       {allowShare && order.status === 'completed' && order.publicToken ? (
         <Pressable
-          style={[styles.shareButton, { flex: 1, paddingVertical: 10, paddingHorizontal: 12, justifyContent: 'center' }]}
+          style={[styles.shareButton, { flex: 1, paddingVertical: 10, paddingHorizontal: 12, justifyContent: 'center', flexDirection: 'row', alignItems: 'center', gap: 6 }]}
           onPress={(e) => {
             e.stopPropagation();
             onShare(order.publicToken, order.displayId || order.id);
           }}
         >
           <Ionicons name="share-social-outline" size={16} color="#10b981" />
-          <Text style={[styles.shareButtonText, { fontSize: 12, textAlign: 'center' }]}>Compartilhar</Text>
+          <Text style={[styles.shareButtonText, { fontSize: 12, textAlign: 'center' }]}>{t('homeShare')}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -95,6 +143,7 @@ const OrderCard = ({ order, onShare, onPress, allowShare }: { order: any; onShar
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { t, lang } = useI18n();
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<OrderStatus | 'all'>('pending');
   const [isLoading, setIsLoading] = useState(true);
@@ -115,8 +164,9 @@ export default function HomeScreen() {
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   // Tenant feature flags
   const [allowOsSharing, setAllowOsSharing] = useState(true);
+  const [showClientContact, setShowClientContact] = useState(true);
 
-  // Load tenant settings (allowOsSharing)
+  // Load tenant settings (allowOsSharing, showClientContact)
   useEffect(() => {
     const loadTenantSettings = async () => {
       try {
@@ -128,6 +178,7 @@ export default function HomeScreen() {
           const { data: tenantData } = await supabase.from('tenants').select('metadata').eq('id', userData.tenant_id).single();
           if (tenantData?.metadata) {
             setAllowOsSharing(tenantData.metadata.allowOsSharing ?? true);
+            setShowClientContact(tenantData.metadata.showClientContact ?? true);
           }
         }
       } catch (e) {
@@ -175,6 +226,24 @@ export default function HomeScreen() {
             if (selectedFilter === 'pending') return ['pending', 'assigned', 'traveling'].includes(o.status);
             return o.status === selectedFilter;
           });
+
+        filtered.sort((a, b) => {
+          let dateA = new Date(a.scheduledDate || a.createdAt).getTime();
+          let dateB = new Date(b.scheduledDate || b.createdAt).getTime();
+
+          if (selectedFilter === 'completed') {
+             dateA = new Date(a.endDate || a.updatedAt || a.createdAt).getTime();
+             dateB = new Date(b.endDate || b.updatedAt || b.createdAt).getTime();
+          } else if (selectedFilter === 'blocked') {
+             dateA = new Date(a.updatedAt || a.createdAt).getTime();
+             dateB = new Date(b.updatedAt || b.createdAt).getTime();
+          }
+
+          if (isNaN(dateA)) dateA = 0;
+          if (isNaN(dateB)) dateB = 0;
+
+          return dateB - dateA;
+        });
 
         setOrders(filtered);
         setTotalOrders(filtered.length);
@@ -284,8 +353,8 @@ export default function HomeScreen() {
             // 🔔 If it's a NEW assignment, trigger a local notification
             if (payload.eventType === 'INSERT') {
               NotificationService.triggerLocalNotification(
-                "Nova OS Atribuída!",
-                `Você recebeu uma nova Ordem de Serviço: ${payload.new.display_id || 'S/N'}`,
+                t('homeNewOsNotif'),
+                `${t('homeNewOsNotifBody')} ${payload.new.display_id || 'S/N'}`,
                 { orderId: payload.new.id }
               );
             } else if (payload.eventType === 'UPDATE' && payload.old.status !== payload.new.status) {
@@ -320,57 +389,152 @@ export default function HomeScreen() {
 
   const totalPages = Math.ceil(totalOrders / ITEMS_PER_PAGE);
 
+  const MAX_RANGE_DAYS = 183; // ~6 meses
+
   const onChangeStartDate = (event: any, selectedDate?: Date) => {
     setShowStartPicker(false);
-    if (selectedDate) setStartDate(selectedDate);
+    if (!selectedDate) return;
+
+    // Valida se o novo início não cria um intervalo maior que 6 meses com a data fim atual
+    if (endDate) {
+      const diffMs = endDate.getTime() - selectedDate.getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      if (diffDays > MAX_RANGE_DAYS) {
+        Alert.alert(
+          t('homeDateRangeTooLargeTitle'),
+          t('homeDateRangeTooLarge'),
+          [{ text: t('homeUnderstood'), style: 'default' }]
+        );
+        return;
+      }
+      if (diffDays < 0) {
+        Alert.alert(
+          t('homeDateInvalidTitle'),
+          t('homeDateInvalid'),
+          [{ text: t('homeUnderstood'), style: 'default' }]
+        );
+        return;
+      }
+    }
+    setStartDate(selectedDate);
   };
 
   const onChangeEndDate = (event: any, selectedDate?: Date) => {
     setShowEndPicker(false);
-    if (selectedDate) setEndDate(selectedDate);
+    if (!selectedDate) return;
+
+    // Valida se o novo fim não cria um intervalo maior que 6 meses com a data início atual
+    if (startDate) {
+      const diffMs = selectedDate.getTime() - startDate.getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      if (diffDays > MAX_RANGE_DAYS) {
+        Alert.alert(
+          t('homeDateRangeTooLargeTitle'),
+          t('homeDateRangeTooLarge'),
+          [{ text: t('homeUnderstood'), style: 'default' }]
+        );
+        return;
+      }
+      if (diffDays < 0) {
+        Alert.alert(
+          t('homeDateInvalidTitle'),
+          t('homeDateInvalidEnd'),
+          [{ text: t('homeUnderstood'), style: 'default' }]
+        );
+        return;
+      }
+    }
+    setEndDate(selectedDate);
   };
 
   const dashboardStats = useMemo(() => {
     return {
-      pending: { color: '#d97706', bg: '#fef3c7', label: 'Abertas' },
-      in_progress: { color: '#2563eb', bg: '#dbeafe', label: 'Execução' },
-      blocked: { color: '#e11d48', bg: '#ffe4e6', label: 'Impedidas' },
-      completed: { color: '#059669', bg: '#d1fae5', label: 'Finalizadas' },
+      pending: { color: '#d97706', bg: '#fef3c7', label: t('statusOpen') },
+      in_progress: { color: '#2563eb', bg: '#dbeafe', label: t('statusExecution') },
+      blocked: { color: '#e11d48', bg: '#ffe4e6', label: t('statusBlocked') },
+      completed: { color: '#059669', bg: '#d1fae5', label: t('statusCompleted') },
     };
-  }, []);
+  }, [t, lang]);
 
   const handleShareOS = async (publicToken: string, displayId: string) => {
     if (publicToken) {
       const url = `https://app.dunoup.com.br/#/order/view/${publicToken}`;
       try {
         await Share.share({
-          message: `📄 Resumo da Ordem de Serviço ${displayId}:\nClique para acessar: ${url}`,
+          message: `${t('homeShareMessage')} ${displayId}:\n${t('homeClickToAccess')} ${url}`,
           url,
         });
       } catch (error) {
-        Alert.alert("Erro", "Não foi possível compartilhar.");
+        Alert.alert(t('alertError'), t('homeShareError'));
       }
     }
   };
 
-  const renderDashboardCard = (status: string, data: any) => (
-    <Pressable
-      key={status}
-      style={[
-        styles.dashboardCard,
-        { backgroundColor: data.bg, borderColor: data.color + '20' },
-        selectedFilter === status && { backgroundColor: data.color, borderColor: data.color },
-      ]}
-      onPress={() => setSelectedFilter(status as any)}>
-      <Text style={[
-        styles.dashboardLabel,
-        { color: data.color },
-        selectedFilter === status && { color: '#fff' }
-      ]}>
-        {data.label}
-      </Text>
-    </Pressable>
-  );
+  const STATUS_ICONS: Record<string, any> = {
+    pending: 'time-outline',
+    in_progress: 'construct-outline',
+    blocked: 'warning-outline',
+    completed: 'checkmark-circle-outline',
+  };
+
+  const renderDashboardCard = (status: string, data: any) => {
+    const isSelected = selectedFilter === status;
+    const count = serverStats[status] ?? 0;
+    const icon = STATUS_ICONS[status] || 'ellipse-outline';
+
+    return (
+      <Pressable
+        key={status}
+        style={[
+          styles.dashboardCard,
+          { backgroundColor: isSelected ? data.color : data.bg },
+          isSelected && {
+            shadowColor: data.color,
+            shadowOpacity: 0.4,
+            shadowRadius: 8,
+            elevation: 8,
+            transform: [{ scale: 1.04 }],
+          },
+        ]}
+        onPress={() => setSelectedFilter(status as any)}
+      >
+        {/* Checkmark badge no canto superior direito */}
+        {isSelected && (
+          <View style={[styles.selectedBadge, { backgroundColor: '#ffffff' }]}>
+            <Ionicons name="checkmark" size={10} color={data.color} />
+          </View>
+        )}
+
+        <Ionicons
+          name={icon}
+          size={18}
+          color={isSelected ? 'rgba(255,255,255,0.9)' : data.color}
+          style={{ marginBottom: 4 }}
+        />
+
+        <Text style={[
+          styles.dashboardCount,
+          { color: isSelected ? '#fff' : data.color },
+        ]}>
+          {count}
+        </Text>
+
+        <Text style={[
+          styles.dashboardLabel,
+          { color: isSelected ? 'rgba(255,255,255,0.9)' : data.color },
+        ]}>
+          {data.label}
+        </Text>
+
+        {/* Barra inferior de seleção */}
+        {isSelected && (
+          <View style={[styles.selectedBar, { backgroundColor: 'rgba(255,255,255,0.5)' }]} />
+        )}
+      </Pressable>
+    );
+  };
+
+
 
   return (
     <ThemedView style={styles.container}>
@@ -379,18 +543,18 @@ export default function HomeScreen() {
         <View style={styles.offlineBadge}>
           <Ionicons name="cloud-offline-outline" size={20} color="#fff" />
           <Text style={styles.offlineBadgeText}>
-            {pendingSyncCount} {pendingSyncCount === 1 ? 'OS Pendente' : 'OS Pendentes'} de Sincronização
+            {pendingSyncCount} {pendingSyncCount === 1 ? t('homeOsPending') : t('homeOsPendings')} {t('homeOsSyncMessage')}
           </Text>
           <View style={styles.syncBtn}>
             <Ionicons name="information-circle-outline" size={16} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold', marginLeft: 4 }}>Mude para Online para enviar</Text>
+            <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold', marginLeft: 4 }}>{t('homeOfflineSwitch')}</Text>
           </View>
         </View>
       )}
 
       <View style={styles.dashboardContainer}>
         <View style={{ alignItems: 'center', marginBottom: 8 }}>
-          <ThemedText style={styles.sectionTitle}>Visão Geral</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t('homeOverview')}</ThemedText>
         </View>
 
         <View style={styles.dashboardGrid}>
@@ -402,14 +566,14 @@ export default function HomeScreen() {
         <View style={styles.dateFilterContainer}>
           <Pressable style={styles.dateInput} onPress={() => setShowStartPicker(true)}>
             <Text style={startDate ? styles.dateTextActive : styles.dateTextPlaceholder}>
-              {startDate ? startDate.toLocaleDateString('pt-BR') : 'Data Início'}
+              {startDate ? startDate.toLocaleDateString('pt-BR') : t('homeDateStart')}
             </Text>
             <Ionicons name="calendar-outline" size={16} color="#666" />
           </Pressable>
 
           <Pressable style={styles.dateInput} onPress={() => setShowEndPicker(true)}>
             <Text style={endDate ? styles.dateTextActive : styles.dateTextPlaceholder}>
-              {endDate ? endDate.toLocaleDateString('pt-BR') : 'Data Fim'}
+              {endDate ? endDate.toLocaleDateString('pt-BR') : t('homeDateEnd')}
             </Text>
             <Ionicons name="calendar-outline" size={16} color="#666" />
           </Pressable>
@@ -436,7 +600,7 @@ export default function HomeScreen() {
         )}
 
         <View style={styles.listHeader}>
-          <ThemedText style={styles.sectionTitle}>Ordens de Serviço</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{t('homeServiceOrders')}</ThemedText>
           <Pressable
             style={styles.filterButton}
             onPress={() => {
@@ -445,7 +609,7 @@ export default function HomeScreen() {
               setEndDate(new Date());
             }}>
             <Ionicons name="filter" size={18} color="#1c2d4f" />
-            <Text style={styles.filterButtonText}>Limpar</Text>
+            <Text style={styles.filterButtonText}>{t('homeClear')}</Text>
           </Pressable>
         </View>
 
@@ -457,6 +621,8 @@ export default function HomeScreen() {
               order={item}
               onShare={handleShareOS}
               allowShare={allowOsSharing}
+              showClientContact={showClientContact}
+              t={t}
               onPress={() => {
                 const isExecuting = item.status === 'in_progress' || item.status === 'EM ANDAMENTO';
                 if (isExecuting) {
@@ -480,7 +646,7 @@ export default function HomeScreen() {
             isLoading ? null : (
               <View style={styles.emptyContainer}>
                 <Ionicons name="documents-outline" size={48} color="#ccc" />
-                <Text style={styles.emptyText}>Nenhuma ordem encontrada</Text>
+                <Text style={styles.emptyText}>{t('homeNoOrders')}</Text>
               </View>
             )
           }
@@ -495,7 +661,7 @@ export default function HomeScreen() {
                   <Ionicons name="chevron-back" size={20} color={currentPage === 1 ? "#ccc" : "#1c2d4f"} />
                 </Pressable>
 
-                <Text style={styles.pageText}>Página {currentPage} de {totalPages || 1}</Text>
+                <Text style={styles.pageText}>{t('homePage')} {currentPage} {t('homeOf')} {totalPages || 1}</Text>
 
                 <Pressable
                   disabled={currentPage === totalPages}
@@ -512,7 +678,7 @@ export default function HomeScreen() {
         {isLoading && (
           <View style={styles.loaderOverlay}>
             <ActivityIndicator size="large" color="#1c2d4f" />
-            <Text style={{ marginTop: 10, color: '#1c2d4f', fontWeight: '500' }}>Carregando dados...</Text>
+            <Text style={{ marginTop: 10, color: '#1c2d4f', fontWeight: '500' }}>{t('homeFiltering')}</Text>
           </View>
         )}
       </View>
@@ -527,19 +693,40 @@ const styles = StyleSheet.create({
   dashboardGrid: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
   dashboardCard: {
     flex: 1,
-    height: 58,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    height: 80,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 3
+    elevation: 3,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  dashboardLabel: { fontSize: 12, fontWeight: '900', textAlign: 'center' },
+  dashboardCount: { fontSize: 16, fontWeight: '900', lineHeight: 18 },
+  dashboardLabel: { fontSize: 10, fontWeight: '800', textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 1 },
+  selectedBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+  },
   listContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   dateFilterContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, gap: 10 },
   dateInput: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
@@ -552,7 +739,7 @@ const styles = StyleSheet.create({
   orderCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: '#1c2d4f', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   loaderOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(245, 247, fa, 0.6)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,

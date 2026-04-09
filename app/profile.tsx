@@ -11,18 +11,75 @@ import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Platform, Pressable, StyleSheet, Text, View, TextInput, KeyboardAvoidingView, ScrollView } from 'react-native';
+import { useI18n } from '@/services/i18n';
 
 export default function ProfileScreen() {
     const router = useRouter();
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const { t } = useI18n();
     const [user, setUser] = useState({
-        name: 'Carregando...',
+        name: t('menuLoading'),
         email: '...',
         id: '...',
         role: '...'
     });
+    
+    // Password update state
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [oldPassword, setOldPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+    const [showPasswords, setShowPasswords] = useState(false);
+
+    const handleUpdatePassword = async () => {
+        if (!oldPassword) {
+            Alert.alert(t('alertAttention'), t('profilePasswordOldRequired'));
+            return;
+        }
+        if (newPassword !== confirmNewPassword) {
+            Alert.alert(t('alertAttention'), t('profilePasswordMismatch'));
+            return;
+        }
+
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%^&+=!.?_\-]).{8,}$/;
+        if (!passwordRegex.test(newPassword)) {
+            Alert.alert(t('alertAttention'), t('profilePasswordValidation'));
+            return;
+        }
+        setIsUpdatingPassword(true);
+        try {
+            // Re-authenticate to ensure old password is correct
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email: user.email,
+                password: oldPassword
+            });
+            if (signInError) throw new Error(t('profilePasswordOldIncorrect'));
+
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
+            if (error) throw error;
+
+            Alert.alert(t('alertSuccess'), t('profilePasswordSuccess'), [
+                {
+                    text: 'OK', 
+                    onPress: async () => {
+                        await syncService.clearAllData();
+                        await authService.logout();
+                        router.replace('/login');
+                    }
+                }
+            ]);
+        } catch (error: any) {
+            Alert.alert(t('alertError'), t('profilePasswordError') + error.message);
+        } finally {
+            setIsUpdatingPassword(false);
+            setOldPassword('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+        }
+    };
 
     useEffect(() => {
         fetchUserProfile();
@@ -32,7 +89,7 @@ export default function ProfileScreen() {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.user) {
-                Alert.alert('Erro', 'Usuário não autenticado.');
+                Alert.alert(t('alertError'), t('profileNotAuthenticated'));
                 return;
             }
 
@@ -48,10 +105,10 @@ export default function ProfileScreen() {
             if (techData) {
                 console.log('[Profile] Technician Record Found:', techData);
                 setUser({
-                    name: techData.name || session.user.email?.split('@')[0] || 'Técnico',
+                    name: techData.name || session.user.email?.split('@')[0] || t('profileTech'),
                     email: session.user.email || '',
                     id: session.user.id,
-                    role: 'Técnico de Campo'
+                    role: t('profileTechRole')
                 });
 
                 const avatar = techData.avatar || techData.avatar_url;
@@ -60,10 +117,10 @@ export default function ProfileScreen() {
                 console.warn('[Profile] No technician record found for this ID:', session.user.id);
                 // Fallback to basic auth data
                 setUser({
-                    name: session.user.user_metadata?.name || 'Usuário',
+                    name: session.user.user_metadata?.name || t('profileUser'),
                     email: session.user.email || '',
                     id: session.user.id, // SHOW THE REAL ID so user can debug
-                    role: 'Usuário (Sem perfil de técnico)'
+                    role: t('profileUserRole')
                 });
             }
 
@@ -76,12 +133,12 @@ export default function ProfileScreen() {
 
     const handleAvatarUpload = async () => {
         Alert.alert(
-            "Foto de Perfil",
+            t('profilePhotoTitle'),
             "Escolha a origem da imagem:",
             [
-                { text: "Câmera", onPress: async () => await takeOrPickImage(true) },
-                { text: "Galeria", onPress: async () => await takeOrPickImage(false) },
-                { text: "Cancelar", style: "cancel" }
+                { text: t('profilePhotoCamera'), onPress: async () => await takeOrPickImage(true) },
+                { text: t('profilePhotoGallery'), onPress: async () => await takeOrPickImage(false) },
+                { text: t('profilePhotoCancel'), style: "cancel" }
             ]
         );
     };
@@ -92,7 +149,7 @@ export default function ProfileScreen() {
             if (isCamera) {
                 const permission = await ImagePicker.requestCameraPermissionsAsync();
                 if (permission.status !== "granted") {
-                    Alert.alert("Permissão", "O aplicativo precisa de acesso à câmera.");
+                    Alert.alert(t('alertPermission'), t('profilePhotoPermission'));
                     return;
                 }
                 result = await ImagePicker.launchCameraAsync({
@@ -151,13 +208,13 @@ export default function ProfileScreen() {
                 if (updateError) throw updateError;
 
                 setProfileImage(finalUrl);
-                Alert.alert("Sucesso", "Foto de perfil atualizada!");
+                Alert.alert(t('alertSuccess'), t('profilePhotoSuccess'));
             }
         } catch (error: any) {
             // Log with a simple string to avoid crashing native console if it's cyclic
             const errorMsg = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
             console.error("Avatar upload error details: " + errorMsg);
-            Alert.alert("Erro", `Não foi possível enviar a imagem:\n${errorMsg.slice(0, 150)}`);
+            Alert.alert(t('alertError'), `${t('profilePhotoError')}\n${errorMsg.slice(0, 150)}`);
         } finally {
             setLoading(false);
         }
@@ -165,16 +222,27 @@ export default function ProfileScreen() {
 
     if (loading) {
         return (
-            <ThemedView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff' }]}>
                 <ActivityIndicator size="large" color="#1c2d4f" />
-                <ThemedText>Carregando perfil...</ThemedText>
-            </ThemedView>
+                <Text style={{ marginTop: 10, color: '#1c2d4f', fontWeight: '500' }}>{t('profileLoading')}</Text>
+            </View>
         );
     }
 
     return (
-        <ThemedView style={styles.container}>
-            <View style={styles.header}>
+        <KeyboardAvoidingView 
+            style={{ flex: 1, backgroundColor: '#f5f7fa' }} 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+        >
+            <ScrollView 
+                style={{ flex: 1 }} 
+                contentContainerStyle={{ flexGrow: 1 }} 
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
+                <ThemedView style={styles.container}>
+                    <View style={styles.header}>
                 <Pressable onPress={handleAvatarUpload} style={styles.imageContainer}>
                     {profileImage ? (
                         <Image source={{ uri: profileImage }} style={styles.profileImage} />
@@ -187,28 +255,91 @@ export default function ProfileScreen() {
                         <Ionicons name="camera" size={14} color="#fff" />
                     </View>
                 </Pressable>
-                <ThemedText type="title">{user.name}</ThemedText>
+                <ThemedText type="title" style={{ color: '#0f172a', fontWeight: '900' }}>{user.name}</ThemedText>
             </View>
 
             <View style={styles.infoSection}>
                 <View style={styles.infoRow}>
-                    <Text style={styles.label}>Email</Text>
+                    <Text style={styles.label}>{t('profileEmail')}</Text>
                     <Text style={[styles.value, { fontSize: 14 }]}>{user.email}</Text>
                 </View>
                 <View style={styles.separator} />
                 <View style={styles.infoRow}>
-                    <Text style={styles.label}>Cargo / Status</Text>
+                    <Text style={styles.label}>{t('profileRole')}</Text>
                     <Text style={styles.value}>{user.role}</Text>
                 </View>
+            </View>
+
+            <View style={[styles.infoSection, { padding: 0, overflow: 'hidden' }]}>
+                <Pressable
+                    style={{ padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                    onPress={() => setIsChangingPassword(!isChangingPassword)}
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <Ionicons name="lock-closed" size={20} color="#1c2d4f" />
+                        <Text style={[styles.value, { fontSize: 16 }]}>{t('profileChangePassword')}</Text>
+                    </View>
+                    <Ionicons name={isChangingPassword ? "chevron-up" : "chevron-down"} size={20} color="#1c2d4f" />
+                </Pressable>
+                
+                {isChangingPassword && (
+                    <View style={{ padding: 16, paddingTop: 0, borderTopWidth: 1, borderTopColor: '#f0f0f0' }}>
+                        <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>{t('profilePasswordDisclaimer')}</Text>
+                        <View style={styles.passwordInputContainer}>
+                            <TextInput
+                                style={styles.passwordInputFlexible}
+                                placeholder={t('profileCurrentPassword')}
+                                placeholderTextColor="#94a3b8"
+                                secureTextEntry={!showPasswords}
+                                value={oldPassword}
+                                onChangeText={setOldPassword}
+                            />
+                        </View>
+                        <View style={styles.passwordInputContainer}>
+                            <TextInput
+                                style={styles.passwordInputFlexible}
+                                placeholder={t('profileNewPassword')}
+                                placeholderTextColor="#94a3b8"
+                                secureTextEntry={!showPasswords}
+                                value={newPassword}
+                                onChangeText={setNewPassword}
+                            />
+                            <Pressable onPress={() => setShowPasswords(!showPasswords)} style={styles.eyeIconPressable}>
+                                <Ionicons name={showPasswords ? "eye-off" : "eye"} size={20} color="#94a3b8" />
+                            </Pressable>
+                        </View>
+                        <View style={styles.passwordInputContainer}>
+                            <TextInput
+                                style={styles.passwordInputFlexible}
+                                placeholder={t('profileConfirmPassword')}
+                                placeholderTextColor="#94a3b8"
+                                secureTextEntry={!showPasswords}
+                                value={confirmNewPassword}
+                                onChangeText={setConfirmNewPassword}
+                            />
+                        </View>
+                        <Pressable 
+                            style={[styles.savePasswordBtn, (!oldPassword || !newPassword || !confirmNewPassword || newPassword.length < 8 || isUpdatingPassword) && { opacity: 0.5 }]} 
+                            onPress={handleUpdatePassword}
+                            disabled={!oldPassword || !newPassword || !confirmNewPassword || newPassword.length < 8 || isUpdatingPassword}
+                        >
+                            {isUpdatingPassword ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>{t('profileSavePassword')}</Text>
+                            )}
+                        </Pressable>
+                    </View>
+                )}
             </View>
 
             <Pressable
                 style={styles.logoutButton}
                 onPress={() => {
-                    Alert.alert('Logoff', 'Deseja realmente sair?', [
-                        { text: 'Cancelar', style: 'cancel' },
+                    Alert.alert(t('profileLogout'), t('profileLogoutConfirm'), [
+                        { text: t('menuCancel'), style: 'cancel' },
                         {
-                            text: 'Sair', style: 'destructive',
+                            text: t('profileLogout'), style: 'destructive',
                             onPress: async () => {
                                 console.log('User logging out...');
                                 await syncService.clearAllData();
@@ -219,18 +350,21 @@ export default function ProfileScreen() {
                     ])
                 }}
             >
-                <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-                <Text style={styles.logoutText}>Fazer Logoff</Text>
+                <Ionicons name="log-out-outline" size={20} color="#fff" />
+                <Text style={styles.logoutText}>{t('profileLogout')}</Text>
             </Pressable>
-        </ThemedView>
+                </ThemedView>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
+        flexGrow: 1,
         padding: 20,
         backgroundColor: '#f5f7fa',
+        paddingBottom: 40,
     },
     header: {
         alignItems: 'center',
@@ -310,14 +444,38 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 8,
         padding: 16,
-        backgroundColor: '#fff',
+        backgroundColor: '#ef4444',
         borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#fee2e2',
     },
     logoutText: {
-        color: '#ef4444',
-        fontWeight: '600',
+        color: '#ffffff',
+        fontWeight: '700',
         fontSize: 16,
     },
+    passwordInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 8,
+        marginBottom: 12,
+    },
+    passwordInputFlexible: {
+        flex: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        fontSize: 16,
+        color: '#0f172a',
+    },
+    eyeIconPressable: {
+        padding: 10,
+    },
+    savePasswordBtn: {
+        backgroundColor: '#1c2d4f',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    }
 });

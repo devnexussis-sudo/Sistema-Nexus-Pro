@@ -297,8 +297,8 @@ export const VisitService = {
             assigned_to: params.technicianId,
             scheduled_date: params.scheduledDate,
             scheduled_time: params.scheduledTime || null,
-            // Limpa checklist/execução
-            form_data: {},
+            // Limpa checklist/execução, mas preserva histórico de impedimentos
+            form_data: { impediment_history: consolidatedHistory },
             // Limpa assinaturas correspondendo à tipagem verdadeira no DB (DbOrder)
             signature_url: null,
             client_signature_url: null,

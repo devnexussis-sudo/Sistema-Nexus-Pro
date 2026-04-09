@@ -21,7 +21,7 @@ export function ImageViewerModal({ visible, imageUri, onClose }: ImageViewerModa
         >
             <View style={styles.container}>
                 <Pressable style={styles.closeButton} onPress={onClose}>
-                    <Ionicons name="close-circle" size={40} color="#fff" />
+                    <Ionicons name="close-circle" size={40} color="#1e293b" />
                 </Pressable>
 
                 <Image
@@ -37,7 +37,7 @@ export function ImageViewerModal({ visible, imageUri, onClose }: ImageViewerModa
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.9)',
+        backgroundColor: '#ffffff',
         justifyContent: 'center',
         alignItems: 'center',
     },

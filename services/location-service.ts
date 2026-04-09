@@ -4,257 +4,378 @@ import * as TaskManager from 'expo-task-manager';
 import { Alert, Platform, Linking } from 'react-native';
 import { supabase } from './supabase';
 import { logger } from './logger';
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const LOCATION_TASK_NAME = 'background-location-task';
-const STORAGE_KEY_LAST_LOC = '@nexus:last_location';
-const STORAGE_KEY_LAST_HB = '@nexus:last_heartbeat';
-const MOVEMENT_THRESHOLD = 30; // metros
-const HEARTBEAT_INTERVAL = 15 * 60 * 1000; // 15 minutos
 
+// ─── Thresholds ──────────────────────────────────────────────────────────────
+const MOVEMENT_PING_M         = 5;     // Send a route ping every ≥5 m of movement
+const STATIONARY_THRESHOLD_M  = 50;   // <50 m from anchor = "stationary"
+const STOP_STATUS_MS          = 10 * 60 * 1000;   // 10 min  → "stopped"
+const STOP_LONG_MS            = 2  * 60 * 60 * 1000;  // 2 h → "stopped_over_2h"
+const OFFLINE_MS              = 8  * 60 * 60 * 1000;  // 8 h → "offline"
+const HEARTBEAT_INTERVAL_MS   = 5  * 60 * 1000;   // Keep-alive every 5 min when stationary
+const ACCURACY_MAX_M          = 40;   // Discard readings worse than 40 m accuracy
+
+// ─── Storage keys ────────────────────────────────────────────────────────────
+const KEY_LAST_LOC   = '@nexus:last_location';
+const KEY_LAST_HB    = '@nexus:last_heartbeat';
+const KEY_LAST_MOVE  = '@nexus:last_movement';
+const KEY_ANCHOR     = '@nexus:stop_anchor';   // The point where the tech stopped
+const KEY_LAST_DATE  = '@nexus:last_gps_date'; // YYYY-MM-DD of last ping
+
+// ─── In-memory state ─────────────────────────────────────────────────────────
 let foregroundSubscription: Location.LocationSubscription | null = null;
+let stationaryTimer: ReturnType<typeof setTimeout> | null = null;
+let stopStatusSent: 'none' | 'stopped' | 'stopped_over_2h' | 'offline' = 'none';
 let lastSentLocation: { lat: number; lng: number } | null = null;
-let lastHeartbeatTime: number = 0;
-let isProcessing = false;
+let anchorLocation:   { lat: number; lng: number } | null = null;
+let lastHeartbeatTime = 0;
+let lastMovementTime  = 0;
+let stateHydrated     = false;
+let isProcessing      = false;
 
-/**
- * ✅ Calculate distance between two points in meters (Haversine Formula)
- */
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371e3;
+// ─── Haversine distance ──────────────────────────────────────────────────────
+const haversine = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R  = 6371e3;
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
     const Δφ = ((lat2 - lat1) * Math.PI) / 180;
     const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-        Math.cos(φ1) * Math.cos(φ2) *
-        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+    const a  = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-// ✅ Reusable function to sync location to Supabase
-const sendLocationUpdate = async (location: Location.LocationObject, options = { force: false }) => {
+// ─── Battery helper ──────────────────────────────────────────────────────────
+const getBattery = async (): Promise<number | null> => {
+    try {
+        const level = await Battery.getBatteryLevelAsync();
+        return level !== -1 ? Math.round(level * 100) : null;
+    } catch { return null; }
+};
+
+// ─── Midnight reset: clear route on first ping of a new day ─────────────────
+const checkMidnightReset = async (userId: string): Promise<boolean> => {
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    try {
+        const stored = await AsyncStorage.getItem(KEY_LAST_DATE);
+        if (stored && stored !== today) {
+            // New day — reset the route on the server
+            logger.log(`[GPS] 🌙 New day (${today}), sending midnight reset`, 'info');
+            await supabase.rpc('reset_tech_daily_route', { p_user_id: userId });
+            // Reset local movement time so stationary timers start fresh
+            lastMovementTime = Date.now();
+            anchorLocation   = null;
+            stopStatusSent   = 'none';
+            await AsyncStorage.multiRemove([KEY_ANCHOR, KEY_LAST_MOVE]);
+        }
+        await AsyncStorage.setItem(KEY_LAST_DATE, today);
+        return stored !== null && stored !== today;
+    } catch (e) {
+        console.warn('[GPS] Midnight reset check error:', e);
+        return false;
+    }
+};
+
+// ─── Stationary status machine ───────────────────────────────────────────────
+const sendStatusUpdate = async (
+    status: 'stopped' | 'stopped_over_2h' | 'offline',
+    lat: number, lng: number, battery: number | null
+) => {
+    if (stopStatusSent === status) return; // Already sent
+    try {
+        logger.log(`[GPS] 📌 Status → ${status}`, 'warn');
+        await supabase.rpc('update_tech_status', {
+            p_lat:    lat,
+            p_lng:    lng,
+            p_status: status,
+            p_battery: battery,
+        });
+        stopStatusSent = status;
+    } catch (e) {
+        console.warn('[GPS] Status update error:', e);
+    }
+};
+
+// Schedule rolling status checks after the tech stops moving
+const scheduleStationaryChecks = (lat: number, lng: number) => {
+    if (stationaryTimer) clearTimeout(stationaryTimer);
+
+    const stoppedAt = Date.now();
+
+    const tick = async () => {
+        const elapsed = Date.now() - stoppedAt;
+        const battery = await getBattery();
+
+        if (elapsed >= OFFLINE_MS) {
+            await sendStatusUpdate('offline', lat, lng, battery);
+            // No more checks needed
+        } else if (elapsed >= STOP_LONG_MS) {
+            await sendStatusUpdate('stopped_over_2h', lat, lng, battery);
+            stationaryTimer = setTimeout(tick, OFFLINE_MS - elapsed);
+        } else if (elapsed >= STOP_STATUS_MS) {
+            await sendStatusUpdate('stopped', lat, lng, battery);
+            stationaryTimer = setTimeout(tick, STOP_LONG_MS - elapsed);
+        } else {
+            stationaryTimer = setTimeout(tick, STOP_STATUS_MS - elapsed);
+        }
+    };
+
+    stationaryTimer = setTimeout(tick, STOP_STATUS_MS);
+};
+
+// Cancel all stationary timers when the tech resumes movement
+const cancelStationaryChecks = () => {
+    if (stationaryTimer) { clearTimeout(stationaryTimer); stationaryTimer = null; }
+};
+
+// ─── Hydrate in-memory state from AsyncStorage ───────────────────────────────
+const hydrateState = async () => {
+    if (stateHydrated) return;
+    try {
+        const [loc, hb, move, anchor] = await Promise.all([
+            AsyncStorage.getItem(KEY_LAST_LOC),
+            AsyncStorage.getItem(KEY_LAST_HB),
+            AsyncStorage.getItem(KEY_LAST_MOVE),
+            AsyncStorage.getItem(KEY_ANCHOR),
+        ]);
+        if (loc)    lastSentLocation  = JSON.parse(loc);
+        if (hb)    lastHeartbeatTime  = parseInt(hb,  10);
+        if (move)  lastMovementTime   = parseInt(move, 10);
+        if (anchor) anchorLocation    = JSON.parse(anchor);
+    } catch { /* ignore */ }
+    stateHydrated = true;
+};
+
+// ─── Core send function ──────────────────────────────────────────────────────
+const sendLocationUpdate = async (
+    location: Location.LocationObject,
+    options: { force?: boolean } = {}
+) => {
     if (isProcessing) return;
+    isProcessing = true;
 
     const { latitude, longitude, speed, heading, accuracy } = location.coords;
     const now = Date.now();
 
-    // 🛡️ FILTRO DE PRECISÃO (Evitar pings de jitter/ indoor drift)
-    // Se a precisão for pior que 100m, ignoramos para o log de histórico.
-    if (accuracy && accuracy > 100) {
-        // Apenas logamos internamente mas não subimos pro banco
-        console.log(`[Location] 🛰️ GPS Signal weak (accuracy: ${accuracy.toFixed(1)}m). Skipping update.`);
-        return;
-    }
-
-    isProcessing = true;
-
     try {
-        // 1. CARREGAR ESTADOS (Se ainda não estiver em memória)
-        if (!lastSentLocation) {
-            try {
-                const [storedLoc, storedHB] = await Promise.all([
-                    AsyncStorage.getItem(STORAGE_KEY_LAST_LOC),
-                    AsyncStorage.getItem(STORAGE_KEY_LAST_HB)
-                ]);
-                if (storedLoc) lastSentLocation = JSON.parse(storedLoc);
-                if (storedHB) lastHeartbeatTime = parseInt(storedHB, 10);
-            } catch (e) { /* ignore */ }
-        }
-
-        // 2. FILTRO INTELIGENTE E HEARTBEAT
-        let distance = 0;
-        if (lastSentLocation) {
-            distance = calculateDistance(lastSentLocation.lat, lastSentLocation.lng, latitude, longitude);
-        }
-
-        const isMoving = !lastSentLocation || distance >= MOVEMENT_THRESHOLD;
-        const needsHeartbeat = (now - lastHeartbeatTime) >= HEARTBEAT_INTERVAL;
-
-        // Se estiver parado E não chegou a hora do heartbeat, ignora tudo. (A menos que seja FORCE)
-        if (!isMoving && !needsHeartbeat && !options.force) {
-            isProcessing = false;
+        // Drop noisy / weak GPS readings
+        if (accuracy && accuracy > ACCURACY_MAX_M && !options.force) {
+            logger.log(`[GPS] ⛔ Discarded, accuracy=${accuracy?.toFixed(0)}m`, 'info');
             return;
         }
 
-        // 🔋 Battery Fetch
-        let batteryLevel = null;
-        try {
-            const level = await Battery.getBatteryLevelAsync();
-            if (level !== -1) batteryLevel = Math.round(level * 100);
-        } catch (e) { }
+        await hydrateState();
 
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
-            isProcessing = false;
-            return;
-        }
+        if (!session?.user) return;
 
-        if (isMoving) {
-            // 🎯 MOVIMENTAÇÃO REAL (>30m): Update Full + Ping Log
-            logger.log(`[Location] 🚀 Movimentação detectada (${distance.toFixed(1)}m). Enviando telemetria...`, 'info');
-            const { error: rpcError } = await supabase.rpc('update_tech_location_v2', {
-                p_lat: latitude,
-                p_lng: longitude,
-                p_speed: speed || 0,
-                p_heading: heading || 0,
-                p_accuracy: accuracy || 0,
-                p_battery: batteryLevel
+        const userId  = session.user.id;
+        const battery = await getBattery();
+
+        // Midnight reset check before doing anything else
+        await checkMidnightReset(userId);
+
+        const distFromLast = lastSentLocation
+            ? haversine(lastSentLocation.lat, lastSentLocation.lng, latitude, longitude)
+            : Infinity;
+
+        const distFromAnchor = anchorLocation
+            ? haversine(anchorLocation.lat, anchorLocation.lng, latitude, longitude)
+            : Infinity;
+
+        const isMoving = distFromLast >= MOVEMENT_PING_M;
+        const resumedFromStop = anchorLocation !== null && distFromAnchor >= STATIONARY_THRESHOLD_M;
+
+        const needsHeartbeat = (now - lastHeartbeatTime) >= HEARTBEAT_INTERVAL_MS;
+
+        if (!isMoving && !needsHeartbeat && !options.force) return;
+
+        if (isMoving || options.force) {
+            // ── Movement ping: full route telemetry ──────────────────────────
+            logger.log(
+                `[GPS] 🚀 Move ${distFromLast < Infinity ? distFromLast.toFixed(1) + 'm' : 'first'} acc=${accuracy?.toFixed(0)}m`,
+                'info'
+            );
+
+            const { error } = await supabase.rpc('update_tech_location_v2', {
+                p_lat:      latitude,
+                p_lng:      longitude,
+                p_speed:    speed    ?? 0,
+                p_heading:  heading  ?? 0,
+                p_accuracy: accuracy ?? 0,
+                p_battery:  battery,
             });
 
-            if (!rpcError) {
-                lastSentLocation = { lat: latitude, lng: longitude };
+            if (!error) {
+                lastSentLocation  = { lat: latitude, lng: longitude };
                 lastHeartbeatTime = now;
-                await Promise.all([
-                    AsyncStorage.setItem(STORAGE_KEY_LAST_LOC, JSON.stringify(lastSentLocation)),
-                    AsyncStorage.setItem(STORAGE_KEY_LAST_HB, now.toString())
-                ]);
+
+                if (resumedFromStop || distFromLast >= STATIONARY_THRESHOLD_M) {
+                    // Tech has moved meaningfully — reset stationary state
+                    lastMovementTime  = now;
+                    anchorLocation    = null;
+                    stopStatusSent    = 'none';
+                    cancelStationaryChecks();
+
+                    await Promise.all([
+                        AsyncStorage.setItem(KEY_LAST_MOVE, now.toString()),
+                        AsyncStorage.removeItem(KEY_ANCHOR),
+                    ]);
+
+                    logger.log('[GPS] ▶️ Movement resumed / anchor cleared', 'info');
+                } else if (!anchorLocation) {
+                    // First ping but not yet far from where we stopped — keep anchor
+                    lastMovementTime = now;
+                    anchorLocation   = { lat: latitude, lng: longitude };
+                    await Promise.all([
+                        AsyncStorage.setItem(KEY_LAST_MOVE, now.toString()),
+                        AsyncStorage.setItem(KEY_ANCHOR, JSON.stringify(anchorLocation)),
+                    ]);
+                    scheduleStationaryChecks(latitude, longitude);
+                }
+
+                await AsyncStorage.setItem(KEY_LAST_LOC, JSON.stringify(lastSentLocation));
+                await AsyncStorage.setItem(KEY_LAST_HB,  now.toString());
             }
+
         } else if (needsHeartbeat) {
-            // 💓 HEARTBEAT (15 min): Apenas presença para o mapa do painel
-            logger.log(`[Location] 💓 Enviando Heartbeat de 15 min (Técnico parado mas Online)`, 'info');
-            const { error: hbError } = await supabase.rpc('tech_heartbeat', {
-                p_battery: batteryLevel
-            });
+            // ── Stationary heartbeat: keep-alive only ────────────────────────
+            logger.log('[GPS] 💓 Heartbeat (stationary)', 'info');
 
-            if (!hbError) {
+            const { error } = await supabase.rpc('tech_heartbeat', { p_battery: battery });
+            if (!error) {
                 lastHeartbeatTime = now;
-                await AsyncStorage.setItem(STORAGE_KEY_LAST_HB, now.toString());
+                await AsyncStorage.setItem(KEY_LAST_HB, now.toString());
+            }
+
+            // Set anchor on very first heartbeat after stopping
+            if (!anchorLocation) {
+                anchorLocation = { lat: latitude, lng: longitude };
+                await AsyncStorage.setItem(KEY_ANCHOR, JSON.stringify(anchorLocation));
+                scheduleStationaryChecks(latitude, longitude);
+                logger.log(`[GPS] 📍 Anchor set at ${latitude.toFixed(5)},${longitude.toFixed(5)}`, 'info');
             }
         }
+
     } catch (err) {
-        console.error(`[Location] Sync Error:`, err);
+        console.error('[GPS] Sync error:', err);
     } finally {
         isProcessing = false;
     }
 };
 
-// 1. Define the Background Task (Works in Development Build / Production, NOT Expo Go Android)
+// ─── Background Task Definition ──────────────────────────────────────────────
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     if (error) {
-        logger.log(`[LocationTask] Error: ${error.message}`, 'error');
+        logger.log(`[GPS Task] Error: ${error.message}`, 'error');
         return;
     }
     if (data) {
         const { locations } = data as { locations: Location.LocationObject[] };
-        if (locations && locations.length > 0) {
-            const lastLocation = locations[locations.length - 1];
-            await sendLocationUpdate(lastLocation);
+        if (locations?.length > 0) {
+            // Use the most recent & most accurate reading from the batch
+            const best = locations.reduce((a, b) =>
+                (a.coords.accuracy ?? 999) <= (b.coords.accuracy ?? 999) ? a : b
+            );
+            await sendLocationUpdate(best);
         }
     }
 });
 
+// ─── Public API ──────────────────────────────────────────────────────────────
 export const startBackgroundLocation = async () => {
     try {
-        console.log('[Location] 🚀 Initializing Location Service...');
+        console.log('[GPS] 🚀 Initializing...');
 
-        // 2. Request Foreground Permissions
         const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
-        console.log(`[Location] Foreground Status: ${fgStatus}`);
-
         if (fgStatus !== 'granted') {
-            console.warn('[Location] Foreground permission denied. Aborting.');
-            return;
+            console.warn('[GPS] Foreground permission denied');
+            return false;
         }
 
-        // 3. Request Background Permissions (Crucial for minimizing)
+        // Background permission
         try {
             const { status: bgStatus, canAskAgain } = await Location.getBackgroundPermissionsAsync();
-
             if (bgStatus !== 'granted') {
                 if (canAskAgain) {
-                    const { status: newStatus } = await Location.requestBackgroundPermissionsAsync();
-                    if (newStatus === 'granted') {
-                        console.log('[Location] Background Permission Granted on Request');
-                    } else {
-                        throw new Error('BACKGROUND_DENIED');
-                    }
+                    const { status } = await Location.requestBackgroundPermissionsAsync();
+                    if (status !== 'granted') throw new Error('BACKGROUND_DENIED');
                 } else {
-                    // Open settings directly if we can't ask again
                     Alert.alert(
                         'Rastreamento em Segundo Plano',
-                        'Para o rastreamento funcionar com a tela bloqueada, você deve ir em Configurações > Permissões > Localização e selecionar "Permitir o tempo todo".',
+                        'Para rastreio contínuo, vá em Configurações > Permissões > Localização → "Permitir o tempo todo".',
                         [
                             { text: 'Cancelar', style: 'cancel' },
-                            { text: 'Abrir Configurações', onPress: () => Location.enableNetworkProviderAsync().catch(() => Platform.OS === 'ios' ? Linking.openURL('app-settings:') : Linking.openSettings()) }
+                            {
+                                text: 'Configurações',
+                                onPress: () => Platform.OS === 'ios'
+                                    ? Linking.openURL('app-settings:')
+                                    : Linking.openSettings()
+                            }
                         ]
                     );
-                    return; // Stop here if no permission
+                    return false;
                 }
             }
         } catch (e: any) {
             if (e.message === 'BACKGROUND_DENIED') {
-                console.warn('[Location] Background permission denied by user.');
-                return;
+                console.warn('[GPS] Background permission denied');
+                return false;
             }
-            console.warn('[Location] Background permission check failed:', e);
-            // On Expo Go Android, this might fail but background works restrictedly.
-            // On Production Build, this is critical.
+            console.warn('[GPS] Background permission check failed:', e);
         }
 
-        // 4. Start Foreground Tracking (Reliable in Expo Go)
-        // This puts the GPS icon in the status bar while app is open
-        if (foregroundSubscription) {
-            foregroundSubscription.remove();
-        }
+        // Foreground watcher — highest resolution for active-app tracing
+        if (foregroundSubscription) foregroundSubscription.remove();
 
-        console.log('[Location] Starting Foreground Watcher (Expo Go safe)...');
         foregroundSubscription = await Location.watchPositionAsync(
             {
-                accuracy: Location.Accuracy.High,
-                timeInterval: 60000, // 1 minuto (reduzido de 15s)
-                distanceInterval: 15, // 15 metros
+                accuracy:         Location.Accuracy.BestForNavigation,
+                timeInterval:     3000,  // Check every 3s
+                distanceInterval: 5,     // OS fires event after 5m — matches our threshold
             },
             (location) => {
-                console.log('[Location] 📍 Foreground Update received');
-                // O primeiro ping após o login ou reinício será forçado para aparecer no mapa
                 const isFirstPing = !lastSentLocation;
                 sendLocationUpdate(location, { force: isFirstPing });
             }
         );
 
-        // 5. Try Starting Background Updates
+        // Background service — high accuracy, wakes on 5m movement
         try {
-            const isTaskDefined = TaskManager.isTaskDefined(LOCATION_TASK_NAME);
-            if (!isTaskDefined) {
-                console.log('[Location] Task not defined, skipping background start');
-            } else {
+            if (TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
                 await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-                    accuracy: Location.Accuracy.Balanced, // Reduzido de Best para Balanced para evitar jitter excessivo
-                    timeInterval: 60000, // Sync check a cada 1 min (acordar app)
-                    distanceInterval: 30, // Acordar app a cada 30m movidos
+                    accuracy:            Location.Accuracy.High,
+                    timeInterval:        10000,  // Wake at least every 10s
+                    distanceInterval:    5,      // Wake on 5m movement
                     showsBackgroundLocationIndicator: true,
                     pausesUpdatesAutomatically: false,
                     activityType: Location.ActivityType.AutomotiveNavigation,
                     foregroundService: {
-                        notificationTitle: "Nexus Pro - GPS Ativo",
-                        notificationBody: "O GPS está em modo 'Sempre Ativo' para auditoria.",
-                        notificationColor: "#1c2d4f",
-                        killServiceOnDestroy: false
-                    }
+                        notificationTitle: 'Nexus Pro — GPS Ativo',
+                        notificationBody:  'Rastreamento de rota em andamento.',
+                        notificationColor: '#1c2d4f',
+                        killServiceOnDestroy: false,
+                    },
                 });
-                console.log('[Location] ✅ Background Service Registered with MAX Persistence');
+                console.log('[GPS] ✅ Background service started');
             }
         } catch (e: any) {
-            console.warn('[Location] Background Start Error:', e);
-            // 🚨 Alert User if on Android Expo Go (Common Issue)
+            console.warn('[GPS] Background start error:', e);
             if (Platform.OS === 'android' && e.message?.includes('Expo Go')) {
                 Alert.alert(
-                    'Limitação do Expo Go',
-                    'O rastreamento em segundo plano (Background) NÃO funciona no app "Expo Go" no Android. Para testar isso, você precisa gerar um APK de desenvolvimento (Development Build) ou testar em um dispositivo iOS.',
-                    [{ text: 'Entendi' }]
+                    'Expo Go — Limitação',
+                    'Background GPS não funciona no Expo Go (Android). Use um APK de development build.',
+                    [{ text: 'OK' }]
                 );
             }
         }
 
-        logger.log('Serviço de localização iniciado', 'info');
+        logger.log('Serviço GPS iniciado', 'info');
         return true;
 
     } catch (error: any) {
-        console.error('[Location] ❌ Fatal Error starting location:', error);
+        console.error('[GPS] ❌ Fatal:', error);
         logger.log(`Erro ao iniciar GPS: ${error.message || error}`, 'error');
         return false;
     }
@@ -262,18 +383,20 @@ export const startBackgroundLocation = async () => {
 
 export const stopBackgroundLocation = async () => {
     try {
+        cancelStationaryChecks();
+
         if (foregroundSubscription) {
             foregroundSubscription.remove();
             foregroundSubscription = null;
-            console.log('[Location] Foreground watcher stopped');
         }
 
-        const isStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+        const isStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME).catch(() => false);
         if (isStarted) {
             await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-            logger.log('Serviço de localização background parado', 'warn');
         }
+
+        logger.log('Serviço GPS parado', 'warn');
     } catch (error) {
-        console.log('Erro ao parar localização:', error);
+        console.warn('[GPS] Stop error:', error);
     }
 };

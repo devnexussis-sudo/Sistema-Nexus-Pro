@@ -26,6 +26,9 @@ const MAPPING = {
   'xmark': 'close',
   'cube.fill': 'inventory',
   'person.circle': 'account-circle',
+  'person.fill': 'person',
+  'arrow.triangle.2.circlepath': 'sync',
+  'rectangle.portrait.and.arrow.right': 'logout',
 } as Partial<Record<string, ComponentProps<typeof MaterialIcons>['name']>>;
 
 /**

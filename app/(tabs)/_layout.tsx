@@ -8,12 +8,14 @@ import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { MenuModal } from '@/components/menu-modal';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useI18n } from '@/services/i18n';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const deviceTheme = useDeviceColorScheme();
   const isDarkDevice = deviceTheme === 'dark';
   const [isMenuVisible, setMenuVisible] = useState(false);
+  const { t } = useI18n();
 
   return (
     <>
@@ -40,26 +42,26 @@ export default function TabLayout() {
               <IconSymbol name="line.3.horizontal" size={28} color="#fff" />
             </Pressable>
           ),
-          headerRight: () => <HeaderRightToggle />
         }}>
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Home',
+            title: t('tabHome'),
             tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+            headerRight: () => <HeaderRightToggle />
           }}
         />
         <Tabs.Screen
           name="calendar"
           options={{
-            title: 'Calendário',
+            title: t('tabCalendar'),
             tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
           }}
         />
         <Tabs.Screen
           name="stock"
           options={{
-            title: 'Estoque',
+            title: t('tabStock'),
             tabBarIcon: ({ color }) => <IconSymbol size={28} name="cube.fill" color={color} />,
           }}
         />

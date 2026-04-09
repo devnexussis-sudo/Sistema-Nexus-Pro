@@ -6,8 +6,10 @@ import { Ionicons } from '@expo/vector-icons';
 import Checkbox from 'expo-checkbox';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import Constants from 'expo-constants';
 import { useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useI18n } from '@/services/i18n';
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -16,10 +18,11 @@ export default function LoginScreen() {
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [keepConnected, setKeepConnected] = useState(false);
+    const { t } = useI18n();
 
     const handleLogin = async () => {
         if (!email || !password) {
-            alert('Por favor, preencha todos os campos.');
+            alert(t('loginFailFill'));
             return;
         }
 
@@ -37,13 +40,13 @@ export default function LoginScreen() {
 
             router.replace('/');
         } else {
-            alert('Falha no login. Verifique suas credenciais.');
+            alert(t('loginFailCredentials'));
         }
     };
 
     const handleForgotPassword = async () => {
         if (!email) {
-            alert('Por favor, digite seu e-mail no campo acima primeiro.');
+            alert(t('loginForgotFillEmail'));
             return;
         }
 
@@ -52,9 +55,9 @@ export default function LoginScreen() {
         setIsLoading(false);
 
         if (success) {
-            alert('E-mail de recuperação enviado! Verifique sua caixa de entrada.');
+            alert(t('loginForgotSuccess'));
         } else {
-            alert('Erro ao solicitar recuperação. Verifique o e-mail e tente novamente.');
+            alert(t('loginForgotError'));
         }
     };
 
@@ -87,14 +90,14 @@ export default function LoginScreen() {
                 </View>
 
                 <View style={styles.formContainer}>
-                    <ThemedText style={styles.welcomeText}>Bem-vindo de volta!</ThemedText>
-                    <ThemedText style={styles.subtitleText}>Faça login para continuar</ThemedText>
+                    <ThemedText style={styles.welcomeText}>{t('loginWelcome')}</ThemedText>
+                    <ThemedText style={styles.subtitleText}>{t('loginSubtitle')}</ThemedText>
 
                     <View style={styles.inputContainer}>
                         <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
                         <TextInput
                             style={styles.input}
-                            placeholder="Email"
+                            placeholder={t('loginEmailPlaceholder')}
                             placeholderTextColor="#999"
                             value={email}
                             onChangeText={setEmail}
@@ -108,7 +111,7 @@ export default function LoginScreen() {
                         <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
                         <TextInput
                             style={styles.input}
-                            placeholder="Senha"
+                            placeholder={t('loginPasswordPlaceholder')}
                             placeholderTextColor="#999"
                             value={password}
                             onChangeText={setPassword}
@@ -128,12 +131,12 @@ export default function LoginScreen() {
                                 color={keepConnected ? '#1c2d4f' : undefined}
                             />
                             <Pressable onPress={() => setKeepConnected(!keepConnected)}>
-                                <Text style={styles.checkboxLabel}>Manter conectado</Text>
+                                <Text style={styles.checkboxLabel}>{t('loginKeepConnected')}</Text>
                             </Pressable>
                         </View>
 
                         <Pressable style={styles.forgotButton} onPress={handleForgotPassword}>
-                            <Text style={styles.forgotText}>Esqueceu a senha?</Text>
+                            <Text style={styles.forgotText}>{t('loginForgotPassword')}</Text>
                         </Pressable>
                     </View>
 
@@ -148,14 +151,14 @@ export default function LoginScreen() {
                         {isLoading ? (
                             <ActivityIndicator size="small" color="#fff" />
                         ) : (
-                            <Text style={styles.loginButtonText}>Entrar</Text>
+                            <Text style={styles.loginButtonText}>{t('loginButton')}</Text>
                         )}
                     </Pressable>
 
                 </View>
 
                 <View style={styles.footer}>
-                    <Text style={styles.footerText}>Versão 1.0.0</Text>
+                    <Text style={styles.footerText}>{t('menuVersion')} {Constants.expoConfig?.version || '03.01.26'}</Text>
                 </View>
 
             </ScrollView>
