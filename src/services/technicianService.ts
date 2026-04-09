@@ -166,9 +166,10 @@ export const TechnicianService = {
 
             if (!userId) {
                 // Provisionamento de novo usuário no Supabase Auth
+                const tempPassword = Math.random().toString(36).slice(-10) + 'A1!'; // Gera senha aleatória segura
                 const { data: authData, error: authError } = await adminAuthProxy.admin.createUser({
                     email: tech.email.toLowerCase(),
-                    password: tech.password,
+                    password: tempPassword,
                     user_metadata: {
                         name: tech.name,
                         role: UserRole.TECHNICIAN,
@@ -259,11 +260,6 @@ export const TechnicianService = {
             // Se o e-mail mudou, atualiza também
             if (tech.email) {
                 updateAuthData.email = tech.email.toLowerCase();
-            }
-
-            // Se houver nova senha, atualiza também
-            if (tech.password && tech.password !== '******' && tech.password !== '') {
-                updateAuthData.password = tech.password;
             }
 
             const { error: authError } = await adminAuthProxy.admin.updateUserById(
