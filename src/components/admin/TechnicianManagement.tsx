@@ -21,7 +21,7 @@ export const TechnicianManagement: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<any>({
-    name: '', email: '', password: '', avatar: '', active: true, phone: ''
+    name: '', email: '', password: '', avatar: '', active: true, phone: '', jobTitle: ''
   });
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -95,7 +95,7 @@ export const TechnicianManagement: React.FC = () => {
       await loadTechs();
       setIsModalOpen(false);
       setEditingId(null);
-      setFormData({ name: '', email: '', password: '', active: true, phone: '' });
+      setFormData({ name: '', email: '', password: '', active: true, phone: '', jobTitle: '' });
       alert("✅ Técnico registrado e vinculado com sucesso!");
     } catch (error: any) {
       console.error("❌ ERRO FATAL AO SALVAR TÉCNICO:", error);
@@ -211,7 +211,7 @@ export const TechnicianManagement: React.FC = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', password: '', active: true, phone: '' }); }}
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', password: '', active: true, phone: '', jobTitle: '' }); }}
                   className="p-3 bg-white text-slate-300 hover:text-slate-900 rounded-xl shadow-sm border border-slate-200 transition-all"
                 >
                   <X size={24} />
@@ -241,6 +241,17 @@ export const TechnicianManagement: React.FC = () => {
                       onChange={e => setFormData({ ...formData, email: e.target.value })}
                       className="rounded-2xl py-4 italic font-bold border-slate-200 focus:ring-emerald-50"
                       icon={<AtSign size={18} />}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Função / Cargo (Aparece no Perfil)</label>
+                    <Input
+                      placeholder="Ex: Técnico de Ar Condicionado"
+                      value={formData.jobTitle}
+                      onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
+                      className="rounded-2xl py-4 italic font-bold border-slate-200 focus:ring-emerald-50"
+                      icon={<Smartphone size={18} />}
                     />
                   </div>
 

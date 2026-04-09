@@ -1,0 +1,1 @@
+ALTER TABLE technicians ADD COLUMN IF NOT EXISTS job_title TEXT;

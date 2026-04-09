@@ -29,7 +29,8 @@ export const TechnicianService = {
             last_seen: d.last_seen,
             speed: d.speed,
             battery_level: d.battery_level,
-            batteryLevel: d.battery_level // Alias for compatibility
+            batteryLevel: d.battery_level, // Alias for compatibility
+            jobTitle: d.job_title
         };
     },
 
@@ -173,7 +174,8 @@ export const TechnicianService = {
                         role: UserRole.TECHNICIAN,
                         tenantId: tenantId,
                         phone: tech.phone || '',
-                        avatar: tech.avatar || ''
+                        avatar: tech.avatar || '',
+                        jobTitle: tech.jobTitle || ''
                     },
                     email_confirm: true
                 });
@@ -215,6 +217,7 @@ export const TechnicianService = {
                 active: tech.active ?? true,
                 phone: tech.phone || '',
                 avatar: tech.avatar || '',
+                job_title: tech.jobTitle || '',
                 tenant_id: tenantId
             };
 
@@ -246,10 +249,10 @@ export const TechnicianService = {
             const updateAuthData: any = {
                 user_metadata: {
                     name: tech.name,
-                    role: 'TECHNICIAN',
                     tenantId: tenantId,
                     phone: tech.phone || '',
-                    avatar: tech.avatar || ''
+                    avatar: tech.avatar || '',
+                    jobTitle: tech.jobTitle || ''
                 }
             };
 
@@ -295,6 +298,7 @@ export const TechnicianService = {
                 active: tech.active ?? true,
                 phone: tech.phone || '',
                 avatar: tech.avatar || '',
+                job_title: tech.jobTitle || '',
                 tenant_id: tenantId
             };
 
