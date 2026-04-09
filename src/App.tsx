@@ -63,8 +63,8 @@ const AppRoutes: React.FC = () => {
       <Route path="/order/view/:id" element={<PublicAppWrapper type="order" />} />
       <Route path="/view-quote/:id" element={<PublicAppWrapper type="quote" />} />
 
-      {/* MASTER ADMIN */}
-      <Route path="/master" element={
+      {/* MASTER ADMIN — rota dinâmica via env (não exposta no código-fonte compilado visível) */}
+      <Route path={`/${import.meta.env.VITE_MASTER_ROUTE_KEY || 'master'}`} element={
         !isMasterAuthenticated ?
           <MasterLogin onLogin={() => { SessionStorage.set('master_session_v2', true); setIsMasterAuthenticated(true); setIsSuperMode(true); }} onCancel={() => window.location.href = '/'} /> :
           <SuperAdminPage onLogout={() => { SessionStorage.remove('master_session_v2'); setIsMasterAuthenticated(false); setIsSuperMode(false); window.location.href = '/'; }} />
