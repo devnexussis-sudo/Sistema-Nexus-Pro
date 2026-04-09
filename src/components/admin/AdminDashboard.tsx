@@ -18,6 +18,7 @@ import {
   History,
   LayoutDashboard,
   Loader2,
+  MessageCircle,
   PackageSearch,
   Play,
   Plus,
@@ -680,6 +681,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       alert('Selecione o técnico e a data.');
       return;
     }
+    if (!newVisitDraft.notes || !newVisitDraft.notes.trim()) {
+      alert('O campo "Observações para o técnico" é obrigatório. Descreva o motivo ou instruções da visita.');
+      return;
+    }
     setSavingVisit(true);
     try {
       await VisitService.createNewVisit({
@@ -1112,6 +1117,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <Share2 size={16} />
                         </button>
                         <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const customer = customers.find(c => c.name === order.customerName);
+                            if (customer?.whatsapp) {
+                              const phone = customer.whatsapp.replace(/\D/g, '');
+                              const fullPhone = phone.startsWith('55') ? phone : `55${phone}`;
+                              window.open(`https://wa.me/${fullPhone}`, '_blank');
+                            } else {
+                              alert('WhatsApp do cliente não cadastrado no sistema.');
+                            }
+                          }}
+                          className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-lg border border-emerald-200 hover:border-emerald-600 transition-all shadow-sm"
+                          title="WhatsApp do Cliente"
+                        >
+                          <MessageCircle size={16} />
+                        </button>
+                        <button
                           onClick={(e) => handleCancelOrder(order, e)}
                           disabled={order.status === OrderStatus.CANCELED || order.status === OrderStatus.COMPLETED}
                           className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all disabled:opacity-0"
@@ -1235,6 +1257,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="h-9 px-4 gap-2 border-primary-200 text-primary-700 hover:bg-primary-50"
                     >
                       <Share2 size={14} /> Visualizar
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        const customer = customers.find(c => c.name === selectedOrder.customerName);
+                        if (customer?.whatsapp) {
+                          const phone = customer.whatsapp.replace(/\D/g, '');
+                          const fullPhone = phone.startsWith('55') ? phone : `55${phone}`;
+                          window.open(`https://wa.me/${fullPhone}`, '_blank');
+                        } else {
+                          alert('WhatsApp do cliente não cadastrado no sistema.');
+                        }
+                      }}
+                      className="h-9 px-4 gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                    >
+                      <MessageCircle size={14} /> WhatsApp
                     </Button>
                     <Button
                       variant="secondary"
@@ -2123,13 +2163,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
                   {(() => {
                     const seenKeys = new Set<string>();
-                    const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
+                    const impediments: { title: string; reason: string; photo?: string; date?: string; signature?: string; responsible?: string }[] = [];
 
-                    const addEntry = (title: string, entry: { reason?: string; photoUrl?: string; blockedAt?: string }) => {
+                    const addEntry = (title: string, entry: { reason?: string; photoUrl?: string; blockedAt?: string; signature?: string; responsible?: string }) => {
                       const key = entry.blockedAt || (title + (entry.reason || ''));
                       if (seenKeys.has(key)) return;
                       seenKeys.add(key);
-                      impediments.push({ title, reason: entry.reason || 'Sem motivo.', photo: entry.photoUrl, date: entry.blockedAt });
+                      impediments.push({ title, reason: entry.reason || 'Sem motivo.', photo: entry.photoUrl, date: entry.blockedAt, signature: entry.signature, responsible: entry.responsible });
                     };
 
                     [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
@@ -2140,7 +2180,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         );
                       } else {
                         const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
-                        if (reason) addEntry(`Impedimento — Visita nº ${v.visitNumber}`, { reason, photoUrl: vFd.blockPhotoUrl, blockedAt: vFd.blockedAt });
+                        if (reason) addEntry(`Impedimento — Visita nº ${v.visitNumber}`, { reason, photoUrl: vFd.blockPhotoUrl, blockedAt: vFd.blockedAt, signature: vFd.impediment_signature, responsible: vFd.impediment_responsible });
                       }
                     });
 
@@ -2155,6 +2195,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         reason: osFd.blockReason || osFd.impediment_reason || selectedOrder.notes?.replace('IMPEDIMENTO: ', '') || 'Motivo não detalhado.',
                         photoUrl: osFd.blockPhotoUrl,
                         blockedAt: osFd.blockedAt,
+                        signature: osFd.impediment_signature,
+                        responsible: osFd.impediment_responsible
                       });
                     }
 
@@ -2175,6 +2217,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
                                 </a>
                               )}
+                              {(imp.signature || imp.responsible) && (
+                                <div className="mt-4 pt-4 border-t border-rose-200/50">
+                                  <p className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mb-2">Assinatura do Autorizador:</p>
+                                  {imp.signature && (
+                                    <div className="bg-white p-2 rounded-lg border border-rose-200 inline-block">
+                                      <img src={imp.signature} alt="Assinatura" className="h-20 object-contain mix-blend-multiply" />
+                                    </div>
+                                  )}
+                                  {imp.responsible && (
+                                    <p className="text-xs font-bold text-rose-900 mt-2">Responsável: {imp.responsible}</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -2185,7 +2240,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Agrupar e Renderizar os Checklists de Todas as Visitas */}
                   {(() => {
                     const validVisits = orderVisits
-                      .filter(v => ['completed', 'paused'].includes(v.status) && v.formData && Object.keys(v.formData).length > 0)
+                      .filter(v => ['completed', 'paused', 'blocked'].includes(v.status) && v.formData && Object.keys(v.formData).length > 0)
                       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
                     const osFormData = selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0 ? selectedOrder.formData : null;
@@ -2280,7 +2335,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     if (selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) {
                       allForms.push(selectedOrder.formData);
                     }
-                    orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
+                    orderVisits.filter(v => ['completed', 'paused', 'blocked'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
 
                     const rawMedia: { key: string, url: string, type: 'image' | 'video' }[] = [];
 
@@ -2512,7 +2567,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       if (selectedOrder.formData && Object.keys(selectedOrder.formData).length > 0) {
                         allForms.push(selectedOrder.formData);
                       }
-                      orderVisits.filter(v => ['completed', 'paused'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
+                      orderVisits.filter(v => ['completed', 'paused', 'blocked'].includes(v.status) && v.formData).forEach(v => allForms.push(v.formData));
 
                       let signatureUrl: string | null = selectedOrder.signature || null;
                       let signatureRefName: string | null = selectedOrder.signatureName || null;
@@ -2631,15 +2686,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             onChange={e => setNewVisitDraft(d => ({ ...d, scheduledTime: e.target.value }))}
                           />
                         </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-slate-500 uppercase">Observações (opcional)</label>
-                          <input
-                            type="text"
-                            placeholder="Instruções para o técnico..."
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+        <div className="space-y-1.5 md:col-span-2">
+                          <label className="text-[11px] font-semibold text-slate-500 uppercase flex items-center gap-1">
+                            Observações para o técnico
+                            <span className="text-rose-500 font-black">*</span>
+                          </label>
+                          <textarea
+                            rows={3}
+                            placeholder="Descreva o motivo da visita, equipamentos a verificar, histórico do problema ou qualquer instrução importante para o técnico..."
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all resize-none"
                             value={newVisitDraft.notes}
                             onChange={e => setNewVisitDraft(d => ({ ...d, notes: e.target.value }))}
                           />
+                          <p className="text-[10px] text-slate-400 font-medium">Esta informação será exibida ao técnico no campo "Descrição Detalhada" da OS.</p>
                         </div>
                       </div>
                       <div className="flex justify-end gap-3 pt-2">

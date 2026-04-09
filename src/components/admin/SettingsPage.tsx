@@ -45,6 +45,11 @@ interface SystemParams {
   showItemPricesInPublicView: boolean;
   allowOsSharing: boolean;
   allowMultipleInProgress: boolean;
+  // Novos controles do APP do Técnico
+  showClientContact: boolean;
+  showStockHistory: boolean;
+  allowImpediment: boolean;
+  showVisitHistory: boolean;
 }
 
 export const SettingsPage: React.FC = () => {
@@ -88,6 +93,10 @@ export const SettingsPage: React.FC = () => {
     showItemPricesInPublicView: true,
     allowOsSharing: true,
     allowMultipleInProgress: false,
+    showClientContact: true,
+    showStockHistory: true,
+    allowImpediment: true,
+    showVisitHistory: true,
   });
 
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
@@ -130,6 +139,10 @@ export const SettingsPage: React.FC = () => {
         showItemPricesInPublicView: data.metadata?.showItemPricesInPublicView ?? true,
         allowOsSharing: data.metadata?.allowOsSharing ?? true,
         allowMultipleInProgress: data.metadata?.allowMultipleInProgress ?? false,
+        showClientContact: data.metadata?.showClientContact ?? true,
+        showStockHistory: data.metadata?.showStockHistory ?? true,
+        allowImpediment: data.metadata?.allowImpediment ?? true,
+        showVisitHistory: data.metadata?.showVisitHistory ?? true,
       }));
 
       setDbInfo({ slug: data.slug || '', id: data.id });
@@ -266,6 +279,10 @@ export const SettingsPage: React.FC = () => {
           techAdvancedSettings: params.techAdvancedSettings,
           allowOsSharing: params.allowOsSharing,
           allowMultipleInProgress: params.allowMultipleInProgress,
+          showClientContact: params.showClientContact,
+          showStockHistory: params.showStockHistory,
+          allowImpediment: params.allowImpediment,
+          showVisitHistory: params.showVisitHistory,
         }
       };
 
@@ -848,6 +865,92 @@ export const SettingsPage: React.FC = () => {
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
                           Se ativado, o técnico poderá iniciar uma nova OS sem finalizar outra que esteja em andamento. Se desativado, será obrigatório concluir a OS atual antes de iniciar outra.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* ──── NOVOS TOGGLES ──── */}
+
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.showClientContact ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <Phone size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Contato do Cliente</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, showClientContact: !params.showClientContact })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.showClientContact ? 'bg-green-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.showClientContact ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Se ativado, o técnico terá acesso ao WhatsApp e telefone do cliente no card da OS e na descrição detalhada.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.showStockHistory ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <Database size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Histórico de Peças</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, showStockHistory: !params.showStockHistory })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.showStockHistory ? 'bg-purple-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.showStockHistory ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Se ativado, o técnico poderá visualizar o histórico de peças retiradas do estoque. Se desativado, ele não verá esta seção.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.allowImpediment ? 'bg-rose-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <ShieldAlert size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Impedimento de OS</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, allowImpediment: !params.allowImpediment })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.allowImpediment ? 'bg-rose-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.allowImpediment ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Se ativado, o técnico poderá registrar impedimentos na OS (início ou fim). Se desativado, a opção será removida do app.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.showVisitHistory ? 'bg-cyan-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <History size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Histórico de Visitas</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, showVisitHistory: !params.showVisitHistory })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.showVisitHistory ? 'bg-cyan-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.showVisitHistory ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Se ativado, o técnico consegue ver o histórico completo de todas as visitas anteriores da OS. Se desativado, verá apenas a visita final que ele finalizou.
                         </p>
                       </div>
                     </div>

@@ -292,11 +292,27 @@ export const VisitService = {
             .sort((a, b) => new Date(a.blockedAt).getTime() - new Date(b.blockedAt).getTime());
 
         // 2. Reseta a OS mantendo apenas o histórico de impedimentos
+        //    e acrescenta as observações do agendamento à descrição para o técnico
+        const { data: currentOrderDesc } = await supabase.from('orders')
+            .select('description')
+            .eq('id', params.orderId)
+            .single();
+
+        // Append new visit notes to description so technician sees them in the mobile app
+        const originalDesc: string = currentOrderDesc?.description || '';
+        const newNotes: string = params.notes?.trim() || '';
+        let updatedDescription: string | null = originalDesc || null;
+        if (newNotes) {
+            const visitLabel = `\n\n📋 Obs. Visita ${nextVisitNumber}: ${newNotes}`;
+            updatedDescription = originalDesc ? `${originalDesc}${visitLabel}` : newNotes;
+        }
+
         const { error: resetError } = await supabase.from('orders').update({
             status: 'ATRIBUÍDO',
             assigned_to: params.technicianId,
             scheduled_date: params.scheduledDate,
             scheduled_time: params.scheduledTime || null,
+            description: updatedDescription,
             // Limpa checklist/execução
             form_data: {},
             // Limpa assinaturas correspondendo à tipagem verdadeira no DB (DbOrder)
