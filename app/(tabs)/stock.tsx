@@ -58,20 +58,24 @@ export default function StockScreen() {
     const filteredStock = useMemo(() => {
         if (!searchQuery) return stock;
         const query = searchQuery.toLowerCase();
-        return stock.filter(item =>
-            item.item?.description.toLowerCase().includes(query) ||
-            item.item?.code.toLowerCase().includes(query)
-        );
+        return stock.filter(item => {
+            const descMatch = item.item?.description?.toLowerCase().includes(query) || false;
+            const nameMatch = item.item?.name?.toLowerCase().includes(query) || false;
+            const codeMatch = item.item?.code?.toLowerCase().includes(query) || false;
+            const fabMatch = item.item?.fabCode?.toLowerCase().includes(query) || false;
+            
+            return descMatch || nameMatch || codeMatch || fabMatch;
+        });
     }, [stock, searchQuery]);
 
     const renderStockItem = ({ item }: { item: TechStockItem }) => (
-        <View style={styles.stockCard}>
+        <View style={[styles.stockCard, item.quantity === 0 && styles.stockCardZero]}>
             <View style={styles.cardHeader}>
                 <View style={styles.codeBadge}>
                     <Text style={styles.codeText}>{item.item?.code || 'S/N'}</Text>
                 </View>
-                <View style={styles.quantityBadge}>
-                    <Text style={styles.quantityText}>{item.quantity} {item.item?.unit || 'UN'}</Text>
+                <View style={[styles.quantityBadge, item.quantity === 0 && styles.quantityBadgeZero]}>
+                    <Text style={[styles.quantityText, item.quantity === 0 && styles.quantityTextZero]}>{item.quantity} {item.item?.unit || 'UN'}</Text>
                 </View>
             </View>
             <Text style={styles.itemDescription}>{item.item?.description || 'Item sem descrição'}</Text>
@@ -155,11 +159,14 @@ const styles = StyleSheet.create({
     listContainer: { flex: 1 },
     listContent: { padding: 20, paddingBottom: 40 },
     stockCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2, borderLeftWidth: 4, borderLeftColor: '#1c2d4f' },
+    stockCardZero: { borderLeftColor: '#ef4444', backgroundColor: '#fef2f2' },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
     codeBadge: { backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
     codeText: { fontSize: 11, fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' },
     quantityBadge: { backgroundColor: '#ecfdf5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+    quantityBadgeZero: { backgroundColor: '#fee2e2' },
     quantityText: { fontSize: 13, fontWeight: '800', color: '#10b981' },
+    quantityTextZero: { color: '#ef4444' },
     itemDescription: { fontSize: 16, fontWeight: '600', color: '#1e293b', marginBottom: 12 },
     cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
     updatedAt: { fontSize: 11, color: '#94a3b8' },

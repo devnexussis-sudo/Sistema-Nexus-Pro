@@ -1199,10 +1199,15 @@ export default function ExecuteOSScreen() {
 
                         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
                             {(() => {
-                                const filtered = myStock.filter(s =>
-                                    s.item?.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                    s.item?.code.toLowerCase().includes(searchQuery.toLowerCase())
-                                );
+                                const filtered = myStock.filter(s => {
+                                    const searchLower = searchQuery.toLowerCase();
+                                    const descMatch = s.item?.description?.toLowerCase().includes(searchLower) || false;
+                                    const nameMatch = s.item?.name?.toLowerCase().includes(searchLower) || false;
+                                    const codeMatch = s.item?.code?.toLowerCase().includes(searchLower) || false;
+                                    const fabMatch = s.item?.fabCode?.toLowerCase().includes(searchLower) || false;
+                                    
+                                    return descMatch || nameMatch || codeMatch || fabMatch;
+                                });
 
                                 if (filtered.length === 0) {
                                     return (

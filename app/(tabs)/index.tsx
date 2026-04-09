@@ -327,24 +327,46 @@ export default function HomeScreen() {
     }
   };
 
-  const renderDashboardCard = (status: string, data: any) => (
-    <Pressable
-      key={status}
-      style={[
-        styles.dashboardCard,
-        { backgroundColor: data.bg, borderColor: data.color + '20' },
-        selectedFilter === status && { backgroundColor: data.color, borderColor: data.color },
-      ]}
-      onPress={() => setSelectedFilter(status as any)}>
-      <Text style={[
-        styles.dashboardLabel,
-        { color: data.color },
-        selectedFilter === status && { color: '#fff' }
-      ]}>
-        {data.label}
-      </Text>
-    </Pressable>
-  );
+  const renderDashboardCard = (status: string, data: any) => {
+    const isSelected = selectedFilter === status;
+    return (
+      <Pressable
+        key={status}
+        style={[
+          styles.dashboardCard,
+          { 
+            backgroundColor: data.bg, 
+            borderColor: data.color + '40',
+            opacity: isSelected ? 1 : 0.65,
+            zIndex: isSelected ? 10 : 1,
+            transform: [{ scale: isSelected ? 1.05 : 1 }]
+          },
+          isSelected && { 
+            backgroundColor: data.color, 
+            borderColor: data.color,
+            shadowColor: data.color,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.4,
+            shadowRadius: 6,
+            elevation: 8
+          },
+        ]}
+        onPress={() => setSelectedFilter(status as any)}>
+        <Text style={[
+          styles.dashboardLabel,
+          { color: data.color },
+          isSelected && { color: '#fff' }
+        ]}>
+          {data.label}
+        </Text>
+        {isSelected && (
+          <View style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#fff', borderRadius: 12, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3 }}>
+            <Ionicons name="checkmark-circle" size={18} color={data.color} />
+          </View>
+        )}
+      </Pressable>
+    );
+  };
 
   return (
     <ThemedView style={styles.container}>

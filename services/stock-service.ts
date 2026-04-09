@@ -11,7 +11,9 @@ export interface TechStockItem {
     updatedAt: string;
     item: {
         description: string;
+        name: string;
         code: string;
+        fabCode: string; // Adds support for manufacturer codes
         sellPrice: number;
         unit: string;
     } | null;
@@ -54,8 +56,10 @@ export const StockService = {
                     quantity: Number(ts.quantity),
                     updatedAt: ts.updated_at,
                     item: ts.stock_items ? {
-                        description: ts.stock_items.description,
-                        code: ts.stock_items.code,
+                        description: ts.stock_items.description || '',
+                        name: ts.stock_items.name || '',
+                        code: ts.stock_items.code || '',
+                        fabCode: ts.stock_items.fab_code || ts.stock_items.codigo_fab || ts.stock_items.fabricante || ts.stock_items.fab || '',
                         sellPrice: Number(ts.stock_items.sell_price),
                         unit: ts.stock_items.unit || 'UN'
                     } : null

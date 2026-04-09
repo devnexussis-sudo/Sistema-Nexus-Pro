@@ -2,7 +2,7 @@ import { syncService } from '@/services/sync-service';
 import { Ionicons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View, Switch } from 'react-native';
 
 export function HeaderRightToggle() {
     const [isOfflineMode, setIsOfflineMode] = useState(syncService.isOfflineModeEnabled());
@@ -13,15 +13,13 @@ export function HeaderRightToggle() {
 
     useEffect(() => {
         const unNet = NetInfo.addEventListener(s => setIsConnected(!!s.isConnected));
-        // Monitora mudança de fila (para atualizar isOfflineMode)
         const unQueue = syncService.subscribe(() => {
             setIsOfflineMode(syncService.isOfflineModeEnabled());
         });
-        // Monitora isSyncing diretamente
         const unSync = syncService.subscribeSyncing((syncing) => {
             setIsSyncing(syncing);
             if (syncing) {
-                setLabel('Sincronizando...');
+                setLabel('Syncing');
             } else {
                 setLabel('');
             }
@@ -30,7 +28,7 @@ export function HeaderRightToggle() {
     }, []);
 
     const isBusy = isLoading || isSyncing;
-    const busyLabel = isSyncing ? 'Sincronizando...' : label;
+    const busyLabel = isSyncing ? 'Syncing...' : label;
 
     const handleToggle = async () => {
         if (isBusy) return;
@@ -44,7 +42,7 @@ export function HeaderRightToggle() {
                 return;
             }
             setIsLoading(true);
-            setLabel('Carregando...');
+            setLabel('Load...');
             try {
                 await syncService.toggleOfflineMode(true);
                 setIsOfflineMode(true);
@@ -57,8 +55,6 @@ export function HeaderRightToggle() {
                 setLabel('');
             }
         } else {
-            // Volta online: toggleOfflineMode chama triggerSync internamente
-            // O spinner aparece via subscribeSyncing — não precisa de estado local
             setIsOfflineMode(false);
             await syncService.toggleOfflineMode(false);
             Alert.alert('✅ Online', 'Conectado. Dados sincronizados!');
@@ -66,11 +62,10 @@ export function HeaderRightToggle() {
     };
 
     const isEffectivelyOffline = isOfflineMode || !isConnected;
-    const color = isBusy ? '#f59e0b' : isEffectivelyOffline ? '#ef4444' : '#10b981';
 
     return (
-        <Pressable style={styles.container} onPress={handleToggle} disabled={isBusy}>
-            <View style={[styles.badge, { backgroundColor: color }]}>
+        <View style={styles.container}>
+            <View style={styles.badge}>
                 {isBusy ? (
                     <>
                         <ActivityIndicator size="small" color="#fff" />
@@ -78,17 +73,25 @@ export function HeaderRightToggle() {
                     </>
                 ) : (
                     <>
-                        <Ionicons name={isEffectivelyOffline ? 'cloud-offline' : 'cloud-done'} size={14} color="#fff" />
-                        <Text style={styles.text}>{isEffectivelyOffline ? 'Offline' : 'Online'}</Text>
+                        <Text style={styles.text}>{isEffectivelyOffline ? 'OFFLINE' : 'ONLINE'}</Text>
+                        <Switch
+                            trackColor={{ false: '#ef4444', true: '#10b981' }}
+                            thumbColor="#ffffff"
+                            ios_backgroundColor="#ef4444"
+                            onValueChange={handleToggle}
+                            value={!isEffectivelyOffline}
+                            disabled={isBusy}
+                            style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }], marginLeft: 4 }}
+                        />
                     </>
                 )}
             </View>
-        </Pressable>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { marginRight: 15, justifyContent: 'center', alignItems: 'center' },
-    badge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, gap: 4 },
-    text: { color: '#fff', fontSize: 12, fontWeight: 'bold' }
+    badge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+    text: { color: '#fff', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase' }
 });

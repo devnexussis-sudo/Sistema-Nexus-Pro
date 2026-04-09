@@ -18,6 +18,7 @@ import {
   History,
   LayoutDashboard,
   Loader2,
+  MapPin,
   MessageCircle,
   PackageSearch,
   Play,
@@ -52,6 +53,7 @@ import { Pagination } from '../ui/Pagination';
 import { StatusBadge } from '../ui/StatusBadge';
 import { CreateOrderModal } from './CreateOrderModal';
 import { VisitHistoryTab } from './VisitHistoryTab';
+import { DisplacementTab } from './DisplacementTab';
 
 // NOTA DE ARQUITETURA:
 // orders NÃO vem mais via prop — este componente busca seus próprios dados
@@ -1301,6 +1303,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 { id: 'forms', label: 'formulários', icon: ClipboardList },
                 { id: 'visits', label: `visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
                 { id: 'history', label: `histórico${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: History },
+                { id: 'displacement', label: 'deslocamento', icon: MapPin },
                 { id: 'media', label: 'galeria', icon: Camera },
                 { id: 'costs', label: 'peças e custos', icon: DollarSign },
                 { id: 'audit', label: 'assinaturas', icon: ShieldCheck }
@@ -2889,6 +2892,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                     <VisitHistoryTab orderId={selectedOrder.id} isActive={activeTab === 'history'} />
                   </div>
+                </div>
+              )}
+
+              {/* TAB: DESLOCAMENTO */}
+              {activeTab === 'displacement' && (
+                <div className="max-w-4xl mx-auto space-y-8">
+                  <DisplacementTab visits={orderVisits} />
                 </div>
               )}
 

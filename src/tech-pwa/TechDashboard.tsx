@@ -5,6 +5,7 @@ import { OrderDetailsModal } from './OrderDetailsModal';
 import { StatusBadge, PriorityBadge } from '../components/ui/StatusBadge';
 import { RefreshCw, CheckCircle2, Clock, ChevronRight, LogOut, AlertTriangle, Hexagon, Filter, Calendar as CalendarIcon, X, Share2, MessageCircle, Navigation2, ZapOff, Ban } from 'lucide-react';
 import { DataService } from '../services/dataService';
+import { CustomerService } from '../services/customerService';
 
 interface TechDashboardProps {
   user: User;
@@ -342,30 +343,57 @@ export const TechDashboard: React.FC<TechDashboardProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const address = encodeURIComponent(order.customerAddress);
-                    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${address}`;
-                    const appleMapsUrl = `maps://maps.apple.com/?q=${address}`;
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const address = encodeURIComponent(order.customerAddress);
+                      const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${address}`;
+                      const appleMapsUrl = `maps://maps.apple.com/?q=${address}`;
 
-                    // Tenta abrir app nativo, se falhar ou estiver no desktop, abre Google Maps
-                    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                      window.open(appleMapsUrl, '_blank');
-                    } else {
-                      window.open(googleMapsUrl, '_blank');
-                    }
-                  }}
-                  className="w-full flex items-center justify-between text-primary-600 bg-primary-50/50 p-3 rounded-xl border border-primary-100 active:scale-95 transition-all hover:bg-primary-100/50"
-                  title="Abrir no GPS"
-                >
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <MapPin size={14} className="shrink-0" />
-                    <span className="text-[10px] font-black text-primary-800 truncate uppercase italic">{order.customerAddress}</span>
-                  </div>
-                  <Navigation2 size={12} className="shrink-0 text-primary-400" />
-                </button>
+                      // Tenta abrir app nativo, se falhar ou estiver no desktop, abre Google Maps
+                      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                        window.open(appleMapsUrl, '_blank');
+                      } else {
+                        window.open(googleMapsUrl, '_blank');
+                      }
+                    }}
+                    className="flex-1 flex items-center justify-between text-primary-600 bg-primary-50/50 p-3 rounded-xl border border-primary-100 active:scale-95 transition-all hover:bg-primary-100/50"
+                    title="Abrir no GPS"
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <MapPin size={14} className="shrink-0" />
+                      <span className="text-[10px] font-black text-primary-800 truncate uppercase italic">{order.customerAddress}</span>
+                    </div>
+                    <Navigation2 size={12} className="shrink-0 text-primary-400" />
+                  </button>
+
+                  {/* 📲 BOTÃO WHATSAPP — Abre conversa direta com WhatsApp do cliente */}
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        const allCustomers = await CustomerService.getCustomers();
+                        const customer = allCustomers.find(c => c.name === order.customerName);
+                        if (customer?.whatsapp) {
+                          const phone = customer.whatsapp.replace(/\D/g, '');
+                          const fullPhone = phone.startsWith('55') ? phone : `55${phone}`;
+                          window.open(`https://wa.me/${fullPhone}`, '_blank');
+                        } else {
+                          alert('WhatsApp do cliente não cadastrado no sistema.');
+                        }
+                      } catch {
+                        alert('Erro ao buscar contato do cliente.');
+                      }
+                    }}
+                    className="flex items-center justify-center w-12 shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-600 active:scale-95 transition-all hover:bg-emerald-500 hover:text-white hover:border-emerald-500"
+                    title="WhatsApp do Cliente"
+                  >
+                    <MessageCircle size={16} />
+                  </button>
+                </div>
 
                 {/* BOTÕES DE AÇÃO RÁPIDA (CONCLUÍDAS/IMPEDIDAS) */}
                 {(order.status === OrderStatus.COMPLETED || order.status === OrderStatus.BLOCKED) && (
