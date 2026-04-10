@@ -29,6 +29,7 @@ export const StockService = {
             taxCost: data.tax_cost ?? 0,
             unit: (data.unit as StockItem['unit']) ?? 'UN',
             lastRestockDate: data.last_restock_date,
+            imageUrl: data.image_url,
             active: data.active
         };
     },
@@ -237,6 +238,7 @@ export const StockService = {
                 freight_cost: item.freightCost,
                 tax_cost: item.taxCost,
                 unit: item.unit,
+                image_url: item.imageUrl,
                 active: item.active
             };
             const { error } = await supabase.from('stock_items').insert([dbItem]);
@@ -264,6 +266,7 @@ export const StockService = {
                 freight_cost: item.freightCost,
                 tax_cost: item.taxCost,
                 unit: item.unit,
+                image_url: item.imageUrl,
                 active: item.active,
                 updated_at: new Date().toISOString()
             };

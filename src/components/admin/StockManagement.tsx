@@ -1,8 +1,9 @@
 
-import { AlertTriangle, Barcode, Box, DollarSign, Edit3, Filter, History, Info, Layers, LayoutDashboard, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X } from 'lucide-react';
+import { AlertTriangle, Barcode, Box, Camera, DollarSign, Edit3, Filter, History, Info, Layers, LayoutDashboard, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X, Image as ImageIcon, Printer, QrCode } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { DataService } from '../../services/dataService';
+import { StorageService } from '../../services/storageService';
 import { TenantService } from '../../services/tenantService';
 import { Category, StockItem } from '../../types';
 import { Button } from '../ui/Button';
@@ -23,6 +24,8 @@ export const StockManagement: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<StockItem | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [imageUploading, setImageUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Filters
     const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -72,10 +75,8 @@ export const StockManagement: React.FC = () => {
     const [movSearch, setMovSearch] = useState('');
     const [movTypeFilter, setMovTypeFilter] = useState('ALL');
     const getDefaultDates = () => {
-        const dEnd = new Date();
-        const dStart = new Date();
-        dStart.setMonth(dStart.getMonth() - 2);
-        return { start: dStart.toISOString().split('T')[0], end: dEnd.toISOString().split('T')[0] };
+        const today = new Date().toISOString().split('T')[0];
+        return { start: today, end: today };
     };
     const { start: initStart, end: initEnd } = getDefaultDates();
     const [movDateFrom, setMovDateFrom] = useState(initStart);
@@ -98,6 +99,9 @@ export const StockManagement: React.FC = () => {
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [transferData, setTransferData] = useState({ itemId: '', techId: '', quantity: '', direction: 'transfer' });
     const [techSearch, setTechSearch] = useState('');
+    const [techStockSearch, setTechStockSearch] = useState('');
+    const [transferItemSearch, setTransferItemSearch] = useState('');
+    const [transferTechSearch, setTransferTechSearch] = useState('');
     const [modalTab, setModalTab] = useState<'dados' | 'financial' | 'logs'>('dados');
 
     // --- Loaders ---
@@ -290,9 +294,59 @@ export const StockManagement: React.FC = () => {
         if (item) loadItemMovements(item.id);
     };
 
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImageUploading(true);
+        try {
+            const prefix = formData.code ? `items/${formData.code}` : `items/temp_${Date.now()}`;
+            const path = `inventory/${prefix}/${file.name}`;
+            const url = await StorageService.uploadBlob(file, path);
+            setFormData((prev: any) => ({ ...prev, imageUrl: url }));
+        } catch (error) {
+            alert('Erro ao enviar imagem. Verifique a conexão com o Supabase.');
+            console.error(error);
+        } finally {
+            setImageUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
     const generateCode = () => {
-        const random = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
-        setFormData((prev: any) => ({ ...prev, code: `STK-${random}` }));
+        setFormData({ ...formData, code: 'NX' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0') });
+    };
+
+    const handlePrintQR = () => {
+        if (!formData.code) return;
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+        const itemName = (formData.description || 'Produto Nexus').replace(/['"]/g, '');
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Etiqueta ${formData.code}</title>
+                    <style>
+                        body { font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #fff; }
+                        .label { border: 2px solid #000; padding: 20px; text-align: center; border-radius: 10px; width: 300px; display: flex; flex-direction: column; align-items: center; }
+                        img { max-width: 150px; margin-bottom: 15px; }
+                        h1 { margin: 0 0 10px; font-size: 16px; font-weight: 900; text-transform: uppercase; }
+                        p { margin: 0; font-size: 14px; font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <div class="label">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(formData.code)}" alt="QR Code" />
+                        <h1>${itemName}</h1>
+                        <p>SKU: ${formData.code}</p>
+                    </div>
+                    <script>
+                        window.onload = () => { window.print(); window.close(); }
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -512,7 +566,7 @@ export const StockManagement: React.FC = () => {
 
     return (
         <div className="p-4 pr-8 animate-fade-in font-poppins">
-            <div className="mb-6 flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between pr-2">
+            <div className="mb-6 flex flex-col gap-4 pr-2">
                 {/* Tabs */}
                 <div className="flex bg-[#f8fafc] p-1.5 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/40 shrink-0 overflow-x-auto max-w-full">
                     <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-lg shadow-primary-900/20' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
@@ -529,51 +583,48 @@ export const StockManagement: React.FC = () => {
                     </button>
                 </div>
 
-                <div className="flex items-center gap-4 w-full lg:w-auto">
-                    <div className="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-md flex-1 lg:flex-none">
-                        {activeTab === 'items' && (
-                            <div className="flex items-center gap-3 pl-3 pr-2 border-r border-slate-100 hidden sm:flex">
+                <div className="flex flex-wrap items-center gap-3 w-full">
+                    {activeTab === 'items' && (
+                        <div className="flex flex-1 items-center gap-3 min-w-[200px]">
+                            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm flex-1">
                                 <Search size={14} className="text-slate-400" />
                                 <input
                                     type="text"
                                     placeholder="Localizar no estoque..."
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
-                                    className="bg-transparent text-[10px] font-bold uppercase text-slate-700 outline-none w-32 placeholder:text-slate-300"
+                                    className="bg-transparent text-[10px] font-bold uppercase text-slate-700 outline-none w-full placeholder:text-slate-300"
                                 />
                             </div>
-                        )}
 
-                        {activeTab === 'items' && (
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors hidden md:flex">
+                            <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-sm max-w-[160px] hidden sm:flex">
                                 <Filter size={12} className="text-slate-400" />
-                                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="bg-transparent text-[9px] font-black uppercase text-slate-600 outline-none cursor-pointer">
-                                    <option value="ALL">Categoria</option>
+                                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full bg-transparent text-[9px] font-black uppercase text-slate-600 outline-none cursor-pointer truncate">
+                                    <option value="ALL">Todas Categorias</option>
                                     {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 ml-auto w-full sm:w-auto justify-end mt-2 sm:mt-0">
+                        {activeTab === 'items' && (
                             <Button
                                 onClick={() => setIsRestockModalOpen(true)}
-                                variant="secondary"
-                                size="sm"
-                                className="h-[38px] px-5 text-[10px] font-black uppercase gap-2"
+                                className="h-[38px] px-5 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-[10px] font-black uppercase shadow-sm border border-[#1c2d4f] flex items-center gap-2 transition-all rounded-lg"
                             >
                                 <Scale size={14} /> Entrada
                             </Button>
+                        )}
 
-                            {(activeTab === 'items' || activeTab === 'categories') && (
-                                <Button
-                                    onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
-                                    variant="primary"
-                                    className={`h-[38px] px-5 text-[10px] font-black uppercase gap-2 whitespace-nowrap ${activeTab === 'items' ? 'bg-[#10b981] hover:bg-[#059669] border-[#10b981]' : ''}`}
-                                >
-                                    <Plus size={14} /> {activeTab === 'items' ? 'Novo Cadastro' : 'Nova Categoria'}
-                                </Button>
-                            )}
-                        </div>
+                        {(activeTab === 'items' || activeTab === 'categories') && (
+                            <Button
+                                onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
+                                className={`h-[38px] px-5 text-white text-[10px] font-black uppercase shadow-sm flex items-center gap-2 whitespace-nowrap transition-all rounded-lg ${activeTab === 'items' ? 'bg-[#10b981] hover:bg-[#059669] border border-[#10b981]' : 'bg-[#10b981] hover:bg-[#059669]'}`}
+                            >
+                                <Plus size={14} /> {activeTab === 'items' ? 'Novo Cadastro' : 'Nova Categoria'}
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -674,7 +725,7 @@ export const StockManagement: React.FC = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-3 text-right pr-6">
-                                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                                            <div className="flex items-center justify-end gap-1 transition-all">
                                                                 <Button 
                                                                     onClick={(e) => { e.stopPropagation(); handleOpenModal(item); }} 
                                                                     variant="secondary"
@@ -779,79 +830,105 @@ export const StockManagement: React.FC = () => {
                                         variant="primary"
                                         className="px-6 py-2.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-xs font-bold shadow-lg shadow-primary-900/10 gap-2"
                                     >
-                                        <Layers size={16} /> Movimentação de Carga
+                                        <Layers size={16} /> Movimentação de Itens
                                     </Button>
                                 </div>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-                                    {/* Sidebar Colaboradores */}
-                                    <div className="lg:col-span-1 space-y-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col">
-                                        <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                            <input
-                                                type="text"
-                                                placeholder="Localizar colaborador..."
-                                                value={techSearch}
-                                                onChange={e => setTechSearch(e.target.value)}
-                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all"
-                                            />
-                                        </div>
-                                        <div className="flex-1 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
-                                            {techs
-                                                .filter(t => t.name.toLowerCase().includes(techSearch.toLowerCase()))
-                                                .map(t => (
-                                                    <button
-                                                        key={t.id}
-                                                        onClick={async () => {
-                                                            setSelectedTech(t);
-                                                            const stock = await DataService.getTechStock(t.id);
-                                                            setTechStock(stock);
+                                <div className="flex flex-col gap-6">
+                                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative z-20">
+                                        <div className="flex flex-col sm:flex-row gap-4 items-end">
+                                            <div className="flex-1 w-full space-y-1.5 relative">
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Localizar Técnico</label>
+                                                <div className="relative">
+                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Digite o nome do técnico..."
+                                                        value={techSearch}
+                                                        onChange={e => {
+                                                            setTechSearch(e.target.value);
+                                                            if (!e.target.value) setSelectedTech(null);
                                                         }}
-                                                        className={`w-full p-3 rounded-xl border text-left transition-all group relative overflow-hidden flex items-center gap-3 ${selectedTech?.id === t.id ? 'bg-primary-50 border-primary-200 shadow-sm' : 'bg-white border-transparent hover:bg-slate-50'}`}
-                                                    >
-                                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-transform group-hover:scale-105 ${selectedTech?.id === t.id ? 'bg-[#1c2d4f] text-white shadow-md shadow-primary-900/20' : 'bg-slate-100 text-slate-500'}`}>
-                                                            {t.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all"
+                                                    />
+                                                    
+                                                    {techSearch && !selectedTech && (
+                                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                                                            {techs
+                                                                .filter(t => t.name.toLowerCase().includes(techSearch.toLowerCase()))
+                                                                .map(t => (
+                                                                    <button
+                                                                        key={t.id}
+                                                                        onClick={async () => {
+                                                                            setSelectedTech(t);
+                                                                            setTechSearch(t.name);
+                                                                            setTechStockSearch('');
+                                                                            const stock = await DataService.getTechStock(t.id);
+                                                                            setTechStock(stock);
+                                                                        }}
+                                                                        className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-all text-left"
+                                                                    >
+                                                                        <div className="w-8 h-8 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center text-xs font-bold shrink-0">
+                                                                            {t.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-xs font-bold text-slate-800 uppercase tracking-tight">{t.name}</p>
+                                                                            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">{t.role === 'ADMIN' ? 'GESTÃO' : 'OPERACIONAL'}</p>
+                                                                        </div>
+                                                                    </button>
+                                                                ))}
+                                                            {techs.filter(t => t.name.toLowerCase().includes(techSearch.toLowerCase())).length === 0 && (
+                                                                <div className="p-4 text-center text-slate-400 text-xs font-medium">Nenhum técnico encontrado.</div>
+                                                            )}
                                                         </div>
-                                                        <div className="min-w-0 pr-4">
-                                                            <p className={`text-[11px] font-bold leading-none mb-1.5 truncate uppercase ${selectedTech?.id === t.id ? 'text-primary-900' : 'text-slate-700'}`}>{t.name}</p>
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className={`w-1.5 h-1.5 rounded-full ${t.role === 'ADMIN' ? 'bg-rose-400' : 'bg-emerald-400'}`} />
-                                                                <p className="text-[9px] font-semibold text-slate-400 flex items-center gap-1">
-                                                                    {t.role === 'ADMIN' ? 'GESTÃO' : 'OPERACIONAL'}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        {selectedTech?.id === t.id && (
-                                                            <div className="ml-auto">
-                                                                <RefreshCw size={12} className="text-primary-default animate-pulse" />
-                                                            </div>
-                                                        )}
-                                                    </button>
-                                                ))}
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
                                     {/* Inventário do Técnico */}
-                                    <div className="lg:col-span-3 space-y-6 flex flex-col">
+                                    <div className="w-full space-y-6 flex flex-col">
                                         {selectedTech ? (
                                             <>
-                                                <div className="bg-[#1c2d4f] rounded-2xl p-6 text-white shadow-xl shadow-primary-900/10 relative overflow-hidden shrink-0">
-                                                    <div className="relative z-10 flex items-center justify-between">
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20">
-                                                                <Box className="text-white" size={28} />
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[10px] font-bold uppercase text-blue-200 mb-1 leading-none">Cautela de Carga Ativa</p>
-                                                                <h4 className="text-xl font-bold uppercase tracking-tight leading-none">{selectedTech.name}</h4>
-                                                            </div>
+                                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white border border-slate-200 rounded-xl p-4 shadow-sm shrink-0 gap-4 mt-2">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-[#1c2d4f] rounded-xl flex items-center justify-center border border-primary-900/20 shadow-inner">
+                                                            <Box size={20} className="text-white" />
                                                         </div>
-                                                        <div className="text-right flex flex-col items-end">
-                                                            <p className="text-[10px] font-bold uppercase text-blue-200 mb-1 leading-none">Itens Custodiados</p>
-                                                            <p className="text-4xl font-black">{techStock.length}</p>
+                                                        <div>
+                                                            <h4 className="text-base font-black text-slate-800 uppercase tracking-tight leading-none">{selectedTech.name}</h4>
+                                                            <p className="text-[10px] font-bold uppercase text-slate-400 mt-1 tracking-widest">Cautela de Carga Ativa</p>
                                                         </div>
                                                     </div>
-                                                    <TrendingUp size={120} className="absolute right-[-20px] bottom-[-40px] text-white/5" />
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="relative">
+                                                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Filtrar por nome ou SKU..."
+                                                                value={techStockSearch}
+                                                                onChange={e => setTechStockSearch(e.target.value)}
+                                                                className="w-full sm:w-64 pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-primary-100"
+                                                            />
+                                                        </div>
+                                                        <div className="text-right flex items-center gap-3 bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg">
+                                                            <div className="flex flex-col items-end sm:flex-row sm:items-center gap-3">
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-[10px] font-bold uppercase text-slate-400 hidden sm:block">Itens Custodiados</p>
+                                                                    <div className="bg-white text-slate-700 font-black text-sm px-3 py-1 rounded shadow-sm">{techStock.length}</div>
+                                                                </div>
+                                                                <div className="w-px h-6 bg-slate-200 hidden sm:block"></div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-[10px] font-bold uppercase text-slate-400 hidden sm:block">Volume Total Carga</p>
+                                                                    <div className="bg-[#1c2d4f] text-white font-black text-sm px-3 py-1 rounded shadow-sm relative overflow-hidden group">
+                                                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform"></div>
+                                                                        <span className="relative z-10">{techStock.reduce((acc, curr) => acc + (Number(curr.quantity) || 0), 0)}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
 
                                                 <div className="bg-white border border-slate-200 shadow-lg shadow-slate-200/40 rounded-2xl overflow-hidden flex flex-col flex-1 min-h-0">
@@ -876,7 +953,9 @@ export const StockManagement: React.FC = () => {
                                                                             </div>
                                                                         </td>
                                                                     </tr>
-                                                                ) : techStock.map(ts => (
+                                                                ) : techStock
+                                                                    .filter(ts => ts.item?.code?.toLowerCase().includes(techStockSearch.toLowerCase()) || ts.item?.description?.toLowerCase().includes(techStockSearch.toLowerCase()))
+                                                                    .map(ts => (
                                                                     <tr key={ts.id} className="hover:bg-slate-50 transition-colors group">
                                                                         <td className="px-6 py-4">
                                                                             <div className="flex flex-col">
@@ -1165,6 +1244,39 @@ export const StockManagement: React.FC = () => {
                                 {modalTab === 'dados' && (
                                     <div className="grid grid-cols-12 gap-8">
                                         <div className="col-span-12 lg:col-span-8 space-y-6">
+                                            {/* Photo Upload Card at the Top */}
+                                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-6 cursor-pointer hover:border-slate-300 transition-all group" onClick={() => fileInputRef.current?.click()}>
+                                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                                <div className="flex items-center gap-6">
+                                                    <div className="w-24 h-24 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden group-hover:border-primary-300 transition-colors shrink-0 relative">
+                                                        {imageUploading ? (
+                                                            <Loader2 size={24} className="text-primary-500 animate-spin" />
+                                                        ) : formData.imageUrl ? (
+                                                            <img src={formData.imageUrl} className="w-full h-full object-cover" alt="Produto" />
+                                                        ) : (
+                                                            <Camera size={28} className="text-slate-300 group-hover:text-primary-400 transition-colors" />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                                                            Foto Representativa do Produto
+                                                        </h3>
+                                                        <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                                                            {formData.imageUrl ? 'Clique para substituir a imagem atual. O painel cuidará do upload.' : 'Nenhuma imagem configurada. Clique aqui para buscar.'}
+                                                        </p>
+                                                        {formData.imageUrl && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => { e.stopPropagation(); setFormData({...formData, imageUrl: ''}); }}
+                                                                className="text-[10px] font-bold text-rose-500 mt-2 hover:text-rose-600 uppercase tracking-widest flex items-center gap-1"
+                                                            >
+                                                                <Trash2 size={12} /> Remover Foto
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
                                             <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm space-y-6">
                                                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                                                     <Info size={18} className="text-slate-400" /> Identificação e Localização
@@ -1184,7 +1296,7 @@ export const StockManagement: React.FC = () => {
                                                         </div>
                                                     </div>
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Código de Barras / EAN</label>
+                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Cod de barra ou Cod do fabricante</label>
                                                         <Input
                                                             value={formData.externalCode}
                                                             onChange={e => setFormData({ ...formData, externalCode: e.target.value })}
@@ -1249,6 +1361,34 @@ export const StockManagement: React.FC = () => {
                                                     </div>
                                                 </div>
                                             </div>
+                                            
+                                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
+                                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><QrCode size={16} className="text-slate-400" /> Etiqueta QR Code</h3>
+                                                {formData.code ? (
+                                                    <>
+                                                        <div className="bg-white p-2 border-2 border-dashed border-slate-200 rounded-xl mb-4 inline-block">
+                                                            <img 
+                                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(formData.code)}`} 
+                                                                alt="QR Code"
+                                                                className="w-[120px] h-[120px] mx-auto"
+                                                            />
+                                                        </div>
+                                                        <p className="text-[10px] font-mono font-bold text-slate-500 mb-4">{formData.code}</p>
+                                                        <Button
+                                                            type="button"
+                                                            onClick={handlePrintQR}
+                                                            className="w-full h-10 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg text-xs font-bold font-poppins flex items-center justify-center gap-2 transition-all"
+                                                        >
+                                                            <Printer size={16} /> Imprimir Etiqueta
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <div className="p-6 opacity-50 flex flex-col items-center">
+                                                        <QrCode size={48} className="mb-3 text-slate-300" />
+                                                        <p className="text-[10px] font-bold text-slate-500">Gere ou informe o código SKU primeiro para ver a etiqueta.</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -1284,7 +1424,7 @@ export const StockManagement: React.FC = () => {
                                                     </div>
                                                     <div className="p-4 bg-[#1c2d4f] text-white rounded-lg shadow-inner">
                                                         <p className="text-[10px] font-bold uppercase opacity-60">Custo Final Estimado</p>
-                                                        <p className="text-xl font-black">R$ {calculateTotalCost(formData).toFixed(2)}</p>
+                                                        <p className="text-lg font-bold">R$ {calculateTotalCost(formData).toFixed(2)}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1297,19 +1437,16 @@ export const StockManagement: React.FC = () => {
                                                     <div className="space-y-1.5">
                                                         <label className="text-[11px] font-medium text-slate-400 block px-1">Preço Sugerido ao Público</label>
                                                         <div className="relative">
-                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 text-lg font-black">R$</span>
-                                                            <input type="number" step="0.01" value={formData.sellPrice} onChange={e => setFormData({...formData, sellPrice: e.target.value})} className="w-full pl-12 pr-4 py-4 bg-emerald-50 border-2 border-emerald-100 rounded-xl text-2xl font-black text-emerald-700 outline-none focus:border-emerald-300" />
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 text-sm font-bold">R$</span>
+                                                            <input type="number" step="0.01" value={formData.sellPrice} onChange={e => setFormData({...formData, sellPrice: e.target.value})} className="w-full pl-9 pr-4 py-2.5 bg-emerald-50 border border-emerald-100 rounded-lg text-sm font-bold text-emerald-800 outline-none focus:ring-2 focus:ring-emerald-200 transition-all" />
                                                         </div>
                                                     </div>
-                                                    <div className="p-6 bg-slate-900 rounded-xl relative overflow-hidden">
-                                                        <div className="relative z-10">
-                                                            <p className="text-[10px] font-bold uppercase text-slate-400">Margem Comercial</p>
-                                                            <p className={`text-4xl font-black ${calculateMargin(formData) > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg relative overflow-hidden">
+                                                        <div className="relative z-10 flex items-center justify-between">
+                                                            <p className="text-[10px] font-bold uppercase text-slate-500">Margem Comercial</p>
+                                                            <p className={`text-lg font-bold ${calculateMargin(formData) > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                                 {calculateMargin(formData).toFixed(1)}%
                                                             </p>
-                                                        </div>
-                                                        <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
-                                                            <TrendingUp size={100} className="text-white" />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1321,8 +1458,9 @@ export const StockManagement: React.FC = () => {
                                 {modalTab === 'logs' && (
                                     <div className="max-w-4xl mx-auto space-y-6">
                                         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                                            <table className="w-full text-left">
-                                                <thead className="bg-slate-50 border-b border-slate-200">
+                                            <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                                                <table className="w-full text-left relative">
+                                                    <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10 shadow-sm">
                                                     <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                                         <th className="px-6 py-4">Data/Hora</th>
                                                         <th className="px-6 py-4">Operação</th>
@@ -1373,6 +1511,7 @@ export const StockManagement: React.FC = () => {
                                                     )}
                                                 </tbody>
                                             </table>
+                                        </div>
                                         </div>
                                     </div>
                                 )}
@@ -1431,17 +1570,17 @@ export const StockManagement: React.FC = () => {
             {/* TRANSFER MODAL */}
             {isTransferModalOpen && (
                 <div className="fixed inset-0 z-[203] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-slate-200">
-                        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                    <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-slate-200 flex flex-col max-h-[90vh]">
+                        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                             <h2 className="text-base font-semibold text-slate-900 font-poppins flex items-center gap-3">
-                                <Box className="text-primary-600" size={20} /> Movimentação Logística
+                                <Box className="text-primary-600" size={20} /> Movimentação de Itens
                             </h2>
-                            <button onClick={() => setIsTransferModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all rounded-lg">
+                            <button type="button" onClick={() => setIsTransferModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all rounded-lg shrink-0">
                                 <X size={20} />
                             </button>
                         </div>
 
-                        <form className="p-8 space-y-6" onSubmit={async (e) => {
+                        <form className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1" onSubmit={async (e) => {
                             e.preventDefault();
                             if (!transferData.itemId || !transferData.techId || !transferData.quantity) return;
                             try {
@@ -1463,104 +1602,140 @@ export const StockManagement: React.FC = () => {
                                 alert(error.message || 'Erro ao transferir.');
                             }
                         }}>
-                            <div className="space-y-4">
-
-                                {/* Seleção de Direção da Operação */}
-                                <div className="flex bg-slate-100 p-1.5 rounded-xl">
-                                    <button
-                                        type="button"
-                                        className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'transfer' ? 'bg-white text-[#10b981] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                        onClick={() => setTransferData({ ...transferData, direction: 'transfer', itemId: '' })}
-                                    >
-                                        Enviar para Técnico
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'return' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                        onClick={async () => {
-                                            setTransferData({ ...transferData, direction: 'return', itemId: '' });
-                                            // Se já tiver técnico selecionado, busca o estoque dele
-                                            if (transferData.techId) {
-                                                const stock = await DataService.getTechStock(transferData.techId);
-                                                setTechStock(stock);
-                                            }
-                                        }}
-                                    >
-                                        Devolver ao Estoque Geral
-                                    </button>
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Ação</label>
+                                        <div className="flex bg-slate-100 p-1 rounded-xl h-[42px]">
+                                            <button
+                                                type="button"
+                                                className={`flex-1 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'transfer' ? 'bg-white text-[#10b981] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                onClick={() => setTransferData({ ...transferData, direction: 'transfer', itemId: '' })}
+                                            >
+                                                Enviar p/ Técnico
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`flex-1 text-[10px] font-black uppercase rounded-lg transition-all ${transferData.direction === 'return' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                onClick={async () => {
+                                                    setTransferData({ ...transferData, direction: 'return', itemId: '' });
+                                                    if (transferData.techId) {
+                                                        const stock = await DataService.getTechStock(transferData.techId);
+                                                        setTechStock(stock);
+                                                    }
+                                                }}
+                                            >
+                                                Devolver Estoque
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Quantidade</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="0.1"
+                                            step="0.1"
+                                            className="w-full px-3 py-2 h-[42px] rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-100"
+                                            value={transferData.quantity}
+                                            onChange={e => setTransferData({ ...transferData, quantity: e.target.value })}
+                                            placeholder="0"
+                                        />
+                                    </div>
                                 </div>
 
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Item Envolvido</label>
-                                    <select
-                                        required
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100"
-                                        value={transferData.itemId}
-                                        onChange={e => setTransferData({ ...transferData, itemId: e.target.value })}
-                                    >
-                                        <option value="">Selecione o Item</option>
-                                        {transferData.direction === 'return' ? (
-                                            // Se for devolução, mostramos apenas o que o técnico selecionado possui no estoque técnico com saldo
-                                            techStock
-                                                .filter(ts => (Number(ts.quantity) || 0) > 0)
-                                                .map(ts => (
-                                                    <option key={ts.id} value={ts.stockItemId}>
-                                                        {ts.item?.description || 'Item sem descrição'} ({ts.quantity} {ts.item?.unit || 'UN'} em posse do colaborador)
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="flex flex-col border border-slate-200 rounded-xl overflow-hidden h-[160px] bg-white">
+                                        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex flex-col gap-2 shrink-0">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                                Técnico {transferData.techId && <span className="text-primary-500">(Selecionado)</span>}
+                                            </label>
+                                            <div className="flex items-center bg-white border border-slate-200 rounded-md px-2 py-1">
+                                                <Search size={12} className="text-slate-400 shrink-0" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Filtrar técnico..." 
+                                                    className="w-full bg-transparent px-2 text-[10px] font-bold outline-none"
+                                                    value={transferTechSearch}
+                                                    onChange={e => setTransferTechSearch(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                        <select
+                                            required
+                                            className="w-full flex-1 px-2 py-1 text-[10px] font-bold text-slate-700 outline-none custom-scrollbar hover:cursor-pointer"
+                                            multiple
+                                            value={[transferData.techId]}
+                                            onChange={async (e) => {
+                                                const newTechId = e.target.value;
+                                                setTransferData({ ...transferData, techId: newTechId, itemId: '' });
+                                                if (newTechId && transferData.direction === 'return') {
+                                                    const stock = await DataService.getTechStock(newTechId);
+                                                    setTechStock(stock);
+                                                }
+                                            }}
+                                        >
+                                            {techs
+                                                .filter(t => t.name.toLowerCase().includes(transferTechSearch.toLowerCase()))
+                                                .map(t => (
+                                                    <option key={t.id} value={t.id} className="p-1.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 rounded-md my-0.5 whitespace-normal leading-tight">
+                                                        {t.name}
                                                     </option>
                                                 ))
-                                        ) : (
-                                            // Se for transferência normal, mostramos o estoque geral disponível com saldo
-                                            items
-                                                .filter(i => (Number(i.quantity) || 0) > 0)
-                                                .map(i => (
-                                                    <option key={i.id} value={i.id}>
-                                                        {i.description} ({i.quantity} {i.unit} disp. no Geral)
-                                                    </option>
-                                                ))
-                                        )}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Técnico Envolvido</label>
-                                    <select
-                                        required
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100"
-                                        value={transferData.techId}
-                                        onChange={async (e) => {
-                                            const newTechId = e.target.value;
-                                            setTransferData({ ...transferData, techId: newTechId, itemId: '' });
-                                            if (newTechId && transferData.direction === 'return') {
-                                                const stock = await DataService.getTechStock(newTechId);
-                                                setTechStock(stock);
                                             }
-                                        }}
-                                    >
-                                        <option value="">Selecione o Técnico</option>
-                                        {techs.map(t => (
-                                            <option key={t.id} value={t.id}>{t.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Quantidade a Transferir</label>
-                                    <input
-                                        type="number"
-                                        required
-                                        min="0.1"
-                                        step="0.1"
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-100"
-                                        value={transferData.quantity}
-                                        onChange={e => setTransferData({ ...transferData, quantity: e.target.value })}
-                                    />
+                                        </select>
+                                    </div>
+                                    <div className="flex flex-col border border-slate-200 rounded-xl overflow-hidden h-[160px] bg-white">
+                                        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex flex-col gap-2 shrink-0">
+                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                                Item {transferData.itemId && <span className="text-emerald-500">(Selecionado)</span>}
+                                            </label>
+                                            <div className="flex items-center bg-white border border-slate-200 rounded-md px-2 py-1">
+                                                <Search size={12} className="text-slate-400 shrink-0" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Filtrar item..." 
+                                                    className="w-full bg-transparent px-2 text-[10px] font-bold outline-none"
+                                                    value={transferItemSearch}
+                                                    onChange={e => setTransferItemSearch(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                        <select
+                                            required
+                                            className="w-full flex-1 px-2 py-1 text-[10px] font-bold text-slate-700 outline-none custom-scrollbar hover:cursor-pointer"
+                                            multiple
+                                            value={[transferData.itemId]}
+                                            onChange={e => setTransferData({ ...transferData, itemId: e.target.value })}
+                                        >
+                                            {transferData.direction === 'return' ? (
+                                                techStock
+                                                    .filter(ts => (Number(ts.quantity) || 0) > 0)
+                                                    .filter(ts => ts.item?.description?.toLowerCase().includes(transferItemSearch.toLowerCase()) || ts.item?.code?.toLowerCase().includes(transferItemSearch.toLowerCase()))
+                                                    .map(ts => (
+                                                        <option key={ts.id} value={ts.stockItemId} className="p-1.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 rounded-md my-0.5 whitespace-normal leading-tight">
+                                                            (SKU {ts.item?.code}) {ts.item?.description || '...'} - Qtd: {ts.quantity}
+                                                        </option>
+                                                    ))
+                                            ) : (
+                                                items
+                                                    .filter(i => (Number(i.quantity) || 0) > 0)
+                                                    .filter(i => i.description?.toLowerCase().includes(transferItemSearch.toLowerCase()) || i.code?.toLowerCase().includes(transferItemSearch.toLowerCase()))
+                                                    .map(i => (
+                                                        <option key={i.id} value={i.id} className="p-1.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 rounded-md my-0.5 whitespace-normal leading-tight">
+                                                            (SKU {i.code}) {i.description} - Qtd: {i.quantity}
+                                                        </option>
+                                                    ))
+                                            )}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
 
                             <Button
                                 type="submit"
                                 variant="primary"
-                                className="w-full py-4 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary-900/20 transition-all active:scale-95"
+                                className="w-full mt-2 py-3 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-primary-900/20 transition-all active:scale-95 shrink-0"
                             >
                                 {transferData.direction === 'transfer' ? 'Confirmar Transferência' : 'Confirmar Devolução'}
                             </Button>

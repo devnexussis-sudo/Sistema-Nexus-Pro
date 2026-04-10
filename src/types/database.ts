@@ -331,6 +331,7 @@ export interface DbStockItem {
     freight_cost?: number;
     tax_cost?: number;
     unit?: string;
+    image_url?: string;
     last_restock_date?: string;
     active: boolean;
     created_at?: string;

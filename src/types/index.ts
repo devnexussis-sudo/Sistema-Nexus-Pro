@@ -517,6 +517,7 @@ export interface StockItem {
   taxCost?: number; // Impostos
   unit?: 'UN' | 'CX' | 'PCT' | 'M' | 'CM' | 'KG' | 'G' | 'L' | 'ML' | 'M2' | 'M3' | 'PAR' | 'CJ'; // Unidade de Medida Expandida
   lastRestockDate?: string;
+  imageUrl?: string; // Imagem/Upload do Supabase Storage
   active: boolean;
 }
 
