@@ -207,6 +207,10 @@ const sendLocationUpdate = async (
                 p_battery:  battery,
             });
 
+            if (error) {
+                logger.log(`[GPS] ❌ ERRO_BANCO_DE_DADOS: ${JSON.stringify(error)}`, 'error');
+            }
+
             if (!error) {
                 lastSentLocation  = { lat: latitude, lng: longitude };
                 lastHeartbeatTime = now;

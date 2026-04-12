@@ -1,7 +1,7 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { getStatusConfig, getPriorityConfig, OrderStatus } from '@/constants/mock-data';
-import { startBackgroundLocation } from '@/services/location-service';
+import { appLifecycle } from '@/services/app-lifecycle';
 import { NotificationService } from '@/services/notification-service';
 import { OrderService } from '@/services/order-service';
 import { supabase } from '@/services/supabase';
@@ -159,6 +159,7 @@ export default function HomeScreen() {
 
   // Ref para sempre ter a versão mais atual de fetchOrders (evita closure stale)
   const fetchOrdersRef = useRef<((force?: boolean) => void) | null>(null);
+  const flatListRef = useRef<FlatList>(null);
 
   // Offline Sync State
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
@@ -323,64 +324,25 @@ export default function HomeScreen() {
     fetchOrders(true);
   }, [cacheKey]);
 
-  // Realtime Listener for Instant Updates
+  // Realtime Listener — uses singleton from AppLifecycleManager
+  // No more re-subscribing on filter changes = no more duplicate WebSocket connections
   useEffect(() => {
-    let channel: any;
+    const unsubscribe = appLifecycle.onOrderChange((payload: any) => {
+      console.log('[HomeScreen] 🔄 OS Change (via lifecycle singleton):', payload.eventType);
+      // Throttled by lifecycle manager — safe to call directly
+      if (fetchOrdersRef.current) {
+        fetchOrdersRef.current(true);
+      }
+    });
 
-    const setupRealtime = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id;
-      if (!userId) return;
+    return unsubscribe;
+  }, []);
 
-      console.log('[HomeScreen] 📡 Subscribing to OS Realtime Updates for:', userId);
-
-      channel = supabase
-        .channel('os-updates')
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen to INSERT, UPDATE, DELETE
-            schema: 'public',
-            table: 'orders',
-            filter: `assigned_to=eq.${userId}`
-          },
-          (payload: any) => {
-            console.log('[HomeScreen] 🔄 OS Change Detected:', payload.eventType);
-
-            // 🔥 Automically refresh the data
-            fetchOrders(true);
-
-            // 🔔 If it's a NEW assignment, trigger a local notification
-            if (payload.eventType === 'INSERT') {
-              NotificationService.triggerLocalNotification(
-                t('homeNewOsNotif'),
-                `${t('homeNewOsNotifBody')} ${payload.new.display_id || 'S/N'}`,
-                { orderId: payload.new.id }
-              );
-            } else if (payload.eventType === 'UPDATE' && payload.old.status !== payload.new.status) {
-              // Notify on status changes if relevant
-            }
-          }
-        )
-        .subscribe();
-    };
-
-    setupRealtime();
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [selectedFilter, startDate, endDate, currentPage]); // Re-subscribe if filter context changes if needed, but usually one subs is enough
-
+  // Fetch orders when filters change
+  // ⚠️ REMOVED: startBackgroundLocation() fallback that restarted GPS on every filter change
+  //    GPS is now a singleton managed by AppLifecycleManager
   useEffect(() => {
     fetchOrders();
-
-    // ✅ Fallback: Ensure GPS is running when entering Home
-    const timer = setTimeout(() => {
-      startBackgroundLocation().catch(e => console.error('[Home] GPS Error:', e));
-    }, 1000);
-
-    return () => clearTimeout(timer);
   }, [cacheKey]);
 
   useEffect(() => {
@@ -614,6 +576,7 @@ export default function HomeScreen() {
         </View>
 
         <FlatList
+          ref={flatListRef}
           data={orders}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
@@ -655,7 +618,10 @@ export default function HomeScreen() {
               <View style={styles.paginationContainer}>
                 <Pressable
                   disabled={currentPage === 1}
-                  onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  onPress={() => {
+                    setCurrentPage(p => Math.max(1, p - 1));
+                    flatListRef.current?.scrollToOffset({ animated: true, offset: 0 });
+                  }}
                   style={[styles.pageButton, currentPage === 1 && styles.disabledButton]}
                 >
                   <Ionicons name="chevron-back" size={20} color={currentPage === 1 ? "#ccc" : "#1c2d4f"} />
@@ -665,7 +631,10 @@ export default function HomeScreen() {
 
                 <Pressable
                   disabled={currentPage === totalPages}
-                  onPress={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  onPress={() => {
+                    setCurrentPage(p => Math.min(totalPages, p + 1));
+                    flatListRef.current?.scrollToOffset({ animated: true, offset: 0 });
+                  }}
                   style={[styles.pageButton, currentPage === totalPages && styles.disabledButton]}
                 >
                   <Ionicons name="chevron-forward" size={20} color={currentPage === totalPages ? "#ccc" : "#1c2d4f"} />

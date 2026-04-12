@@ -1,27 +1,39 @@
+/**
+ * 🏗️ Root Layout — Pure Delegation
+ * 
+ * This file delegates 100% to AppLifecycleManager.
+ * 
+ * It does NOT contain:
+ * - Authentication logic
+ * - GPS logic
+ * - Realtime channel logic
+ * - Notification listener logic
+ * - AppState handlers
+ * 
+ * It ONLY:
+ * 1. Calls appLifecycle.initialize()
+ * 2. Redirects if not authenticated
+ * 3. Provides the notification tap handler (for routing)
+ * 4. Calls appLifecycle.destroy() on unmount
+ */
+
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { authService } from '@/services/auth-service';
 import { I18nProvider, useI18n } from '@/services/i18n';
-import { startBackgroundLocation } from '@/services/location-service';
-import { logger } from '@/services/logger';
-import { useEffect, useRef, useState } from 'react';
+import { appLifecycle } from '@/services/app-lifecycle';
+import { useEffect, useState } from 'react';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
-
-import { NotificationService } from '@/services/notification-service';
-import { supabase } from '@/services/supabase';
-import Constants from 'expo-constants';
-import * as Location from 'expo-location';
-import { ActivityIndicator, Alert, Platform, Text, View } from 'react-native';
-
-const isExpoGoAndroid = Platform.OS === 'android' && Constants.appOwnership === 'expo';
-const Notifications = isExpoGoAndroid ? null : require('expo-notifications');
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -39,77 +51,36 @@ function LayoutContent() {
   const router = useRouter();
   const { t } = useI18n();
 
-  const notificationListener = useRef<any>(null);
-  const responseListener = useRef<any>(null);
-
   useEffect(() => {
-    // Enable system-wide log capture immediately
-    logger.enableGlobalCapture();
-
+    // ── Single entry point: lifecycle handles EVERYTHING ──
     const initialize = async () => {
-      // 1. Request Permissions & Auth
-      const { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
-      if (locationStatus !== 'granted') {
-        Alert.alert(t('permissionLocationTitle'), t('permissionLocationBody'));
-      }
-
-      const isAuthenticated = await authService.checkAuthStatus();
-
-      if (isAuthenticated) {
-        // Start Background Services
-        startBackgroundLocation().catch(err => console.error(err));
-
-        // 2. Setup Push Notifications & Realtime Listener
-        const token = await NotificationService.registerForPushNotificationsAsync();
-
-        // Setup Realtime Listener for Instant Notifications (In-App)
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const channel = supabase
-            .channel(`notifications:user:${user.id}`)
-            .on(
-              'postgres_changes',
-              { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
-              (payload: any) => {
-                const notif = payload.new;
-                NotificationService.showLocalNotification(
-                  t('homeNewOsNotif'),
-                  `${t('homeNewOsNotifBody')} ${notif.title || '#' + notif.order_id}`
-                );
-              }
-            )
-            .subscribe();
-        }
-      } else {
+      const isAuthenticated = await appLifecycle.initialize();
+      if (!isAuthenticated) {
         router.replace('/login');
+        // Give the router enough time to execute the replacement and render the login screen
+        // before dropping the native Splash Screen curtain.
+        setTimeout(() => {
+          SplashScreen.hideAsync();
+        }, 200);
+      } else {
+        await SplashScreen.hideAsync();
       }
     };
+
+    // ── Provide notification tap handler for deep linking ──
+    // This is the ONLY thing _layout needs to contribute:
+    // the router reference for navigation on notification tap.
+    appLifecycle.setNotificationResponseHandler((orderId: string) => {
+      router.push(`/os/${orderId}`);
+    });
 
     initialize();
 
-    // Listen for incoming notifications while app is open
-    if (Notifications) {
-      notificationListener.current = Notifications.addNotificationReceivedListener((notification: any) => {
-        console.log('[RootLayout] Notification Received:', notification);
-      });
-
-      // Handle notification taps
-      responseListener.current = Notifications.addNotificationResponseReceivedListener((response: any) => {
-        const orderId = response.notification.request.content.data?.orderId;
-        if (orderId) {
-          router.push(`/os/${orderId}`);
-        }
-      });
-    }
-
     return () => {
-      if (Notifications && typeof Notifications.removeNotificationSubscription === 'function') {
-        if (notificationListener.current) Notifications.removeNotificationSubscription(notificationListener.current);
-        if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
-      }
-      supabase.removeAllChannels();
+      appLifecycle.destroy();
     };
   }, []);
+
 
   return (
     <>
@@ -119,7 +90,7 @@ function LayoutContent() {
           headerStyle: { backgroundColor: '#1c2d4f' },
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: 'bold' },
-          headerBackTitle: '', // Hides back title on iOS
+          headerBackTitle: '',
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="os/[id]" options={{ title: 'OS' }} />

@@ -159,5 +159,13 @@ export const NotificationService = {
         } catch (e) {
             console.error("Erro ao disparar notificação local:", e);
         }
-    }
+    },
+
+    /**
+     * Alias for triggerLocalNotification (backward compatibility).
+     * Some older code references this as showLocalNotification.
+     */
+    async showLocalNotification(title: string, body: string, data: any = {}) {
+        return this.triggerLocalNotification(title, body, data);
+    },
 };

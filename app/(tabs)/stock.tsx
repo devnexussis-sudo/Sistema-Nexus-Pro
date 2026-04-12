@@ -136,9 +136,12 @@ export default function StockScreen() {
                 </View>
 
                 <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
-                    <View style={styles.quantityBadge}>
-                        <Text style={styles.quantityNumber}>{item.quantity}</Text>
-                        <Text style={styles.quantityUnit}>{item.item?.unit || 'UN'}</Text>
+                    <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                        <Text style={{ fontSize: 10, color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>{t('stockTechnicianLabel')}</Text>
+                        <View style={styles.quantityBadge}>
+                            <Text style={styles.quantityNumber}>{item.quantity}</Text>
+                            <Text style={styles.quantityUnit}>{item.item?.unit || 'UN'}</Text>
+                        </View>
                     </View>
                     {(showPrice && item.item?.sellPrice) ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 6 }}>
@@ -146,6 +149,7 @@ export default function StockScreen() {
                             <Text style={{ fontSize: 13, fontWeight: '800', color: '#16a34a' }}>
                                 R$ {item.item.sellPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </Text>
+                            <Text style={{ fontSize: 10, color: '#94a3b8', fontWeight: '600' }}>/{t('stockUnitPriceSuffix')}</Text>
                         </View>
                     ) : null}
                 </View>

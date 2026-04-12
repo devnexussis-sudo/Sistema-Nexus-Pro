@@ -23,7 +23,8 @@ export default function ProfileScreen() {
         name: t('menuLoading'),
         email: '...',
         id: '...',
-        role: '...'
+        role: '...',
+        jobTitle: '...'
     });
     
     // Password update state
@@ -108,7 +109,8 @@ export default function ProfileScreen() {
                     name: techData.name || session.user.email?.split('@')[0] || t('profileTech'),
                     email: session.user.email || '',
                     id: session.user.id,
-                    role: t('profileTechRole')
+                    role: techData.job_title || t('profileTechRole'),
+                    jobTitle: techData.job_title || ''
                 });
 
                 const avatar = techData.avatar || techData.avatar_url;
@@ -120,7 +122,8 @@ export default function ProfileScreen() {
                     name: session.user.user_metadata?.name || t('profileUser'),
                     email: session.user.email || '',
                     id: session.user.id, // SHOW THE REAL ID so user can debug
-                    role: t('profileUserRole')
+                    role: t('profileUserRole'),
+                    jobTitle: ''
                 });
             }
 
@@ -178,8 +181,9 @@ export default function ProfileScreen() {
                 if (!base64) throw new Error("Base64 string was empty");
                 const arrayBuffer = decode(base64);
 
-                // Using technicians/ folder which aligns with the web panel and avoids RLS lockouts
-                const fileName = `technicians/${user.id}/avatar_${Date.now()}.webp`;
+                // Obter um nome seguro para a pasta
+                const safeName = user.name ? user.name.replace(/[^a-zA-Z0-9\s]/g, '').trim() || user.id.substring(0, 8) : user.id.substring(0, 8);
+                const fileName = `technicians/${safeName}/avatar_${Date.now()}.webp`;
 
                 const { error: uploadError } = await supabase.storage
                     .from('nexus-files')
@@ -256,6 +260,9 @@ export default function ProfileScreen() {
                     </View>
                 </Pressable>
                 <ThemedText type="title" style={{ color: '#0f172a', fontWeight: '900' }}>{user.name}</ThemedText>
+                {user.jobTitle ? (
+                    <Text style={{ color: '#64748b', fontSize: 14, fontWeight: '600', marginTop: 4 }}>{user.jobTitle}</Text>
+                ) : null}
             </View>
 
             <View style={styles.infoSection}>

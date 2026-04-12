@@ -1,7 +1,7 @@
 
 import { ThemedText } from '@/components/themed-text';
 import { authService } from '@/services/auth-service';
-import { startBackgroundLocation } from '@/services/location-service';
+import { appLifecycle } from '@/services/app-lifecycle';
 import { Ionicons } from '@expo/vector-icons';
 import Checkbox from 'expo-checkbox';
 import { useRouter } from 'expo-router';
@@ -33,11 +33,8 @@ export default function LoginScreen() {
         setIsLoading(false);
 
         if (success) {
-            // ✅ Trigger GPS start immediately on login success
-            startBackgroundLocation()
-                .then(() => console.log('[Login] GPS Auto-Started'))
-                .catch(err => console.warn('[Login] GPS Start Error:', err));
-
+            // Trigger the AppLifecycle to initialize GPS, Notifications, and Queues right after logging in on a fresh install
+            await appLifecycle.initialize();
             router.replace('/');
         } else {
             alert(t('loginFailCredentials'));
@@ -63,11 +60,16 @@ export default function LoginScreen() {
 
     return (
         <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.container}
         >
             <StatusBar style="dark" />
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView 
+                contentContainerStyle={styles.scrollContent} 
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+            >
 
                 <View style={styles.logoContainer}>
                     {/* 
@@ -174,11 +176,12 @@ const styles = StyleSheet.create({
     scrollContent: {
         flexGrow: 1,
         padding: 24,
+        paddingTop: Platform.OS === 'ios' ? 100 : 80,
+        paddingBottom: 250, // Massive native clearance allowing the Android/iOS flex engine to natively scroll the focused input above the keyboard
     },
     logoContainer: {
         alignItems: 'center',
-        marginBottom: 0,
-        marginTop: 150,
+        marginBottom: 10,
     },
     logo: {
         width: 220,
@@ -194,7 +197,6 @@ const styles = StyleSheet.create({
     formContainer: {
         width: '100%',
         alignItems: 'center',
-        marginTop: -30,
     },
     welcomeText: {
         fontSize: 24,

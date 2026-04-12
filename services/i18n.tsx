@@ -18,7 +18,7 @@ const translations = {
     menuLogout: 'Sair',
     menuLogoutConfirm: 'Deseja realmente sair do aplicativo?',
     menuCancel: 'Cancelar',
-    menuVersion: 'Versão 1.0.0',
+    menuVersion: 'Versão',
     menuLoading: 'Carregando...',
 
     // ── Login ──
@@ -164,6 +164,8 @@ const translations = {
     stockTransfer: 'Transferência / Outros',
     stockItemNoDesc: 'Item sem descrição',
     stockPage: 'Página',
+    stockUnitPriceSuffix: 'unid.',
+    stockTechnicianLabel: 'Seu Estoque',
 
     // ── Settings ──
     settingsGeneral: 'Geral',
@@ -326,7 +328,7 @@ const translations = {
     menuLogout: 'Exit',
     menuLogoutConfirm: 'Do you really want to log out?',
     menuCancel: 'Cancel',
-    menuVersion: 'Version 1.0.0',
+    menuVersion: 'Version',
     menuLoading: 'Loading...',
 
     // ── Login ──
@@ -472,6 +474,8 @@ const translations = {
     stockTransfer: 'Transfer / Other',
     stockItemNoDesc: 'Item without description',
     stockPage: 'Page',
+    stockUnitPriceSuffix: 'unit',
+    stockTechnicianLabel: 'My Stock',
 
     // ── Settings ──
     settingsGeneral: 'General',
@@ -630,7 +634,7 @@ const translations = {
     menuLogout: 'Salir',
     menuLogoutConfirm: '¿Desea realmente cerrar sesión?',
     menuCancel: 'Cancelar',
-    menuVersion: 'Versión 1.0.0',
+    menuVersion: 'Versión',
     menuLoading: 'Cargando...',
 
     // ── Login ──
@@ -776,6 +780,8 @@ const translations = {
     stockTransfer: 'Transferencia / Otros',
     stockItemNoDesc: 'Ítem sin descripción',
     stockPage: 'Página',
+    stockUnitPriceSuffix: 'unid.',
+    stockTechnicianLabel: 'Su Stock',
 
     // ── Settings ──
     settingsGeneral: 'General',

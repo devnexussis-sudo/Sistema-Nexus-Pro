@@ -32,6 +32,7 @@ export default function OrderDetailsScreen() {
     const [actionLocation, setActionLocation] = useState<{lat?: number, lon?: number}>({});
     const [impedimentReason, setImpedimentReason] = useState('');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
 
     // Image viewer state
@@ -153,8 +154,72 @@ export default function OrderDetailsScreen() {
                         })()
                     ]);
 
-                } catch (e) {
+                    // 4. PREFETCH IMAGES
+                    // Aguardar pré-carregamento de imagens para exibir de forma instantânea
+                    if (isActive) {
+                        const imagesToPreload = new Set<string>();
+
+                        const addUrl = (url?: string) => {
+                            if (typeof url === 'string' && url.startsWith('http')) imagesToPreload.add(url);
+                        };
+                        const addUrls = (val: any) => {
+                            if (Array.isArray(val)) val.forEach(addUrl);
+                            else if (typeof val === 'string') {
+                                if (val.startsWith('[')) {
+                                    try { JSON.parse(val).forEach(addUrl); } catch {}
+                                } else {
+                                    addUrl(val);
+                                }
+                            }
+                        };
+
+                        // OS Global Photos
+                        addUrl(currentOrder.blockPhotoUrl);
+                        addUrls(currentOrder.blockPhotoUrls);
+                        
+                        // OS Form Data Photos
+                        if (currentOrder.formData) {
+                            addUrl(currentOrder.formData.signature);
+                            addUrl(currentOrder.formData.impediment_signature);
+                            addUrls(currentOrder.formData.extra_photos);
+                            addUrls(currentOrder.formData.photos);
+                            
+                            Object.values(currentOrder.formData).forEach(val => {
+                                if (typeof val === 'string' && val.startsWith('http')) addUrl(val);
+                                if (Array.isArray(val)) val.forEach(addUrl);
+                            });
+                        }
+
+                        // Visit History Photos
+                        const visits = await OrderService.getOrderVisits(id as string);
+                        visits.forEach(v => {
+                            const fd = v.form_data || {};
+                            addUrls(fd.blockPhotoUrls);
+                            addUrls(fd.extra_photos || fd.photos);
+                            addUrl(fd.signature);
+                            addUrl(fd.impediment_signature);
+                            Object.values(fd).forEach(val => {
+                                if (typeof val === 'string' && val.startsWith('http')) addUrl(val);
+                                if (Array.isArray(val)) val.forEach(addUrl);
+                            });
+                        });
+
+                        if (imagesToPreload.size > 0) {
+                            // Run prefetch with a 3 seconds maximum timeout to prevent blocking UI forever on slow networks
+                            const prefetchPromise = Promise.allSettled(Array.from(imagesToPreload).map(url => Image.prefetch(url)));
+                            await Promise.race([
+                                prefetchPromise,
+                                new Promise(resolve => setTimeout(resolve, 3000))
+                            ]);
+                        }
+                    }
+
+                } catch (e: any) {
                     console.error(e);
+                    if (isActive) {
+                        setError(e.message || t('alertError'));
+                        setOrder(null);
+                    }
                 } finally {
                     if (isActive) setLoading(false);
                 }
@@ -168,16 +233,44 @@ export default function OrderDetailsScreen() {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff' }}>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc', padding: 24 }}>
                 <ActivityIndicator size="large" color="#1c2d4f" />
+                <Text style={{ marginTop: 16, color: '#334155', fontSize: 16, fontWeight: '700', textAlign: 'center' }}>
+                    Carregando informações...
+                </Text>
+                <Text style={{ marginTop: 8, color: '#64748b', fontSize: 14, textAlign: 'center', maxWidth: '80%' }}>
+                    Baixando fotos e histórico da ordem de serviço. Por favor, aguarde.
+                </Text>
             </View>
         );
     }
 
-    if (!order) {
+    if (error || !order) {
         return (
-            <ThemedView style={styles.container}>
-                <ThemedText>{t('osNotFound')}</ThemedText>
+            <ThemedView style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#f8fafc' }]}>
+                <Ionicons name="cloud-offline-outline" size={64} color="#94a3b8" style={{ marginBottom: 16 }} />
+                <ThemedText style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: '#1e293b', marginBottom: 8 }}>
+                    {error ? t('osFetchError') || 'Falha na Conexão' : t('osNotFound')}
+                </ThemedText>
+                <ThemedText style={{ fontSize: 14, textAlign: 'center', color: '#64748b', marginBottom: 24, lineHeight: 20 }}>
+                    {error 
+                        ? 'Ocorreu um erro ao baixar as informações detalhadas desta OS. Verifique sua conexão com a internet e tente novamente.'
+                        : 'A ordem de serviço solicitada não foi encontrada ou foi removida do sistema.'}
+                </ThemedText>
+                {error && (
+                    <Pressable 
+                        onPress={() => {
+                            setLoading(true);
+                            setError(null);
+                            // Set artificial delay, trigger focus effect again or just replace route
+                            router.replace(`/os/${id}`);
+                        }}
+                        style={{ backgroundColor: '#1c2d4f', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#1c2d4f', shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 }}
+                    >
+                        <Ionicons name="refresh" size={20} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Tentar Novamente</Text>
+                    </Pressable>
+                )}
             </ThemedView>
         );
     }
@@ -339,7 +432,7 @@ export default function OrderDetailsScreen() {
                 for (let i = 0; i < impedimentPhotoUris.length; i++) {
                     const url = await OrderService.uploadFile(
                         impedimentPhotoUris[i],
-                        `orders/${order.id}/block_photos`,
+                        `orders/${order.displayId || order.id}/block_photos`,
                         order.tenantId
                     );
                     if (url) blockPhotoUrls.push(url);
@@ -866,9 +959,9 @@ export default function OrderDetailsScreen() {
                     </View>
                 )}
 
-                {/* Execution Details Display (Resumo, Anexos, Assinatura no final) */}
-                {(order.executionDetails || (order.formData && Object.keys(order.formData).length > 0) || order.status === 'completed') && (
-                    <View style={{ marginBottom: 16, marginTop: orderVisits.length > 0 ? 0 : 16 }}>
+                {/* Execution Details Display — ONLY shown when there are NO visit records at all (legacy fallback) */}
+                {orderVisits.filter(v => ['completed', 'blocked'].includes(v.status)).length === 0 && (
+                    <View style={{ marginBottom: 16, marginTop: 16 }}>
                         {(() => {
                             const report = order.executionDetails?.technicalReport || order.formData?.technical_report;
                             if (!report) return null;
@@ -876,16 +969,15 @@ export default function OrderDetailsScreen() {
                                 <View style={[styles.card, { borderColor: '#c7d2fe', backgroundColor: '#eef2ff', marginBottom: 16 }]}>
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                                         <Ionicons name="document-text" size={20} color="#4338ca" />
-                                        <Text style={{ fontSize: 14, fontWeight: '900', color: '#312e81', textTransform: 'uppercase', letterSpacing: 0.8 }}>{t('osFinalSummary')}</Text>
+                                        <Text style={{ fontSize: 14, fontWeight: '900', color: '#312e81', textTransform: 'uppercase', letterSpacing: 0.8 }}>{t('osTechnicalReport')}</Text>
                                     </View>
-                                    <View style={{ backgroundColor: '#ffffff', padding: 16, borderRadius: 10, borderWidth: 1, borderColor: '#e0e7ff', shadowColor: '#4338ca', shadowOffset: { width:0, height:2 }, shadowOpacity: 0.05, shadowRadius: 4 }}>
+                                    <View style={{ backgroundColor: '#ffffff', padding: 16, borderRadius: 10, borderWidth: 1, borderColor: '#e0e7ff' }}>
                                         <Text style={{ fontSize: 14, color: '#1e293b', fontWeight: '600', lineHeight: 22 }}>{report}</Text>
                                     </View>
                                 </View>
                             );
                         })()}
 
-                        {/* --- ANEXOS GERAIS (Fotos Extras e Vídeo) --- */}
                         {(() => {
                             const allPhotos: string[] = [];
                             if (order.executionDetails?.photos) allPhotos.push(...order.executionDetails.photos);
@@ -895,8 +987,7 @@ export default function OrderDetailsScreen() {
                             }
                             const uniquePhotos = [...new Set(allPhotos)].filter(p => typeof p === 'string' && p.startsWith('http'));
 
-                            const hasValidVisits = orderVisits.filter(v => ['completed', 'blocked'].includes(v.status)).length > 0;
-                            if (hasValidVisits || (uniquePhotos.length === 0 && !order.videoUrl)) return null;
+                            if (uniquePhotos.length === 0 && !order.videoUrl) return null;
 
                             return (
                                 <View style={[styles.card, { marginBottom: 16 }]}>
@@ -927,7 +1018,7 @@ export default function OrderDetailsScreen() {
                                                 onPress={() => Linking.openURL(order.videoUrl!)}
                                             >
                                                 <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
-                                                    <View style={{ width: 60, height: 60, backgroundColor: 'rgba(255,255,255,0.1)', paddingLeft: 6, borderRadius: 30, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: {width:0, height:4}, shadowOpacity: 0.2, shadowRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' }}>
+                                                    <View style={{ width: 60, height: 60, backgroundColor: 'rgba(255,255,255,0.1)', paddingLeft: 6, borderRadius: 30, alignItems: 'center', justifyContent: 'center' }}>
                                                         <Ionicons name="play" size={32} color="#ffffff" />
                                                     </View>
                                                 </View>
@@ -937,8 +1028,6 @@ export default function OrderDetailsScreen() {
                                 </View>
                             );
                         })()}
-
-
                     </View>
                 )}
 

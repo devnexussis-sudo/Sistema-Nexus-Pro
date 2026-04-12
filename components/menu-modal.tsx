@@ -13,9 +13,10 @@ import Constants from 'expo-constants';
 interface MenuModalProps {
     visible: boolean;
     onClose: () => void;
+    hasUnread?: boolean;
 }
 
-export function MenuModal({ visible, onClose }: MenuModalProps) {
+export function MenuModal({ visible, onClose, hasUnread }: MenuModalProps) {
     const router = useRouter();
     const { t } = useI18n();
     const [userProfile, setUserProfile] = useState<any>(null);
@@ -76,6 +77,15 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
                 onClose();
                 router.push('/profile');
             }
+        },
+        {
+            title: 'Notificações',
+            icon: 'bell.fill',
+            action: () => {
+                onClose();
+                router.push('/notifications');
+            },
+            badge: hasUnread
         },
         {
             title: t('menuSettings'),
@@ -141,6 +151,9 @@ export function MenuModal({ visible, onClose }: MenuModalProps) {
                                 {/* @ts-ignore: Dynamic icon name */}
                                 <IconSymbol name={item.icon} size={24} color="#1c2d4f" />
                                 <Text style={styles.menuItemText}>{item.title}</Text>
+                                {item.badge && (
+                                    <View style={styles.badgeDot} />
+                                )}
                             </Pressable>
                         ))}
                     </View>
@@ -251,6 +264,13 @@ const styles = StyleSheet.create({
         fontSize: 18,
         color: '#333',
         fontWeight: '500',
+        flex: 1,
+    },
+    badgeDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#ef4444',
     },
     footer: {
         marginTop: 'auto',

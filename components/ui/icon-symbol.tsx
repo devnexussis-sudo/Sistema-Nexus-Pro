@@ -29,6 +29,7 @@ const MAPPING = {
   'person.fill': 'person',
   'arrow.triangle.2.circlepath': 'sync',
   'rectangle.portrait.and.arrow.right': 'logout',
+  'bell.fill': 'notifications',
 } as Partial<Record<string, ComponentProps<typeof MaterialIcons>['name']>>;
 
 /**

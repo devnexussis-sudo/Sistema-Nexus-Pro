@@ -450,23 +450,37 @@ export default function ExecuteOSScreen() {
     const uploadExtraPhoto = async (uris: string[]) => {
         setIsUploadingExtra(true);
         try {
-            for (const uri of uris) {
-                const compressedUri = await ImageService.compressImage(uri);
-                const netInfo = await NetInfo.fetch();
-                let finalUri = compressedUri;
+            // INSTANT PREVIEW: Mostrar imagem local imediatamente
+            const localUris = [...uris];
+            setExtraPhotos(prev => [...prev, ...localUris]);
 
-                if (netInfo.isConnected && !syncService.isOfflineModeEnabled()) {
-                    const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/extra_photos`, order?.tenantId);
-                    if (publicUrl) {
-                        finalUri = publicUrl;
-                    } 
-                } else {
-                    const fileName = `offline_extra_${id}_${Date.now()}.jpg`;
-                    const destPath = `${FileSystem.documentDirectory}${fileName}`;
-                    await FileSystem.copyAsync({ from: compressedUri, to: destPath });
-                    finalUri = destPath;
-                }
-                setExtraPhotos(prev => [...prev, finalUri]);
+            // BACKGROUND UPLOAD: Comprimir e subir silenciosamente, substituindo URI local pela pública
+            for (const uri of localUris) {
+                (async () => {
+                    try {
+                        const compressedUri = await ImageService.compressImage(uri);
+                        const netInfo = await NetInfo.fetch();
+                        let finalUri = compressedUri;
+
+                        if (netInfo.isConnected && !syncService.isOfflineModeEnabled()) {
+                            const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/extra_photos`, order?.tenantId);
+                            if (publicUrl) finalUri = publicUrl;
+                        } else {
+                            const fileName = `offline_extra_${id}_${Date.now()}.jpg`;
+                            const destPath = `${FileSystem.documentDirectory}${fileName}`;
+                            await FileSystem.copyAsync({ from: compressedUri, to: destPath });
+                            finalUri = destPath;
+                        }
+
+                        // Swap silencioso: pré-carregar a imagem nova antes de trocar para evitar flash cinza
+                        if (finalUri !== uri) {
+                            try { await Image.prefetch(finalUri); } catch { /* local files may not support prefetch */ }
+                            setExtraPhotos(prev => prev.map(p => p === uri ? finalUri : p));
+                        }
+                    } catch (e) {
+                        console.warn('[ExtraPhoto] Background upload failed, keeping local URI:', e);
+                    }
+                })();
             }
         } finally {
             setIsUploadingExtra(false);
@@ -597,7 +611,7 @@ export default function ExecuteOSScreen() {
                 // Upload normal para o Storage
                 const publicUrl = await OrderService.uploadFile(
                     compressedUri,
-                    `orders/${id}/videos`,
+                    `orders/${order?.displayId || id}/videos`,
                     order?.tenantId,
                     'video/mp4'
                 );
@@ -620,28 +634,49 @@ export default function ExecuteOSScreen() {
     const uploadFieldPhoto = async (uris: string[], eqKey: string, fieldId: string) => {
         setIsUploadingPhoto(`${eqKey}_${fieldId}`);
         try {
-            for (const uri of uris) {
-                const compressedUri = await ImageService.compressImage(uri);
-                const netInfo = await NetInfo.fetch();
-                let finalUri = compressedUri;
+            // INSTANT PREVIEW: Mostrar imagem local imediatamente
+            const localUris = [...uris];
+            setFormsConfig(prev => {
+                const newConfig = { ...prev };
+                const currentPhotos = Array.isArray(newConfig[eqKey].data[fieldId]) ? newConfig[eqKey].data[fieldId] : [];
+                const remaining = 7 - currentPhotos.length;
+                const toAdd = localUris.slice(0, remaining);
+                newConfig[eqKey].data = { ...newConfig[eqKey].data, [fieldId]: [...currentPhotos, ...toAdd] };
+                return newConfig;
+            });
 
-                if (netInfo.isConnected && !syncService.isOfflineModeEnabled()) {
-                    const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/form_photos`, order?.tenantId);
-                    if (publicUrl) finalUri = publicUrl;
-                } else {
-                    const fileName = `offline_form_${id}_${eqKey}_${fieldId}_${Date.now()}.jpg`;
-                    const destPath = `${FileSystem.documentDirectory}${fileName}`;
-                    await FileSystem.copyAsync({ from: compressedUri, to: destPath });
-                    finalUri = destPath;
-                }
+            // BACKGROUND UPLOAD: Comprimir e subir silenciosamente
+            for (const uri of localUris) {
+                (async () => {
+                    try {
+                        const compressedUri = await ImageService.compressImage(uri);
+                        const netInfo = await NetInfo.fetch();
+                        let finalUri = compressedUri;
 
-                setFormsConfig(prev => {
-                    const newConfig = { ...prev };
-                    const currentPhotos = Array.isArray(newConfig[eqKey].data[fieldId]) ? newConfig[eqKey].data[fieldId] : [];
-                    if (currentPhotos.length >= 7) return prev;
-                    newConfig[eqKey].data = { ...newConfig[eqKey].data, [fieldId]: [...currentPhotos, finalUri] };
-                    return newConfig;
-                });
+                        if (netInfo.isConnected && !syncService.isOfflineModeEnabled()) {
+                            const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/form_photos`, order?.tenantId);
+                            if (publicUrl) finalUri = publicUrl;
+                        } else {
+                            const fileName = `offline_form_${id}_${eqKey}_${fieldId}_${Date.now()}.jpg`;
+                            const destPath = `${FileSystem.documentDirectory}${fileName}`;
+                            await FileSystem.copyAsync({ from: compressedUri, to: destPath });
+                            finalUri = destPath;
+                        }
+
+                        // Swap silencioso: pré-carregar antes de trocar para evitar flash cinza
+                        if (finalUri !== uri) {
+                            try { await Image.prefetch(finalUri); } catch { /* local files may not support prefetch */ }
+                            setFormsConfig(prev => {
+                                const newConfig = { ...prev };
+                                const photos = Array.isArray(newConfig[eqKey].data[fieldId]) ? newConfig[eqKey].data[fieldId] : [];
+                                newConfig[eqKey].data = { ...newConfig[eqKey].data, [fieldId]: photos.map((p: string) => p === uri ? finalUri : p) };
+                                return newConfig;
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('[FieldPhoto] Background upload failed, keeping local URI:', e);
+                    }
+                })();
             }
         } finally {
             setIsUploadingPhoto(null);
@@ -736,7 +771,7 @@ export default function ExecuteOSScreen() {
                                         localPhotosToSync.push(item);
                                         uploadedUrls.push(item);
                                     } else {
-                                        const url = await OrderService.uploadFile(item, `orders/${id}/form_photos`, order?.tenantId);
+                                        const url = await OrderService.uploadFile(item, `orders/${order?.displayId || id}/form_photos`, order?.tenantId);
                                         if (url) uploadedUrls.push(url);
                                     }
                                 } else {
@@ -748,7 +783,7 @@ export default function ExecuteOSScreen() {
                             if (isOffline) {
                                 localPhotosToSync.push(value);
                             } else {
-                                const url = await OrderService.uploadFile(value, `orders/${id}/form_photos`, order?.tenantId);
+                                const url = await OrderService.uploadFile(value, `orders/${order?.displayId || id}/form_photos`, order?.tenantId);
                                 if (url) value = url;
                             }
                         }
@@ -893,7 +928,7 @@ export default function ExecuteOSScreen() {
             // Upload the impediment signature if present, otherwise use main client signature
             if (impedimentSignature) {
                 try {
-                    const sigUrl = await OrderService.uploadFile(impedimentSignature, `orders/${id}/signatures`, order?.tenantId);
+                    const sigUrl = await OrderService.uploadFile(impedimentSignature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
                     finalFormData['impediment_signature'] = sigUrl || impedimentSignature;
                 } catch {
                     finalFormData['impediment_signature'] = impedimentSignature;
@@ -901,7 +936,7 @@ export default function ExecuteOSScreen() {
             } else if (signature) {
                 // Use main client signature as fallback for the impediment auth
                 try {
-                    const sigUrl = await OrderService.uploadFile(signature, `orders/${id}/signatures`, order?.tenantId);
+                    const sigUrl = await OrderService.uploadFile(signature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
                     finalFormData['impediment_signature'] = sigUrl || signature;
                 } catch {
                     finalFormData['impediment_signature'] = signature;
@@ -913,7 +948,7 @@ export default function ExecuteOSScreen() {
             if (signature) {
                 try {
                     if (!finalFormData['impediment_signature']?.startsWith('http')) {
-                        const sigUrl = await OrderService.uploadFile(signature, `orders/${id}/signatures`, order?.tenantId);
+                        const sigUrl = await OrderService.uploadFile(signature, `orders/${order?.displayId || id}/signatures`, order?.tenantId);
                         finalFormData['signature'] = sigUrl || signature;
                     } else {
                         finalFormData['signature'] = finalFormData['impediment_signature'];
@@ -926,7 +961,7 @@ export default function ExecuteOSScreen() {
             // 2. Upload das fotos do impedimento
             let blockPhotoUrls: string[] = [];
             for (const uri of impedimentPhotos) {
-                const url = await OrderService.uploadFile(uri, `orders/${id}/block_photos`, order?.tenantId);
+                const url = await OrderService.uploadFile(uri, `orders/${order?.displayId || id}/block_photos`, order?.tenantId);
                 if (url) blockPhotoUrls.push(url);
             }
 
@@ -936,7 +971,7 @@ export default function ExecuteOSScreen() {
                     let finalVideoUrl = videoUri;
                     // Se ainda for um arquivo local, fazer upload agora
                     if (!videoUri.startsWith('http')) {
-                        const uploaded = await OrderService.uploadFile(videoUri, `orders/${id}/videos`, order?.tenantId);
+                        const uploaded = await OrderService.uploadFile(videoUri, `orders/${order?.displayId || id}/videos`, order?.tenantId);
                         if (uploaded) finalVideoUrl = uploaded;
                     }
                     finalFormData['video_url'] = finalVideoUrl;
@@ -1013,7 +1048,7 @@ export default function ExecuteOSScreen() {
             for (const uri of uris) {
                 if (impedimentPhotos.length >= 10) break;
                 const compressedUri = await compressImage(uri);
-                const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/impediment_photos`, order?.tenantId);
+                const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${order?.displayId || id}/impediment_photos`, order?.tenantId);
                 const finalUri = publicUrl || compressedUri;
                 setImpedimentPhotos(prev => [...prev, finalUri]);
             }
@@ -1075,29 +1110,30 @@ export default function ExecuteOSScreen() {
                         </View>
                         <View style={styles.cardContent}>
                             <Pressable 
-                                style={[styles.videoRecordButton, { backgroundColor: '#f0f9ff', borderColor: '#bae6fd' }]} 
+                                style={[styles.videoRecordButton, { backgroundColor: '#059669', borderColor: '#059669', borderStyle: 'solid' }]} 
                                 onPress={() => handleTakeFieldPhoto(eqKey, field.id)} 
                                 disabled={isUploadingPhoto === `${eqKey}_${field.id}`}
                             >
-                                {isUploadingPhoto === `${eqKey}_${field.id}` ? <ActivityIndicator size="small" color="#1c2d4f" /> : <Ionicons name="camera" size={24} color="#1c2d4f" />}
+                                {isUploadingPhoto === `${eqKey}_${field.id}` ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="camera" size={24} color="#fff" />}
                                 <View style={{ flex: 1, marginLeft: 12 }}>
-                                    <Text style={[styles.videoRecordTitle, { color: '#1c2d4f' }]}>{t('execAttachEvidence')}</Text>
-                                    <Text style={styles.videoRecordSubtitle}>{t('execPhotoMax7')}</Text>
+                                    <Text style={[styles.videoRecordTitle, { color: '#fff' }]}>{t('execAttachEvidence')}</Text>
+                                    <Text style={[styles.videoRecordSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>{t('execPhotoMax7')}</Text>
                                 </View>
                             </Pressable>
 
                             {photos.length > 0 && (
                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
                                     {photos.map((photoUri: string, index: number) => (
-                                        <Pressable key={index} style={{ position: 'relative', width: 80, height: 80, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#cbd5e1' }}
+                                        <Pressable key={index} style={{ position: 'relative', width: 100, height: 100, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#e2e8f0' }}
                                             onPress={() => { setSelectedImage(photoUri); setViewerVisible(true); }}>
-                                            <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} />
-                                            <Pressable style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(239,68,68,0.9)', padding: 4, borderRadius: 12 }}
+                                            <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                            <Pressable style={{ position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(239,68,68,0.9)', padding: 6, borderRadius: 14 }}
                                                 onPress={() => {
+                                                    if (typeof photoUri === 'string' && photoUri.startsWith('http')) OrderService.deleteFile(photoUri);
                                                     const newPhotos = [...photos]; newPhotos.splice(index, 1);
                                                     updateFieldData(eqKey, field.id, newPhotos);
                                                 }}>
-                                                <Ionicons name="close" size={12} color="#fff" />
+                                                <Ionicons name="close" size={16} color="#fff" />
                                             </Pressable>
                                         </Pressable>
                                     ))}
@@ -1296,23 +1332,26 @@ export default function ExecuteOSScreen() {
                                     <Text style={styles.cardTitle}>{t('execExtraPhotos')}</Text>
                                 </View>
                                 <View style={styles.cardContent}>
-                                    <Pressable style={[styles.videoRecordButton, { backgroundColor: '#f0f9ff', borderColor: '#bae6fd' }]} onPress={handleTakeExtraPhoto} disabled={isUploadingExtra}>
-                                        {isUploadingExtra ? <ActivityIndicator size="small" color="#1c2d4f" /> : <Ionicons name="camera" size={24} color="#1c2d4f" />}
+                                    <Pressable style={[styles.videoRecordButton, { backgroundColor: '#059669', borderColor: '#059669', borderStyle: 'solid' }]} onPress={handleTakeExtraPhoto} disabled={isUploadingExtra}>
+                                        {isUploadingExtra ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="camera" size={24} color="#fff" />}
                                         <View style={{ flex: 1, marginLeft: 12 }}>
-                                            <Text style={[styles.videoRecordTitle, { color: '#1c2d4f' }]}>{t('execAttachExtraPhoto')}</Text>
-                                            <Text style={styles.videoRecordSubtitle}>{t('execPhotoFromCameraOrGallery')}</Text>
+                                            <Text style={[styles.videoRecordTitle, { color: '#fff' }]}>{t('execAttachExtraPhoto')}</Text>
+                                            <Text style={[styles.videoRecordSubtitle, { color: 'rgba(255,255,255,0.7)' }]}>{t('execPhotoFromCameraOrGallery')}</Text>
                                         </View>
                                     </Pressable>
 
                                     {extraPhotos.length > 0 && (
                                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
                                             {extraPhotos.map((photoUri, index) => (
-                                                <Pressable key={index} style={{ position: 'relative', width: 80, height: 80, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#cbd5e1' }}
+                                                <Pressable key={index} style={{ position: 'relative', width: 100, height: 100, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#e2e8f0' }}
                                                     onPress={() => { setSelectedImage(photoUri); setViewerVisible(true); }}>
-                                                    <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} />
-                                                    <Pressable style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(239,68,68,0.9)', padding: 4, borderRadius: 12 }}
-                                                        onPress={() => setExtraPhotos(prev => prev.filter((_, i) => i !== index))}>
-                                                        <Ionicons name="close" size={12} color="#fff" />
+                                                    <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                                    <Pressable style={{ position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(239,68,68,0.9)', padding: 6, borderRadius: 14 }}
+                                                        onPress={() => {
+                                                            if (typeof photoUri === 'string' && photoUri.startsWith('http')) OrderService.deleteFile(photoUri);
+                                                            setExtraPhotos(prev => prev.filter((_, i) => i !== index));
+                                                        }}>
+                                                        <Ionicons name="close" size={16} color="#fff" />
                                                     </Pressable>
                                                 </Pressable>
                                             ))}
@@ -1325,7 +1364,7 @@ export default function ExecuteOSScreen() {
                             <View style={[styles.card, { marginTop: 16, elevation: 0, backgroundColor: '#ffffff' }]}>
                                 <View style={styles.cardHeader}>
                                     <Ionicons name="videocam" size={16} color="#059669" />
-                                    <ThemedText style={styles.cardTitle}>{t('execVideoEvidence')}</ThemedText>
+                                    <Text style={styles.cardTitle}>{t('execVideoEvidence')}</Text>
                                 </View>
                                 <View style={styles.cardContent}>
                                     {videoUri ? (
@@ -1355,18 +1394,21 @@ export default function ExecuteOSScreen() {
                                             <View style={styles.videoMetaBar}>
                                                 <Text style={styles.videoMetaText}>{t('execVideoAttached')} {videoSizeMB ? `(${videoSizeMB}MB)` : ''}</Text>
                                                 {!isUploadingVideo && (
-                                                    <Pressable onPress={() => setVideoUri(null)}>
-                                                        <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                                                    <Pressable style={{ padding: 8 }} onPress={() => {
+                                                        if (typeof videoUri === 'string' && videoUri.startsWith('http')) OrderService.deleteFile(videoUri);
+                                                        setVideoUri(null);
+                                                    }}>
+                                                        <Ionicons name="trash-outline" size={22} color="#ef4444" />
                                                     </Pressable>
                                                 )}
                                             </View>
                                         </Pressable>
                                     ) : (
-                                        <Pressable style={styles.videoRecordButton} onPress={() => setIsVideoSourceModalVisible(true)}>
-                                            <Ionicons name="videocam" size={24} color="#059669" />
+                                        <Pressable style={[styles.videoRecordButton, { backgroundColor: '#059669', borderColor: '#059669', borderStyle: 'solid' }]} onPress={() => setIsVideoSourceModalVisible(true)}>
+                                            <Ionicons name="videocam" size={24} color="#ffffff" />
                                             <View style={{ flex: 1, marginLeft: 12 }}>
-                                                <Text style={styles.videoRecordTitle}>{t('execAttachVideo')}</Text>
-                                                <Text style={styles.videoRecordSubtitle}>{t('execRecordOrGallery')}</Text>
+                                                <Text style={[styles.videoRecordTitle, { color: '#ffffff' }]}>{t('execAttachVideo')}</Text>
+                                                <Text style={[styles.videoRecordSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>{t('execRecordOrGallery')}</Text>
                                             </View>
                                         </Pressable>
                                     )}
@@ -1439,12 +1481,15 @@ export default function ExecuteOSScreen() {
                                 {impedimentPhotos.map((uri, index) => (
                                     <Pressable
                                         key={index}
-                                        onPress={() => setImpedimentPhotos(prev => prev.filter((_, i) => i !== index))}
-                                        style={{ marginRight: 10, position: 'relative' }}
+                                        onPress={() => {
+                                            if (typeof uri === 'string' && uri.startsWith('http')) OrderService.deleteFile(uri);
+                                            setImpedimentPhotos(prev => prev.filter((_, i) => i !== index));
+                                        }}
+                                        style={{ marginRight: 10, position: 'relative', width: 110, height: 110, borderRadius: 10, overflow: 'hidden', backgroundColor: '#e2e8f0' }}
                                     >
-                                        <Image source={{ uri }} style={{ width: 100, height: 100, borderRadius: 10 }} resizeMode="cover" />
-                                        <View style={{ position: 'absolute', top: -5, right: -5, backgroundColor: '#fff', borderRadius: 12 }}>
-                                            <Ionicons name="close-circle" size={22} color="#dc2626" />
+                                        <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                        <View style={{ position: 'absolute', top: -3, right: -3, backgroundColor: '#fff', borderRadius: 14, padding: 1 }}>
+                                            <Ionicons name="close-circle" size={26} color="#dc2626" />
                                         </View>
                                     </Pressable>
                                 ))}
@@ -1458,8 +1503,8 @@ export default function ExecuteOSScreen() {
                                 style={styles.impedimentPhotoBtn}
                             >
                                 {isUploadingImpedimentPhoto
-                                    ? <ActivityIndicator size="small" color="#dc2626" />
-                                    : <Ionicons name="camera-outline" size={20} color="#dc2626" />}
+                                    ? <ActivityIndicator size="small" color="#fff" />
+                                    : <Ionicons name="camera-outline" size={20} color="#fff" />}
                                 <Text style={styles.impedimentPhotoBtnText}>
                                     {impedimentPhotos.length > 0
                                         ? `Adicionar mais (${impedimentPhotos.length}/10)`
@@ -2032,11 +2077,11 @@ const styles = StyleSheet.create({
     infoDivider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 10 },
     infoValueBold: { fontSize: 14, fontWeight: '800', color: '#1c2d4f' },
     equipmentGroup: { marginBottom: 18, borderRadius: 14, backgroundColor: '#ffffff', shadowColor: '#1c2d4f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
-    equipmentHeader: { backgroundColor: '#334155', padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    equipmentHeader: { backgroundColor: '#1c2d4f', padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     equipmentIconWrapper: { backgroundColor: '#ffffff', padding: 4, borderRadius: 6 },
     equipmentTitle: { color: '#ffffff', fontWeight: '700', fontSize: 14, flex: 1, letterSpacing: -0.2 },
     equipmentFormsContainer: { padding: 6, backgroundColor: '#f8fafc' },
-    showPartsButton: { marginBottom: 18, backgroundColor: '#334155', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#334155', borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, shadowColor: '#1c2d4f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+    showPartsButton: { marginBottom: 18, backgroundColor: '#059669', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#059669', borderStyle: 'solid', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, shadowColor: '#1c2d4f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
     showPartsButtonText: { color: '#ffffff', fontWeight: 'bold', fontSize: 14 },
     globalConclusionSection: { marginBottom: 18, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff', shadowColor: '#1c2d4f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
     conclusionHeader: { backgroundColor: '#e2e8f0', padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#cbd5e1' },
@@ -2112,8 +2157,8 @@ const styles = StyleSheet.create({
     impedimentInfoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#eff6ff', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#bfdbfe', marginBottom: 20 },
     impedimentInfoText: { flex: 1, fontSize: 12, color: '#1e40af', fontWeight: '600', lineHeight: 18 },
     impedimentLabel: { fontSize: 10, fontWeight: '900', color: '#991b1b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-    impedimentPhotoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#fca5a5', borderStyle: 'dashed', borderRadius: 10, padding: 14, marginTop: 10, backgroundColor: '#fff5f5' },
-    impedimentPhotoBtnText: { fontSize: 13, color: '#dc2626', fontWeight: '700' },
+    impedimentPhotoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#059669', borderStyle: 'solid', borderRadius: 10, padding: 14, marginTop: 10, backgroundColor: '#059669' },
+    impedimentPhotoBtnText: { fontSize: 13, color: '#ffffff', fontWeight: '700' },
     impedimentFooter: { padding: 14, borderTopWidth: 1, borderTopColor: '#fee2e2', backgroundColor: '#ffffff', gap: 10 },
     impedimentCancelBtn: { paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
     impedimentCancelText: { color: '#475569', fontWeight: '700', fontSize: 14 },

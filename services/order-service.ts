@@ -1,9 +1,9 @@
-
 import { OrderStatus, ServiceOrder } from '@/constants/mock-data';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system';
 import { authService } from './auth-service';
+import { appLifecycle } from './app-lifecycle';
 import { CacheService } from './cache-service';
 import { logger } from './logger';
 import { BUCKET_NAME, supabase } from './supabase';
@@ -182,6 +182,148 @@ export class OrderService {
             logger.log(`Upload exception: ${error}`, 'error');
             return null;
         }
+    }
+
+    /**
+     * Remove silenciosamente o arquivo do Supabase Storage com validação arquitetural e blindagem multitenant.
+     * @param publicUrl O link público da mídia gerado pelo previewer.
+     */
+    public static async deleteFile(publicUrl: string): Promise<boolean> {
+        try {
+            if (!publicUrl) return false;
+
+            // 1. Extração Segura Analítica via Object Proxy
+            let urlObj: URL;
+            try {
+                urlObj = new URL(publicUrl);
+            } catch {
+                console.warn('[OrderService] ⚠️ URL inválida para exclusão:', publicUrl);
+                return false;
+            }
+
+            // Suporta links do tipo public, sign, ou authenticated (Bypass de hardcodes vulneráveis)
+            const regex = new RegExp(`\\/storage\\/v1\\/object\\/(?:public|sign|authenticated)\\/${BUCKET_NAME}\\/(.+)`);
+            const match = urlObj.pathname.match(regex);
+            
+            if (!match) {
+                console.warn('[OrderService] ⚠️ URL não corresponde ao padrão do bucket local:', publicUrl);
+                return false;
+            }
+
+            // Recuperamos inteiramente o Path limpo da engrenagem do supabase.
+            const storagePath = decodeURIComponent(match[1]);
+
+            if (!storagePath) {
+                return false;
+            }
+
+            // 2. Segurança: Validar Tenant Ownership e Exclusões Inativas
+            const userId = authService.getCurrentUserId();
+            if (!userId) {
+                console.warn('[OrderService] 🚫 Usuário não autenticado. Exclusão de mídia abortada.');
+                return false;
+            }
+            
+            const { data: userRow, error: userError } = await supabase.from('users').select('tenant_id').eq('id', userId).single();
+            const tenantId = userRow?.tenant_id;
+
+            if (userError) {
+                 console.error('[OrderService] ⚠️ Falha ao checar validações de segurança da role corrente:', userError);
+                 return false;
+            }
+
+            // Firewall: Bloqueio estrito de colisão Cross-Tenant na lixeira
+            if (tenantId && !storagePath.startsWith(`${tenantId}/`)) {
+                console.error(`[OrderService] 🚨 Tentativa detectada de exclusão CROSS-TENANT. Abortado! Target: ${storagePath}, Owner: ${tenantId}`);
+                return false;
+            }
+
+            // 3. Obter token fresco para a Edge Function (o SDK nem sempre envia automaticamente no React Native)
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) {
+                console.warn('[OrderService] 🚫 Sem sessão ativa para chamar Edge Function. Abortando.');
+                return false;
+            }
+
+            // 4. Execução Física com Retry de Resiliência Automático via Edge Function (Service Role)
+            const maxAttempts = 3;
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                console.log(`[OrderService] 🗑️ [Tentativa ${attempt}/${maxAttempts}] API Edge Function (Service Role): ${storagePath}`);
+                try {
+                    const { data, error } = await supabase.functions.invoke('delete-storage-file', {
+                        body: { bucket: BUCKET_NAME, path: storagePath },
+                        headers: {
+                            Authorization: `Bearer ${session.access_token}`
+                        }
+                    });
+
+                    if (error) {
+                        // Extrair o corpo real da resposta do Edge Function (o SDK esconde dentro de error.context)
+                        let errorBody: any = null;
+                        try {
+                            if (error.context && typeof error.context.json === 'function') {
+                                errorBody = await error.context.json();
+                            } else if (error.context && typeof error.context.text === 'function') {
+                                const raw = await error.context.text();
+                                errorBody = raw;
+                            }
+                        } catch { /* response body already consumed or unavailable */ }
+
+                        console.error(`[OrderService] ❌ Edge Function erro (tentativa ${attempt}/${maxAttempts}):`, error.message);
+                        console.error(`[OrderService] 📋 Corpo real da resposta Edge:`, JSON.stringify(errorBody));
+
+                        // Se o erro interno revelou rejeição de segurança (401/403), não adianta retry
+                        if (errorBody?.code === 401 || errorBody?.code === 403) {
+                            console.warn(`[OrderService] 🚫 Rejeição definitiva da Edge (Code ${errorBody.code}): ${errorBody.error}`);
+                            return false;
+                        }
+
+                        if (attempt === maxAttempts) throw error;
+                        await new Promise(r => setTimeout(r, 1000 * attempt));
+                        continue;
+                    }
+
+                    if (data?.error || data?.success === false) {
+                         // Erros retornados pelo nosso script interno da Edge Function
+                         console.warn(`[OrderService] ⚠️ Rejeição da Edge Function: Code [${data.code}] -> ${data.error}`, data);
+                         if (data.code === 403) {
+                             logger.log({ action: 'DELETE_STORAGE_DENIED', target: storagePath, reason: 'CROSS_TENANT_VIOLATION' }, 'error');
+                         }
+                         return false; 
+                    }
+
+                    console.log(`[OrderService] ✅ Mídia removida fisicamente e permanente via Edge Admin: ${storagePath}`);
+                    // 5. Auditoria Formal
+                    logger.log({ action: 'DELETE_STORAGE_SUCCESS', target: storagePath, executor: userId }, 'info');
+                    return true;
+                } catch (netErr: any) {
+                    if (attempt === maxAttempts) throw netErr; // Fallback para a Fila Offline
+                    await new Promise(r => setTimeout(r, 1000 * attempt));
+                }
+            }
+
+            return false;
+        } catch (error) {
+            console.error(`[OrderService] 💥 Engine de Exclusão Corrompida (Rede/Fatal):`, error);
+            
+            // 6. Estratégia de Limpeza de Órfãos:
+            // A internet caiu totalmente nas 3 tentativas. Adicionamos na Persistent Offline Queue.
+            // Quando a rede voltar, o app-lifecycle cuidará de fazer o Trash Cleanup.
+            if (publicUrl) {
+               console.log(`[OrderService] 📦 Escalonando exclusão órfã para a Fila Offline...`);
+               appLifecycle.queueOfflineAction('CLEANUP_ORPHAN_FILE', { publicUrl }, `del_${Date.now()}`);
+            }
+            
+            return false;
+        }
+    }
+
+    /**
+     * Helper direto para o Processador Offline Limpar Sem Loop infinito
+     */
+    public static async deleteFileExact(publicUrl: string): Promise<boolean> {
+        // Redireciona com chamada original evitando enfileirar novamente em caso de falha absoluta
+        return await this.deleteFile(publicUrl);
     }
 
     public static mapDbOrderToApp(dbOrder: any): ExtendedServiceOrder {

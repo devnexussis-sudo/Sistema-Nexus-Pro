@@ -249,13 +249,22 @@ class SyncService {
 
         const tenantId = payload.tenantId;
 
+        // Tentar obter o displayId (código legível da OS) para salvar os arquivos com a nomenclatura nova
+        let targetFolderId = orderId;
+        try {
+            const dbOrder = await OrderService.getOrderById(orderId);
+            if (dbOrder?.displayId) targetFolderId = dbOrder.displayId;
+        } catch (e) {
+            console.warn('[Sync] Could not fetch DB order for displayId, defaulting to orderId');
+        }
+
         // 1. Processar fotos extras — substituir file:// por URLs remotas
         const processedExtraPhotos: string[] = [];
         if (payload.extraPhotos && Array.isArray(payload.extraPhotos)) {
             for (const uri of payload.extraPhotos) {
                 if (typeof uri === 'string' && (uri.startsWith('file://') || (FileSystem.documentDirectory && uri.startsWith(FileSystem.documentDirectory)))) {
                     try {
-                        const url = await OrderService.uploadFile(uri, `orders/${orderId}/extra_photos`, tenantId);
+                        const url = await OrderService.uploadFile(uri, `orders/${targetFolderId}/extra_photos`, tenantId);
                         if (url) processedExtraPhotos.push(url);
                     } catch (e) { console.error('[Sync] Falha foto extra:', e); }
                 } else {
@@ -284,7 +293,7 @@ class SyncService {
                             for (const item of value) {
                                 if (typeof item === 'string' && (item.startsWith('file://') || (FileSystem.documentDirectory && item.startsWith(FileSystem.documentDirectory)))) {
                                     try {
-                                        const url = await OrderService.uploadFile(item, `orders/${orderId}/form_photos`, tenantId);
+                                        const url = await OrderService.uploadFile(item, `orders/${targetFolderId}/form_photos`, tenantId);
                                         if (url) uploadedUrls.push(url);
                                     } catch (e) { console.error('[Sync] Falha foto form:', e); }
                                 } else {
@@ -294,7 +303,7 @@ class SyncService {
                             value = uploadedUrls;
                         } else if (typeof value === 'string' && (value.startsWith('file://') || (FileSystem.documentDirectory && value.startsWith(FileSystem.documentDirectory)))) {
                             try {
-                                const url = await OrderService.uploadFile(value, `orders/${orderId}/form_photos`, tenantId);
+                                const url = await OrderService.uploadFile(value, `orders/${targetFolderId}/form_photos`, tenantId);
                                 if (url) value = url;
                             } catch (e) { console.error('[Sync] Falha foto form:', e); }
                         }
@@ -324,7 +333,7 @@ class SyncService {
         let processedVideoUrl = payload.videoUrl || null;
         if (processedVideoUrl && (typeof processedVideoUrl === 'string') && (processedVideoUrl.startsWith('file://') || (FileSystem.documentDirectory && processedVideoUrl.startsWith(FileSystem.documentDirectory)))) {
             try {
-                const url = await OrderService.uploadFile(processedVideoUrl, `orders/${orderId}/videos`, tenantId, 'video/mp4');
+                const url = await OrderService.uploadFile(processedVideoUrl, `orders/${targetFolderId}/videos`, tenantId, 'video/mp4');
                 if (url) processedVideoUrl = url;
             } catch (e) {
                 console.error('[Sync] Falha foto/video extra:', e);
