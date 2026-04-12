@@ -643,34 +643,34 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden relative font-sans">
 
             {/* ── FILTROS + STATS ── */}
-            <div className="flex-shrink-0 space-y-4 mb-4">
+            <div className="flex-shrink-0 space-y-2.5 mb-2.5">
                 {/* Row 1: Search & Toggle & Export */}
-                <div className="flex flex-col xl:flex-row gap-3 items-center w-full">
-                    <div className="flex w-full xl:w-auto flex-1 gap-3">
+                <div className="flex flex-col xl:flex-row gap-2.5 items-center w-full">
+                    <div className="flex w-full xl:w-auto flex-1 gap-2.5">
                         <div className="relative flex-1 group">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1c2d4f] transition-colors" size={15} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#1c2d4f] transition-colors" size={14} />
                             <input
                                 type="text"
                                 placeholder="Pesquisar por cliente, protocolo ou ORC..."
-                                className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all shadow-sm"
+                                className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-4 py-1.5 h-9 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f]/10 transition-all shadow-sm"
                                 value={searchTerm}
                                 onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                             />
                         </div>
                         <button
                             onClick={() => setShowFilters(!showFilters)}
-                            className={`flex items-center gap-2 px-4 h-11 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-slate-800 border-slate-800 text-slate-200 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+                            className={`flex items-center gap-2 px-3 h-9 rounded-lg border transition-all text-[10px] font-bold ${showFilters ? 'bg-slate-800 border-slate-800 text-slate-200 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
                         >
-                            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
+                            <Filter size={14} /> {showFilters ? 'Filtros (On)' : 'Filtros'}
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-3 ml-auto w-full xl:w-auto justify-end">
+                    <div className="flex items-center gap-2.5 ml-auto w-full xl:w-auto justify-end">
 
 
                         {/* Ações em Lote (Seleção) - Realocado para o Header */}
                         {selectedIds.length > 0 && (
-                            <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-900 rounded-[1.5rem] shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100/50 h-11">
+                            <div className="flex items-center gap-3 px-3 py-1 bg-slate-900 rounded-xl shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100/50 h-9">
                                 <div className="flex flex-col pr-3 border-r border-slate-700 justify-center">
                                     <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
                                     <span className="text-xs font-black text-white leading-none tracking-wider">{selectedIds.length}</span>
@@ -683,28 +683,28 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={handleExportExcel}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
+                                        className="flex items-center gap-2 px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-white rounded-md text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                                         title="Exportar Seleção para Excel"
                                     >
-                                        <FileSpreadsheet size={14} /> Excel
+                                        <FileSpreadsheet size={13} /> Excel
                                     </button>
 
                                     <button
                                         onClick={handleInvoiceBatch}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-800 text-white rounded-lg text-[10px] font-black uppercase transition-all shadow-lg shadow-slate-800/20 active:scale-95 whitespace-nowrap"
+                                        className="flex items-center gap-2 px-2.5 py-1 bg-slate-800 hover:bg-slate-800 text-white rounded-md text-[10px] font-black uppercase transition-all shadow-lg shadow-slate-800/20 active:scale-95 whitespace-nowrap"
                                         title="Faturar Seleção"
                                     >
-                                        <DollarSign size={14} /> Faturar
+                                        <DollarSign size={13} /> Faturar
                                     </button>
 
-                                    <div className="w-px h-5 bg-slate-700 mx-1" />
+                                    <div className="w-px h-4 bg-slate-700 mx-0.5" />
 
                                     <button
                                         onClick={() => setSelectedIds([])}
-                                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all ring-1 ring-transparent hover:ring-rose-200"
+                                        className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-md transition-all ring-1 ring-transparent hover:ring-rose-200"
                                         title="Limpar Seleção"
                                     >
-                                        <X size={16} />
+                                        <X size={14} />
                                     </button>
                                 </div>
                             </div>
@@ -714,32 +714,32 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                 {/* Collapsible Filters */}
                 {showFilters && (
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <div className="md:col-span-6 flex flex-col gap-1.5">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 p-3 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="md:col-span-6 flex flex-col gap-1">
                             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Período de Referência</label>
-                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 px-3 items-center gap-2 h-10">
-                                <Calendar size={13} className="text-[#1c2d4f] shrink-0" />
-                                <input type="date" value={startDate} onChange={e => handleDateValidation(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
+                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm px-2.5 items-center gap-2 h-8">
+                                <Calendar size={12} className="text-[#1c2d4f] shrink-0" />
+                                <input type="date" value={startDate} onChange={e => handleDateValidation(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
                                 <Slash size={10} className="text-slate-300 shrink-0" />
-                                <input type="date" value={endDate} onChange={e => handleDateValidation(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2" />
+                                <input type="date" value={endDate} onChange={e => handleDateValidation(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
                             </div>
                         </div>
-                        <div className="md:col-span-3 flex flex-col gap-1.5">
+                        <div className="md:col-span-3 flex flex-col gap-1">
                             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Técnico / Responsável</label>
-                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 px-3 items-center gap-2 h-10">
-                                <UserCheck size={13} className="text-[#1c2d4f] shrink-0" />
-                                <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2.5" value={techFilter} onChange={e => { setTechFilter(e.target.value); setCurrentPage(1); }}>
+                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm px-2.5 items-center gap-2 h-8">
+                                <UserCheck size={12} className="text-[#1c2d4f] shrink-0" />
+                                <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" value={techFilter} onChange={e => { setTechFilter(e.target.value); setCurrentPage(1); }}>
                                     <option value="ALL">Técnicos (Todos)</option>
                                     {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                                     <option value="Administrador">Admin</option>
                                 </select>
                             </div>
                         </div>
-                        <div className="md:col-span-3 flex flex-col gap-1.5">
+                        <div className="md:col-span-3 flex flex-col gap-1">
                             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Estado do Lançamento</label>
-                            <div className="flex bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 px-3 items-center gap-2 h-10">
-                                <Layer size={13} className="text-[#1c2d4f] shrink-0" />
-                                <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-2.5" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
+                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm px-2.5 items-center gap-2 h-8">
+                                <Layer size={12} className="text-[#1c2d4f] shrink-0" />
+                                <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
                                     <option value="ALL">Status (Todos)</option>
                                     <option value="PENDING">Pendente</option>
                                     <option value="PAID">Faturado</option>
@@ -750,20 +750,20 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 )}
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                     {[
-                        { label: 'Total Recebido', value: formatCurrency(stats.totalFaturado), icon: <DollarSign size={18} />, color: 'from-emerald-500 to-emerald-600', textMain: 'text-white' },
-                        { label: 'A Receber', value: formatCurrency(stats.totalPendente), icon: <Clock size={18} />, color: 'from-amber-500 to-amber-600', textMain: 'text-white' },
-                        { label: 'Ticket Médio', value: formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0), icon: <TrendingUp size={18} />, color: 'from-[#1c2d4f] to-[#2a457a]', textMain: 'text-white' },
-                        { label: 'Top Faturador', value: stats.topTech[0]?.toString() || '—', icon: <UserCheck size={18} />, color: 'from-slate-700 to-slate-900', textMain: 'text-white', truncate: true },
+                        { label: 'Total Recebido', value: formatCurrency(stats.totalFaturado), icon: <DollarSign size={16} />, color: 'from-emerald-500 to-emerald-600', textMain: 'text-white' },
+                        { label: 'A Receber', value: formatCurrency(stats.totalPendente), icon: <Clock size={16} />, color: 'from-amber-500 to-amber-600', textMain: 'text-white' },
+                        { label: 'Ticket Médio', value: formatCurrency(filteredItems.length > 0 ? (stats.totalFaturado + stats.totalPendente) / filteredItems.length : 0), icon: <TrendingUp size={16} />, color: 'from-[#1c2d4f] to-[#2a457a]', textMain: 'text-white' },
+                        { label: 'Top Faturador', value: stats.topTech[0]?.toString() || '—', icon: <UserCheck size={16} />, color: 'from-slate-700 to-slate-900', textMain: 'text-white', truncate: true },
                     ].map((stat, i) => (
-                        <div key={i} className={`bg-gradient-to-br ${stat.color} rounded-2xl p-4 shadow-lg flex items-center gap-4`}>
-                            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-white shrink-0">
+                        <div key={i} className={`bg-gradient-to-br ${stat.color} rounded-xl px-3.5 py-2.5 shadow-md flex items-center gap-3`}>
+                            <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center text-white shrink-0">
                                 {stat.icon}
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[9px] font-black text-white/60 uppercase tracking-wider leading-none mb-1">{stat.label}</p>
-                                <p className={`text-sm font-black ${stat.textMain} leading-none ${stat.truncate ? 'truncate' : ''}`}>{stat.value}</p>
+                                <p className="text-[9px] font-black text-white/70 uppercase tracking-widest leading-none mb-1">{stat.label}</p>
+                                <p className={`text-[13px] font-black ${stat.textMain} leading-none ${stat.truncate ? 'truncate' : ''}`}>{stat.value}</p>
                             </div>
                         </div>
                     ))}

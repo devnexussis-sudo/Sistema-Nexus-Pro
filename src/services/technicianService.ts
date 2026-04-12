@@ -330,8 +330,16 @@ export const TechnicianService = {
             try {
                 console.log(`[Avatar] 📸 Iniciando upload de avatar para ${userId}...`);
 
+                let techName = userId;
+                try {
+                    const { data: techData } = await supabase.from('users').select('name').eq('id', userId).single();
+                    if (techData?.name) {
+                        techName = techData.name.replace(/[^a-zA-Z0-9\s]/g, '').trim() || userId;
+                    }
+                } catch(e) { }
+
                 // 1. Upload da Imagem usando StorageService
-                const publicUrl = await StorageService.uploadFile(base64Image, `technicians/${userId}/avatar`);
+                const publicUrl = await StorageService.uploadFile(base64Image, `technicians/${techName}/avatar`);
 
                 console.log(`[Avatar] ✅ Upload concluído: ${publicUrl}`);
 

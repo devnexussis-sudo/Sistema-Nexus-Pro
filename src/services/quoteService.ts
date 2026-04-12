@@ -249,11 +249,18 @@ export const QuoteService = {
         if (isCloudEnabled) {
             console.log(`[📝 Nexus Approve] Iniciando aprovação do orçamento ${id}...`);
 
+            // Obter display_id para manter Storage organizado
+            let folderId = id;
+            try {
+                const { data: qData } = await publicSupabase.from('quotes').select('display_id').eq('id', id).single();
+                if (qData?.display_id) folderId = qData.display_id;
+            } catch(e) { }
+
             let finalSignature = approvalData.signature;
             if (finalSignature && finalSignature.startsWith('data:image')) {
                 console.log(`[📝 Nexus Approve] Comprimindo assinatura e enviando para o Dropzone Secundário...`);
                 // Arquitetura BigTech: Envia para bucket público de "dropzone" e isola o UUID gerado
-                finalSignature = await StorageService.uploadDropzoneFile(finalSignature, `quotes/${id}/signatures`);
+                finalSignature = await StorageService.uploadDropzoneFile(finalSignature, `quotes/${folderId}/signatures`);
                 console.log(`[📝 Nexus Approve] Assinatura otimizada e armazenada com sucesso no dropzone!`);
             }
 
@@ -292,10 +299,17 @@ export const QuoteService = {
         if (isCloudEnabled) {
             console.log(`[🚫 Nexus Reject] Iniciando recusa do orçamento ${id}...`);
 
+            // Obter display_id para manter Storage organizado
+            let folderId = id;
+            try {
+                const { data: qData } = await publicSupabase.from('quotes').select('display_id').eq('id', id).single();
+                if (qData?.display_id) folderId = qData.display_id;
+            } catch(e) { }
+
             let finalSignature = rejectionData.signature;
             if (finalSignature && finalSignature.startsWith('data:image')) {
                 console.log(`[🚫 Nexus Reject] Comprimindo assinatura de recusa e enviando para o Dropzone...`);
-                finalSignature = await StorageService.uploadDropzoneFile(finalSignature, `quotes/${id}/rejections`);
+                finalSignature = await StorageService.uploadDropzoneFile(finalSignature, `quotes/${folderId}/rejections`);
             }
 
             console.log(`[🚫 Nexus Reject] Chamando RPC reject_quote_public (SECURITY DEFINER)...`);
