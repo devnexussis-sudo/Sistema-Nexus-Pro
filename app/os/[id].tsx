@@ -1,6 +1,7 @@
 
 import { HeaderRightToggle } from '@/components/header-right-toggle';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
+import { SecureImage, warmSignedUrlCacheBulk } from '@/components/secure-image';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { getStatusConfig } from '@/constants/mock-data';
@@ -112,7 +113,18 @@ export default function OrderDetailsScreen() {
                     await Promise.all([
                         // 3.1 Visit history
                         OrderService.getOrderVisits(id as string).then(visits => {
-                            if (isActive) setOrderVisits(visits);
+                            if (isActive) {
+                                setOrderVisits(visits);
+                                if (visits.length > 0) {
+                                    // Se a OS já está finalizada, mantém todos recolhidos (conforme solicitado).
+                                    // Caso contrário, auto-expande a mais recente.
+                                    const finalizedStatuses = ['completed', 'COMPLETED', 'blocked', 'BLOCKED', 'canceled', 'CANCELED'];
+                                    if (!finalizedStatuses.includes(currentOrder.status)) {
+                                        const firstKey = visits[0].id || 'visit_0';
+                                        setExpandedVisits({ [firstKey]: true });
+                                    }
+                                }
+                            }
                         }),
                         
                         // 3.2 Form Templates for mapping
@@ -205,12 +217,11 @@ export default function OrderDetailsScreen() {
                         });
 
                         if (imagesToPreload.size > 0) {
-                            // Run prefetch with a 3 seconds maximum timeout to prevent blocking UI forever on slow networks
-                            const prefetchPromise = Promise.allSettled(Array.from(imagesToPreload).map(url => Image.prefetch(url)));
-                            await Promise.race([
-                                prefetchPromise,
-                                new Promise(resolve => setTimeout(resolve, 3000))
-                            ]);
+                            // Envia TODAS as URLs coletadas para o método de aquecimento em lote.
+                            // Isso fará exatamente UMA requisição (createSignedUrls) para o Supabase,
+                            // evitando rate-limiting, erros de timeout e travamento do React Native.
+                            // Também faz o prefetch seguro dos bytes.
+                            await warmSignedUrlCacheBulk(Array.from(imagesToPreload));
                         }
                     }
 
@@ -236,10 +247,10 @@ export default function OrderDetailsScreen() {
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc', padding: 24 }}>
                 <ActivityIndicator size="large" color="#1c2d4f" />
                 <Text style={{ marginTop: 16, color: '#334155', fontSize: 16, fontWeight: '700', textAlign: 'center' }}>
-                    Carregando informações...
+                    Carregando OS...
                 </Text>
                 <Text style={{ marginTop: 8, color: '#64748b', fontSize: 14, textAlign: 'center', maxWidth: '80%' }}>
-                    Baixando fotos e histórico da ordem de serviço. Por favor, aguarde.
+                    Preparando fotos e histórico da ordem de serviço.
                 </Text>
             </View>
         );
@@ -818,13 +829,13 @@ export default function OrderDetailsScreen() {
                                                                                                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
                                                                                                             {val.map((uri: string, idx: number) => (
                                                                                                                 <Pressable key={idx} onPress={() => openImage(uri)}>
-                                                                                                                    <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: 8, backgroundColor: '#f1f5f9' }} />
+                                                                                                                    <SecureImage uri={uri} style={{ width: 80, height: 80, borderRadius: 8, marginRight: 8 }} resizeMode="cover" />
                                                                                                                 </Pressable>
                                                                                                             ))}
                                                                                                         </ScrollView>
                                                                                                     ) : isSingleImage ? (
                                                                                                         <Pressable onPress={() => openImage(val)} style={{ marginTop: 4 }}>
-                                                                                                            <Image source={{ uri: val }} style={{ width: '100%', height: 160, borderRadius: 8, backgroundColor: '#f1f5f9' }} resizeMode="cover" />
+                                                                                                            <SecureImage uri={val} style={{ width: '100%', height: 160, borderRadius: 8 }} resizeMode="cover" />
                                                                                                         </Pressable>
                                                                                                     ) : (
                                                                                                         <Text style={{ fontSize: 14, color: (val === 'OK' || val === 'Sim') ? '#16a34a' : '#0f172a', fontWeight: '700' }}>{String(val)}</Text>
@@ -877,7 +888,7 @@ export default function OrderDetailsScreen() {
                                                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                                             {blockPhotos.map((uri, pi) => (
                                                                 <Pressable key={pi} onPress={() => openImage(uri)} style={{ marginRight: 8, borderRadius: 8, overflow: 'hidden' }}>
-                                                                    <Image source={{ uri }} style={{ width: 220, height: 150 }} resizeMode="cover" />
+                                                                    <SecureImage uri={uri} style={{ width: 220, height: 150 }} resizeMode="cover" />
                                                                 </Pressable>
                                                             ))}
                                                         </ScrollView>
@@ -891,7 +902,7 @@ export default function OrderDetailsScreen() {
                                                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                                             {extraPhotos.map((uri, pi) => (
                                                                 <Pressable key={pi} onPress={() => openImage(uri)} style={{ marginRight: 8, borderRadius: 8, overflow: 'hidden' }}>
-                                                                    <Image source={{ uri }} style={{ width: 220, height: 150 }} resizeMode="cover" />
+                                                                    <SecureImage uri={uri} style={{ width: 220, height: 150 }} resizeMode="cover" />
                                                                 </Pressable>
                                                             ))}
                                                         </ScrollView>
@@ -931,7 +942,7 @@ export default function OrderDetailsScreen() {
                                                         {Boolean(signatureUri) && (
                                                             <View style={{ backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', padding: 4 }}>
                                                                 <Pressable onPress={() => openImage(signatureUri!)}>
-                                                                    <Image source={{ uri: signatureUri! }} style={{ width: '100%', height: 100 }} resizeMode="contain" />
+                                                                    <SecureImage uri={signatureUri!} style={{ width: '100%', height: 100 }} resizeMode="contain" />
                                                                     <Text style={{ fontSize: 9, color: '#94a3b8', textAlign: 'center', paddingBottom: 4 }}>{t('osTapToEnlarge')}</Text>
                                                                 </Pressable>
                                                             </View>
@@ -1000,7 +1011,7 @@ export default function OrderDetailsScreen() {
                                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
                                                 {uniquePhotos.map((uri, index) => (
                                                     <Pressable key={index} onPress={() => openImage(uri)}>
-                                                        <Image source={{ uri }} style={styles.photoThumbnail} />
+                                                        <SecureImage uri={uri} style={styles.photoThumbnail} resizeMode="cover" />
                                                     </Pressable>
                                                 ))}
                                             </ScrollView>
