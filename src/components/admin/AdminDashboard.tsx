@@ -76,6 +76,30 @@ const isVideoUrl = (url: string | null) => {
   return videoExtensions.some(ext => url.toLowerCase().includes(ext)) || url.toLowerCase().startsWith('data:video/');
 };
 
+const VisitCountCell = ({ orderId }: { orderId: string }) => {
+  const [count, setCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from('service_visits')
+      .select('id', { count: 'exact', head: true })
+      .eq('order_id', orderId)
+      .then(({ count: c }) => setCount(c || 0));
+  }, [orderId]);
+
+  if (count === null) {
+    return <div className="animate-pulse w-4 h-4 bg-slate-200 rounded-full mx-auto" />;
+  }
+
+  return (
+    <div className="flex justify-center">
+      <span className="px-2 py-0.5 text-[11px] font-semibold bg-slate-100 text-slate-600 rounded-full border border-slate-200">
+        {count}
+      </span>
+    </div>
+  );
+};
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   techs, customers, startDate, endDate, onDateChange, onUpdateOrders, onEditOrder, onCreateOrder
 }) => {
@@ -156,11 +180,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     dateType: dateTypeFilter,
   }), [statusFilter, techFilter, searchTerm, customerFilter, startDate, endDate, dateTypeFilter]);
 
+  const { auth } = useAuth();
+  
   const {
     data: pageResult,
     isLoading: ordersLoading,
     refetch: ordersRefetch,
-  } = usePagedOrders(currentPage, serverFilters, !isAuthLoading && !!session);
+  } = usePagedOrders(currentPage, serverFilters, auth.isAuthenticated);
 
   const pagedOrders: ServiceOrder[] = pageResult?.data ?? [];
   const totalOrders = pageResult?.total ?? 0;
@@ -1045,6 +1071,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('endDate')}>
                   <div className="flex items-center gap-1">Conclusão {getSortIcon('endDate')}</div>
                 </th>
+                <th className="px-3 py-2 text-center text-slate-400">
+                  <div className="flex items-center justify-center gap-1">Visitas</div>
+                </th>
                 <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
                   <div className="flex items-center gap-1">Status {getSortIcon('status')}</div>
                 </th>
@@ -1108,6 +1137,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="px-3 py-2 text-[12px] text-slate-700 whitespace-nowrap">
                       {order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '---'}
                     </td>
+                    <td className="px-3 py-2 align-middle"><VisitCountCell orderId={order.id} /></td>
                     <td className="px-3 py-2 whitespace-nowrap"><StatusBadge status={order.status} /></td>
                     <td className="px-3 py-2 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">

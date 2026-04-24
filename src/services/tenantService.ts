@@ -22,24 +22,70 @@ export const TenantService = {
                 if (cached) return cached;
 
                 return CacheManager.deduplicate(cacheKey, async () => {
-                    const { data: viewData, error: viewError } = await supabase
-                        .from('vw_tenant_stats')
-                        .select('*')
-                        .order('name');
+                    // Strategy 1: Try view with authenticated client
+                    try {
+                        const { data, error } = await supabase
+                            .from('vw_tenant_stats')
+                            .select('*')
+                            .order('name');
+                        if (!error && data && data.length > 0) {
+                            console.log('[TenantService] ✅ Loaded tenants via view (auth):', data.length);
+                            CacheManager.set(cacheKey, data, CacheManager.TTL.SHORT);
+                            return data as DbTenantStats[];
+                        }
+                        if (error) console.warn('[TenantService] View (auth) failed:', error.message);
+                    } catch (e) { /* continue */ }
 
-                    if (viewError) {
-                        throw viewError;
-                    }
+                    // Strategy 2: Try view with public/anon client
+                    try {
+                        const { data, error } = await publicSupabase
+                            .from('vw_tenant_stats')
+                            .select('*')
+                            .order('name');
+                        if (!error && data && data.length > 0) {
+                            console.log('[TenantService] ✅ Loaded tenants via view (anon):', data.length);
+                            CacheManager.set(cacheKey, data, CacheManager.TTL.SHORT);
+                            return data as DbTenantStats[];
+                        }
+                        if (error) console.warn('[TenantService] View (anon) failed:', error.message);
+                    } catch (e) { /* continue */ }
 
-                    if (viewData) {
-                        CacheManager.set(cacheKey, viewData, CacheManager.TTL.SHORT);
-                        return viewData as DbTenantStats[];
-                    }
+                    // Strategy 3: Direct table query (authenticated)
+                    try {
+                        const { data, error } = await supabase
+                            .from('tenants')
+                            .select('*')
+                            .order('name');
+                        if (!error && data && data.length > 0) {
+                            console.log('[TenantService] ✅ Loaded tenants via table (auth):', data.length);
+                            CacheManager.set(cacheKey, data, CacheManager.TTL.SHORT);
+                            return data as DbTenantStats[];
+                        }
+                        if (error) console.warn('[TenantService] Table (auth) failed:', error.message);
+                    } catch (e) { /* continue */ }
+
+                    // Strategy 4: Direct table query (anon/public)
+                    try {
+                        const { data, error } = await publicSupabase
+                            .from('tenants')
+                            .select('*')
+                            .order('name');
+                        if (!error && data && data.length > 0) {
+                            console.log('[TenantService] ✅ Loaded tenants via table (anon):', data.length);
+                            CacheManager.set(cacheKey, data, CacheManager.TTL.SHORT);
+                            return data as DbTenantStats[];
+                        }
+                        if (error) console.warn('[TenantService] Table (anon) failed:', error.message);
+                    } catch (e) { /* continue */ }
+
+                    console.error('[TenantService] ❌ All strategies failed. RLS is blocking all reads. You need to run this SQL in Supabase:\n' +
+                        'GRANT SELECT ON vw_tenant_stats TO anon;\n' +
+                        'CREATE POLICY "tenants_anon_read" ON public.tenants FOR SELECT TO anon USING (true);');
                     return [];
                 });
 
             } catch (e) {
-                console.error(e);
+                console.error('[TenantService] Critical error:', e);
                 return [];
             }
         }
@@ -564,20 +610,23 @@ export const TenantService = {
 
     createSystemNotification: async (notification: { title: string, content: string, type: 'broadcast' | 'targeted', targetTenants?: string[], priority: string }) => {
         if (isCloudEnabled) {
-            const { data, error } = await supabase.from('system_notifications').insert([{
-                title: notification.title,
-                content: notification.content,
-                type: notification.type,
-                target_tenants: notification.targetTenants,
-                priority: notification.priority
-            }]).select().single();
+            // Usa RPC para bypassar o RLS já que o painel usa a chave anon
+            const { data, error } = await publicSupabase.rpc('master_broadcast_notification', {
+                p_title: notification.title,
+                p_content: notification.content,
+                p_type: notification.type,
+                p_priority: notification.priority,
+                p_target_tenants: notification.targetTenants || null
+            });
+            
             if (error) throw error;
+            if (data && data.success === false) throw new Error(data.error);
             return data;
         }
         return null;
     },
 
-    getUnreadSystemNotifications: async (userId: string): Promise<any[]> => {
+    getSystemNotifications: async (userId: string): Promise<any[]> => {
         if (isCloudEnabled) {
             try {
                 const { data: readRecords } = await supabase.from('system_notification_reads').select('notification_id').eq('user_id', userId);
@@ -585,12 +634,17 @@ export const TenantService = {
 
                 let query = supabase.from('system_notifications')
                     .select('*')
-                    .order('created_at', { ascending: false });
+                    .order('created_at', { ascending: false })
+                    .limit(50); // Keep inbox manageable
 
                 const { data: notifications, error } = await query;
                 if (error) throw error;
 
-                return (notifications || []).filter(n => !readIds.includes(n.id));
+                // Add isRead flag
+                return (notifications || []).map(n => ({
+                    ...n,
+                    isRead: readIds.includes(n.id)
+                }));
             } catch (err) {
                 return [];
             }

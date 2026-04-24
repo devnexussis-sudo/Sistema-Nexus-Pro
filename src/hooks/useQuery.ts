@@ -129,8 +129,12 @@ export function useQuery<T>(
                 if (isMounted.current) {
                     setState(prev => ({ ...prev, data, isLoading: false, isFetching: false, status: 'success', error: null }));
                 }
-            } catch { /* The original caller will handle errors */ }
-            return;
+                return; // V2 FIX: Only return if SUCCESS! If it fails, fall through and fetch again.
+            } catch { 
+                console.log(`[NexusQuery] ⚠️ Reused promise failed (likely aborted by StrictMode). Restarting fetch: ${key}`);
+                const c = queryCache.get(key);
+                if (c) { c.promise = undefined; c.promiseTimestamp = undefined; }
+            }
         }
 
         // ── Start Fetch ─────────────────────────────────────────────

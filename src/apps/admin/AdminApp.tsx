@@ -218,11 +218,11 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const needsFullOrders = isOrdersView || isCalendar || isFinancial || isQuotes;
     const { data: fullOrders = [], isLoading: oLoading, refetch: oRefetch } = useOrders(!!auth.isAuthenticated && needsFullOrders);
 
-    // Other entities fetching logic (Removemos o loading forçado do isDashboard para não dar DDoS)
-    const needsContracts = isContracts;
+    // Other entities fetching logic (Fallback se a Edge Function falhar no LAN)
+    const needsContracts = isContracts || (isDashboard && !dashSummary);
     const needsQuotes = isQuotes || isFinancial;
-    const needsTechs = isTechs || isOrdersView || isMap || isCalendar || isFinancial || isContracts;
-    const needsCustomers = isCustomers || isOrdersView || isQuotes || isContracts || isEquipments || isCalendar;
+    const needsTechs = isTechs || isOrdersView || isMap || isCalendar || isFinancial || isContracts || (isDashboard && !dashSummary);
+    const needsCustomers = isCustomers || isOrdersView || isQuotes || isContracts || isEquipments || isCalendar || (isDashboard && !dashSummary);
     const needsEquipments = isEquipments || isContracts || isCustomers;
     const needsStock = isStock || isQuotes;
     const needsUsers = isUsers;
@@ -282,6 +282,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
             isImpersonating={isImpersonating}
             onLogout={onLogout}
             systemNotifications={systemNotifications}
+            onMarkNotificationRead={onMarkNotificationRead}
             onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             isSidebarCollapsed={isSidebarCollapsed}
         >

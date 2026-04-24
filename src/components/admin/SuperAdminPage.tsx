@@ -6,7 +6,7 @@ import {
   ChevronRight, Laptop, Briefcase, Search, LayoutDashboard,
   Settings, Mail, Phone, MapPin, Trash2, Edit3, BarChart3, LogOut, Loader2, Lock, Unlock, PauseCircle, PlayCircle, ShieldAlert,
   MessageSquare, CheckCircle2, AlertTriangle, Send, ClipboardList, DollarSign, CalendarClock, Box, Package, Wrench, Workflow,
-  ClipboardCheck, HardHat, FileText, Layout
+  ClipboardCheck, HardHat, FileText, Layout, UploadCloud
 } from 'lucide-react';
 import { Button as NexusButton } from '../ui/Button';
 import { Input as NexusInput } from '../ui/Input';
@@ -132,6 +132,8 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   });
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, name: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [targetSearchQuery, setTargetSearchQuery] = useState('');
   const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
   const [messageData, setMessageData] = useState({
     title: '',
@@ -382,117 +384,153 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     return value.replace(/\D/g, '').replace(/^(\d{5})(\d)/, '$1-$2').slice(0, 9);
   };
 
+  // Filtro de empresas
+  const filteredTenants = tenants.filter(t => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const name = (t.company_name || t.name || t.companyName || '').toLowerCase();
+    const email = (t.admin_email || t.email || t.adminEmail || '').toLowerCase();
+    const slug = (t.slug || t.id || '').toLowerCase();
+    return name.includes(q) || email.includes(q) || slug.includes(q);
+  });
+
   return (
-    <div className="min-h-screen bg-[#0d0d12] text-white p-8 font-poppins overflow-y-auto custom-scrollbar">
-      <div className="max-w-7xl mx-auto space-y-10 pb-20 animate-fade-in">
-        <header className="flex justify-between items-end border-b border-white/5 pb-10">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-primary-600 rounded-lg shadow-lg shadow-primary-500/20">
-                <ShieldCheck size={24} />
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary-400">Master Control</span>
+    <div className="min-h-screen bg-black text-white p-4 md:p-6 font-poppins overflow-y-auto custom-scrollbar">
+      <div className="max-w-[1600px] mx-auto space-y-5 pb-10 animate-fade-in">
+        {/* ─── Header ─── */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/5 pb-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary-600 rounded-lg shadow-lg shadow-primary-500/20">
+              <ShieldCheck size={20} />
             </div>
-            <h1 className="text-4xl font-black italic tracking-tighter uppercase">DUNO <span className="text-primary-500">Global</span></h1>
-            <p className="text-gray-500 text-sm mt-2 font-medium">Provisionamento inteligente e auditoria de ecossistemas técnicos.</p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-black italic tracking-tighter uppercase">DUNO <span className="text-primary-500">Global</span></h1>
+                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-primary-400 bg-primary-500/10 px-2 py-0.5 rounded-full border border-primary-500/20">Master Control</span>
+              </div>
+              <p className="text-gray-500 text-[11px] mt-0.5 font-medium">Provisionamento e auditoria de ecossistemas técnicos</p>
+            </div>
           </div>
-          <div className="flex gap-4">
-            <NexusButton onClick={handleLogout} variant="secondary" className="rounded-2xl px-6 py-6 font-black uppercase tracking-widest text-[10px] hover:bg-red-500/20 hover:text-red-400 border border-transparent hover:border-red-500/30 transition-all">
-              <LogOut size={18} className="mr-2" /> Sair
+          <div className="flex gap-2 flex-wrap">
+            <NexusButton onClick={handleLogout} variant="secondary" className="rounded-xl px-4 py-2 font-bold uppercase tracking-wider text-[9px] hover:bg-red-500/20 hover:text-red-400 border border-transparent hover:border-red-500/30 transition-all">
+              <LogOut size={14} className="mr-1.5" /> Sair
             </NexusButton>
-            <NexusButton onClick={() => setIsMessageModalOpen(true)} variant="secondary" className="rounded-2xl px-6 py-6 font-black uppercase tracking-widest text-[10px] bg-white/5 border-white/10 hover:bg-white/10 transition-all">
-              <MessageSquare size={18} className="mr-2 text-primary-400" /> Enviar Comunicado
+            <NexusButton onClick={() => setIsMessageModalOpen(true)} variant="secondary" className="rounded-xl px-4 py-2 font-bold uppercase tracking-wider text-[9px] bg-white/5 border-white/10 hover:bg-white/10 transition-all">
+              <MessageSquare size={14} className="mr-1.5 text-primary-400" /> Comunicado
             </NexusButton>
-            <NexusButton onClick={() => setIsModalOpen(true)} className="bg-primary-600 hover:bg-primary-500 rounded-2xl px-8 py-6 font-black italic shadow-2xl shadow-primary-500/20 active:scale-95 transition-all">
-              <Plus size={20} className="mr-2" /> Provisionar Empresa
+            <NexusButton onClick={() => setIsModalOpen(true)} className="bg-primary-600 hover:bg-primary-500 rounded-xl px-5 py-2 font-black italic text-[10px] shadow-lg shadow-primary-500/20 active:scale-95 transition-all">
+              <Plus size={14} className="mr-1.5" /> Nova Empresa
             </NexusButton>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl hover:border-primary-500/20 transition-colors group">
-            <div className="p-3 bg-primary-500/10 text-primary-400 rounded-2xl mb-4 w-fit group-hover:scale-110 transition-transform"><Globe size={22} /></div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Empresas</p>
-            <p className="text-3xl font-black mt-3 leading-none italic">{tenants.length}</p>
+        {/* ─── Stats Row ─── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="bg-[#111113] p-4 rounded-xl border border-white/5 hover:border-primary-500/20 transition-colors group">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-primary-500/10 text-primary-400 rounded-lg group-hover:scale-110 transition-transform"><Globe size={16} /></div>
+              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Empresas</p>
+            </div>
+            <p className="text-2xl font-black leading-none">{tenants.length}</p>
           </div>
-          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl hover:border-primary-500/20 transition-colors group">
-            <div className="p-3 bg-primary-500/10 text-primary-400 rounded-2xl mb-4 w-fit group-hover:scale-110 transition-transform"><Users size={22} /></div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Técnicos Ativos</p>
-            <p className="text-3xl font-black mt-3 leading-none italic">{tenants.reduce((acc, t) => acc + (Number(t.active_techs || (t as any).activeTechs) || 0), 0)}</p>
+          <div className="bg-[#111113] p-4 rounded-xl border border-white/5 hover:border-primary-500/20 transition-colors group">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-primary-500/10 text-primary-400 rounded-lg group-hover:scale-110 transition-transform"><Users size={16} /></div>
+              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Técnicos</p>
+            </div>
+            <p className="text-2xl font-black leading-none">{tenants.reduce((acc, t) => acc + (Number(t.active_techs || (t as any).activeTechs) || 0), 0)}</p>
           </div>
-          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl hover:border-emerald-500/20 transition-colors group">
-            <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl mb-4 w-fit group-hover:scale-110 transition-transform"><BarChart3 size={22} /></div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">OS Geradas</p>
-            <p className="text-3xl font-black mt-3 leading-none italic">{tenants.reduce((acc, t) => acc + (Number(t.os_count || (t as any).osCount) || 0), 0)}</p>
+          <div className="bg-[#111113] p-4 rounded-xl border border-white/5 hover:border-emerald-500/20 transition-colors group">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg group-hover:scale-110 transition-transform"><BarChart3 size={16} /></div>
+              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Ordens</p>
+            </div>
+            <p className="text-2xl font-black leading-none">{tenants.reduce((acc, t) => acc + (Number(t.os_count || (t as any).osCount) || 0), 0)}</p>
           </div>
-          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl hover:border-primary-500/20 transition-colors group">
-            <div className="p-3 bg-primary-500/10 text-primary-400 rounded-2xl mb-4 w-fit group-hover:scale-110 transition-transform"><Database size={22} /></div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Ativos Geridos</p>
-            <p className="text-3xl font-black mt-3 leading-none italic">{tenants.reduce((acc, t) => acc + (Number(t.equipment_count || (t as any).equipmentCount) || 0), 0)}</p>
+          <div className="bg-[#111113] p-4 rounded-xl border border-white/5 hover:border-primary-500/20 transition-colors group">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-primary-500/10 text-primary-400 rounded-lg group-hover:scale-110 transition-transform"><Database size={16} /></div>
+              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Ativos</p>
+            </div>
+            <p className="text-2xl font-black leading-none">{tenants.reduce((acc, t) => acc + (Number(t.equipment_count || (t as any).equipmentCount) || 0), 0)}</p>
           </div>
-          <div className="bg-[#16161e] p-7 rounded-[2.5rem] border border-white/5 shadow-xl border-emerald-500/20 sm:col-span-2 lg:col-span-1">
-            <div className="p-3 bg-amber-500/10 text-amber-400 rounded-2xl mb-4 w-fit"><Server size={22} /></div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Interface Master</p>
-            <p className="text-xl font-black mt-3 text-emerald-500 uppercase italic leading-none tracking-tighter">ESTÁVEL</p>
+          <div className="bg-[#111113] p-4 rounded-xl border border-white/5 border-emerald-500/20 col-span-2 sm:col-span-1">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg"><Server size={16} /></div>
+              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Status</p>
+            </div>
+            <p className="text-sm font-black text-emerald-500 uppercase italic leading-none">ESTÁVEL</p>
           </div>
         </div>
 
-        <section className="space-y-6">
-          <div className="flex items-center justify-between px-4">
-            <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">Instâncias Corporativas Isoladas</h2>
+        {/* ─── Tenant List ─── */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-gray-500">Instâncias Corporativas ({filteredTenants.length})</h2>
             <div className="relative">
-              <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600" />
-              <input type="text" placeholder="Buscar empresa ou ID..." className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:border-primary-500/50" />
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Buscar empresa..."
+                className="bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-[10px] font-bold outline-none focus:border-primary-500/50 w-48 placeholder:text-gray-600 transition-all focus:w-64"
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6">
-            {tenants.map(tenant => {
-              // Normalize data for UI consistency
+          <div className="space-y-2">
+            {filteredTenants.map(tenant => {
               const displayTitle = tenant.company_name || tenant.name || tenant.companyName || "Empresa sem Nome";
               const displayEmail = tenant.admin_email || tenant.email || tenant.adminEmail || "sem-email@nexus.com";
               const displayId = tenant.slug || tenant.id;
 
               return (
-                <div key={tenant.id} className="bg-[#16161e] hover:bg-[#1a1a24] border border-white/5 p-8 rounded-[3.5rem] transition-all flex flex-col xl:flex-row items-center gap-10 group relative">
+                <div key={tenant.id} className="bg-[#111113] hover:bg-[#18181b] border border-white/5 hover:border-white/10 px-5 py-4 rounded-xl transition-all flex flex-col lg:flex-row items-center gap-4 group">
 
-                  {/* Info Principal */}
-                  <div className="flex items-center gap-8 flex-1 w-full">
-                    <div className="w-20 h-20 bg-gradient-to-br from-primary-600 to-primary-700 rounded-[2rem] flex items-center justify-center font-black text-3xl italic shadow-2xl shadow-primary-500/20 group-hover:scale-105 transition-transform">
-                      {displayTitle.charAt(0)}
+                  {/* Info */}
+                  <div className="flex items-center gap-4 flex-1 w-full min-w-0">
+                    <div className="w-11 h-11 shrink-0 bg-gradient-to-br from-primary-600 to-indigo-800 rounded-xl flex items-center justify-center font-black text-lg italic shadow-lg shadow-primary-500/20 group-hover:scale-105 transition-transform border border-white/10 overflow-hidden">
+                       {tenant.logo_url || tenant.logoUrl ? (
+                         <img src={tenant.logo_url || tenant.logoUrl} alt={displayTitle} className="w-full h-full object-cover" />
+                       ) : (
+                         <span className="text-white text-sm">{displayTitle.charAt(0)}</span>
+                       )}
                     </div>
-                    <div>
-                      <h3 className="text-2xl font-black italic tracking-tighter uppercase leading-none">{displayTitle}</h3>
-                      <div className="flex flex-wrap items-center gap-4 mt-3">
-                        <span className="text-[9px] font-black text-primary-400 uppercase bg-primary-500/10 px-3 py-1 rounded-full border border-primary-500/20 shadow-sm">ID: {displayId}</span>
-                        <span className="text-[9px] font-black text-gray-500 uppercase flex items-center gap-1.5"><Mail size={12} /> {displayEmail}</span>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-black tracking-tight uppercase leading-none text-white truncate">{displayTitle}</h3>
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                        <span className="text-[8px] font-bold text-primary-400 uppercase bg-primary-500/10 px-2 py-0.5 rounded border border-primary-500/20 flex items-center gap-1"><ShieldCheck size={10} /> {displayId}</span>
+                        <span className="text-[8px] font-bold text-gray-500 uppercase flex items-center gap-1"><Mail size={10} /> {displayEmail}</span>
                         {tenant.status === 'suspended' ? (
-                          <span className="text-[9px] font-black text-red-400 uppercase flex items-center gap-1.5"><ShieldAlert size={12} className="text-red-500" /> Suspensa</span>
+                          <span className="text-[8px] font-bold text-red-400 uppercase flex items-center gap-1 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20"><ShieldAlert size={10} /> Suspensa</span>
                         ) : (
-                          <span className="text-[9px] font-black text-gray-500 uppercase flex items-center gap-1.5"><Activity size={12} className="text-emerald-500" /> Ativa</span>
+                          <span className="text-[8px] font-bold text-emerald-400 uppercase flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20"><Activity size={10} /> Ativa</span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Dashboard Rápido (Stats da Empresa) */}
-                  <div className="grid grid-cols-3 gap-6 bg-black/30 p-6 rounded-[2.5rem] border border-white/5 w-full xl:w-auto">
-                    <div className="text-center px-4">
-                      <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Técnicos</p>
-                      <p className="text-lg font-black text-white">{(tenant as any).real_active_techs ?? tenant.active_techs ?? (tenant as any).activeTechs ?? 0}</p>
+                  {/* Stats */}
+                  <div className="flex items-center gap-4 bg-black/30 px-4 py-2.5 rounded-lg border border-white/5 shrink-0">
+                    <div className="text-center">
+                      <p className="text-[7px] font-bold text-gray-500 uppercase">Técs</p>
+                      <p className="text-sm font-black text-white">{(tenant as any).real_active_techs ?? tenant.active_techs ?? (tenant as any).activeTechs ?? 0}</p>
                     </div>
-                    <div className="text-center px-4 border-x border-white/5">
-                      <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Ordens</p>
-                      <p className="text-lg font-black text-white">{(tenant as any).real_os_count ?? tenant.os_count ?? (tenant as any).osCount ?? 0}</p>
+                    <div className="w-px h-6 bg-white/10" />
+                    <div className="text-center">
+                      <p className="text-[7px] font-bold text-gray-500 uppercase">OS</p>
+                      <p className="text-sm font-black text-white">{(tenant as any).real_os_count ?? tenant.os_count ?? (tenant as any).osCount ?? 0}</p>
                     </div>
-                    <div className="text-center px-4">
-                      <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Ativos</p>
-                      <p className="text-lg font-black text-white">{(tenant as any).real_equipment_count ?? tenant.equipment_count ?? (tenant as any).equipmentCount ?? 0}</p>
+                    <div className="w-px h-6 bg-white/10" />
+                    <div className="text-center">
+                      <p className="text-[7px] font-bold text-gray-500 uppercase">Ativos</p>
+                      <p className="text-sm font-black text-white">{(tenant as any).real_equipment_count ?? tenant.equipment_count ?? (tenant as any).equipmentCount ?? 0}</p>
                     </div>
                   </div>
 
-                  {/* Ações de Gestão */}
-                  <div className="flex items-center gap-3 w-full xl:w-auto">
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => {
                         setEditingTenant(tenant);
@@ -503,7 +541,6 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                           adminEmail: tenant.admin_email || tenant.email || tenant.adminEmail,
                           cnpj: tenant.cnpj || tenant.document || tenant.cnpj,
                           id: tenant.slug || tenant.id,
-                          // Carrega as colunas individuais ou do metadata
                           street: (tenant as any).street || (tenant as any).metadata?.street,
                           number: (tenant as any).number || (tenant as any).metadata?.number,
                           complement: (tenant as any).complement || (tenant as any).metadata?.complement,
@@ -515,53 +552,44 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                           stateRegistration: (tenant as any).state_registration || (tenant as any).stateRegistration || 'ISENTO',
                           logoUrl: (tenant as any).logo_url || (tenant as any).logoUrl || null,
                           enabled_modules: tenant.enabled_modules || (tenant as any).enabledModules || {
-                            dashboard: true,
-                            orders: true,
-                            quotes: true,
-                            contracts: true,
-                            customers: true,
-                            equipments: true,
-                            stock: true,
-                            technicians: true,
-                            forms: true,
-                            users: true,
-                            settings: true
+                            dashboard: true, orders: true, quotes: true, contracts: true,
+                            customers: true, equipments: true, stock: true, technicians: true,
+                            forms: true, users: true, settings: true
                           }
                         } as any);
                         setIsModalOpen(true);
                       }}
-                      className="flex-1 xl:flex-none p-4 bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 rounded-2xl transition-all border border-white/5"
+                      className="p-2.5 bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all border border-white/5"
                       title="Editar Cadastro"
                     >
-                      <Settings size={20} />
+                      <Settings size={16} />
                     </button>
                     <button
                       onClick={() => handleToggleStatus(tenant.id, tenant.status)}
                       disabled={isSaving}
-                      className={`flex-1 xl:flex-none p-4 rounded-2xl transition-all border ${tenant.status === 'suspended'
+                      className={`p-2.5 rounded-lg transition-all border ${tenant.status === 'suspended'
                         ? 'bg-amber-500/10 text-amber-400 border-amber-500/10 hover:bg-amber-600 hover:text-white'
                         : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/10 hover:bg-emerald-600 hover:text-white'
                         }`}
-                      title={tenant.status === 'suspended' ? "Reativar Empresa" : "Suspender Acesso"}
+                      title={tenant.status === 'suspended' ? "Reativar" : "Suspender"}
                     >
-                      {tenant.status === 'suspended' ? <Lock size={20} /> : <Unlock size={20} />}
+                      {tenant.status === 'suspended' ? <Lock size={16} /> : <Unlock size={16} />}
                     </button>
                     <button
                       onClick={() => setDeleteConfirm({ id: tenant.id, name: displayTitle })}
                       disabled={isSaving}
-                      className="flex-1 xl:flex-none p-4 bg-red-500/10 text-red-400 hover:text-white hover:bg-red-600 rounded-2xl transition-all border border-red-500/10 disabled:opacity-50"
-                      title="Excluir Definitivamente"
+                      className="p-2.5 bg-red-500/10 text-red-400 hover:text-white hover:bg-red-600 rounded-lg transition-all border border-red-500/10 disabled:opacity-50"
+                      title="Excluir"
                     >
-                      <Trash2 size={20} />
+                      <Trash2 size={16} />
                     </button>
                     <button
                       onClick={() => switchToTenant(tenant)}
-                      className="flex-[2] xl:flex-none flex items-center justify-center gap-3 px-8 py-4 bg-primary-600 text-white rounded-2xl font-black text-[10px] uppercase italic tracking-widest shadow-xl shadow-primary-600/20 hover:bg-primary-500 transition-all active:scale-95"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-lg font-bold text-[9px] uppercase tracking-wider shadow-md shadow-primary-600/20 hover:bg-primary-500 transition-all active:scale-95"
                     >
-                      <LayoutDashboard size={18} /> Acessar Painel
+                      <LayoutDashboard size={14} /> Acessar
                     </button>
                   </div>
-
                 </div>
               );
             })}
@@ -570,218 +598,248 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
         {/* Modal de Cadastro/Edição de Empresa */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-2xl p-4 overflow-y-auto">
-            <div className="bg-[#16161e] rounded-[4rem] w-full max-w-5xl shadow-2xl border border-white/10 animate-fade-in-up my-auto">
-              <div className="p-12 border-b border-white/5 flex justify-between items-center">
-                <div className="flex items-center gap-6">
-                  <div className="p-5 bg-primary-600 rounded-[1.5rem] text-white shadow-xl shadow-primary-500/20">
-                    <Building2 size={32} />
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-3 overflow-y-auto">
+            <div className="bg-[#111113] rounded-2xl w-full max-w-4xl shadow-2xl border border-white/10 animate-fade-in-up my-auto max-h-[95vh] flex flex-col">
+              <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-primary-600 rounded-xl text-white shadow-lg shadow-primary-500/20">
+                    <Building2 size={20} />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-black italic uppercase tracking-tighter">
+                    <h2 className="text-lg font-black italic uppercase tracking-tighter">
                       {editingTenant ? 'Configurar Instância' : 'Nova Instância DUNO'}
                     </h2>
-                    <p className="text-xs text-primary-400/60 font-black uppercase tracking-widest mt-1">Provisionamento de camada de dados isolada</p>
+                    <p className="text-[9px] text-primary-400/60 font-bold uppercase tracking-widest">Provisionamento de camada de dados isolada</p>
                   </div>
                 </div>
-                <button onClick={closeModal} className="p-4 bg-white/5 rounded-2xl text-gray-400 hover:text-white transition-all"><X size={32} /></button>
+                <button onClick={closeModal} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"><X size={20} /></button>
               </div>
 
-              <div className="p-12 space-y-10">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  <div className="md:col-span-2">
+              <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+                <div className="bg-white/[0.02] p-5 rounded-xl border border-white/5 space-y-4">
+                  <h3 className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                    <Briefcase size={14} className="text-primary-500" /> 1. Identidade e Documentação
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <NexusInput
+                        label="Razão Social Completa"
+                        placeholder="Ex: Tech Solutions Brazil LTDA"
+                        value={formData.companyName || ''}
+                        onChange={e => setFormData({ ...formData, companyName: e.target.value })}
+                        className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                      />
+                    </div>
                     <NexusInput
-                      label="Razão Social Completa"
-                      placeholder="Ex: Tech Solutions Brazil LTDA"
-                      value={formData.companyName || ''}
-                      onChange={e => setFormData({ ...formData, companyName: e.target.value })}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
+                      label="Nome Fantasia"
+                      placeholder="Ex: DUNO Pro Systems"
+                      value={formData.tradingName || ''}
+                      onChange={e => setFormData({ ...formData, tradingName: e.target.value })}
+                      className="bg-white/5 border-white/10 text-white rounded-xl py-4"
                     />
-                  </div>
-                  <NexusInput
-                    label="Nome Fantasia"
-                    placeholder="Ex: DUNO Pro Systems"
-                    value={formData.tradingName || ''}
-                    onChange={e => setFormData({ ...formData, tradingName: e.target.value })}
-                    className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                  />
-                  <NexusInput
-                    label="CNPJ"
-                    placeholder="00.000.000/0001-00"
-                    value={formData.cnpj || ''}
-                    onChange={e => setFormData({ ...formData, cnpj: formatCNPJ(e.target.value) })}
-                    className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                  />
-                  <NexusInput
-                    label="Inscrição Estadual"
-                    placeholder="ISENTO"
-                    value={(formData as any).stateRegistration || ''}
-                    onChange={e => setFormData({ ...formData, stateRegistration: e.target.value } as any)}
-                    className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                  />
-                  <NexusInput
-                    label="Identificador do Sistema (Slug)"
-                    placeholder="ex-tech-brazil"
-                    disabled={!!editingTenant}
-                    value={(editingTenant ? (editingTenant as any).slug || editingTenant.id : formData.id) || ''}
-                    onChange={e => setFormData({ ...formData, id: formatSlug(e.target.value) })}
-                    className={`bg-white/5 border-white/10 text-white rounded-2xl py-4 ${editingTenant ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  />
-                  <NexusInput
-                    label="E-mail do Gestor Principal"
-                    type="email"
-                    placeholder="admin@empresa.com"
-                    value={formData.adminEmail || ''}
-                    onChange={e => setFormData({ ...formData, adminEmail: e.target.value })}
-                    className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                  />
-                  {!editingTenant && (
                     <NexusInput
-                      label="Senha Inicial de Acesso"
-                      type="password"
-                      placeholder="••••••••"
-                      value={formData.initialPassword || ''}
-                      onChange={e => setFormData({ ...formData, initialPassword: e.target.value })}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                      icon={<Lock size={16} className="text-primary-400" />}
+                      label="CNPJ"
+                      placeholder="00.000.000/0001-00"
+                      value={formData.cnpj || ''}
+                      onChange={e => setFormData({ ...formData, cnpj: formatCNPJ(e.target.value) })}
+                      className="bg-white/5 border-white/10 text-white rounded-xl py-4"
                     />
-                  )}
-                  <div className="md:col-span-1 border-white/5 border-l pl-8">
-                    <label className="text-[10px] font-black text-primary-400 uppercase tracking-widest mb-4 block">Logo da Empresa</label>
-                    <div className="flex items-center gap-6">
-                      <div className="relative group cursor-pointer" onClick={() => (document.getElementById('super-logo-upload') as HTMLInputElement)?.click()}>
-                        <div className={`w-24 h-24 rounded-3xl border-2 border-dashed flex items-center justify-center transition-all overflow-hidden ${formData.logoUrl ? 'border-primary-500/50 bg-primary-500/10' : 'border-white/10 bg-white/5 hover:border-primary-500/30'}`}>
-                          {formData.logoUrl ? (
-                            <img src={formData.logoUrl} className="w-full h-full object-contain p-2" alt="Logo" />
-                          ) : (
-                            <div className="text-center">
-                              <UploadCloud size={32} className="text-gray-600 mx-auto mb-1" />
-                              <span className="text-[8px] font-black uppercase text-gray-500">Upload</span>
-                            </div>
-                          )}
+                    <NexusInput
+                      label="Inscrição Estadual"
+                      placeholder="ISENTO"
+                      value={(formData as any).stateRegistration || ''}
+                      onChange={e => setFormData({ ...formData, stateRegistration: e.target.value } as any)}
+                      className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                    />
+                    <div className="col-span-1">
+                      <label className="text-[10px] font-black text-primary-400 uppercase tracking-widest mb-4 block">Logo Oficial</label>
+                      <div className="flex items-center gap-4">
+                        <div className="relative group cursor-pointer" onClick={() => (document.getElementById('super-logo-upload') as HTMLInputElement)?.click()}>
+                          <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center transition-all overflow-hidden ${formData.logoUrl ? 'border-primary-500/50 bg-primary-500/10' : 'border-white/10 bg-white/5 hover:border-primary-500/30 border-dashed'}`}>
+                            {formData.logoUrl ? (
+                              <img src={formData.logoUrl} className="w-full h-full object-contain p-2 bg-white" alt="Logo" />
+                            ) : (
+                              <div className="text-center font-bold text-gray-500 text-[8px] uppercase">Upload</div>
+                            )}
+                          </div>
+                          <input
+                            id="super-logo-upload"
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (ev) => setFormData({ ...formData, logoUrl: ev.target?.result as string });
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
                         </div>
-                        <input
-                          id="super-logo-upload"
-                          type="file"
-                          className="hidden"
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (ev) => setFormData({ ...formData, logoUrl: ev.target?.result as string });
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
+                        {formData.logoUrl && (
+                          <button onClick={() => setFormData({ ...formData, logoUrl: undefined })} className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all">
+                            <X size={16} />
+                          </button>
+                        )}
                       </div>
-                      {formData.logoUrl && (
-                        <button
-                          onClick={() => setFormData({ ...formData, logoUrl: undefined })}
-                          className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
-                        >
-                          <X size={20} />
-                        </button>
-                      )}
                     </div>
                   </div>
-                  <NexusInput
-                    label="Telefone Comercial"
-                    placeholder="(11) 9999-9999"
-                    value={formData.phone || ''}
-                    onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })}
-                    className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                  />
-                  <NexusInput
-                    label="Website"
-                    placeholder="www.empresa.com.br"
-                    value={(formData as any).website || ''}
-                    onChange={e => setFormData({ ...formData, website: e.target.value } as any)}
-                    className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                  />
-                  <div className="lg:col-span-1">
+                </div>
+
+                <div className="bg-white/[0.02] p-5 rounded-xl border border-white/5 space-y-4">
+                  <h3 className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                    <MapPin size={14} className="text-primary-500" /> 2. Contato e Localização
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <NexusInput
-                      label="CEP"
-                      placeholder="00000-000"
-                      value={formData.cep || ''}
-                      icon={isSearchingCep ? <Loader2 size={16} className="animate-spin text-primary-500" /> : <MapPin size={16} />}
-                      onChange={e => {
-                        const val = formatCEP(e.target.value);
-                        setFormData({ ...formData, cep: val });
-                        handleCepSearch(val);
-                      }}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
+                      label="Telefone Comercial"
+                      placeholder="(11) 9999-9999"
+                      value={formData.phone || ''}
+                      onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })}
+                      className="bg-white/5 border-white/10 text-white rounded-xl py-4"
                     />
-                  </div>
-                  <div className="lg:col-span-2">
                     <NexusInput
-                      label="Logradouro (Rua/Av)"
-                      placeholder="Rua das Flores"
-                      value={formData.street || formData.address || ''}
-                      onChange={e => setFormData({ ...formData, street: e.target.value, address: e.target.value })}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
+                      label="Website"
+                      placeholder="www.empresa.com.br"
+                      value={(formData as any).website || ''}
+                      onChange={e => setFormData({ ...formData, website: e.target.value } as any)}
+                      className="bg-white/5 border-white/10 text-white rounded-xl py-4"
                     />
+                    <div className="lg:col-span-1">
+                      <NexusInput
+                        label="CEP"
+                        placeholder="00000-000"
+                        value={formData.cep || ''}
+                        icon={isSearchingCep ? <Loader2 size={16} className="animate-spin text-primary-500" /> : <MapPin size={16} />}
+                        onChange={e => {
+                          const val = formatCEP(e.target.value);
+                          setFormData({ ...formData, cep: val });
+                          handleCepSearch(val);
+                        }}
+                        className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                      />
+                    </div>
+                    <div className="lg:col-span-2">
+                      <NexusInput
+                        label="Logradouro (Rua/Av)"
+                        placeholder="Rua das Flores"
+                        value={formData.street || formData.address || ''}
+                        onChange={e => setFormData({ ...formData, street: e.target.value, address: e.target.value })}
+                        className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                      />
+                    </div>
+                    <div className="lg:col-span-1">
+                      <NexusInput
+                        label="Número"
+                        placeholder="123"
+                        value={formData.number || ''}
+                        onChange={e => setFormData({ ...formData, number: e.target.value })}
+                        className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                      />
+                    </div>
+                    <div className="lg:col-span-1">
+                      <NexusInput
+                        label="Bairro"
+                        placeholder="Centro"
+                        value={formData.neighborhood || ''}
+                        onChange={e => setFormData({ ...formData, neighborhood: e.target.value })}
+                        className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                      />
+                    </div>
+                    <div className="lg:col-span-1">
+                      <NexusInput
+                        label="Cidade"
+                        placeholder="São Paulo"
+                        value={formData.city || ''}
+                        onChange={e => setFormData({ ...formData, city: e.target.value })}
+                        className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                      />
+                    </div>
+                    <div className="lg:col-span-1">
+                      <NexusInput
+                        label="Estado (UF)"
+                        placeholder="SP"
+                        value={formData.state || ''}
+                        onChange={e => setFormData({ ...formData, state: e.target.value })}
+                        className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                      />
+                    </div>
+                    <div className="lg:col-span-3">
+                      <NexusInput
+                        label="Complemento"
+                        placeholder="Sala 10, Bloco B"
+                        value={formData.complement || ''}
+                        onChange={e => setFormData({ ...formData, complement: e.target.value })}
+                        className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                      />
+                    </div>
                   </div>
-                  <div className="lg:col-span-1">
+                </div>
+
+                <div className="bg-white/[0.02] p-5 rounded-xl border border-white/5 space-y-4">
+                  <h3 className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                    <Server size={14} className="text-primary-500" /> 3. Configuração da Instância
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <NexusInput
-                      label="Número"
-                      placeholder="123"
-                      value={formData.number || ''}
-                      onChange={e => setFormData({ ...formData, number: e.target.value })}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
+                      label="Identificador do Sistema (Slug)"
+                      placeholder="ex-tech-brazil"
+                      disabled={!!editingTenant}
+                      value={(editingTenant ? (editingTenant as any).slug || editingTenant.id : formData.id) || ''}
+                      onChange={e => setFormData({ ...formData, id: formatSlug(e.target.value) })}
+                      className={`bg-white/5 border-white/10 text-white rounded-xl py-4 ${editingTenant ? 'opacity-50 cursor-not-allowed' : ''}`}
                     />
-                  </div>
-                  <div className="lg:col-span-1">
                     <NexusInput
-                      label="Bairro"
-                      placeholder="Centro"
-                      value={formData.neighborhood || ''}
-                      onChange={e => setFormData({ ...formData, neighborhood: e.target.value })}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
+                      label="E-mail do Gestor Principal"
+                      type="email"
+                      placeholder="admin@empresa.com"
+                      value={formData.adminEmail || ''}
+                      onChange={e => setFormData({ ...formData, adminEmail: e.target.value })}
+                      className="bg-white/5 border-white/10 text-emerald-400 font-bold rounded-xl py-4 focus:ring-emerald-500"
                     />
-                  </div>
-                  <div className="lg:col-span-1">
+                    {!editingTenant ? (
+                      <NexusInput
+                        label="Senha Inicial do Gestor"
+                        type="password"
+                        placeholder="••••••••"
+                        value={formData.initialPassword || ''}
+                        onChange={e => setFormData({ ...formData, initialPassword: e.target.value })}
+                        className="bg-white/5 border-white/10 text-white rounded-xl py-4"
+                        icon={<Lock size={16} className="text-amber-400" />}
+                      />
+                    ) : (
+                      <div className="col-span-1 flex flex-col justify-center text-gray-500 text-[10px] uppercase font-black">
+                        * A senha deste usuário gestor só pode ser alterada no painel principal ou via "Esqueci minha senha"
+                      </div>
+                    )}
                     <NexusInput
-                      label="Cidade"
-                      placeholder="São Paulo"
-                      value={formData.city || ''}
-                      onChange={e => setFormData({ ...formData, city: e.target.value })}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
+                      label="Prefixo do Código OS"
+                      placeholder="Ex: OS-2025-"
+                      value={formData.osPrefix || ''}
+                      onChange={e => setFormData({ ...formData, osPrefix: e.target.value })}
+                      className="bg-white/5 border-white/10 text-white rounded-xl py-4"
                     />
-                  </div>
-                  <div className="lg:col-span-1">
                     <NexusInput
-                      label="Estado (UF)"
-                      placeholder="SP"
-                      value={formData.state || ''}
-                      onChange={e => setFormData({ ...formData, state: e.target.value })}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                    />
-                  </div>
-                  <div className="lg:col-span-3">
-                    <NexusInput
-                      label="Complemento"
-                      placeholder="Sala 10, Bloco B"
-                      value={formData.complement || ''}
-                      onChange={e => setFormData({ ...formData, complement: e.target.value })}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
+                      label="Número Inicial OS"
+                      type="number"
+                      placeholder="Ex: 1000"
+                      value={formData.osStartNumber || ''}
+                      onChange={e => setFormData({ ...formData, osStartNumber: Number(e.target.value) })}
+                      className="bg-white/5 border-white/10 text-white rounded-xl py-4"
                     />
                   </div>
                 </div>
 
-                {/* 🧩 Seção de Módulos Habilitados */}
-                <div className="bg-primary-500/5 p-8 rounded-[2.5rem] border border-primary-500/10 space-y-6">
-                  <div>
-                    <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                      <LayoutDashboard size={16} className="text-primary-500" /> Módulos Habilitados (Plano de Acesso)
-                    </h3>
-                    <p className="text-[10px] text-gray-500 font-bold mt-1">Selecione quais áreas do sistema estarão disponíveis para esta empresa.</p>
-                  </div>
+                <div className="bg-primary-900/20 p-5 rounded-xl border border-primary-500/20 space-y-4">
+                  <h3 className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                    <LayoutDashboard size={14} className="text-primary-500" /> 4. Módulos Habilitados
+                  </h3>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                     {[
                       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-                      { id: 'orders', label: 'Atividades', icon: ClipboardList },
+                      { id: 'orders', label: 'Ordens de Serviço', icon: ClipboardList },
                       { id: 'quotes', label: 'Orçamentos', icon: DollarSign },
                       { id: 'contracts', label: 'Contratos', icon: CalendarClock },
                       { id: 'clients', label: 'Clientes', icon: Users },
@@ -789,108 +847,81 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                       { id: 'stock', label: 'Estoque', icon: Package },
                       { id: 'techs', label: 'Técnicos', icon: Wrench },
                       { id: 'forms', label: 'Processos', icon: Workflow },
-                      { id: 'users', label: 'Usuários', icon: ShieldAlert },
-                      { id: 'settings', label: 'Configurações', icon: Settings },
+                      { id: 'users', label: 'Gestão Admin', icon: ShieldAlert },
+                      { id: 'settings', label: 'Config. Globais', icon: Settings },
                       { id: 'financial', label: 'Financeiro', icon: DollarSign },
-                    ].map(module => (
-                      <label
-                        key={module.id}
-                        className={`flex items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${(formData.enabled_modules?.[module.id] ?? (formData as any).enabledModules?.[module.id] ?? true)
-                          ? 'bg-primary-600/20 border-primary-500/50 text-primary-100 shadow-lg shadow-primary-600/5'
-                          : 'bg-white/5 border-white/5 text-gray-500 hover:border-white/10 opacity-60'
-                          }`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="hidden"
-                          checked={!!(formData.enabled_modules?.[module.id] ?? (formData as any).enabledModules?.[module.id] ?? true)}
-                          onChange={(e) => {
-                            const newModules = {
-                              ...(formData.enabled_modules || {}),
-                              [module.id]: e.target.checked
-                            };
-                            setFormData({ ...formData, enabled_modules: newModules });
-                          }}
-                        />
-                        <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${(formData.enabled_modules?.[module.id] ?? (formData as any).enabledModules?.[module.id] ?? true) ? 'bg-primary-500 border-primary-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'border-white/20'
-                          }`}>
-                          {(formData.enabled_modules?.[module.id] ?? (formData as any).enabledModules?.[module.id] ?? true) && <CheckCircle2 size={12} className="text-white" />}
-                        </div>
-                        <span className="text-[10px] font-black uppercase tracking-tight">{module.label}</span>
-                      </label>
-                    ))}
+                    ].map(module => {
+                      const isEnabled = !!(formData.enabled_modules?.[module.id] ?? (formData as any).enabledModules?.[module.id] ?? true);
+                      return (
+                        <label
+                          key={module.id}
+                          className={`flex justify-between items-center p-3 rounded-lg border transition-all cursor-pointer select-none
+                            ${isEnabled 
+                              ? 'bg-[#161618] border-primary-500/40 text-white' 
+                              : 'bg-black/30 border-white/5 text-gray-600 hover:border-white/20'}`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 pr-4">
+                            <span className={isEnabled ? "text-primary-400" : "text-gray-700"}>
+                              <module.icon size={14} />
+                            </span>
+                            <span className="text-[9px] font-bold uppercase tracking-tight truncate">{module.label}</span>
+                          </div>
+                          
+                          <div className="shrink-0">
+                            <input type="checkbox" className="hidden" checked={isEnabled}
+                              onChange={(e) => {
+                                const newModules = { ...(formData.enabled_modules || {}), [module.id]: e.target.checked };
+                                setFormData({ ...formData, enabled_modules: newModules });
+                              }}
+                            />
+                            <div className={`w-8 h-4 rounded-full transition-colors flex items-center relative ${isEnabled ? 'bg-primary-500' : 'bg-[#1c1c1e]'}`}>
+                              <div className={`w-3 h-3 bg-white rounded-full shadow transition-transform absolute top-0.5 ${isEnabled ? 'translate-x-4' : 'translate-x-0.5 opacity-30'}`} />
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
 
-                <div className="bg-slate-800/50 p-8 rounded-[2.5rem] border border-white/5 space-y-6">
-                  <div>
-                    <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-                      <Settings size={16} className="text-primary-500" /> Configuração de Numeração (OS)
-                    </h3>
-                    <p className="text-[10px] text-gray-500 font-bold mt-1">Defina como os protocolos serão gerados para este cliente.</p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <NexusInput
-                      label="Prefixo do Código"
-                      placeholder="Ex: OS-2025-"
-                      value={formData.osPrefix || ''}
-                      onChange={e => setFormData({ ...formData, osPrefix: e.target.value })}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                    />
-                    <NexusInput
-                      label="Número Inicial (Sequencial)"
-                      type="number"
-                      placeholder="Ex: 1000"
-                      value={formData.osStartNumber || ''}
-                      onChange={e => setFormData({ ...formData, osStartNumber: Number(e.target.value) })}
-                      className="bg-white/5 border-white/10 text-white rounded-2xl py-4"
-                    />
-                  </div>
-                </div>
 
-                <div className="bg-primary-500/5 p-8 rounded-[2.5rem] border border-primary-500/10 flex gap-6 items-center">
-                  <div className="p-4 bg-primary-500/10 rounded-2xl text-primary-400">
-                    <Database size={28} />
+
+                <div className="bg-primary-500/5 p-4 rounded-xl border border-primary-500/10 flex gap-3 items-center">
+                  <div className="p-2 bg-primary-500/10 rounded-lg text-primary-400 shrink-0">
+                    <Database size={18} />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-[10px] font-black text-primary-300 uppercase tracking-widest mb-1">Nota de Provisionamento</p>
-                    <p className="text-[11px] font-bold text-gray-500 leading-relaxed italic">
-                      Esta ação provisiona uma camada de dados isolada no banco Nexus. Todas as ordens de serviço, clientes e técnicos desta empresa serão criptografados e acessíveis apenas por este tenant.
-                    </p>
-                  </div>
+                  <p className="text-[10px] font-medium text-gray-500 leading-relaxed italic">
+                    Esta ação provisiona uma camada de dados isolada no banco Nexus. Dados desta empresa são acessíveis apenas por este tenant.
+                  </p>
                 </div>
               </div>
 
-              <div className="p-12 border-t border-white/5 bg-black/20 flex justify-end gap-6 rounded-b-[4rem]">
-                <NexusButton variant="secondary" onClick={closeModal} className="rounded-2xl border-white/10 text-gray-500 px-10">Descartar</NexusButton>
-                <NexusButton onClick={handleSaveTenant} className="bg-primary-600 hover:bg-primary-500 rounded-2xl px-16 py-6 font-black italic shadow-2xl shadow-primary-600/20 active:scale-95 transition-all">
-                  <Save size={20} className="mr-3" /> {editingTenant ? 'Atualizar Instância' : 'Provisionar Agora'}
+              <div className="px-6 py-4 border-t border-white/5 bg-black/20 flex justify-end gap-3 rounded-b-2xl shrink-0">
+                <NexusButton variant="secondary" onClick={closeModal} className="rounded-xl border-white/10 text-gray-500 px-6 py-2 text-xs">Descartar</NexusButton>
+                <NexusButton onClick={handleSaveTenant} className="bg-primary-600 hover:bg-primary-500 rounded-xl px-8 py-2 font-black italic text-xs shadow-lg shadow-primary-600/20 active:scale-95 transition-all">
+                  <Save size={16} className="mr-2" /> {editingTenant ? 'Atualizar' : 'Provisionar'}
                 </NexusButton>
               </div>
             </div>
           </div>
         )}
 
-        {/* 📢 Modal de Envio de Comunicado Global */}
         {isMessageModalOpen && (
-          <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in">
-            <div className="bg-[#111118] w-full max-w-2xl rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden relative">
-              <div className="p-10 border-b border-white/5 bg-gradient-to-r from-primary-900/20 to-transparent">
-                <div className="flex justify-between items-center text-center">
-                  <div className="text-left">
-                    <h2 className="text-2xl font-black italic uppercase tracking-tighter">Enviar Comunicado Global</h2>
-                    <p className="text-[10px] font-bold text-primary-400 uppercase tracking-widest mt-1">Sincronização de avisos em tempo real para os painéis</p>
+          <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-[#0e0e10] w-full max-w-xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden relative">
+              <div className="px-6 py-4 border-b border-white/5 bg-gradient-to-r from-primary-900/20 to-transparent">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-lg font-black italic uppercase tracking-tighter">Enviar Comunicado</h2>
+                    <p className="text-[9px] font-bold text-primary-400 uppercase tracking-widest mt-0.5">Sincronização em tempo real</p>
                   </div>
-                  <button
-                    onClick={() => setIsMessageModalOpen(false)}
-                    className="p-3 hover:bg-white/5 rounded-2xl text-gray-500 transition-colors"
-                  >
-                    <X size={24} />
+                  <button onClick={() => setIsMessageModalOpen(false)} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 transition-colors">
+                    <X size={18} />
                   </button>
                 </div>
               </div>
 
-              <div className="p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
                     <NexusInput
@@ -939,13 +970,47 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                   </div>
 
                   {messageData.type === 'targeted' && (
-                    <div className="md:col-span-2 space-y-4">
-                      <label className="text-[10px] font-black text-primary-400 uppercase tracking-widest px-2">Selecionar Clientes Alvo</label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                        {tenants.map(tenant => (
+                    <div className="md:col-span-2 space-y-3">
+                      <label className="text-[10px] font-black text-primary-400 uppercase tracking-widest px-2">Selecionar Empresas Alvo</label>
+                      
+                      {/* Search filter */}
+                      <div className="relative">
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+                        <input
+                          type="text"
+                          value={targetSearchQuery}
+                          onChange={e => setTargetSearchQuery(e.target.value)}
+                          placeholder="Filtrar por nome, CNPJ..."
+                          className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-[10px] font-bold outline-none focus:border-primary-500/50 placeholder:text-gray-600"
+                        />
+                      </div>
+
+                      {/* Selected count */}
+                      {messageData.selectedTenants.length > 0 && (
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[9px] font-bold text-emerald-400 uppercase">{messageData.selectedTenants.length} empresa(s) selecionada(s)</span>
+                          <button
+                            onClick={() => setMessageData({ ...messageData, selectedTenants: [] })}
+                            className="text-[9px] font-bold text-red-400 uppercase hover:text-red-300 transition-colors"
+                          >Limpar seleção</button>
+                        </div>
+                      )}
+
+                      {/* Filtered tenant list */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                        {tenants
+                          .filter(t => {
+                            if (!targetSearchQuery) return true;
+                            const q = targetSearchQuery.toLowerCase();
+                            const name = (t.company_name || t.name || t.companyName || '').toLowerCase();
+                            const cnpj = (t.cnpj || t.document || '').toLowerCase();
+                            const email = (t.admin_email || t.email || t.adminEmail || '').toLowerCase();
+                            return name.includes(q) || cnpj.includes(q) || email.includes(q);
+                          })
+                          .map(tenant => (
                           <label
                             key={tenant.id}
-                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${messageData.selectedTenants.includes(tenant.id)
+                            className={`flex items-center gap-2 p-2.5 rounded-lg border transition-all cursor-pointer ${messageData.selectedTenants.includes(tenant.id)
                               ? 'bg-primary-600/20 border-primary-500/50 text-white'
                               : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10'
                               }`}
@@ -961,11 +1026,16 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                                 setMessageData({ ...messageData, selectedTenants: ids });
                               }}
                             />
-                            <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${messageData.selectedTenants.includes(tenant.id) ? 'bg-primary-500 border-primary-500' : 'border-white/20'
+                            <div className={`w-3.5 h-3.5 rounded shrink-0 border flex items-center justify-center transition-all ${messageData.selectedTenants.includes(tenant.id) ? 'bg-primary-500 border-primary-500' : 'border-white/20'
                               }`}>
-                              {messageData.selectedTenants.includes(tenant.id) && <CheckCircle2 size={10} />}
+                              {messageData.selectedTenants.includes(tenant.id) && <CheckCircle2 size={9} />}
                             </div>
-                            <span className="text-[9px] font-black uppercase truncate">{tenant.company_name || tenant.name || tenant.companyName}</span>
+                            <div className="min-w-0">
+                              <span className="text-[9px] font-bold uppercase truncate block">{tenant.company_name || tenant.name || tenant.companyName}</span>
+                              {(tenant.cnpj || tenant.document) && (
+                                <span className="text-[8px] text-gray-500 block">{tenant.cnpj || tenant.document}</span>
+                              )}
+                            </div>
                           </label>
                         ))}
                       </div>

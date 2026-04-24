@@ -36,7 +36,7 @@ const AppRoutes: React.FC = () => {
   // Carregar notificações do sistema se autenticado
   useEffect(() => {
     if (auth.isAuthenticated && auth.user && !isSuperMode) {
-      DataService.getUnreadSystemNotifications(auth.user.id)
+      DataService.getSystemNotifications(auth.user.id)
         .then(setSystemNotifications)
         .catch(err => console.error("Falha ao buscar notificações:", err));
     }
@@ -70,17 +70,22 @@ const AppRoutes: React.FC = () => {
           <SuperAdminPage onLogout={() => { SessionStorage.remove('master_session_v2'); setIsMasterAuthenticated(false); setIsSuperMode(false); window.location.href = '/'; }} />
       } />
 
-      {/* ADMIN ROUTES - Note como auth é passado via Context agora, mas AdminApp ainda espera props por compatibilidade */}
+      {/* ADMIN ROUTES */}
       <Route path="/admin/*" element={
         auth.isAuthenticated ?
           <AdminApp
-            auth={auth} // Mantendo prop por enquanto para não quebrar AdminApp (Refatoração gradual)
+            auth={auth} 
             onLogin={login}
             onLogout={async () => { await logout(); window.location.href = '/'; }}
             isImpersonating={isImpersonating}
             onToggleMaster={() => { }}
             systemNotifications={systemNotifications}
-            onMarkNotificationRead={() => { }}
+            onMarkNotificationRead={async (id) => {
+              if (auth.user) {
+                await DataService.markSystemNotificationAsRead(auth.user.id, id);
+                setSystemNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+              }
+            }}
           /> :
           <Navigate to="/login" replace />
       } />

@@ -63,6 +63,224 @@ const InfoPill: React.FC<{ label: string; value: string; mono?: boolean }> = ({ 
   </div>
 );
 
+const VisitCard: React.FC<{
+  visit: any;
+  idx: number;
+  order: ServiceOrder;
+  linkedEquipments: any[];
+  formTemplates: Record<string, string[]>;
+  showPrices: boolean;
+  onImageClick: (url: string) => void;
+}> = ({ visit, idx, order, linkedEquipments, formTemplates, showPrices, onImageClick }) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  
+  const visitData = typeof visit.form_data === 'string' ? JSON.parse(visit.form_data) : (visit.form_data || {});
+  const visitorName = visit.technician_name || 'Técnico';
+  const isCompleted = visit.status === 'completed';
+
+  const extractVisitPhotos = (fd: any) => {
+    const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
+    const photosArr = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
+    return photosArr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
+  };
+  const visitPhotos = extractVisitPhotos(visitData);
+
+  return (
+    <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-6 sm:px-8 py-5 flex items-center justify-between bg-slate-50/50 border-b border-slate-100 hover:bg-slate-100/50 transition-colors group"
+      >
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+            visit.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 
+            visit.status === 'blocked' ? 'bg-rose-50 text-rose-600' :
+            'bg-amber-50 text-amber-600'
+          }`}>
+            {visit.status === 'blocked' ? <ShieldAlert size={18} /> : <Calendar size={18} />}
+          </div>
+          <div className="text-left">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Visita #{idx + 1}</p>
+            <p className="text-sm font-bold text-slate-900 uppercase">
+              {new Date(visit.scheduled_date || visit.created_at).toLocaleDateString('pt-BR')}
+              {visit.scheduled_time && ` às ${visit.scheduled_time.slice(0, 5)}`}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+            visit.status === 'completed' ? 'bg-emerald-100/50 text-emerald-700 border-emerald-200' : 
+            visit.status === 'blocked' ? 'bg-rose-100/50 text-rose-700 border-rose-200' :
+            visit.status === 'paused' ? 'bg-amber-100/50 text-amber-700 border-amber-200' :
+            'bg-blue-100/50 text-blue-700 border-blue-200'
+          }`}>
+            {visit.status === 'completed' ? 'Concluída' : 
+             visit.status === 'blocked' ? 'Impedida' : 
+             visit.status === 'paused' ? 'Pausada' : 
+             'Em Andamento'}
+          </div>
+          <div className="text-slate-400 group-hover:text-[#1c2d4f] transition-all">
+            {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </div>
+        </div>
+      </button>
+
+      {isOpen && (
+        <div className="p-6 sm:p-8 space-y-6 animate-in zoom-in-95 duration-200">
+          {/* Dados do técnico e horários */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <InfoPill label="Técnico" value={visitorName} />
+            <InfoPill label="Check-in" value={visit.arrival_time ? new Date(visit.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'} />
+            <InfoPill label="Check-out" value={visit.departure_time ? new Date(visit.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'} />
+            {visit.departure_time && visit.arrival_time && (
+              <InfoPill 
+                label="Duração" 
+                value={`${Math.floor((new Date(visit.departure_time).getTime() - new Date(visit.arrival_time).getTime()) / 60000)} min`} 
+              />
+            )}
+          </div>
+
+          {/* Relatório Técnico da Visita */}
+          {(visitData.technical_report || visitData.technicalReport || visit.notes) && (
+            <div className="p-4 bg-[#1c2d4f]/5 rounded-xl border border-[#1c2d4f]/10">
+              <p className="text-xs font-bold text-[#1c2d4f] opacity-60 uppercase tracking-widest mb-2">Relatório do Técnico</p>
+              <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
+                {visitData.technical_report || visitData.technicalReport || visit.notes}
+              </p>
+            </div>
+          )}
+
+          {/* Peças Utilizadas nesta Visita */}
+          {(visitData.parts_used || visitData.partsUsed) && (
+            <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100">
+              <p className="text-xs font-bold text-amber-700 opacity-60 uppercase tracking-widest mb-2">Peças e Materiais Utilizados</p>
+              <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
+                {visitData.parts_used || visitData.partsUsed}
+              </p>
+            </div>
+          )}
+
+          {/* Agrupamento por Equipamento dentro desta Visita */}
+          {(() => {
+            const groups: Record<string, Record<string, any>> = {};
+            const internalSystemKeys = new Set([
+              'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+              'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+              'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+              'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+              'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
+              'clientName', 'customerName', 'customerAddress', 'tenantId',
+              'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+              'extra_photos', 'photos', 'equipment_ids', 'videoUrl', 'video_url'
+            ]);
+
+            Object.entries(visitData).forEach(([key, val]) => {
+              if (internalSystemKeys.has(key) || key.toLowerCase().includes('assinatura')) return;
+              const match = key.match(/^\[(.*?)\]\s*(?:-|$)/);
+              const groupName = match ? match[1] : 'Relatório de Atendimento';
+              if (!groups[groupName]) groups[groupName] = {};
+              groups[groupName][key] = val;
+            });
+
+            return Object.entries(groups).map(([groupName, groupData]) => {
+              const eq = linkedEquipments.find(e => {
+                const eName = (e.equipment_name || e.equipmentName || '').toLowerCase();
+                const gn = groupName.toLowerCase();
+                return gn.includes(eName) || eName.includes(gn);
+              });
+
+              return (
+                <div key={groupName} className="mt-4 first:mt-0">
+                  <CollapsibleFormSection
+                    formData={groupData}
+                    order={{ ...order, templateFields: formTemplates[eq?.form_id || visit.form_id || order.formId] || [] } as any}
+                    onImageClick={onImageClick}
+                    title={eq ? (eq.equipment_name || eq.equipmentName) : groupName}
+                    subtitle={eq ? `S/N: ${eq.equipment_serial || eq.equipmentSerial}` : `Registros da Visita #${idx + 1}`}
+                    icon={<Package size={16} />}
+                    showPrices={showPrices}
+                  />
+                </div>
+              );
+            });
+          })()}
+
+          {/* Fotos e Vídeos de Anexo da Visita (Evidências) */}
+          {(visitPhotos.length > 0 || visitData.videoUrl || visitData.video_url) && (
+            <div className="pt-2">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Anexos e Evidências da Visita</p>
+              <div className="flex flex-wrap gap-3">
+                {(visitData.videoUrl || visitData.video_url) && (
+                  <div
+                    className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-black cursor-zoom-in group hover:shadow-md transition-all active:scale-95 relative"
+                    onClick={() => onImageClick(visitData.videoUrl || visitData.video_url)}
+                  >
+                    <video src={visitData.videoUrl || visitData.video_url} className="w-full h-full object-cover opacity-60" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
+                    </div>
+                  </div>
+                )}
+                {visitPhotos.map((url: string, pIdx: number) => (
+                  <div
+                    key={pIdx}
+                    className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] rounded-xl overflow-hidden border border-slate-200 bg-white cursor-zoom-in group hover:shadow-md transition-all active:scale-95"
+                    onClick={() => onImageClick(url)}
+                  >
+                    {isVideoUrl(url) ? (
+                      <div className="w-full h-full bg-black relative flex items-center justify-center">
+                        <video src={url} className="w-full h-full object-cover opacity-50" />
+                        <Play size={16} className="text-white absolute" />
+                      </div>
+                    ) : (
+                      <img src={url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={`Visita ${idx + 1} Foto ${pIdx + 1}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Assinatura Digital da Visita */}
+          {(() => {
+            const sigKey = Object.keys(visitData).find(k => k.toLowerCase().includes('assinatura') && typeof visitData[k] === 'string' && visitData[k].startsWith('http'));
+            const sigNameKey = Object.keys(visitData).find(k => k.toLowerCase().includes('assinatura') && k.toLowerCase().includes('nome'));
+            const sigDocKey = Object.keys(visitData).find(k => k.toLowerCase().includes('assinatura') && (k.toLowerCase().includes('documento') || k.toLowerCase().includes('cpf')));
+            
+            const sigUrl = sigKey ? visitData[sigKey] : null;
+            const sigName = sigNameKey ? visitData[sigNameKey] : (visitData.signatureName || '');
+            const sigDoc = sigDocKey ? visitData[sigDocKey] : (visitData.signatureDoc || '');
+
+            if (!sigUrl) return null;
+
+            return (
+              <div className="pt-4 border-t border-slate-100 mt-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Auditoria Digital da Visita</p>
+                <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                  <div 
+                    className="w-full sm:w-48 h-24 bg-white rounded-xl border border-slate-200 flex items-center justify-center p-2 cursor-zoom-in group"
+                    onClick={() => onImageClick(sigUrl)}
+                  >
+                    <img src={sigUrl} className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" alt="Assinatura da Visita" />
+                  </div>
+                  <div className="flex-1 text-center sm:text-left">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Responsável pela Validação</p>
+                    <p className="text-sm font-black text-slate-900 uppercase">{sigName || 'NOME NÃO INFORMADO'}</p>
+                    {sigDoc && <p className="text-[10px] font-bold text-slate-400 mt-1">DOC: {sigDoc}</p>}
+                    <div className="mt-2 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md inline-block uppercase tracking-wider">
+                      Autenticado via Nexus Mobile
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const CollapsibleFormSection: React.FC<{
   formData: Record<string, any>;
   order: ServiceOrder;
@@ -455,6 +673,22 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     };
     fetchEquips();
   }, [order?.id]);
+  
+  // 🛰️ Busca visitas via RPC (bypassa RLS para visualização pública via Token)
+  React.useEffect(() => {
+    if (!order?.id || !order?.publicToken) return;
+    const fetchVisits = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_public_order_visits', { search_term: order.publicToken || order.id });
+        if (error) throw error;
+        setOrderVisits(data || []);
+      } catch (err) {
+        console.error('Erro ao buscar visitas:', err);
+        setOrderVisits([]);
+      }
+    };
+    fetchVisits();
+  }, [order?.id, order?.publicToken]);
 
   // Busca endereço atualizado do cliente na tabela customers
   React.useEffect(() => {
@@ -945,6 +1179,35 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           );
         })()}
 
+        {/* ── Histórico de Visitas (print) ── */}
+        {orderVisits.length > 0 && (
+          <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
+            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Histórico de Visitas Detalhado</div>
+            <div className="divide-y divide-slate-200">
+              {orderVisits.map((v, i) => {
+                const vFd = typeof v.form_data === 'string' ? JSON.parse(v.form_data) : (v.form_data || {});
+                return (
+                  <div key={v.id} className="p-3 bg-white space-y-2 break-inside-avoid">
+                    <div className="flex justify-between items-center bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                      <span className="font-bold text-[9px] uppercase">Visita #{i + 1} - {fmt(v.scheduled_date || v.created_at)}</span>
+                      <span className="font-bold text-[8px] uppercase text-slate-500">
+                        {v.arrival_time ? `Entrada: ${new Date(v.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''} 
+                        {v.departure_time ? ` · Saída: ${new Date(v.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                      </span>
+                    </div>
+                    {(vFd.technical_report || vFd.technicalReport || v.notes) && (
+                      <div className="text-[9px] text-slate-700 leading-tight">
+                        <span className="font-bold uppercase text-slate-400">Relato:</span> {vFd.technical_report || vFd.technicalReport || v.notes}
+                      </div>
+                    )}
+                    {/* Exibe se houver dados de formulário específicos (opcional no print para economia de espaço) */}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
           <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
           <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
@@ -1336,8 +1599,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           )}
 
 
-          {/* ── FORMULÁRIOS AGRUPADOS POR EQUIPAMENTO/GRUPO ── */}
-          {(() => {
+          {/* ── SEÇÃO CONSOLIDADA REMOVIDA ── */}
+          {false && (() => {
             const getFormData = (fd: any) => {
                if (!fd) return {};
                if (typeof fd === 'string') {
@@ -1479,116 +1742,27 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             );
           })()}
 
-          {/* ── CARD DE CONCLUSÃO ── */}
-          {(() => {
-            const fd: Record<string, any> = typeof order.formData === 'string'
-              ? (() => { try { return JSON.parse(order.formData); } catch { return {}; } })()
-              : (order.formData || {});
-            const techReport = fd.technicalReport || fd.technical_report || '';
-            const partsUsed = fd.partsUsed || fd.parts_used || '';
-            const cName = fd.clientName || '';
-            const cDoc = fd.clientDoc || '';
-            const completedAt = fd.completedAt || order.endDate || '';
-            
-            const extractExtras = (fData: any) => {
-              const extras = fData.extra_photos || fData.extraPhotos || fData.photos || [];
-              const photosArr = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
-              return photosArr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
-            };
+          {/* ── CARDS DE VISITAS (SEPARADOS COMO NO APP) ── */}
+          {orderVisits.length > 0 && (
+            <div className="space-y-6">
+              <SectionHeader icon={<Calendar size={15} />} title="Histórico de Visitas" />
+              {orderVisits.map((visit, idx) => (
+                <VisitCard 
+                  key={visit.id} 
+                  visit={visit} 
+                  idx={idx} 
+                  order={order} 
+                  linkedEquipments={linkedEquipments}
+                  formTemplates={formTemplates}
+                  showPrices={showPrices}
+                  onImageClick={setFullscreenImage}
+                />
+              ))}
+            </div>
+          )}
 
-            let allValidPhotos: string[] = extractExtras(fd);
-            linkedEquipments.forEach((eq: any) => {
-                let eqFd: any = typeof eq.form_data === 'string' ? (() => { try { return JSON.parse(eq.form_data); } catch { return {}; } })() : (eq.form_data || {});
-                allValidPhotos.push(...extractExtras(eqFd));
-            });
-            allValidPhotos = Array.from(new Set(allValidPhotos));
+          {/* ── CARD DE CONCLUSÃO GLOBAL REMOVIDO (DADOS AGORA ESTÃO DENTRO DAS VISITAS) ── */}
 
-            if (!techReport && !partsUsed && !cName && !completedAt && !order.videoUrl && !fd.videoUrl && !fd.video_url && allValidPhotos.length === 0) return null;
-            return (
-              <div className="bg-white rounded-3xl border border-indigo-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
-                <div className="flex items-center justify-between px-6 sm:px-8 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                      <CheckCircle2 size={16} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-indigo-800 uppercase tracking-widest">Dados de Conclusão</p>
-                      <p className="text-xs text-indigo-400 font-medium mt-0.5">Informações registradas na finalização</p>
-                    </div>
-                  </div>
-                  {completedAt && (
-                    <span className="text-xs font-bold text-indigo-500 uppercase tracking-wide px-2.5 py-1 rounded-full border bg-white border-indigo-200 flex items-center gap-1.5">
-                      <Clock size={10} /> {new Date(completedAt).toLocaleString()}
-                    </span>
-                  )}
-                </div>
-                <div className="px-6 sm:px-8 py-6 space-y-5">
-                  {techReport && (
-                    <div>
-                      <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-2">Relatório Técnico</p>
-                      <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{techReport}</p>
-                    </div>
-                  )}
-                  {partsUsed && (
-                    <div>
-                      <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-2">Peças Utilizadas</p>
-                      <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">{partsUsed}</p>
-                    </div>
-                  )}
-                  {(cName || cDoc || fd.signature) && (
-                    <div className="flex flex-col sm:flex-row gap-6 pt-4 border-t border-indigo-100">
-                      <div className="flex gap-8 flex-1">
-                        {cName && <InfoPill label="Responsável" value={cName} />}
-                        {cDoc && <InfoPill label="CPF" value={cDoc} mono />}
-                      </div>
-                      {fd.signature && (
-                        <div className="flex flex-col gap-1.5 shrink-0">
-                          <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Assinatura Digital</span>
-                          <div
-                            className="h-10 w-28 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1 cursor-zoom-in hover:border-indigo-300 transition-all"
-                            onClick={() => setFullscreenImage(fd.signature)}
-                          >
-                            <img src={fd.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {(order.videoUrl || fd.videoUrl || fd.video_url || allValidPhotos.length > 0) && (
-                    <div className="pt-4 border-t border-indigo-100">
-                      <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Evidências de Conclusão</p>
-                      <div className="flex flex-wrap gap-3 mt-1">
-                        {(order.videoUrl || fd.videoUrl || fd.video_url) && (
-                          <div
-                            className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] shrink-0 rounded-xl overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative group"
-                            onClick={() => setFullscreenImage(order.videoUrl || fd.videoUrl || fd.video_url)}
-                          >
-                            <video 
-                              src={order.videoUrl || fd.videoUrl || fd.video_url} 
-                              className="w-full h-full object-cover opacity-60" 
-                              preload="metadata"
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <Play size={16} className="text-white fill-white group-hover:scale-110 transition-transform" />
-                            </div>
-                          </div>
-                        )}
-                        {allValidPhotos.map((url: string, i: number) => (
-                          <div
-                            key={i}
-                            className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] shrink-0 rounded-xl overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
-                            onClick={() => setFullscreenImage(url)}
-                          >
-                            <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
 
           {/* ── ASSINATURAS (sempre visível no final) ── */}
           {(() => {

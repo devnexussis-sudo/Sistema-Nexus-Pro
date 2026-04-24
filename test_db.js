@@ -1,15 +1,13 @@
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const url = 'https://esrwwaoirlhcptbxtlsu.supabase.co';
-const key = process.env.VITE_SUPABASE_ANON_KEY;
-if(!key) {
-  console.log("No key"); process.exit(1);
-}
-const supabase = createClient(url, key);
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function run() {
-  const { data, error } = await supabase.from('customers').select('*').limit(1);
-  console.log(error ? error : "Fields: " + Object.keys(data[0] || {}).join(', '));
+  const { data, error } = await supabase.from('technician_gps_pings').select('created_at').order('created_at', { ascending: false }).limit(5);
+  console.log("GPS Pings:", data, error);
 }
 run();

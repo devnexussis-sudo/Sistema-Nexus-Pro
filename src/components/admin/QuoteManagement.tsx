@@ -44,7 +44,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const PAGE_SIZE = 20;
 
     // ── Server-Side Pagination (Big Tech Standard) ──────────────
-    const { session, isAuthLoading } = useAuth();
+    const { auth } = useAuth();
     const serverFilters = useMemo(() => ({
         search: searchTerm.trim() || undefined,
         status: undefined 
@@ -53,7 +53,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const {
         data: pageResult,
         isLoading: quotesLoading,
-    } = usePagedQuotes(currentPage, serverFilters, !isAuthLoading && !!session);
+    } = usePagedQuotes(currentPage, serverFilters, auth.isAuthenticated);
 
     const pagedQuotes = pageResult?.data ?? [];
     const totalQuotes = pageResult?.total ?? 0;
@@ -90,8 +90,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     , [subtotal, discount, discountType]);
     const totalValue = useMemo(() => Math.max(0, subtotal - discountAmount), [subtotal, discountAmount]);
 
-    // Tenant data via system-wide hook (same pattern as the rest of the app)
-    const { data: tenant } = useTenant(!isAuthLoading && !!session);
+    const { data: tenant } = useTenant(auth.isAuthenticated);
 
     const getQuoteDisplayId = (quote: Quote): string => {
         if (quote.displayId) return quote.displayId;

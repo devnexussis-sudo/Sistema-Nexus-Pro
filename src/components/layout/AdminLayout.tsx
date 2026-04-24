@@ -24,10 +24,11 @@ interface AdminLayoutProps {
     systemNotifications: any[];
     onToggleSidebar: () => void;
     isSidebarCollapsed: boolean;
+    onMarkNotificationRead?: (id: string) => void;
 }
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
-    children, user, tenant, isImpersonating, onLogout, systemNotifications, onToggleSidebar, isSidebarCollapsed
+    children, user, tenant, isImpersonating, onLogout, systemNotifications, onToggleSidebar, isSidebarCollapsed, onMarkNotificationRead
 }) => {
     const location = useLocation();
     const [showInbox, setShowInbox] = useState(false);
@@ -96,14 +97,93 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         <span className="text-sm font-semibold text-slate-900 tracking-tight">{user?.name}</span>
                         <span className="text-[10px] font-medium text-slate-400  tracking-tighter">administrador</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 relative">
                         <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all relative">
                             <Bell size={20} />
-                            {systemNotifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>}
+                            {systemNotifications.filter(n => !n.isRead).length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>}
                         </button>
+                        
+                        {/* INBOX POPOVER */}
+                        {showInbox && (
+                            <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden z-[200] max-h-[400px] flex flex-col">
+                                <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-tight">Caixa de Mensagens</h3>
+                                    <span className="text-[10px] text-slate-400">{systemNotifications.length} avisos</span>
+                                </div>
+                                <div className="overflow-y-auto flex-1 p-2 space-y-2 custom-scrollbar">
+                                    {systemNotifications.length === 0 ? (
+                                        <div className="p-4 text-center text-slate-400 text-xs">Nenhuma mensagem.</div>
+                                    ) : (
+                                        systemNotifications.map(notif => (
+                                            <div key={notif.id} className={`p-3 rounded-lg border text-left ${notif.isRead ? 'bg-white border-slate-100 opacity-75' : 'bg-blue-50/50 border-blue-100'}`}>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    {notif.priority === 'urgent' && <AlertTriangle size={12} className="text-rose-500 shrink-0" />}
+                                                    {notif.priority === 'warning' && <ShieldAlert size={12} className="text-amber-500 shrink-0" />}
+                                                    {notif.priority === 'info' && <Bell size={12} className="text-blue-500 shrink-0" />}
+                                                    <h4 className="text-[11px] font-bold text-slate-800 uppercase leading-tight line-clamp-1">{notif.title}</h4>
+                                                </div>
+                                                <p className="text-[10px] text-slate-600 line-clamp-2 leading-relaxed">{notif.content}</p>
+                                                {!notif.isRead && (
+                                                    <button 
+                                                        onClick={() => onMarkNotificationRead && onMarkNotificationRead(notif.id)}
+                                                        className="mt-2 text-[9px] font-bold text-blue-600 hover:text-blue-700 uppercase"
+                                                    >
+                                                        Marcar como lido
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </header>
+
+            {/* UNREAD NOTIFICATION POPUP (MODAL) */}
+            {systemNotifications.filter(n => !n.isRead).slice(0, 1).map(activeNotif => (
+                <div key={activeNotif.id} className="fixed inset-0 z-[999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
+                        <div className={`p-6 border-b ${
+                            activeNotif.priority === 'urgent' ? 'bg-rose-50 border-rose-100' :
+                            activeNotif.priority === 'warning' ? 'bg-amber-50 border-amber-100' :
+                            'bg-blue-50 border-blue-100'
+                        }`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`p-3 rounded-xl ${
+                                    activeNotif.priority === 'urgent' ? 'bg-rose-100 text-rose-600' :
+                                    activeNotif.priority === 'warning' ? 'bg-amber-100 text-amber-600' :
+                                    'bg-blue-100 text-blue-600'
+                                }`}>
+                                    <Bell size={24} />
+                                </div>
+                                <div>
+                                    <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">{activeNotif.title}</h2>
+                                    <p className={`text-[10px] font-bold uppercase tracking-widest ${
+                                        activeNotif.priority === 'urgent' ? 'text-rose-500' :
+                                        activeNotif.priority === 'warning' ? 'text-amber-500' :
+                                        'text-blue-500'
+                                    }`}>Comunicado do Sistema</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{activeNotif.content}</p>
+                        </div>
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                            <button
+                                onClick={() => {
+                                    if (onMarkNotificationRead) onMarkNotificationRead(activeNotif.id);
+                                }}
+                                className="bg-[#1c2d4f] hover:bg-[#253a66] text-white px-6 py-2.5 rounded-xl text-xs font-bold uppercase transition-all shadow-lg shadow-[#1c2d4f]/20"
+                            >
+                                Ciente, Confirmar Leitura
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ))}
 
             <div className="flex flex-1 overflow-hidden">
                 <aside className={`${isSidebarCollapsed ? 'w-16' : 'w-52'} bg-[#1c2d4f] h-full flex flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5`}>

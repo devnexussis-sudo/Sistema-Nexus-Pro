@@ -69,6 +69,21 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
   const [selectedDayData, setSelectedDayData] = useState<{ day: Date; orders: ServiceOrder[] } | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
 
+  // Filtro de Técnico Avançado (Dropdown Pesquisável)
+  const [isTechDropdownOpen, setIsTechDropdownOpen] = useState(false);
+  const [techSearchQuery, setTechSearchQuery] = useState('');
+  const techDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (techDropdownRef.current && !techDropdownRef.current.contains(event.target as Node)) {
+        setIsTechDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
       const term = searchTerm.toLowerCase();
@@ -78,8 +93,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
         (order.id || '').toLowerCase().includes(term) ||
         (order.displayId || '').toLowerCase().includes(term);
       const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
-      const techName = techs.find(t => t.id === order.assignedTo)?.name?.toLowerCase() || '';
-      const matchesTech = techFilter === 'ALL' || techName.includes(techFilter.toLowerCase());
+      const matchesTech = techFilter === 'ALL' || order.assignedTo === techFilter;
       return matchesSearch && matchesStatus && matchesTech;
     });
   }, [orders, techs, searchTerm, statusFilter, techFilter]);
@@ -166,16 +180,65 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             />
           </div>
 
-          <div className="relative shrink-0 min-w-[150px]">
-            <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
-            <select
-              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-6 text-[10px] font-bold text-slate-700 outline-none transition-all cursor-pointer shadow-sm appearance-none"
-              value={techFilter}
-              onChange={e => setTechFilter(e.target.value)}
+          <div className="relative shrink-0 min-w-[200px]" ref={techDropdownRef}>
+            <div 
+              className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-9 pr-8 text-[10px] font-bold text-slate-700 cursor-pointer shadow-sm flex flex-col justify-center min-h-[42px]"
+              onClick={() => setIsTechDropdownOpen(!isTechDropdownOpen)}
             >
-              <option value="ALL">qualquer técnico</option>
-              {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-            </select>
+              <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <span className="truncate">
+                {techFilter === 'ALL' 
+                  ? 'Qualquer Técnico' 
+                  : techs.find(t => t.id === techFilter)?.name || 'Técnico Desconhecido'}
+              </span>
+              <ChevronRight size={14} className={`absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-transform ${isTechDropdownOpen ? 'rotate-90' : ''}`} />
+            </div>
+
+            {isTechDropdownOpen && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2">
+                <div className="p-2 border-b border-slate-100 bg-slate-50/50 sticky top-0">
+                  <div className="relative">
+                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Buscar nome ou email..." 
+                      className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-[10px] font-bold outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
+                      value={techSearchQuery}
+                      onChange={e => setTechSearchQuery(e.target.value)}
+                      onClick={e => e.stopPropagation()}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="max-h-56 overflow-y-auto custom-scrollbar">
+                  <div 
+                    className={`px-3 py-2 cursor-pointer text-[10px] font-bold hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'bg-primary-50 text-primary-700' : 'text-slate-700'}`}
+                    onClick={() => { setTechFilter('ALL'); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
+                  >
+                    Qualquer Técnico
+                  </div>
+                  {techs.filter(t => {
+                    const q = techSearchQuery.toLowerCase();
+                    return t.name.toLowerCase().includes(q) || (t.email || '').toLowerCase().includes(q);
+                  }).map(t => (
+                    <div 
+                      key={t.id} 
+                      className={`px-3 py-2 cursor-pointer transition-colors border-t border-slate-50 ${techFilter === t.id ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50'}`}
+                      onClick={() => { setTechFilter(t.id); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
+                    >
+                      <div className="text-[10px] font-bold truncate leading-tight">{t.name}</div>
+                      <div className="text-[9px] font-medium text-slate-400 truncate">{t.email || 'sem email'}</div>
+                    </div>
+                  ))}
+                  {techs.filter(t => {
+                    const q = techSearchQuery.toLowerCase();
+                    return t.name.toLowerCase().includes(q) || (t.email || '').toLowerCase().includes(q);
+                  }).length === 0 && (
+                    <div className="px-3 py-4 text-center text-[10px] text-slate-400 font-medium">Nenhum técnico encontrado</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="relative shrink-0 min-w-[140px]">
