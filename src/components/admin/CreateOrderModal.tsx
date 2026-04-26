@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus, Plus, Box,
-  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock
+  DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
-import { OrderPriority, OrderStatus, ServiceOrder, User as UserType, OrderItem, StockItem, FormTemplate } from '../../types';
+import { OrderPriority, OrderStatus, ServiceOrder, User as UserType, OrderItem, StockItem, FormTemplate, Quote } from '../../types';
 import { DataService } from '../../services/dataService';
 import { OrderService } from '../../services/orderService';
 import { OrderTimeline } from '../shared/OrderTimeline';
@@ -28,7 +28,7 @@ export const OS_TYPES = [
 ];
 
 export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onSubmit, initialData }) => {
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(initialData ? 2 : 1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(initialData ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [schedulingVisit, setSchedulingVisit] = useState(false);
   const [timelineKey, setTimelineKey] = useState(0);
@@ -55,6 +55,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
   const [clients, setClients] = useState<any[]>([]);
   const [equipments, setEquipments] = useState<any[]>([]);
   const [stock, setStock] = useState<StockItem[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [linkedQuoteIds, setLinkedQuoteIds] = useState<string[]>(initialData?.linkedQuotes || []);
+  const [quoteSearch, setQuoteSearch] = useState('');
 
   const [selectedClientId, setSelectedClientId] = useState(initialData ? 'initial' : '');
   const [selectedEquipIds, setSelectedEquipIds] = useState<string[]>([]);
@@ -100,14 +103,15 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         console.warn("⚠️ Sessão pode estar expirada. Tentando buscar dados mesmo assim...");
       }
 
-      const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules, loadedServiceTypes] = await Promise.all([
+      const [techs, loadedClients, loadedEquipments, loadedStock, loadedFormTemplates, loadedRules, loadedServiceTypes, loadedQuotes] = await Promise.all([
         DataService.getAllTechnicians(),
         DataService.getCustomers(),
         DataService.getEquipments(),
         DataService.getStockItems(),
         DataService.getFormTemplates(),
         DataService.getActivationRules(),
-        DataService.getServiceTypes()
+        DataService.getServiceTypes(),
+        DataService.getQuotes()
       ]);
 
       setTechnicians(techs);
@@ -116,6 +120,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
       setStock(loadedStock);
       setFormTemplates(loadedFormTemplates);
       setActivationRules(loadedRules);
+      setQuotes(loadedQuotes || []);
 
       if (loadedServiceTypes && loadedServiceTypes.length > 0) {
         setServiceTypes(loadedServiceTypes);
@@ -282,7 +287,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
         assignedTo: formData.assignedTo || null,
         scheduledTime: formData.scheduledTime || null,
         items: items,
-        showValueToClient: formData.showValueToClient
+        showValueToClient: formData.showValueToClient,
+        linkedQuotes: linkedQuoteIds
       };
 
       const orderResult: any = await onSubmit(finalData);
@@ -462,15 +468,15 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
           <div className="flex items-center gap-6">
             <div className="hidden md:flex items-center gap-2">
-              {[1, 2, 3, 4, ...(initialData ? [5] : [])].map((s) => (
+              {[1, 2, 3, 4, 5, ...(initialData ? [6] : [])].map((s) => (
                 <div key={s} className="flex items-center">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold transition-all border ${step === s
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold transition-all border ${step === s
                     ? 'bg-[#1c2d4f] border-[#1c2d4f] text-white shadow-md'
                     : (step > s ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-slate-50 border-slate-200 text-slate-400')
                     }`}>
-                    {step > s ? <CheckCircle2 size={16} /> : (s === 5 ? <Clock size={16} /> : s)}
+                    {step > s ? <CheckCircle2 size={14} /> : (s === 6 ? <Clock size={14} /> : s)}
                   </div>
-                  {(s < 4 || (s === 4 && initialData)) && <div className={`w-6 h-0.5 mx-1 rounded-full ${step > s ? 'bg-emerald-500' : 'bg-slate-100'}`} />}
+                  {(s < 5 || (s === 5 && initialData)) && <div className={`w-4 h-0.5 mx-0.5 rounded-full ${step > s ? 'bg-emerald-500' : 'bg-slate-100'}`} />}
                 </div>
               ))}
             </div>
@@ -739,185 +745,207 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           )}
 
           {step === 3 && (
-            <div className="animate-fade-in space-y-8 max-w-5xl mx-auto">
-              {/* HEADER DA ETAPA */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900 tracking-tight">composição de valores</h3>
-                  <p className="text-xs text-slate-500 font-medium mt-1">Vincule peças do estoque ou adicione serviços manuais</p>
+            <div className="animate-fade-in space-y-5 max-w-4xl mx-auto">
+              {/* HEADER COMPACTO */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center"><DollarSign size={15} className="text-slate-500" /></div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 tracking-tight">Composição de Valores</h3>
+                    <p className="text-[10px] text-slate-400 font-medium">Peças, serviços e mão de obra</p>
+                  </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, showValueToClient: !formData.showValueToClient })}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all border ${formData.showValueToClient
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
-                    }`}
-                >
-                  {formData.showValueToClient ? <><Eye size={16} /> Visível para Cliente</> : <><EyeOff size={16} /> Oculto para Cliente</>}
+                <button type="button" onClick={() => setFormData({ ...formData, showValueToClient: !formData.showValueToClient })}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${formData.showValueToClient ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'}`}>
+                  {formData.showValueToClient ? <><Eye size={12} /> Visível</> : <><EyeOff size={12} /> Oculto</>}
                 </button>
               </div>
 
-              {/* TABELA DE ITENS */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
+              {/* AÇÕES DE ADIÇÃO */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="relative">
+                  <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <input placeholder="Buscar peça no estoque..." value={stockSearch}
+                    onChange={e => { setStockSearch(e.target.value); setIsStockListOpen(true); }}
+                    onFocus={() => setIsStockListOpen(true)}
+                    className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-[11px] font-semibold text-slate-700 outline-none focus:border-[#1c2d4f] transition-all" />
+                  {(isStockListOpen && stockSearch) && (
+                    <div className="absolute z-[180] top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-xl max-h-52 overflow-y-auto custom-scrollbar">
+                      {filteredStock.length > 0 ? filteredStock.map(s => (
+                        <button key={s.id} onClick={() => { addItem({ description: s.description, unitPrice: s.sellPrice, fromStock: true, stockItemId: s.id }); setStockSearch(''); setIsStockListOpen(false); }}
+                          className="w-full text-left px-3 py-2.5 hover:bg-slate-50 flex justify-between items-center border-b border-slate-100 last:border-0 group">
+                          <div className="flex items-center gap-2">
+                            <Box size={12} className="text-slate-400 group-hover:text-[#1c2d4f]" />
+                            <div>
+                              <p className="text-[11px] font-bold text-slate-700">{s.description}</p>
+                              <p className="text-[10px] text-[#1c2d4f] font-bold">R$ {s.sellPrice.toLocaleString('pt-BR')}</p>
+                            </div>
+                          </div>
+                          <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">Qtd: {s.quantity}</span>
+                        </button>
+                      )) : <div className="p-4 text-center text-[10px] font-medium text-slate-400">Nenhum item encontrado</div>}
+                    </div>
+                  )}
+                </div>
+                <button type="button" onClick={() => !isReadOnly && addItem({ description: '', unitPrice: 0 })} disabled={isReadOnly}
+                  className="border border-dashed border-slate-200 text-slate-400 rounded-lg py-2.5 text-[11px] font-bold flex items-center justify-center gap-1.5 hover:border-[#1c2d4f] hover:text-[#1c2d4f] hover:bg-[#1c2d4f05] transition-all disabled:opacity-50">
+                  <Plus size={14} /> Adicionar Item Manual
+                </button>
+              </div>
+
+              {/* TABELA COMPACTA */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400   border-b border-slate-200">
-                      <th className="px-4 py-1.5">item / descrição</th>
-                      <th className="px-4 py-1.5 w-28 text-center">qtd</th>
-                      <th className="px-4 py-1.5 w-32">unitário (r$)</th>
-                      <th className="px-4 py-1.5 w-36">subtotal</th>
-                      <th className="px-4 py-1.5 text-center w-20">ações</th>
+                    <tr className="bg-slate-50 text-[9px] font-bold text-slate-400 uppercase border-b border-slate-200">
+                      <th className="px-3 py-2">Item / Descrição</th>
+                      <th className="px-3 py-2 w-20 text-center">Qtd</th>
+                      <th className="px-3 py-2 w-28">Unit. (R$)</th>
+                      <th className="px-3 py-2 w-28 text-right">Subtotal</th>
+                      <th className="px-3 py-2 text-center w-12"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {items.map(item => (
                       <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                        <td className="px-4 py-1.5">
-                          <input
-                            type="text"
-                            value={item.description}
-                            disabled={isReadOnly}
+                        <td className="px-3 py-2">
+                          <input type="text" value={item.description} disabled={isReadOnly}
                             onChange={e => updateItem(item.id, { description: e.target.value })}
-                            className="bg-transparent border-none text-[11px] font-bold text-slate-700 outline-none w-full focus:ring-0 truncate disabled:opacity-50"
-                          />
+                            placeholder="Descreva o item..."
+                            className="bg-transparent border-none text-[11px] font-semibold text-slate-700 outline-none w-full placeholder:text-slate-300 disabled:opacity-50" />
                         </td>
-                        <td className="px-4 py-1.5">
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={item.quantity}
-                            disabled={isReadOnly}
+                        <td className="px-3 py-2">
+                          <input type="number" step="0.1" value={item.quantity} disabled={isReadOnly}
                             onChange={e => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
-                            className="bg-slate-50 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-700 outline-none w-16 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all text-center disabled:opacity-50"
-                          />
+                            className="bg-slate-50 rounded-md px-2 py-1 text-[11px] font-bold text-slate-700 outline-none w-14 border border-slate-100 focus:border-[#1c2d4f] transition-all text-center disabled:opacity-50" />
                         </td>
-                        <td className="px-4 py-1.5">
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={item.unitPrice}
-                            disabled={isReadOnly}
+                        <td className="px-3 py-2">
+                          <input type="number" step="0.01" value={item.unitPrice} disabled={isReadOnly}
                             onChange={e => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                            className="bg-slate-50 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-slate-700 outline-none w-28 border border-slate-100 focus:border-[#1c2d4f] focus:ring-1 focus:ring-[#1c2d4f10] transition-all disabled:opacity-50"
-                          />
+                            className="bg-slate-50 rounded-md px-2 py-1 text-[11px] font-bold text-slate-700 outline-none w-24 border border-slate-100 focus:border-[#1c2d4f] transition-all disabled:opacity-50" />
                         </td>
-                        <td className="px-4 py-1.5">
-                          <span className="text-[12px] font-bold text-slate-900 whitespace-nowrap">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <td className="px-3 py-2 text-right">
+                          <span className="text-[11px] font-bold text-slate-800">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </td>
-                        <td className="px-4 py-1.5 text-center">
-                          <button
-                            onClick={() => !isReadOnly && removeItem(item.id)}
-                            disabled={isReadOnly}
-                            className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
-                          >
-                            <Trash2 size={16} />
+                        <td className="px-3 py-2 text-center">
+                          <button onClick={() => !isReadOnly && removeItem(item.id)} disabled={isReadOnly}
+                            className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded transition-all disabled:opacity-30">
+                            <Trash2 size={13} />
                           </button>
                         </td>
                       </tr>
                     ))}
                     {items.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-8 py-16 text-center">
-                          <div className="flex flex-col items-center">
-                            <ShoppingCart size={32} className="text-slate-200 mb-3" />
-                            <p className="text-xs font-semibold text-slate-400">Nenhum item adicionado ao orçamento</p>
-                          </div>
+                        <td colSpan={5} className="px-6 py-10 text-center">
+                          <ShoppingCart size={24} className="mx-auto text-slate-200 mb-2" />
+                          <p className="text-[10px] font-semibold text-slate-400">Nenhum item adicionado</p>
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
-              </div>
-
-              {/* CONTROLES DE ADIÇÃO E TOTAL */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* BUSCA NO ESTOQUE */}
-                    <div className="space-y-3 relative">
-                      <label className="text-[10px] font-bold text-slate-400   px-1">buscar no estoque</label>
-                      <div className="relative">
-                        <div className="relative">
-                          <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                          <input
-                            placeholder="Nome da peça ou SKU..."
-                            value={stockSearch}
-                            onChange={e => { setStockSearch(e.target.value); setIsStockListOpen(true); }}
-                            onFocus={() => setIsStockListOpen(true)}
-                            className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-3 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all shadow-sm"
-                          />
-                        </div>
-
-                        {(isStockListOpen && stockSearch) && (
-                          <div className="absolute z-[180] bottom-full mb-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto custom-scrollbar animate-in slide-in-from-bottom-2">
-                            {filteredStock.length > 0 ? filteredStock.map(s => (
-                              <button
-                                key={s.id}
-                                onClick={() => {
-                                  addItem({ description: s.description, unitPrice: s.sellPrice, fromStock: true, stockItemId: s.id });
-                                  setStockSearch('');
-                                  setIsStockListOpen(false);
-                                }}
-                                className="w-full text-left px-5 py-4 hover:bg-slate-50 flex justify-between items-center border-b border-slate-200 last:border-0 group"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-[#1c2d4f10] transition-colors">
-                                    <Box size={14} className="text-slate-400 group-hover:text-[#1c2d4f]" />
-                                  </div>
-                                  <div>
-                                    <p className="text-[11px] font-bold text-slate-800">{s.description}</p>
-                                    <p className="text-[10px] text-[#1c2d4f] font-bold">R$ {s.sellPrice.toLocaleString('pt-BR')}</p>
-                                  </div>
-                                </div>
-                                <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">Qtd: {s.quantity}</span>
-                              </button>
-                            )) : (
-                              <div className="p-6 text-center text-xs font-medium text-slate-400">Item não localizado no estoque</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* ADIÇÃO MANUAL */}
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-bold text-slate-400   px-1">adição manual</label>
-                      <button
-                        type="button"
-                        onClick={() => !isReadOnly && addItem({ description: 'DESCREVA O SERVIÇO OU PEÇA...', unitPrice: 0 })}
-                        disabled={isReadOnly}
-                        className="w-full h-[46px] border-2 border-dashed border-slate-200 text-slate-400 rounded-xl text-xs font-bold  flex items-center justify-center gap-2 hover:border-[#1c2d4f] hover:text-[#1c2d4f] hover:bg-[#1c2d4f05] transition-all disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
-                      >
-                        <Plus size={16} /> Novo Item Personalizado
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* RESUMO DE VALORES */}
-                <div className="bg-[#1c2d4f] rounded-2xl p-8 text-white shadow-xl shadow-[#1c2d4f20] flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center gap-3 opacity-60 mb-2">
-                      <DollarSign size={18} />
-                      <h4 className="text-[10px] font-bold  ">Valor Total Previsto</h4>
-                    </div>
-                    <p className="text-4xl font-bold tracking-tight">
-                      R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div className="mt-6 pt-6 border-t border-white/10">
-                    <p className="text-[10px] font-medium text-white/50 leading-relaxed ">
-                      Estimativa sujeita à disponibilidade técnica e variação de insumos.
-                    </p>
-                  </div>
+                {/* TOTAL INLINE */}
+                <div className="bg-slate-50 border-t border-slate-200 px-3 py-2.5 flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Total Estimado</span>
+                  <span className="text-sm font-bold text-slate-900">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
             </div>
           )}
 
           {step === 4 && (
+            <div className="animate-fade-in space-y-5 max-w-4xl mx-auto">
+              {/* HEADER */}
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center"><FileText size={15} className="text-slate-500" /></div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight">Vincular Orçamentos</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">Associe orçamentos existentes a esta ordem de serviço</p>
+                </div>
+              </div>
+
+              {/* BUSCAR ORÇAMENTO */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <input placeholder="Pesquisar por título, cliente ou código..." value={quoteSearch}
+                  onChange={e => setQuoteSearch(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-[11px] font-semibold text-slate-700 outline-none focus:border-[#1c2d4f] transition-all" />
+              </div>
+
+              {/* ORÇAMENTOS VINCULADOS */}
+              {linkedQuoteIds.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Vinculados ({linkedQuoteIds.length})</label>
+                  <div className="space-y-1.5">
+                    {linkedQuoteIds.map(qid => {
+                      const q = quotes.find(qt => qt.id === qid);
+                      return (
+                        <div key={qid} className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5 group">
+                          <div className="flex items-center gap-2.5">
+                            <Link2 size={13} className="text-emerald-500" />
+                            <div>
+                              <p className="text-[11px] font-bold text-slate-800">{q?.displayId || q?.title || qid}</p>
+                              <p className="text-[10px] text-slate-500">{q?.customerName || '—'} • R$ {(q?.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${q?.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : q?.status === 'REJEITADO' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-700'}`}>{q?.status || '—'}</span>
+                            {!isReadOnly && (
+                              <button onClick={() => setLinkedQuoteIds(prev => prev.filter(id => id !== qid))}
+                                className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-all">
+                                <Unlink size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* LISTA DE ORÇAMENTOS DISPONÍVEIS */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Disponíveis</label>
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden max-h-[320px] overflow-y-auto custom-scrollbar">
+                  {quotes.filter(q => !linkedQuoteIds.includes(q.id) && (
+                    !quoteSearch || q.title?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
+                    q.customerName?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
+                    q.displayId?.toLowerCase().includes(quoteSearch.toLowerCase())
+                  )).length > 0 ? quotes.filter(q => !linkedQuoteIds.includes(q.id) && (
+                    !quoteSearch || q.title?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
+                    q.customerName?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
+                    q.displayId?.toLowerCase().includes(quoteSearch.toLowerCase())
+                  )).map(q => (
+                    <button key={q.id} onClick={() => !isReadOnly && setLinkedQuoteIds(prev => [...prev, q.id])} disabled={isReadOnly}
+                      className="w-full text-left px-3 py-2.5 hover:bg-slate-50 flex items-center justify-between border-b border-slate-100 last:border-0 transition-colors group disabled:opacity-50">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 bg-slate-50 rounded flex items-center justify-center group-hover:bg-[#1c2d4f10] transition-colors">
+                          <FileText size={13} className="text-slate-400 group-hover:text-[#1c2d4f]" />
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-700 group-hover:text-[#1c2d4f]">{q.displayId || q.title}</p>
+                          <p className="text-[10px] text-slate-400">{q.customerName} • R$ {(q.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${q.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-700' : q.status === 'REJEITADO' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-700'}`}>{q.status}</span>
+                        <Plus size={14} className="text-slate-300 group-hover:text-[#1c2d4f] transition-colors" />
+                      </div>
+                    </button>
+                  )) : (
+                    <div className="px-6 py-10 text-center">
+                      <FileText size={24} className="mx-auto text-slate-200 mb-2" />
+                      <p className="text-[10px] font-semibold text-slate-400">{quoteSearch ? 'Nenhum orçamento encontrado' : 'Nenhum orçamento disponível'}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 5 && (
             <div className="animate-fade-in space-y-8 max-w-2xl mx-auto">
               {/* REVISÃO TÉCNICA */}
               <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-2xl flex items-center gap-6">
@@ -959,7 +987,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
             </div>
           )}
 
-          {step === 5 && initialData && (
+          {step === 6 && initialData && (
             <div className="animate-fade-in space-y-6 max-w-4xl mx-auto">
               {/* Card de controle de nova visita */}
               <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200">
@@ -990,7 +1018,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                 </div>
                 <VisitHistoryTab
                   orderId={initialData.id}
-                  isActive={step === 5}
+                  isActive={step === 6}
                 />
               </div>
 
@@ -1019,7 +1047,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           </button>
 
           <div className="flex gap-4">
-            {step < (initialData ? 5 : 4) ? (
+            {step < (initialData ? 6 : 5) ? (
               <Button
                 type="button"
                 key={`next-btn-${step}`}
@@ -1028,7 +1056,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   if (step === 1) goToStep2();
                   else if (step === 2) setStep(3);
                   else if (step === 3) setStep(4);
-                  else if (step === 4 && initialData) setStep(5);
+                  else if (step === 4) setStep(5);
+                  else if (step === 5 && initialData) setStep(6);
                 }}
               >
                 Continuar <ChevronRight size={16} />
@@ -1045,10 +1074,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
               </Button>
             ) : (
               <Button
-                type={step === 5 ? "button" : "submit"}
+                type={step === 6 ? "button" : "submit"}
                 key="submit-btn"
-                form={step === 5 ? undefined : "os-form"}
-                onClick={step === 5 ? () => handleSubmit() : undefined}
+                form={step === 6 ? undefined : "os-form"}
+                onClick={step === 6 ? () => handleSubmit() : undefined}
                 isLoading={loading}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-12 py-3 font-bold text-xs   shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
               >

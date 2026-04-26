@@ -33,7 +33,11 @@ import {
   UserCheck,
   User as UserIcon,
   Video,
-  X
+  X,
+  Link2,
+  Unlink,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -45,7 +49,7 @@ import { DataService } from '../../services/dataService';
 import { EquipmentService } from '../../services/equipmentService';
 import { FormService } from '../../services/formService';
 import { VisitService } from '../../services/visitService';
-import { type Customer, OrderStatus, type ServiceOrder, type ServiceVisit, type User, VisitStatusEnum } from '../../types';
+import { type Customer, OrderStatus, type ServiceOrder, type ServiceVisit, type User, VisitStatusEnum, type Quote } from '../../types';
 import { PublicOrderView } from '../public/PublicOrderView';
 import { OrderTimeline } from '../shared/OrderTimeline';
 import { Button } from '../ui/Button';
@@ -155,6 +159,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isStockPickerOpen, setIsStockPickerOpen] = useState(false);
   const [stockLoading, setStockLoading] = useState(false);
   const [stockSearch, setStockSearch] = useState('');
+
+  // ── Orçamentos Vinculados ────────────────────────────────────────
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [quoteSearch, setQuoteSearch] = useState('');
 
   // ── Server-Side Pagination ─────────────────────────────────────────
   const { session, isAuthLoading } = useAuth();
@@ -323,6 +331,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         .then(({ data }) => {
           if (data) setOrderImpediments(data);
         });
+
+      // Busca Orçamentos para aba de vínculos
+      DataService.getQuotes().then(q => setQuotes(q || []));
 
       // Busca o template para mapear IDs para Labels no checklist
       if (selectedOrder.formId) {
@@ -535,6 +546,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       priority: selectedOrder.priority,
       operationType: selectedOrder.operationType,
       items: selectedOrder.items || [],
+      showValueToClient: selectedOrder.showValueToClient ?? false,
+      linkedQuotes: selectedOrder.linkedQuotes || [],
     });
     setIsEditing(true);
   };
@@ -1336,6 +1349,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 { id: 'displacement', label: 'deslocamento', icon: MapPin },
                 { id: 'media', label: 'galeria', icon: Camera },
                 { id: 'costs', label: 'peças e custos', icon: DollarSign },
+                { id: 'vinculos', label: `vínculos${(selectedOrder.linkedQuotes?.length || 0) > 0 ? ` (${selectedOrder.linkedQuotes?.length})` : ''}`, icon: Link2 },
                 { id: 'audit', label: 'assinaturas', icon: ShieldCheck }
               ].map(tab => (
                 <button
@@ -2463,7 +2477,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: CUSTOS */}
               {activeTab === 'costs' && (
                 <div className="max-w-5xl mx-auto space-y-6">
-                  <div className="flex justify-between items-center bg-[#1c2d4f] p-8 rounded-lg shadow-lg text-white">
+                  <div className="flex justify-between items-center bg-[#1c2d4f] p-8 rounded-lg shadow-lg text-white relative">
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => setEditDraft({ ...editDraft, showValueToClient: !(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) })}
+                        className={`absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false)
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                          : 'bg-white/10 text-white/50 border-white/20 hover:bg-white/20'
+                          }`}
+                      >
+                        {(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) ? <><Eye size={14} /> Visível no Link</> : <><EyeOff size={14} /> Oculto no Link</>}
+                      </button>
+                    )}
+                    {!isEditing && (
+                      <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 text-white/70 border border-white/20">
+                        {selectedOrder.showValueToClient ? <><Eye size={14} /> Visível no Link Público</> : <><EyeOff size={14} /> Oculto no Link Público</>}
+                      </div>
+                    )}
                     <div>
                       <h3 className="text-base font-bold text-white mb-1">Mão de Obra e Peças</h3>
                       <p className="text-xs text-white/60 font-medium">Consolidação financeira de insumos e atividades</p>
@@ -2566,6 +2597,124 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         )}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: VÍNCULOS (ORÇAMENTOS) */}
+              {activeTab === 'vinculos' && (
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <div className="flex items-center gap-3 bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                    <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center border border-emerald-100">
+                      <FileText size={18} className="text-emerald-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Orçamentos Vinculados</h3>
+                      <p className="text-[11px] text-slate-500 font-medium">Orçamentos aprovados ou relacionados a esta ordem de serviço</p>
+                    </div>
+                  </div>
+
+                  {isEditing && (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                      <input
+                        placeholder="Vincular novo orçamento (Pesquisar por título ou código)..."
+                        value={quoteSearch}
+                        onChange={e => setQuoteSearch(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg pl-9 pr-3 py-3 text-xs font-semibold text-slate-700 outline-none focus:border-primary-500 transition-all shadow-sm"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-6">
+                    {/* Lista de Vinculados */}
+                    {((isEditing ? editDraft.linkedQuotes : selectedOrder.linkedQuotes) || []).length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Atualmente Vinculados</label>
+                        <div className="space-y-2">
+                          {((isEditing ? editDraft.linkedQuotes : selectedOrder.linkedQuotes) || []).map(qid => {
+                            const q = quotes.find(qt => qt.id === qid);
+                            return (
+                              <div key={qid} className="flex items-center justify-between bg-white border border-slate-200 shadow-sm rounded-lg p-4 group">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-slate-50 rounded-md flex items-center justify-center border border-slate-100">
+                                    <Link2 size={14} className="text-slate-400" />
+                                  </div>
+                                  <div>
+                                    <p className="text-[12px] font-bold text-slate-800">{q?.displayId || q?.title || qid}</p>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">{q?.customerName || '—'} • R$ {(q?.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${q?.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : q?.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                    {q?.status || '—'}
+                                  </span>
+                                  {isEditing && (
+                                    <button
+                                      onClick={() => setEditDraft(d => ({ ...d, linkedQuotes: (d.linkedQuotes || []).filter(id => id !== qid) }))}
+                                      className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-all"
+                                      title="Remover vínculo"
+                                    >
+                                      <Unlink size={16} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Lista para Vincular (apenas na edição e se houver busca) */}
+                    {isEditing && quoteSearch && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Resultados da Busca</label>
+                        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden max-h-[300px] overflow-y-auto custom-scrollbar">
+                          {quotes.filter(q => !(editDraft.linkedQuotes || []).includes(q.id) && (
+                            q.title?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
+                            q.customerName?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
+                            q.displayId?.toLowerCase().includes(quoteSearch.toLowerCase())
+                          )).map(q => (
+                            <button
+                              key={q.id}
+                              onClick={() => setEditDraft(d => ({ ...d, linkedQuotes: [...(d.linkedQuotes || []), q.id] }))}
+                              className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center justify-between border-b border-slate-100 last:border-0 transition-colors group"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-slate-50 rounded-md flex items-center justify-center border border-slate-100 group-hover:bg-primary-50 group-hover:border-primary-100 transition-colors">
+                                  <FileText size={14} className="text-slate-400 group-hover:text-primary-500" />
+                                </div>
+                                <div>
+                                  <p className="text-[12px] font-bold text-slate-700 group-hover:text-primary-700">{q.displayId || q.title}</p>
+                                  <p className="text-[11px] text-slate-500 mt-0.5">{q.customerName} • R$ {(q.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${q.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : q.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                  {q.status}
+                                </span>
+                                <Plus size={16} className="text-slate-300 group-hover:text-primary-600" />
+                              </div>
+                            </button>
+                          ))}
+                          {quotes.filter(q => !(editDraft.linkedQuotes || []).includes(q.id) && (
+                            q.title?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
+                            q.customerName?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
+                            q.displayId?.toLowerCase().includes(quoteSearch.toLowerCase())
+                          )).length === 0 && (
+                            <div className="p-6 text-center text-[11px] font-semibold text-slate-400">Nenhum orçamento encontrado</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {!isEditing && (selectedOrder.linkedQuotes || []).length === 0 && (
+                      <div className="bg-white border border-dashed border-slate-200 rounded-xl py-12 text-center">
+                        <Link2 size={32} className="mx-auto text-slate-200 mb-3" />
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum orçamento vinculado</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
