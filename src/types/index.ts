@@ -211,6 +211,7 @@ export interface ServiceOrder {
   startDate?: string;
   endDate?: string;
   notes?: string;
+  internalNotes?: Array<{ user: string, date: string, text: string }>;
   formData?: Record<string, any>;
   items?: OrderItem[];
   showValueToClient?: boolean;

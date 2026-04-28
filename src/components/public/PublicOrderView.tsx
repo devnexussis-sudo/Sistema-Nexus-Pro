@@ -540,7 +540,7 @@ const CollapsibleFormSection: React.FC<{
 
 export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, isPrint = false, tenantProp }) => {
   const [tenant, setTenant] = React.useState<any>(tenantProp || null);
-  const showPrices = tenant?.metadata?.showItemPricesInPublicView !== false;
+  const showPrices = (tenant?.metadata?.showItemPricesInPublicView !== false) && (order?.showValueToClient === true);
   const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
   const [linkedEquipments, setLinkedEquipments] = React.useState<any[]>([]);
   // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)

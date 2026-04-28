@@ -37,7 +37,8 @@ import {
   Link2,
   Unlink,
   Eye,
-  EyeOff
+  EyeOff,
+  ExternalLink
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -58,6 +59,7 @@ import { StatusBadge } from '../ui/StatusBadge';
 import { CreateOrderModal } from './CreateOrderModal';
 import { VisitHistoryTab } from './VisitHistoryTab';
 import { DisplacementTab } from './DisplacementTab';
+import { VisitFormsTab } from './VisitFormsTab';
 
 // NOTA DE ARQUITETURA:
 // orders NÃO vem mais via prop — este componente busca seus próprios dados
@@ -114,7 +116,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const [ordersToPrint, setOrdersToPrint] = useState<ServiceOrder[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'internal_notes' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [orderVisits, setOrderVisits] = useState<any[]>([]);
   const [orderImpediments, setOrderImpediments] = useState<OrderImpediment[]>([]);
@@ -123,6 +125,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editDraft, setEditDraft] = useState<Partial<ServiceOrder>>({});
   const [editLoading, setEditLoading] = useState(false);
+  const [newInternalNote, setNewInternalNote] = useState('');
 
   // ── Aba Visitas ────────────────────────────────────────────────
   const [visits, setVisits] = useState<ServiceVisit[]>([]);
@@ -553,6 +556,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleCancelEdit = () => {
+    const confirmExit = window.confirm('Você tem edições em andamento. Deseja DESCARTAR as alterações e sair do modo de edição? (Clique em "Cancelar" para permanecer)');
+    if (!confirmExit) return;
+    setIsEditing(false);
+    setEditDraft({});
+  };
+
+  const handleCloseModal = () => {
+    if (isEditing) {
+      const confirmExit = window.confirm('Você tem edições em andamento. Deseja DESCARTAR as alterações e fechar a OS? (Clique em "Cancelar" para permanecer e salvar)');
+      if (!confirmExit) return;
+    }
+    setSelectedOrder(null);
     setIsEditing(false);
     setEditDraft({});
   };
@@ -817,6 +832,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
 
   const mapIdToLabel = (id: string): string => {
+    const lowerId = id.toLowerCase();
+    if (lowerId === 'blockphotourls' || lowerId === 'block_photo_urls' || lowerId === 'blockphotourl' || lowerId === 'block_photo_url' || lowerId === 'impediment_photos' || lowerId === 'impedimento_fotos') {
+      return 'Anexos das OS impedidas';
+    }
     if (!selectedTemplate) return id;
     const field = selectedTemplate.fields?.find((f: any) => f.id === id || f.label === id);
     return field ? field.label : id;
@@ -1332,7 +1351,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </>
                 )}
                 <div className="h-6 w-px bg-slate-200 mx-2"></div>
-                <button onClick={() => { setSelectedOrder(null); setIsEditing(false); }} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                <button onClick={handleCloseModal} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                   <X size={20} />
                 </button>
               </div>
@@ -1342,11 +1361,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="px-4 border-b border-slate-200 bg-white flex justify-between gap-1 shrink-0 overflow-hidden">
               {[
                 { id: 'overview', label: 'dados gerais', icon: LayoutDashboard },
+                { id: 'internal_notes', label: 'obs internas', icon: FileText },
                 { id: 'equipments', label: `ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
                 { id: 'forms', label: 'formulários', icon: ClipboardList },
                 { id: 'visits', label: `visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
                 { id: 'history', label: `histórico${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: History },
-                { id: 'displacement', label: 'deslocamento', icon: MapPin },
+                { id: 'displacement', label: 'Tempo / Distância', icon: MapPin },
                 { id: 'media', label: 'galeria', icon: Camera },
                 { id: 'costs', label: 'peças e custos', icon: DollarSign },
                 { id: 'vinculos', label: `vínculos${(selectedOrder.linkedQuotes?.length || 0) > 0 ? ` (${selectedOrder.linkedQuotes?.length})` : ''}`, icon: Link2 },
@@ -1514,6 +1534,113 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
 
+              {/* TAB: OBSERVAÇÕES INTERNAS */}
+              {activeTab === 'internal_notes' && (
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight flex items-center gap-2 mb-4">
+                      <FileText size={18} className="text-primary-500" /> Observações Internas
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium mb-6">
+                      Estes registros são visíveis apenas para usuários administrativos do sistema e não aparecerão na impressão ou no link do cliente.
+                    </p>
+
+                    {isEditing ? (
+                      <div className="space-y-4">
+                        <textarea
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm font-medium text-slate-700 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-50 transition-all resize-y min-h-[120px]"
+                          placeholder="Digite uma nova observação interna..."
+                          value={newInternalNote}
+                          onChange={(e) => setNewInternalNote(e.target.value)}
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            disabled={!newInternalNote.trim()}
+                            onClick={() => {
+                              if (!newInternalNote.trim()) return;
+                              const newNoteObj = {
+                                text: newInternalNote.trim(),
+                                user: auth?.user?.name || auth?.user?.email || 'Usuário',
+                                date: new Date().toISOString()
+                              };
+                              setEditDraft(prev => ({
+                                ...prev,
+                                internalNotes: [...(prev.internalNotes || selectedOrder.internalNotes || []), newNoteObj]
+                              }));
+                              setNewInternalNote('');
+                            }}
+                            className="bg-[#1c2d4f] text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#2a457a] disabled:opacity-50 transition-colors"
+                          >
+                            Adicionar Observação
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 rounded-lg p-4 text-center border border-slate-200">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Ative a edição para adicionar uma nova observação</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    {(() => {
+                      const notesList = isEditing 
+                        ? (editDraft.internalNotes || selectedOrder.internalNotes || [])
+                        : (selectedOrder.internalNotes || []);
+                      
+                      if (notesList.length === 0) {
+                        return (
+                          <div className="text-center py-12 bg-white rounded-lg border border-dashed border-slate-200">
+                            <FileText size={32} className="mx-auto text-slate-200 mb-3" />
+                            <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhuma observação registrada</p>
+                          </div>
+                        );
+                      }
+
+                      return [...notesList].reverse().map((note, idx) => (
+                        <div key={idx} className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm relative group">
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs uppercase">
+                                {note.user.slice(0, 2)}
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-slate-900">{note.user}</p>
+                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                                  {new Date(note.date).toLocaleString('pt-BR')}
+                                </p>
+                              </div>
+                            </div>
+                            {isEditing && (
+                              <button
+                                onClick={() => {
+                                  // Reverse logic to delete
+                                  const originalIdx = notesList.length - 1 - idx;
+                                  const updatedNotes = [...notesList];
+                                  updatedNotes.splice(originalIdx, 1);
+                                  setEditDraft(prev => ({
+                                    ...prev,
+                                    internalNotes: updatedNotes
+                                  }));
+                                }}
+                                className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded transition-all opacity-0 group-hover:opacity-100"
+                                title="Excluir observação"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                          <div className="pl-10">
+                            <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">{note.text}</p>
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+
               {/* TAB: EQUIPAMENTOS VINCULADOS */}
               {activeTab === 'equipments' && (() => {
                 // Fonte: campos da OS + catálogo de equipamentos
@@ -1636,579 +1763,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 );
               })()}
 
-              {/* TAB: FORMULÁRIOS — 1 bloco por equipamento */}
-              {activeTab === 'forms' && (() => {
-                const opType = selectedOrder.operationType || '';
-                // ── Merge seguro: NUNCA sobrescrevemos impediment_history via spread ──
-                const allFormData: Record<string, any> = (() => {
-                  const base: any = { ...(selectedOrder.formData || {}) };
-                  // Acumula impediment_history de TODAS as fontes
-                  const allHistory: any[] = [
-                    ...(Array.isArray(base.impediment_history) ? base.impediment_history : []),
-                  ];
-                  for (const v of orderVisits) {
-                    const vFd: any = v.formData || {};
-                    // Mescla campos não-impediment normalmente
-                    Object.entries(vFd).forEach(([k, val]) => {
-                      if (k !== 'impediment_history') base[k] = val;
-                    });
-                    // Acumula impediment_history em vez de sobrescrever
-                    if (Array.isArray(vFd.impediment_history)) {
-                      allHistory.push(...vFd.impediment_history);
-                    }
-                  }
-                  // Dedup por blockedAt para evitar duplicatas entre fontes
-                  const seen = new Set<string>();
-                  base.impediment_history = allHistory.filter(e => {
-                    const key = e?.blockedAt || JSON.stringify(e);
-                    if (seen.has(key)) return false;
-                    seen.add(key);
-                    return true;
-                  });
-                  return base;
-                })();
-
-                // Resolve o template correto para um dado equipamento
-                const resolveTemplate = (eqFamily: string) => {
-                  const rules = activationRules.filter(r => {
-                    const typeMatch = !r.serviceTypeId || r.serviceTypeId === opType;
-                    const famMatch = !r.equipmentFamily || r.equipmentFamily === 'Todos' || r.equipmentFamily === eqFamily;
-                    return typeMatch && famMatch;
-                  });
-                  const ids = [...new Set(rules.map((r: any) => r.formId).filter(Boolean))];
-                  let matchedTemplates = formTemplatesAll.filter((t: any) => ids.includes(t.id));
-
-                  // ── REPLICA O FALLBACK DO APP MOBILE ── 
-                  // Se não encontrou template via regras explícitas, tenta pelo titulo ou serviceType (como o execute.tsx faz)
-                  if (matchedTemplates.length === 0 && opType) {
-                    const fallback = formTemplatesAll.find((t: any) =>
-                      t.title.toLowerCase().includes(opType.toLowerCase()) ||
-                      (t.serviceTypes && t.serviceTypes.includes(opType))
-                    );
-                    if (fallback) matchedTemplates = [fallback];
-                  }
-
-                  return matchedTemplates;
-                };
-
-                // Garante que formId direto da OS apareça quando não há regras
-                const osFallbackTemplate = selectedOrder.formId
-                  ? formTemplatesAll.filter((t: any) => t.id === selectedOrder.formId)
-                  : [];
-
-                const renderFields = (fields: any[]) =>
-                  fields.length === 0 ? (
-                    <div className="px-6 py-8 text-center">
-                      <p className="text-[11px] text-slate-400 font-medium">Formulário sem perguntas configuradas</p>
-                    </div>
-                  ) : fields.map((field: any) => {
-                    const answer = allFormData[field.id];
-                    const hasAnswer = answer !== undefined && answer !== null && answer !== '';
-                    const isMedia = typeof answer === 'string' && (answer.startsWith('http') || answer.startsWith('data:image') || answer.startsWith('data:video'));
-                    const isMediaArray = Array.isArray(answer) && answer.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video')));
-                    const isOk = String(answer).toLowerCase() === 'ok' || String(answer).toLowerCase() === 'sim';
-                    return (
-                      <div key={field.id} className={`px-6 py-3.5 flex justify-between gap-6 items-center transition-colors ${!hasAnswer ? 'bg-blue-50/30' : 'hover:bg-slate-50/50'}`}>
-                        <div className="flex-1">
-                          <p className="text-[13px] font-medium text-slate-700">{field.label || field.id}</p>
-                          {field.type && <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-widest mt-0.5">{field.type}</p>}
-                        </div>
-                        {isMedia ? (
-                          <div className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(answer)}>
-                            {isVideoUrl(answer) ? (
-                              <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
-                                <video src={answer} className="w-full h-full object-cover opacity-50" />
-                                <Play size={10} className="text-white fill-white absolute" />
-                                <div className="absolute bottom-0 right-0 bg-black/60 px-0.5 rounded-tl text-[6px] text-white font-bold">MP4</div>
-                              </div>
-                            ) : (
-                              <img src={answer} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
-                            )}
-                          </div>
-                        ) : isMediaArray ? (
-                          <div className="flex gap-2">
-                            {(answer as string[]).map((media, i) => (
-                              <div key={i} className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(media)}>
-                                {isVideoUrl(media) ? (
-                                  <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
-                                    <video src={media} className="w-full h-full object-cover opacity-50" />
-                                    <Play size={10} className="text-white fill-white absolute" />
-                                    <div className="absolute bottom-0 right-0 bg-black/60 px-0.5 rounded-tl text-[6px] text-white font-bold">MP4</div>
-                                  </div>
-                                ) : (
-                                  <img src={media} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : hasAnswer ? (
-                          <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{String(answer)}</div>
-                        ) : (
-                          <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest px-2.5 py-1 border border-dashed border-blue-200 rounded-md min-w-[60px] text-center">Pendente</div>
-                        )}
-                      </div>
-                    );
-                  });
-
-                const renderTemplateBlock = (template: any, eq?: any) => {
-                  const fields: any[] = template.fields || [];
-                  const isFinalized = ['CONCLUÍDO', 'CANCELADO'].includes(selectedOrder.status);
-
-                  // ── OS FINALIZADA: exibe respostas gravadas sem depender do template atual ──
-                  // Garante imutabilidade: qualquer alteração no template NÃO afeta OSs concluídas.
-                  if (isFinalized) {
-                    const SYSTEM_KEYS = new Set([
-                      'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
-                      'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
-                      'impediment_reason', 'impediment_photos', 'totalValue', 'price',
-                      'finishedAt', 'completedAt', 'technical_report', 'parts_used',
-                      'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
-                      'clientName', 'customerName', 'customerAddress', 'tenantId',
-                      'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
-                      'extra_photos', 'photos', 'equipment_ids'
-                    ]);
-                    const isSignatureKey = (k: string) =>
-                      k.toLowerCase().includes('assinatura') ||
-                      k.toLowerCase().includes('signature') ||
-                      k.toLowerCase().includes('cpf') ||
-                      k.toLowerCase().includes('nascimento');
-
-
-                    const savedEntries = Object.entries(allFormData)
-                      .filter(([k]) => !SYSTEM_KEYS.has(k) && !isSignatureKey(k))
-                      .filter(([, v]) => v !== null && v !== undefined && v !== '' && (Array.isArray(v) ? v.length > 0 : true));
-
-                    const isOk = (v: any) => String(v).toLowerCase() === 'ok' || String(v).toLowerCase() === 'sim';
-                    const isMedia = (v: any) => typeof v === 'string' && (v.startsWith('http') || v.startsWith('data:image') || v.startsWith('data:video'));
-                    const isMediaArray = (v: any) => Array.isArray(v) && v.every(i => typeof i === 'string' && (i.startsWith('http') || i.startsWith('data:image') || i.startsWith('data:video')));
-
-                    return (
-                      <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 overflow-hidden">
-                        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-200 bg-emerald-50">
-                          <div className="w-8 h-8 bg-white border border-emerald-200 rounded-lg flex items-center justify-center">
-                            <ClipboardList size={14} className="text-emerald-500" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{template.title}</p>
-                            {eq && (
-                              <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                                {eq.equipmentName}{eq.equipmentFamily ? ` · ${eq.equipmentFamily}` : ''}
-                              </p>
-                            )}
-                          </div>
-                          <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border bg-emerald-50 text-emerald-600 border-emerald-100">
-                            🔒 Concluído — dados preservados
-                          </span>
-                        </div>
-                        <div className="divide-y divide-slate-50">
-                          {savedEntries.length === 0 ? (
-                            <div className="px-6 py-8 text-center">
-                              <p className="text-[11px] text-slate-400 font-medium">Nenhuma resposta registrada</p>
-                            </div>
-                          ) : savedEntries.map(([key, val]) => (
-                            <div key={key} className="px-6 py-3.5 flex justify-between gap-6 items-center hover:bg-slate-50/50">
-                              <p className="text-[13px] font-medium text-slate-700 flex-1">
-                                {!isNaN(Number(key)) ? `Pergunta ${key}` : key.replace(/^\[.*?\]\s*-\s*/, '').replace(/_/g, ' ')}
-                              </p>
-                              {isMedia(val) ? (
-                                <div className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(String(val))}>
-                                  {isVideoUrl(String(val)) ? (
-                                    <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
-                                      <video src={String(val)} className="w-full h-full object-cover opacity-50" />
-                                      <Play size={10} className="text-white fill-white absolute" />
-                                    </div>
-                                  ) : (
-                                    <img src={String(val)} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
-                                  )}
-                                </div>
-                              ) : isMediaArray(val) ? (
-                                <div className="flex gap-2">
-                                  {(val as string[]).map((m, i) => (
-                                    <div key={i} className="relative group cursor-zoom-in" onClick={() => setFullscreenImage(m)}>
-                                      {isVideoUrl(m) ? (
-                                        <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
-                                          <video src={m} className="w-full h-full object-cover opacity-50" />
-                                          <Play size={10} className="text-white fill-white absolute" />
-                                        </div>
-                                      ) : (
-                                        <img src={m} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk(val) ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'
-                                  }`}>{Array.isArray(val) ? String(val).replace(/,/g, ', ') : String(val)}</div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // ── OS em andamento: usa template atual normalmente ──
-                  const answered = fields.filter(f => allFormData[f.id] !== undefined && allFormData[f.id] !== '').length;
-                  const isComplete = answered === fields.length && fields.length > 0;
-                  const isPending = answered === 0;
-                  return (
-                    <div key={template.id + (eq?.id || '')} className="bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 overflow-hidden">
-                      <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-200 bg-slate-50">
-                        <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
-                          <ClipboardList size={14} className="text-slate-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{template.title}</p>
-                          {eq && (
-                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                              {eq.equipmentName}{eq.equipmentFamily ? ` · ${eq.equipmentFamily}` : ''}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[9px] font-black text-slate-400 uppercase">{answered}/{fields.length} resp.</span>
-                          <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isComplete ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                            : isPending ? 'bg-blue-50 text-blue-600 border-amber-100'
-                              : 'bg-blue-50 text-blue-600 border-blue-100'
-                            }`}>
-                            {isComplete ? '✓ Concluído' : isPending ? '○ Pendente' : '◑ Parcial'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="divide-y divide-slate-50">{renderFields(fields)}</div>
-                    </div>
-                  );
-                };
-
-                return (
-                  <div className="max-w-4xl mx-auto space-y-8">
-                    {/* Alertas de impedimento — Fonte: impediment_history (append-only) + legado */}
-                    {(() => {
-                      // Lista para agrupar todas as ocorrências de impedimentos (para render) sem deduplicação destrutiva
-                      const impediments: { title: string; reason: string; photo?: string; date?: string }[] = [];
-
-                      // 1. CARREGAMENTO MESTRE: Nova Tabela Estruturada (Imutável e Independente)
-                      orderImpediments.forEach((imp, i) => {
-                        impediments.push({
-                          title: `Impedimento Registrado — Evento ${i + 1}`,
-                          reason: imp.reason,
-                          photo: imp.photoUrl,
-                          date: imp.createdAt
-                        });
-                      });
-
-                      // 2. LEGADO: Busca em Visitas passadas apenas se não houver registros na nova tabela (migração suave)
-                      if (impediments.length === 0) {
-                        [...orderVisits].sort((a, b) => a.visitNumber - b.visitNumber).forEach(v => {
-                          const vFd: any = v.formData || {};
-                          const reason = v.impedimentReason || v.pauseReason || vFd.blockReason || vFd.impediment_reason;
-                          if (reason) {
-                            impediments.push({
-                              title: `Impedimento — Visita nº ${v.visitNumber}`,
-                              reason: reason,
-                              photo: vFd.blockPhotoUrl,
-                              date: vFd.blockedAt || v.updatedAt
-                            });
-                          }
-                        });
-                      }
-
-                      if (impediments.length === 0) return null;
-
-                      // Deduplicador Inteligente baseado no motivo e foto (sem depender exclusivamente da data)
-                      const uniqueImpediments = impediments.filter((value, index, self) =>
-                        index === self.findIndex((t) => (
-                          t.reason === value.reason &&
-                          (t.photo === value.photo || (!t.photo && !value.photo))
-                        ))
-                      );
-
-                      return (
-                        <div className="space-y-4 mb-6">
-                          {uniqueImpediments.map((imp, idx) => (
-                            <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
-                              <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
-                              <div className="flex-1">
-                                <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
-                                {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
-                                <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
-                                {imp.photo && (
-                                  <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
-                                    <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{ maxHeight: 200 }} />
-                                    <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-
-                    {formsTabLoading ? (
-                      <div className="flex items-center justify-center py-16 gap-3">
-                        <Loader2 size={22} className="animate-spin text-primary-400" />
-                        <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando formulários...</span>
-                      </div>
-                    ) : osEquipments.length > 0 ? (
-                      /* ── Modo multi-equipamento: 1 seção por equipamento ── */
-                      osEquipments.map((eq: any, eqIdx: number) => {
-                        const templates = resolveTemplate(eq.equipmentFamily || '');
-                        const effectiveTemplates = templates.length > 0 ? templates : osFallbackTemplate;
-                        return (
-                          <div key={eq.id || eqIdx} className="space-y-4">
-                            {/* Cabeçalho do equipamento */}
-                            <div className="flex items-center gap-3">
-                              <div className="w-7 h-7 bg-primary-50 border border-primary-100 rounded-md flex items-center justify-center">
-                                <Box size={13} className="text-primary-400" />
-                              </div>
-                              <div>
-                                <p className="text-xs font-black text-slate-700 uppercase tracking-wider">{eq.equipmentName}</p>
-                                {eq.equipmentFamily && <p className="text-[10px] text-slate-400 font-medium">{eq.equipmentFamily}</p>}
-                              </div>
-                              <span className="ml-auto text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                {effectiveTemplates.length} formulário{effectiveTemplates.length !== 1 ? 's' : ''}
-                              </span>
-                            </div>
-
-                            {effectiveTemplates.length > 0
-                              ? effectiveTemplates.map((t: any) => renderTemplateBlock(t, eq))
-                              : (
-                                <div className="bg-white border border-dashed border-slate-200 rounded-xl py-10 text-center">
-                                  <ClipboardList size={28} className="mx-auto text-slate-200 mb-3" />
-                                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Sem formulário vinculado</p>
-                                  <p className="text-[10px] text-slate-300 mt-1">Tipo: {opType || '—'} · Família: {eq.equipmentFamily || '—'}</p>
-                                </div>
-                              )
-                            }
-                          </div>
-                        );
-                      })
-                    ) : (
-                      /* ── Fallback: sem equipamentos carregados ── */
-                      osFallbackTemplate.length > 0
-                        ? osFallbackTemplate.map((t: any) => renderTemplateBlock(t))
-                        : (
-                          <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm">
-                            <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento</p>
-                            <p className="text-[11px] text-slate-300 mt-1 font-medium">Nenhuma regra configurada para &quot;{opType}&quot;</p>
-                          </div>
-                        )
-                    )}
-
-                    {/* ── CARD DE IMPEDIMENTO ── */}
-                    {(() => {
-                      const fd = allFormData || {};
-                      const impType = fd.impedimento_tipo;
-                      const impReason = fd.impedimento_motivo || fd.impediment_reason;
-                      const impDate = fd.impediment_at;
-                      const impParts = fd.impedimento_peca_nome ? {
-                        nome: fd.impedimento_peca_nome,
-                        modelo: fd.impedimento_peca_modelo,
-                        codigo: fd.impedimento_peca_codigo
-                      } : null;
-                      const impPhotos = fd.impedimento_fotos || [];
-
-                      const hasImpedimentData = impType || impReason || impParts;
-
-                      if (!hasImpedimentData) return null;
-
-                      return (
-                        <div className="bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 rounded-xl shadow-sm overflow-hidden mb-6">
-                          <div className="flex items-center gap-3 px-6 py-4 border-b border-rose-100 bg-rose-100/50">
-                            <div className="w-8 h-8 bg-white border border-rose-200 rounded-lg flex items-center justify-center">
-                              <Ban size={14} className="text-rose-500" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-xs font-black text-rose-800 uppercase tracking-wider">Dados de Impedimento</p>
-                              <p className="text-[10px] text-rose-500 font-medium mt-0.5">Informações registradas ao bloquear a OS</p>
-                            </div>
-                            {impDate && (
-                              <span className="text-[9px] font-black text-rose-600 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-rose-200">
-                                {new Date(impDate).toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                          <div className="divide-y divide-rose-50/50">
-                            {impType && (
-                              <div className="px-6 py-4 flex gap-4 items-center">
-                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest min-w-[120px]">Tipo de Impedimento</p>
-                                <p className="text-sm font-bold text-slate-800">{impType}</p>
-                              </div>
-                            )}
-                            {impReason && (
-                              <div className="px-6 py-4">
-                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Motivo / Detalhes</p>
-                                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-rose-100">{impReason}</p>
-                              </div>
-                            )}
-                            {impParts && (
-                              <div className="px-6 py-4">
-                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Peça Solicitada</p>
-                                <div className="bg-white p-3 rounded-md border border-rose-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                  <div>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Nome da Peça</p>
-                                    <p className="text-sm font-bold text-slate-800">{impParts.nome}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Modelo</p>
-                                    <p className="text-sm font-bold text-slate-800">{impParts.modelo}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Código</p>
-                                    <p className="text-sm font-bold text-slate-800">{impParts.codigo || '-'}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            {impPhotos && impPhotos.length > 0 && (
-                              <div className="px-6 py-4">
-                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-3">Evidências (Fotos)</p>
-                                <div className="flex flex-wrap gap-3">
-                                  {impPhotos.map((url: string, idx: number) => (
-                                    <div
-                                      key={idx}
-                                      className="w-24 h-24 rounded-lg overflow-hidden border border-rose-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
-                                      onClick={() => setFullscreenImage(url)}
-                                    >
-                                      <img src={url} alt={`Evidência ${idx}`} className="w-full h-full object-cover" />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* ── CARD DE CONCLUSÃO ── */}
-                    {(() => {
-                      const fd = allFormData || {};
-                      const techReport = fd.technicalReport || fd.technical_report || '';
-                      const partsUsed = fd.partsUsed || fd.parts_used || '';
-                      const clientName = fd.clientName || '';
-                      const clientDoc = fd.clientDoc || '';
-                      const completedAt = fd.completedAt || selectedOrder.endDate || '';
-                      const hasConclusionData = techReport || partsUsed || clientName || completedAt;
-
-                      if (!hasConclusionData) return null;
-
-                      return (
-                        <div className="bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-200 rounded-xl shadow-sm overflow-hidden">
-                          <div className="flex items-center gap-3 px-6 py-4 border-b border-indigo-100 bg-indigo-100/50">
-                            <div className="w-8 h-8 bg-white border border-indigo-200 rounded-lg flex items-center justify-center">
-                              <ShieldCheck size={14} className="text-indigo-500" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-xs font-black text-indigo-800 uppercase tracking-wider">Dados de Conclusão</p>
-                              <p className="text-[10px] text-indigo-400 font-medium mt-0.5">Informações registradas na finalização da OS</p>
-                            </div>
-                            {completedAt && (
-                              <span className="text-[9px] font-black text-indigo-500 uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white border-indigo-200">
-                                {new Date(completedAt).toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                          <div className="divide-y divide-indigo-50">
-                            {techReport && (
-                              <div className="px-6 py-4">
-                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Relatório Técnico</p>
-                                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-indigo-100">{techReport}</p>
-                              </div>
-                            )}
-                            {partsUsed && (
-                              <div className="px-6 py-4">
-                                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Peças Utilizadas</p>
-                                <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-indigo-100">{partsUsed}</p>
-                              </div>
-                            )}
-                            {(clientName || clientDoc || fd.signature) && (
-                              <div className="px-6 py-4 flex flex-col md:flex-row gap-8 items-start">
-                                <div className="flex gap-8">
-                                  {clientName && (
-                                    <div>
-                                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Nome do Responsável</p>
-                                      <p className="text-sm font-bold text-slate-800 mt-1">{clientName}</p>
-                                    </div>
-                                  )}
-                                  {clientDoc && (
-                                    <div>
-                                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Documento (CPF)</p>
-                                      <p className="text-sm font-bold text-slate-800 mt-1 font-mono">{clientDoc}</p>
-                                    </div>
-                                  )}
-                                </div>
-                                {fd.signature && (
-                                  <div className="flex flex-col gap-1.5 ml-auto">
-                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Assinatura Coletada</p>
-                                    <div
-                                      className="h-12 w-32 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1 cursor-zoom-in hover:shadow-lg shadow-slate-200/50 transition-all"
-                                      onClick={() => setFullscreenImage(fd.signature)}
-                                    >
-                                      <img src={fd.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            {(() => {
-                              const extras = fd.extra_photos || fd.extraPhotos || fd.photos || [];
-                              const photos = Array.isArray(extras) ? extras : (typeof extras === "string" ? [extras] : []);
-                              const validPhotos = photos.filter((p: any) => typeof p === "string" && (p.startsWith("http") || p.startsWith("data:image")));
-
-                              return (
-                                <div className="px-6 py-4 space-y-4">
-                                  {(selectedOrder.videoUrl || fd.videoUrl || fd.video_url) && (
-                                    <div className="pt-2 border-t border-indigo-50">
-                                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <Video size={12} /> Vídeo de Conclusão (Evidência)
-                                      </p>
-                                      <div className="flex flex-wrap gap-3">
-                                        <div
-                                          className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all active:scale-95 relative group"
-                                          onClick={() => setFullscreenImage(selectedOrder.videoUrl || fd.videoUrl || fd.video_url)}
-                                        >
-                                          <video
-                                            src={selectedOrder.videoUrl || fd.videoUrl || fd.video_url}
-                                            className="w-full h-full object-cover opacity-60"
-                                            preload="metadata"
-                                          />
-                                          <div className="absolute inset-0 flex items-center justify-center">
-                                            <Play size={16} className="text-white fill-white" />
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {validPhotos.length > 0 && (
-                                    <div className="pt-2 border-t border-indigo-50">
-                                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3">Anexos de Conclusão (Fotos)</p>
-                                      <div className="flex flex-wrap gap-3">
-                                        {validPhotos.map((url: string, i: number) => (
-                                          <div
-                                            key={i}
-                                            className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all active:scale-95"
-                                            onClick={() => setFullscreenImage(url)}
-                                          >
-                                            <img src={url} className="w-full h-full object-cover" alt={`Anexo ${i + 1}`} />
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                );
-              })()}
+              {/* TAB: FORMULÁRIOS — 1 container por visita (cronológico) */}
+              {activeTab === 'forms' && (
+                <VisitFormsTab
+                  orderVisits={orderVisits}
+                  selectedOrder={selectedOrder}
+                  techs={techs}
+                  formsTabLoading={formsTabLoading}
+                  formTemplatesAll={formTemplatesAll}
+                  onImageClick={setFullscreenImage}
+                />
+              )}
 
               {/* TAB: EXECUÇÃO (CHECKLIST) — mantido para backward compat */}
               {activeTab === 'execution' && (
@@ -2488,18 +2053,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <button
                         type="button"
                         onClick={() => setEditDraft({ ...editDraft, showValueToClient: !(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) })}
-                        className={`absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false)
-                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                          : 'bg-white/10 text-white/50 border-white/20 hover:bg-white/20'
+                        className={`absolute top-4 right-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg ${(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false)
+                          ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30'
+                          : 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-500/30'
                           }`}
                       >
-                        {(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) ? <><Eye size={14} /> Visível no Link</> : <><EyeOff size={14} /> Oculto no Link</>}
+                        {(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) ? <><Eye size={14} /> Visível no Link e Impressão</> : <><EyeOff size={14} /> Oculto no Link e Impressão</>}
                       </button>
                     )}
                     {!isEditing && (
-                      <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 text-white/70 border border-white/20">
-                        {selectedOrder.showValueToClient ? <><Eye size={14} /> Visível no Link Público</> : <><EyeOff size={14} /> Oculto no Link Público</>}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm(`Deseja ${selectedOrder.showValueToClient ? 'ocultar' : 'mostrar'} os preços desta OS para o cliente? Isso afetará o link público e a impressão.`)) {
+                            await onEditOrder({ ...selectedOrder, showValueToClient: !selectedOrder.showValueToClient });
+                            setSelectedOrder({ ...selectedOrder, showValueToClient: !selectedOrder.showValueToClient });
+                          }
+                        }}
+                        className={`absolute top-4 right-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shadow-lg transition-all ${selectedOrder.showValueToClient ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30' : 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-500/30'}`}
+                      >
+                        {selectedOrder.showValueToClient ? <><Eye size={14} /> Visível no Link Público e Impressão</> : <><EyeOff size={14} /> Oculto no Link Público e Impressão</>}
+                      </button>
                     )}
                     <div>
                       <h3 className="text-base font-bold text-white mb-1">Mão de Obra e Peças</h3>
@@ -2647,7 +2221,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <Link2 size={14} className="text-slate-400" />
                                   </div>
                                   <div>
-                                    <p className="text-[12px] font-bold text-slate-800">{q?.displayId || q?.title || qid}</p>
+                                    <p
+                                      className="text-[12px] font-bold text-slate-800 hover:text-primary-600 cursor-pointer flex items-center gap-1 transition-colors"
+                                      onClick={() => window.open(`/#/view-quote/${q?.publicToken || qid}`, '_blank')}
+                                      title="Abrir orçamento no portal do cliente"
+                                    >
+                                      {q?.displayId || q?.title || qid}
+                                      <ExternalLink size={12} className="opacity-50" />
+                                    </p>
                                     <p className="text-[11px] text-slate-500 mt-0.5">{q?.customerName || '—'} • R$ {(q?.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                   </div>
                                 </div>
