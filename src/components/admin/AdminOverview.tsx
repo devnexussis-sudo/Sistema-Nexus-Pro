@@ -239,18 +239,18 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   };
 
   return (
-    <div className="p-8 space-y-8 bg-slate-50/50 h-full overflow-y-auto custom-scrollbar">
+    <div className="p-3 sm:p-6 lg:p-8 space-y-5 sm:space-y-8 bg-slate-50/50 h-full overflow-y-auto custom-scrollbar">
 
       {/* HEADER & FILTERS */}
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight lowercase">visão geral</h1>
-            <p className="text-sm text-slate-500 font-medium mt-1">Monitore o desempenho operacional e SLAs em tempo real</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight lowercase">visão geral</h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">Monitore o desempenho operacional e SLAs em tempo real</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center bg-white border border-slate-200 p-1.5 rounded-lg shadow-lg shadow-slate-200/50">
+            <div className="flex flex-wrap items-center bg-white border border-slate-200 p-1.5 rounded-lg shadow-lg shadow-slate-200/50">
               <select
                 value={dateTypeFilter}
                 onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
@@ -260,8 +260,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                 <option value="created">Abertura</option>
                 <option value="completed">Conclusão</option>
               </select>
-              <div className="h-6 w-px bg-slate-200 mx-3"></div>
-              <div className="flex gap-1 mr-3">
+              <div className="h-6 w-px bg-slate-200 mx-2 sm:mx-3 hidden sm:block"></div>
+              <div className="flex gap-1 mr-2 sm:mr-3">
                 {[
                   { id: 'today', label: 'Hoje' },
                   { id: 'week', label: '7 dias' },
@@ -270,17 +270,17 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                   <button
                     key={f.id}
                     onClick={() => handleFastFilter(f.id as any)}
-                    className="px-3 py-1.5 text-[10px] font-bold  rounded-md transition-all text-slate-500 hover:text-[#1c2d4f] hover:bg-slate-50 active:scale-95"
+                    className="px-2 sm:px-3 py-1.5 text-[10px] font-bold  rounded-md transition-all text-slate-500 hover:text-[#1c2d4f] hover:bg-slate-50 active:scale-95"
                   >
                     {f.label}
                   </button>
                 ))}
               </div>
-              <div className="h-6 w-px bg-slate-200 mr-3"></div>
-              <div className="flex items-center gap-3 px-1">
-                <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent text-[11px] font-semibold text-slate-700 outline-none w-28" />
+              <div className="h-6 w-px bg-slate-200 mr-2 sm:mr-3 hidden sm:block"></div>
+              <div className="flex items-center gap-2 sm:gap-3 px-1">
+                <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent text-[11px] font-semibold text-slate-700 outline-none w-24 sm:w-28" />
                 <span className="text-[10px] font-bold text-slate-300 ">Até</span>
-                <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent text-[11px] font-semibold text-slate-700 outline-none w-28" />
+                <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent text-[11px] font-semibold text-slate-700 outline-none w-24 sm:w-28" />
               </div>
             </div>
           </div>
@@ -370,7 +370,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       </div>
 
       {/* KPI GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 lg:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
 
         {/* KPI: SLA 24H (Vibrant Gradient) */}
         <div className="bg-gradient-to-br from-indigo-600 to-[#1c2d4f] rounded-2xl p-6 shadow-xl shadow-indigo-900/20 flex flex-col justify-between text-white relative overflow-hidden group">

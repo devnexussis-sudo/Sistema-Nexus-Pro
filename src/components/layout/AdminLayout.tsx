@@ -1,10 +1,10 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     Hexagon, LayoutDashboard, ClipboardList, CalendarClock, Calendar,
     Users, Box, Wrench, Workflow, ShieldAlert, ShieldCheck,
     Settings, LogOut, Bell, Package, ArrowRight, FileText,
-    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone
+    AlertTriangle, Lock, Navigation, DollarSign, ChevronLeft, ChevronRight, WifiOff, X, Phone, Menu
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -32,6 +32,23 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 }) => {
     const location = useLocation();
     const [showInbox, setShowInbox] = useState(false);
+    const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+    // Fecha sidebar mobile ao navegar
+    useEffect(() => {
+        setIsMobileSidebarOpen(false);
+    }, [location.pathname]);
+
+    // Fecha sidebar mobile ao redimensionar para desktop
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth >= 1024) {
+                setIsMobileSidebarOpen(false);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const hasPermission = (module: keyof UserPermissions, action: 'read' | 'create' | 'update' | 'delete' | null = 'read'): boolean => {
         if (isImpersonating) return true;
@@ -72,12 +89,79 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path))
     );
 
+    // ── Componente de Sidebar Navigation (reutilizado mobile + desktop) ──
+    const SidebarNav = ({ onItemClick }: { onItemClick?: () => void }) => (
+        <>
+            <nav className="space-y-1">
+                {menuItems.map(item => {
+                    const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
+                    return (
+                        <Link
+                            key={item.id}
+                            to={item.enabled ? item.path : '#'}
+                            onClick={(e) => {
+                                if (!item.enabled) {
+                                    e.preventDefault();
+                                } else if (onItemClick) {
+                                    onItemClick();
+                                }
+                            }}
+                            className={`w-full flex items-center ${isSidebarCollapsed && !onItemClick ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${!item.enabled
+                                ? 'opacity-20 grayscale cursor-not-allowed'
+                                : isActive
+                                    ? 'bg-white/10 text-white shadow-sm'
+                                    : 'text-white/70 hover:text-white hover:bg-white/5'
+                                }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <item.icon size={18} className={`${isActive ? 'text-white' : 'text-white/60'}`} />
+                                {(!isSidebarCollapsed || onItemClick) && <span>{item.label}</span>}
+                            </div>
+                        </Link>
+                    );
+                })}
+            </nav>
+
+            <div className="pt-4 border-t border-white/5 mx-2">
+                <a
+                    href="https://wa.me/553534227420"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`w-full flex items-center ${isSidebarCollapsed && !onItemClick ? 'justify-center px-0' : 'px-3 justify-start'} py-2.5 rounded-lg transition-all duration-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 group`}
+                    title="Suporte Técnico"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-emerald-500/20 rounded-md group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                            <Phone size={14} className="text-emerald-400 group-hover:text-white" />
+                        </div>
+                        {(!isSidebarCollapsed || onItemClick) && (
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-bold   text-emerald-100/90 group-hover:text-white">suporte</span>
+                                <span className="text-[8px] font-bold text-emerald-500/80 group-hover:text-emerald-400">online agora</span>
+                            </div>
+                        )}
+                    </div>
+                </a>
+            </div>
+        </>
+    );
+
     return (
         <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-poppins">
             {/* Header Global */}
             <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm shrink-0 border-b border-slate-200">
                 <div className="flex items-center">
-                    <div className={`${isSidebarCollapsed ? 'w-16 justify-center' : 'w-52 justify-start pl-6'} transition-all duration-300 ease-in-out flex items-center overflow-hidden`}>
+                    {/* Mobile: Hamburger button */}
+                    <button
+                        onClick={() => setIsMobileSidebarOpen(true)}
+                        className="lg:hidden p-3 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors"
+                        aria-label="Abrir menu"
+                    >
+                        <Menu size={22} />
+                    </button>
+
+                    {/* Desktop: Logo area */}
+                    <div className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16 justify-center' : 'w-52 justify-start pl-6'} transition-all duration-300 ease-in-out items-center overflow-hidden`}>
                         <NexusBranding
                             variant="dark"
                             size="lg"
@@ -85,15 +169,26 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         />
                     </div>
 
-                    <div className="flex items-center gap-6 border-l border-slate-100 pl-6 h-8 ml-4">
+                    {/* Mobile: Compact branding */}
+                    <div className="lg:hidden flex items-center">
+                        <NexusBranding
+                            variant="dark"
+                            size="lg"
+                            className="h-10"
+                        />
+                    </div>
+
+                    {/* Desktop: Page title */}
+                    <div className="hidden lg:flex items-center gap-6 border-l border-slate-100 pl-6 h-8 ml-4">
                         <h2 className="text-sm font-semibold text-slate-900 lowercase tracking-tight">
                             {activeItem?.label || 'dashboard'}
                         </h2>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-6 pr-4">
-                    <div className="flex flex-col items-end border-r border-slate-100 pr-6">
+                <div className="flex items-center gap-2 sm:gap-6 pr-2 sm:pr-4">
+                    {/* User info — hidden on very small screens */}
+                    <div className="hidden sm:flex flex-col items-end border-r border-slate-100 pr-6">
                         <span className="text-sm font-semibold text-slate-900 tracking-tight">{user?.name}</span>
                         <span className="text-[10px] font-medium text-slate-400  tracking-tighter">administrador</span>
                     </div>
@@ -186,7 +281,71 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             ))}
 
             <div className="flex flex-1 overflow-hidden">
-                <aside className={`${isSidebarCollapsed ? 'w-16' : 'w-52'} bg-[#1c2d4f] h-full flex flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5`}>
+                {/* ── Mobile Sidebar Overlay ─────────────────────────────── */}
+                {isMobileSidebarOpen && (
+                    <div className="fixed inset-0 z-[300] lg:hidden">
+                        {/* Backdrop */}
+                        <div 
+                            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-fade-in"
+                            onClick={() => setIsMobileSidebarOpen(false)} 
+                        />
+                        {/* Drawer */}
+                        <aside className="absolute left-0 top-0 bottom-0 w-72 bg-[#1c2d4f] flex flex-col shadow-2xl animate-slide-in-left z-[301]">
+                            {/* Drawer Header */}
+                            <div className="h-14 flex items-center justify-between px-4 border-b border-white/10 shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <img src="/duno-icon.png" alt="DUNO" className="w-8 h-8 rounded-lg" />
+                                    <span className="text-white font-bold text-sm tracking-tight">DUNO Nexus</span>
+                                </div>
+                                <button 
+                                    onClick={() => setIsMobileSidebarOpen(false)}
+                                    className="p-2 text-white/40 hover:text-white transition-colors rounded-lg"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            {/* User card (mobile) */}
+                            <div className="px-4 py-3 border-b border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white font-bold text-sm">
+                                        {user?.name?.charAt(0) || 'A'}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-white text-sm font-semibold truncate max-w-[160px]">{user?.name}</span>
+                                        <span className="text-white/40 text-[10px] font-medium">administrador</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Nav items */}
+                            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar">
+                                <SidebarNav onItemClick={() => setIsMobileSidebarOpen(false)} />
+                            </div>
+
+                            {/* Bottom actions */}
+                            <div className="shrink-0 p-4 border-t border-white/5 flex flex-col gap-2">
+                                {isImpersonating && (
+                                    <button
+                                        onClick={() => { SessionStorage.remove('is_impersonating'); onLogout(); }}
+                                        className="w-full py-2.5 bg-primary-600/20 text-primary-100 rounded-md text-xs font-semibold hover:bg-primary-600/30 transition-all border border-primary-500/20"
+                                    >
+                                        <ShieldCheck size={16} className="inline mr-2" /> Finalizar Auditoria
+                                    </button>
+                                )}
+                                <button
+                                    onClick={onLogout}
+                                    className="w-full py-2 text-white/40 hover:text-rose-400 hover:bg-rose-500/5 rounded-md text-[10px] font-bold flex items-center justify-center gap-2 transition-all"
+                                >
+                                    <LogOut size={14} /> sair da conta
+                                </button>
+                            </div>
+                        </aside>
+                    </div>
+                )}
+
+                {/* ── Desktop Sidebar ───────────────────────────────────── */}
+                <aside className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16' : 'w-52'} bg-[#1c2d4f] h-full flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5`}>
                     <button
                         onClick={onToggleSidebar}
                         className="absolute -right-3 top-6 w-6 h-6 bg-[#1c2d4f] text-white/50 border border-white/10 rounded-full flex items-center justify-center hover:text-white transition-all z-[60]"
@@ -195,52 +354,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     </button>
 
                     <div className={`flex-1 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
-                        <nav className="space-y-1">
-                            {menuItems.map(item => {
-                                const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
-                                return (
-                                    <Link
-                                        key={item.id}
-                                        to={item.enabled ? item.path : '#'}
-                                        onClick={(e) => !item.enabled && e.preventDefault()}
-                                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3'} py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${!item.enabled
-                                            ? 'opacity-20 grayscale cursor-not-allowed'
-                                            : isActive
-                                                ? 'bg-white/10 text-white shadow-sm'
-                                                : 'text-white/70 hover:text-white hover:bg-white/5'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <item.icon size={18} className={`${isActive ? 'text-white' : 'text-white/60'}`} />
-                                            {!isSidebarCollapsed && <span>{item.label}</span>}
-                                        </div>
-                                    </Link>
-                                );
-                            })}
-                        </nav>
-
-
-                        <div className="pt-4 border-t border-white/5 mx-2">
-                            <a
-                                href="https://wa.me/553534227420"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'px-3 justify-start'} py-2.5 rounded-lg transition-all duration-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 group`}
-                                title="Suporte Técnico"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="p-1.5 bg-emerald-500/20 rounded-md group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                                        <Phone size={14} className="text-emerald-400 group-hover:text-white" />
-                                    </div>
-                                    {!isSidebarCollapsed && (
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold   text-emerald-100/90 group-hover:text-white">suporte</span>
-                                            <span className="text-[8px] font-bold text-emerald-500/80 group-hover:text-emerald-400">online agora</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </a>
-                        </div>
+                        <SidebarNav />
                     </div>
 
                     <div className={`shrink-0 p-4 border-t border-white/5 flex flex-col gap-2 ${isSidebarCollapsed ? 'items-center' : ''}`}>
@@ -262,6 +376,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 </aside>
 
                 <main className="flex-1 overflow-hidden flex flex-col relative bg-slate-50/50">
+                    {/* Mobile: Page title bar */}
+                    <div className="lg:hidden flex items-center h-10 px-4 bg-white border-b border-slate-100 shrink-0">
+                        <h2 className="text-xs font-semibold text-slate-700 lowercase tracking-tight">
+                            {activeItem?.label || 'dashboard'}
+                        </h2>
+                    </div>
                     <div className="flex-1 overflow-y-auto relative custom-scrollbar">
                         {children}
                     </div>

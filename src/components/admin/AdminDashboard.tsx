@@ -910,9 +910,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   return (
-    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50 overflow-hidden">
+    <div className="p-2 sm:p-4 animate-fade-in flex flex-col h-full bg-slate-50 overflow-hidden">
       {/* Search & Filter Toolbar */}
-      <div className="mb-6 space-y-4">
+      <div className="mb-3 sm:mb-6 space-y-3 sm:space-y-4">
         {/* Row 1: Search & Date Filters & Toggle */}
         <div className="flex flex-col xl:flex-row gap-3">
           <div className="relative flex-1">
@@ -999,15 +999,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {/* Row for Actions (Export, New, etc.) */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Fast Filters */}
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 sm:gap-2">
               {['today', 'week', 'month'].map((type) => (
                 <button
                   key={type}
                   onClick={() => handleFastFilter(type as any)}
-                  className="px-3 py-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-primary-600 border border-slate-200 rounded-lg hover:border-primary-100 hover:bg-primary-50/50 transition-all"
+                  className="px-2 sm:px-3 py-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-primary-600 border border-slate-200 rounded-lg hover:border-primary-100 hover:bg-primary-50/50 transition-all"
                 >
                   {type === 'today' ? 'Hoje' : type === 'week' ? '7 Dias' : '30 Dias'}
                 </button>
@@ -1015,35 +1015,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-2 sm:gap-3 ml-auto">
 
 
             {/* Ações em Lote (Seleção) */}
             {selectedOrderIds.length > 0 && (
-              <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-900 rounded-[1.5rem] shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100">
-                <div className="flex flex-col pr-3 border-r border-slate-700">
-                  <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Selecionados</span>
+              <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 bg-slate-900 rounded-[1.5rem] shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100">
+                <div className="flex flex-col pr-2 sm:pr-3 border-r border-slate-700">
+                  <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5 hidden sm:block">Selecionados</span>
                   <span className="text-xs font-black text-white leading-none">{selectedOrderIds.length}</span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <button
                     onClick={handleExportExcel}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
                     title="Exportar Seleção para Excel"
                   >
-                    <FileSpreadsheet size={14} /> Excel
+                    <FileSpreadsheet size={14} /> <span className="hidden sm:inline">Excel</span>
                   </button>
 
                   <button
                     onClick={handleBatchPrint}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-slate-500/20 active:scale-95"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-slate-500/20 active:scale-95"
                     title="Gerar PDF / Imprimir Seleção"
                   >
-                    <FileText size={14} /> Exportar PDF
+                    <FileText size={14} /> <span className="hidden sm:inline">Exportar PDF</span>
                   </button>
 
-                  <div className="w-px h-6 bg-slate-700 mx-1" />
+                  <div className="w-px h-6 bg-slate-700 mx-0.5 sm:mx-1" />
 
                   <button
                     onClick={() => setSelectedOrderIds([])}
@@ -1058,10 +1058,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <Button
               variant="primary"
-              className="h-10 px-6 gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
+              className="h-10 px-3 sm:px-6 gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
               onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
             >
-              <Plus size={16} /> Novo Atendimento
+              <Plus size={16} /> <span className="hidden sm:inline">Novo Atendimento</span>
             </Button>
           </div>
         </div>
@@ -1249,32 +1249,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
 
       {selectedOrder && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
+          <div className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
 
             {/* HEADER */}
-            <div className={`px-6 py-5 border-b border-slate-100 flex justify-between items-center shrink-0 transition-colors ${isEditing ? 'bg-blue-50' : 'bg-white'}`}>
-              <div className="flex items-center gap-4">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-colors ${isEditing ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                  {isEditing ? <Edit3 size={18} /> : <FileText size={20} />}
+            <div className={`px-3 sm:px-6 py-3 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 transition-colors ${isEditing ? 'bg-blue-50' : 'bg-white'}`}>
+              <div className="flex items-start sm:items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border transition-colors shrink-0 ${isEditing ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                  {isEditing ? <Edit3 size={16} /> : <FileText size={18} />}
                 </div>
-                <div>
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-base font-semibold text-slate-900 font-poppins">Ordem de Serviço #{selectedOrder.displayId || selectedOrder.id}</h2>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
+                    <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins truncate">OS #{selectedOrder.displayId || selectedOrder.id}</h2>
                     <StatusBadge status={selectedOrder.status} />
                     {isEditing && (
-                      <span className="text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
-                        Modo Edição
+                      <span className="text-[9px] sm:text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
+                        Editando
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate">
                     {isEditing ? (editDraft.customerName || selectedOrder.customerName) : selectedOrder.customerName} • {isEditing ? (editDraft.customerAddress || selectedOrder.customerAddress) : selectedOrder.customerAddress}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                 {/* Botões de salvamento — aparecem automaticamente se em modo de edição */}
 
                 {isEditing && (
@@ -1309,18 +1309,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         variant="secondary"
                         size="sm"
                         onClick={handleStartEdit}
-                        className="h-9 px-4 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                        className="h-9 px-2 sm:px-4 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
                       >
-                        <Edit3 size={14} /> Editar OS
+                        <Edit3 size={14} /> <span className="hidden sm:inline">Editar OS</span>
                       </Button>
                     )}
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={(e) => handleOpenPublicView(selectedOrder, e)}
-                      className="h-9 px-4 gap-2 border-primary-200 text-primary-700 hover:bg-primary-50"
+                      className="h-9 px-2 sm:px-4 gap-1.5 border-primary-200 text-primary-700 hover:bg-primary-50"
                     >
-                      <Share2 size={14} /> Visualizar
+                      <Share2 size={14} /> <span className="hidden sm:inline">Visualizar</span>
                     </Button>
                     <Button
                       variant="secondary"
@@ -1336,21 +1336,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           alert('WhatsApp do cliente não cadastrado no sistema.');
                         }
                       }}
-                      className="h-9 px-4 gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      className="h-9 px-2 sm:px-4 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                     >
-                      <MessageCircle size={14} /> WhatsApp
+                      <MessageCircle size={14} /> <span className="hidden sm:inline">WhatsApp</span>
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={() => handlePrintOrder(selectedOrder.id)}
-                      className="h-9 px-4 gap-2"
+                      className="h-9 px-2 sm:px-4 gap-1.5 hidden sm:flex"
                     >
-                      <Printer size={14} /> Imprimir PDF
+                      <Printer size={14} /> <span className="hidden md:inline">Imprimir PDF</span>
                     </Button>
                   </>
                 )}
-                <div className="h-6 w-px bg-slate-200 mx-2"></div>
+                <div className="h-6 w-px bg-slate-200 mx-0.5 sm:mx-2"></div>
                 <button onClick={handleCloseModal} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                   <X size={20} />
                 </button>
@@ -1358,7 +1358,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             {/* TABS */}
-            <div className="px-4 border-b border-slate-200 bg-white flex justify-between gap-1 shrink-0 overflow-hidden">
+            <div className="px-2 sm:px-4 border-b border-slate-200 bg-white flex gap-1 shrink-0 overflow-x-auto custom-scrollbar">
               {[
                 { id: 'overview', label: 'dados gerais', icon: LayoutDashboard },
                 { id: 'internal_notes', label: 'obs internas', icon: FileText },
@@ -1375,7 +1375,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-1.5 py-4 text-xs font-bold border-b-2 transition-all whitespace-nowrap font-poppins
+                  className={`flex items-center gap-1 sm:gap-1.5 px-1 sm:px-0 py-3 sm:py-4 text-[10px] sm:text-xs font-bold border-b-2 transition-all whitespace-nowrap font-poppins
                     ${activeTab === tab.id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                 >
                   <tab.icon size={15} /> {tab.label}
@@ -1384,7 +1384,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             {/* CONTENT AREA */}
-            <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-8 bg-slate-50/50 custom-scrollbar">
 
               {/* TAB: VISÃO GERAL */}
               {activeTab === 'overview' && (

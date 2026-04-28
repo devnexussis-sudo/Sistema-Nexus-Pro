@@ -136,3 +136,121 @@ textarea::selection,
     color: #ffffff !important;
     -webkit-text-fill-color: #ffffff !important;
 }
+
+/* ============================================= */
+/* 📱 MOBILE RESPONSIVE — Animations & Utilities */
+/* ============================================= */
+
+/* Mobile sidebar slide-in animation */
+@keyframes slide-in-left {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+.animate-slide-in-left {
+    animation: slide-in-left 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* PWA install prompt slide-up animation */
+@keyframes slide-up-pwa {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.animate-slide-up-pwa {
+    animation: slide-up-pwa 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Fade in animation (for backdrops) */
+.animate-fade-in {
+    animation: fade-in 0.2s ease-out both;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ============================================= */
+/* 📱 MOBILE VIEWPORT & SAFE AREA                */
+/* Suporte a notch (iPhone X+) e barras do OS    */
+/* ============================================= */
+
+@supports (padding: env(safe-area-inset-bottom)) {
+    .fixed.bottom-0 {
+        padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    }
+}
+
+/* ============================================= */
+/* 📱 MOBILE-SPECIFIC OVERRIDES                  */
+/* Apenas aplicam em telas < 1024px              */
+/* ============================================= */
+
+@media (max-width: 1023px) {
+    /* Scrollbar: esconde em mobile (UX nativa) */
+    .custom-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .custom-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    /* Tabelas em mobile: scroll horizontal */
+    table {
+        min-width: 800px;
+    }
+
+    /* Modal ajustes para mobile */
+    .fixed.inset-0 > div {
+        max-height: 100vh !important;
+        max-height: 100dvh !important;
+    }
+
+    /* Fix: overflow body em mobile */
+    html, body {
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Touch targets maiores para mobile */
+    button, a, [role="button"] {
+        min-height: 36px;
+        min-width: 36px;
+    }
+
+    /* Input sizing para mobile */
+    input, select, textarea {
+        font-size: 16px !important; /* Previne zoom automático no iOS */
+    }
+}
+
+/* ============================================= */
+/* 📱 PWA STANDALONE MODE ADJUSTMENTS            */
+/* Quando rodando como app instalada             */
+/* ============================================= */
+
+@media (display-mode: standalone) {
+    body {
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Permite seleção em inputs e textareas */
+    input, textarea, [contenteditable="true"] {
+        -webkit-user-select: text;
+        user-select: text;
+    }
+}

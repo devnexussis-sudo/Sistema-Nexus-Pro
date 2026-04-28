@@ -3,12 +3,19 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>DUNO</title>
   <!-- Favicon System v2 - Cache Busting via Unique Identifier -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2026.03.02.23" />
   <link rel="alternate icon" type="image/png" href="/favicon.png?v=2026.03.02.23" />
-  <link rel="apple-touch-icon" href="/pwa-icon.png?v=2026.03.02.23" />
+  <link rel="apple-touch-icon" href="/duno-icon.png?v=2026.04.28" />
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Apple PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DUNO Admin" />
+  <meta name="mobile-web-app-capable" content="yes" />
 
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <meta name="theme-color" content="#0f172a">
@@ -82,15 +89,38 @@
        via Web Locks API nativa com fallback. -->
 
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function (registrations) {
-        for (let registration of registrations) {
-          registration.unregister().then(function (boolean) {
-            console.log('Service worker unregistered:', boolean);
+    // PWA Service Worker — Registra APENAS em dispositivos móveis
+    // Em desktop: comportamento 100% preservado (sem SW)
+    (function() {
+      if (!('serviceWorker' in navigator)) return;
+
+      var ua = navigator.userAgent || '';
+      var mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(ua);
+      var hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      var smallScreen = window.innerWidth < 1024;
+      var signals = [mobileUA, hasTouch, smallScreen].filter(Boolean).length;
+      var isMobile = signals >= 2;
+
+      if (isMobile) {
+        // Mobile: Registra o Service Worker para habilitar PWA
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then(function(reg) {
+            console.log('[PWA] Service Worker registrado:', reg.scope);
+          })
+          .catch(function(err) {
+            console.warn('[PWA] Falha ao registrar SW:', err);
           });
-        }
-      });
-    }
+      } else {
+        // Desktop: Mantém comportamento anterior — desregistra SWs antigos
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var i = 0; i < registrations.length; i++) {
+            registrations[i].unregister().then(function(bool) {
+              if (bool) console.log('[PWA] SW antigo removido (desktop)');
+            });
+          }
+        });
+      }
+    })();
 
     // 🔄 Nexus SPA Redirect (Fix para Rota /master)
     // Detecta acesso direto a rotas sem hash e converte para estrutura HashRouter

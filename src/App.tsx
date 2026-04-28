@@ -11,6 +11,7 @@ import { ResetPassword } from './components/admin/ResetPassword';
 import { NotFoundPage } from './pages/NotFoundPage';
 import SessionStorage from './lib/sessionStorage';
 import { DataService } from './services/dataService';
+import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
 
 // Wrapper para rotas públicas
 const PublicAppWrapper: React.FC<{ type: 'order' | 'quote' }> = ({ type }) => {
@@ -119,6 +120,7 @@ const App: React.FC = () => {
     >
       <AuthProvider>
         <AppRoutes />
+        <PwaInstallPrompt />
       </AuthProvider>
     </HashRouter>
   );
