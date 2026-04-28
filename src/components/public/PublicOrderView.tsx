@@ -865,7 +865,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="col-span-5 p-2 grid grid-cols-2 gap-2 bg-slate-50/50">
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(order.createdAt)}</div></div>
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Tipo</label><div className="font-bold uppercase text-[9px]">{order.operationType || 'Manutenção'}</div></div>
-              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Conclusão</label><div className="font-bold">{fmtDT(order.endDate)}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Check-In</label><div className="font-bold">{fmtDT(orderVisits.find((v: any) => v.arrival_time)?.arrival_time || order.startDate)}</div></div>
+              <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Conclusão</label><div className="font-bold">{fmtDT(order.endDate || [...orderVisits].reverse().find((v: any) => v.departure_time)?.departure_time)}</div></div>
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Técnico</label><div className="font-bold uppercase text-[9px] truncate">{tech?.name || 'N/A'}</div></div>
               <div className="col-span-2 flex items-center justify-between pt-1 border-t border-slate-200/50">
                  <label className="text-[8px] font-bold text-slate-400 uppercase">Status Final</label>
@@ -1503,7 +1504,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 </div>
                 <div>
                   <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Check-In</p>
-                  <p className="text-xs font-bold text-emerald-800">{fmtDT(order.startDate)}</p>
+                  <p className="text-xs font-bold text-emerald-800">{fmtDT(orderVisits.find((v: any) => v.arrival_time)?.arrival_time || order.startDate)}</p>
                 </div>
               </div>
               <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
@@ -1512,7 +1513,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 </div>
                 <div>
                   <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Concluído</p>
-                  <p className="text-xs font-bold text-emerald-800">{fmtDT(order.endDate)}</p>
+                  <p className="text-xs font-bold text-emerald-800">{fmtDT(order.endDate || [...orderVisits].reverse().find((v: any) => v.departure_time)?.departure_time)}</p>
                 </div>
               </div>
             </div>

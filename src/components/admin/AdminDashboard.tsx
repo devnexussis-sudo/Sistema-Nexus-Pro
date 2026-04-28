@@ -1339,7 +1339,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             {/* TABS */}
-            <div className="px-6 border-b border-slate-200 bg-white flex gap-6 shrink-0 overflow-x-auto">
+            <div className="px-4 border-b border-slate-200 bg-white flex justify-between gap-1 shrink-0 overflow-hidden">
               {[
                 { id: 'overview', label: 'dados gerais', icon: LayoutDashboard },
                 { id: 'equipments', label: `ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
@@ -1355,7 +1355,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 py-4 text-xs font-medium border-b-2 transition-all whitespace-nowrap font-poppins
+                  className={`flex items-center gap-1.5 py-4 text-xs font-bold border-b-2 transition-all whitespace-nowrap font-poppins
                     ${activeTab === tab.id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                 >
                   <tab.icon size={15} /> {tab.label}
@@ -1474,12 +1474,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                           <div className="space-y-1">
                             <div className="flex justify-between text-[11px] font-medium text-emerald-800">
-                              <span>Início</span>
-                              <span>{selectedOrder.startDate ? new Date(selectedOrder.startDate).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '--/--'}</span>
+                              <span>Check-in</span>
+                              <span>{(() => {
+                                const checkin = visits.find(v => v.arrivalTime)?.arrivalTime || selectedOrder.startDate;
+                                return checkin ? new Date(checkin).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '--/--';
+                              })()}</span>
                             </div>
                             <div className="flex justify-between text-[11px] font-medium text-emerald-800">
-                              <span>Término</span>
-                              <span>{selectedOrder.endDate ? new Date(selectedOrder.endDate).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '--/--'}</span>
+                              <span>Conclusão</span>
+                              <span>{(() => {
+                                const checkout = selectedOrder.endDate || [...visits].reverse().find(v => v.departureTime)?.departureTime;
+                                return checkout ? new Date(checkout).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '--/--';
+                              })()}</span>
                             </div>
                           </div>
                         </div>
@@ -2935,7 +2941,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           return rawStatus;
                         })();
 
-                        const canEdit = effectiveStatus !== VisitStatusEnum.COMPLETED && !visit.isLocked;
+                        const canEdit = effectiveStatus === 'pending' && !visit.isLocked;
                         const isEditingThis = editingVisitId === visit.id;
                         const statusColors: Record<string, string> = {
                           pending: 'bg-slate-100 text-slate-600 border-slate-200',

@@ -16,38 +16,36 @@ export const useOrderExport = () => {
         // Se tiver seleção, precisa garantir que busca também as IDs de outras páginas.
         if (selectedOrderIds.length === 0) return;
 
-        let ordersToExport: ServiceOrder[] = [];
+        let ordersToExport: (ServiceOrder & { _raw?: any })[] = [];
         if (selectedOrderIds.length > 0) {
-            const localOrders = orders.filter(o => selectedOrderIds.includes(o.id));
-            if (localOrders.length === selectedOrderIds.length) {
-                ordersToExport = localOrders;
-            } else {
-                // Faltam algumas os -> Busca do servidor
-                try {
-                    const chunks = [];
-                    for (let i = 0; i < selectedOrderIds.length; i += 100) {
-                        chunks.push(selectedOrderIds.slice(i, i + 100));
-                    }
-                    let allFetched: any[] = [];
-                    for (const chunk of chunks) {
-                        const { data, error } = await supabase.from('orders').select('*').in('id', chunk);
-                        if (error) {
-                            console.error("Supabase Error:", error);
-                            throw new Error(error.message);
-                        }
-                        if (data) allFetched = [...allFetched, ...data];
-                    }
-                    if (allFetched.length > 0) {
-                        const { OrderService } = await import('../services/orderService');
-                        ordersToExport = allFetched.map(dbOrder => OrderService._mapOrderFromDB(dbOrder));
-                    } else {
-                        ordersToExport = localOrders;
-                    }
-                } catch (e: any) {
-                    console.error("Erro ao buscar demais ordens para exportar", e);
-                    alert("Erro ao puxar dados de todas as páginas. Exportando apenas as visíveis. Erro: " + e.message);
-                    ordersToExport = localOrders;
+            try {
+                const chunks = [];
+                for (let i = 0; i < selectedOrderIds.length; i += 100) {
+                    chunks.push(selectedOrderIds.slice(i, i + 100));
                 }
+                let allFetched: any[] = [];
+                for (const chunk of chunks) {
+                    const { data, error } = await supabase
+                        .from('orders')
+                        .select('*, customers(document), service_visits(visit_number, scheduled_date, scheduled_time, arrival_time, departure_time, status)')
+                        .in('id', chunk);
+                    if (error) {
+                        console.error("Supabase Error:", error);
+                        throw new Error(error.message);
+                    }
+                    if (data) allFetched = [...allFetched, ...data];
+                }
+                
+                const { OrderService } = await import('../services/orderService');
+                ordersToExport = allFetched.map(dbOrder => {
+                    const mapped = OrderService._mapOrderFromDB(dbOrder);
+                    return { ...mapped, _raw: dbOrder };
+                });
+            } catch (e: any) {
+                console.error("Erro ao buscar dados completos para exportar", e);
+                alert("Erro ao puxar dados do servidor. Exportando apenas dados básicos em memória. Erro: " + e.message);
+                const localOrders = orders.filter(o => selectedOrderIds.includes(o.id));
+                ordersToExport = localOrders.map(o => ({ ...o, _raw: {} }));
             }
         }
 
@@ -102,6 +100,7 @@ export const useOrderExport = () => {
             'Data Agendada',
             'Hora Agendada',
             'Cliente',
+            'CNPJ/Documento',
             'Título',
             'Descrição',
             'Tipo de Atendimento',
@@ -110,8 +109,10 @@ export const useOrderExport = () => {
             'Prioridade',
             'Valor Total',
             'Status Financeiro',
-            'Data de Abertura',
-            'Data de Conclusão'
+            'Abertura',
+            'Check-in OS',
+            'Conclusão OS',
+            'Histórico de Visitas'
         ];
 
         // 2. Estilo do cabeçalho
@@ -133,11 +134,23 @@ export const useOrderExport = () => {
             const value = itemsValue || (o.formData as any)?.totalValue || (o.formData as any)?.price || 0;
             const techName = techNameMap.get(o.assignedTo || '') || 'N/A';
 
+            const raw = o._raw || {};
+            const customerDoc = raw.customers?.document || 'N/A';
+            
+            let visitHistory = 'Sem histórico';
+            if (raw.service_visits && Array.isArray(raw.service_visits) && raw.service_visits.length > 0) {
+                const visits = [...raw.service_visits].sort((a, b) => a.visit_number - b.visit_number);
+                visitHistory = visits.map(v => 
+                    `V${v.visit_number} - Agendado: ${formatDate(v.scheduled_date)} ${v.scheduled_time || ''} | Check-in: ${formatDateTime(v.arrival_time)} | Conclusão: ${formatDateTime(v.departure_time)}`
+                ).join(' // ');
+            }
+
             return [
                 o.displayId || o.id,
                 formatDate(o.scheduledDate),
                 o.scheduledTime || 'N/A',
                 o.customerName,
+                customerDoc,
                 o.title,
                 o.description,
                 o.operationType || 'Não informado',
@@ -147,7 +160,9 @@ export const useOrderExport = () => {
                 value,
                 o.billingStatus || 'PENDENTE',
                 formatDateTime(o.createdAt),
-                formatDateTime(o.endDate)
+                formatDateTime(o.startDate),
+                formatDateTime(o.endDate),
+                visitHistory
             ];
         });
 
@@ -161,6 +176,7 @@ export const useOrderExport = () => {
             { wch: 15 }, // Data
             { wch: 15 }, // Hora
             { wch: 30 }, // Cliente
+            { wch: 20 }, // CNPJ
             { wch: 30 }, // Titulo
             { wch: 40 }, // Descrição
             { wch: 20 }, // Tipo
@@ -170,7 +186,9 @@ export const useOrderExport = () => {
             { wch: 15 }, // Valor
             { wch: 15 }, // Status Fin
             { wch: 20 }, // Abertura
-            { wch: 20 }  // Conclusão
+            { wch: 20 }, // Check-in OS
+            { wch: 20 }, // Conclusão OS
+            { wch: 50 }  // Histórico de Visitas
         ];
         ws['!cols'] = colWidths;
 
