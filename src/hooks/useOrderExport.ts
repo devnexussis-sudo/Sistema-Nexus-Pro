@@ -112,7 +112,8 @@ export const useOrderExport = () => {
             'Abertura',
             'Check-in OS',
             'Conclusão OS',
-            'Histórico de Visitas'
+            'Histórico de Visitas (JSON)',
+            'Link Público'
         ];
 
         // 2. Estilo do cabeçalho
@@ -137,13 +138,20 @@ export const useOrderExport = () => {
             const raw = o._raw || {};
             const customerDoc = raw.customers?.document || 'N/A';
             
-            let visitHistory = 'Sem histórico';
+            let visitHistory = '[]';
             if (raw.service_visits && Array.isArray(raw.service_visits) && raw.service_visits.length > 0) {
                 const visits = [...raw.service_visits].sort((a, b) => a.visit_number - b.visit_number);
-                visitHistory = visits.map(v => 
-                    `V${v.visit_number} - Agendado: ${formatDate(v.scheduled_date)} ${v.scheduled_time || ''} | Check-in: ${formatDateTime(v.arrival_time)} | Conclusão: ${formatDateTime(v.departure_time)}`
-                ).join(' // ');
+                visitHistory = JSON.stringify(visits.map(v => ({
+                    visita: v.visit_number,
+                    status: v.status,
+                    agendado_data: v.scheduled_date,
+                    agendado_hora: v.scheduled_time,
+                    checkin: v.arrival_time,
+                    conclusao: v.departure_time
+                })));
             }
+
+            const publicUrl = `${window.location.origin}/#/order/view/${o.publicToken || o.id}`;
 
             return [
                 o.displayId || o.id,
@@ -162,7 +170,8 @@ export const useOrderExport = () => {
                 formatDateTime(o.createdAt),
                 formatDateTime(o.startDate),
                 formatDateTime(o.endDate),
-                visitHistory
+                visitHistory,
+                publicUrl
             ];
         });
 
@@ -188,7 +197,8 @@ export const useOrderExport = () => {
             { wch: 20 }, // Abertura
             { wch: 20 }, // Check-in OS
             { wch: 20 }, // Conclusão OS
-            { wch: 50 }  // Histórico de Visitas
+            { wch: 50 }, // Histórico de Visitas (JSON)
+            { wch: 60 }  // Link Público
         ];
         ws['!cols'] = colWidths;
 
