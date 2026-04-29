@@ -282,8 +282,8 @@ export class OrderService {
     }
 
     static async getOrderById(id: string, forceRefresh = false): Promise<ExtendedServiceOrder | undefined> {
+        const cacheKey = `order_details_${id}`;
         try {
-            const cacheKey = `order_details_${id}`;
             const cached = await CacheService.get<ExtendedServiceOrder>(cacheKey);
             if (cached && !forceRefresh) return cached;
 
@@ -308,11 +308,19 @@ export class OrderService {
                 await CacheService.set(cacheKey, mapped, CacheService.TTL.APP);
                 return mapped;
             });
-        } catch (error) {
+        } catch (error: any) {
+            const isNetworkError = error?.message?.includes('Network request failed') || error?.name === 'AbortError';
+            if (isNetworkError) {
+                // 🛡️ Fallback: serve o cache stale (mesmo expirado) para evitar tela em branco
+                logger.log(`[getOrderById] Rede instável (Claro?). Servindo cache stale para ${id}...`, 'warn');
+                const stale = await CacheService.getStale<ExtendedServiceOrder>(cacheKey);
+                if (stale) return stale;
+            }
             logger.log(`Exception fetching order: ${error}`, 'error');
             return undefined;
         }
     }
+
 
     static async getAllOrders(options: {
         page?: number;
@@ -481,7 +489,17 @@ export class OrderService {
 
             await CacheService.set(cacheKey, result, CacheService.TTL.FAST);
             return result;
-        });
+        } catch (error: any) {
+            const isNetworkError = error?.message?.includes('Network request failed') || error?.name === 'AbortError';
+            if (isNetworkError) {
+                // 🛡️ Fallback: serve lista stale para evitar tela vazia na Claro
+                logger.log('[getAllOrders] Rede instável. Tentando cache stale...', 'warn');
+                const cacheKey = `orders_${(await supabase.auth.getSession())?.data?.session?.user?.id || 'unknown'}_all_0_0_1`;
+                const stale = await CacheService.getStale<{ orders: ExtendedServiceOrder[], total: number, stats: Record<string, number> }>(cacheKey);
+                if (stale) return stale;
+            }
+            throw error;
+        }
     }
 
     static async getCalendarOrders(year: number, month: number, forceRefresh = false): Promise<ExtendedServiceOrder[]> {

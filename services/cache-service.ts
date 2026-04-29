@@ -55,6 +55,32 @@ export class CacheService {
     }
 
     /**
+     * 🛡️ Get stale: retorna dados MESMO que expirados — usado como fallback offline / rede instável
+     * Não remove o dado do disco, apenas loga que está servindo dado antigo.
+     */
+    static async getStale<T>(key: string): Promise<T | null> {
+        // 1. Memória (qualquer idade)
+        const entry = this.memoryCache.get(key);
+        if (entry) return entry.data as T;
+
+        // 2. Disco (qualquer idade)
+        try {
+            const diskData = await AsyncStorage.getItem(`@cache:${key}`);
+            if (diskData) {
+                const diskEntry: CacheEntry = JSON.parse(diskData);
+                const ageMin = Math.round((Date.now() - diskEntry.timestamp) / 60000);
+                console.warn(`[Cache] 📦 Serving STALE data for '${key}' (${ageMin}min old)`);
+                this.memoryCache.set(key, diskEntry); // repopula memória
+                return diskEntry.data as T;
+            }
+        } catch (e) {
+            console.warn(`[Cache] Fail reading stale disk for ${key}`);
+        }
+
+        return null;
+    }
+
+    /**
      * Save to memory and disk
      */
     static async set(key: string, data: any, ttl: number = this.TTL.APP): Promise<void> {

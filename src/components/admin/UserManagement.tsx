@@ -370,82 +370,75 @@ export const UserManagement: React.FC = () => {
   }
 
   return (
-    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
+    <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
       {/* Toolbar */}
-      <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
-        {/* Tabs */}
-        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-lg shadow-slate-200/50 flex-shrink-0">
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold  transition-all ${activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Users size={14} /> Usuários
-          </button>
-          <button
-            onClick={() => setActiveTab('groups')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold  transition-all ${activeTab === 'groups' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <FolderTree size={14} /> Grupos
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input
-            type="text"
-            placeholder={activeTab === 'users' ? "Pesquisar usuário..." : "Buscar grupo..."}
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
-          />
-        </div>
-
-        {/* Filters & Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0 w-full xl:w-auto justify-end">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 h-[42px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
-          >
-            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
-          </button>
-
-          {showFilters && (
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
-              <Filter size={14} className="text-slate-400 mr-2" />
-              <select
-                className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-              >
-                <option value="ALL">Todos</option>
-                <option value="ACTIVE">Ativos</option>
-                <option value="INACTIVE">Bloq.</option>
-              </select>
+      <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+            
+            <div className="flex items-center gap-1 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0 hide-scrollbar">
+                <div className="flex bg-white/60 p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm shrink-0">
+                  <button
+                    onClick={() => setActiveTab('users')}
+                    className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
+                  >
+                    <Users size={14} /> <span className="whitespace-nowrap">Usuários</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('groups')}
+                    className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'groups' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
+                  >
+                    <FolderTree size={14} /> <span className="whitespace-nowrap">Grupos</span>
+                  </button>
+                </div>
             </div>
-          )}
 
-          {activeTab === 'users' ? (
-            <Button onClick={() => {
-              setEditingUser(null);
-              setFormData({ name: '', email: '', password: '', active: true, groupId: '', permissions: { ...DEFAULT_PERMISSIONS } });
-              setIsModalOpen(true);
-            }}
-              className="rounded-xl px-6 h-[42px] font-bold  text-[10px]  shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
-            >
-              <UserPlus size={16} className="mr-2" /> Novo Usuário
-            </Button>
-          ) : (
-            <Button onClick={() => {
-              setEditingGroup(null);
-              setGroupFormData({ name: '', description: '', active: true, permissions: { ...DEFAULT_PERMISSIONS } });
-              setIsGroupModalOpen(true);
-            }}
-              className="rounded-xl px-6 h-[42px] font-bold  text-[10px]  shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
-            >
-              <UserPlus size={16} className="mr-2" /> Novo Grupo
-            </Button>
-          )}
+            <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                placeholder={activeTab === 'users' ? "Pesquisar usuário..." : "Buscar grupo..."}
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
+                <div className="hidden sm:flex items-center bg-white border border-[#1c2d4f]/20 rounded-xl pl-2 pr-1 h-10 shadow-sm max-w-[160px]">
+                  <Filter size={12} className="text-slate-400 mr-2 shrink-0" />
+                  <select
+                    className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full"
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                  >
+                    <option value="ALL">Todos</option>
+                    <option value="ACTIVE">Ativos</option>
+                    <option value="INACTIVE">Bloq.</option>
+                  </select>
+                </div>
+
+                {activeTab === 'users' ? (
+                    <button onClick={() => {
+                        setEditingUser(null);
+                        setFormData({ name: '', email: '', password: '', active: true, groupId: '', permissions: { ...DEFAULT_PERMISSIONS } });
+                        setIsModalOpen(true);
+                        }}
+                        className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] font-bold shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
+                    >
+                        <UserPlus size={14} /> Novo Usuário
+                    </button>
+                ) : (
+                    <button onClick={() => {
+                        setEditingGroup(null);
+                        setGroupFormData({ name: '', description: '', active: true, permissions: { ...DEFAULT_PERMISSIONS } });
+                        setIsGroupModalOpen(true);
+                        }}
+                        className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] font-bold shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
+                    >
+                        <UserPlus size={14} /> Novo Grupo
+                    </button>
+                )}
+            </div>
         </div>
       </div>
 
@@ -454,7 +447,7 @@ export const UserManagement: React.FC = () => {
           {activeTab === 'users' ? (
             <table className="w-full border-separate border-spacing-y-1">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-                <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-left">
+                <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-center">
                   <th className="px-4 py-2">administrador / identidade</th>
                   <th className="px-4 py-2">grupo de acesso</th>
                   <th className="px-4 py-2 text-center">status</th>
@@ -563,7 +556,7 @@ export const UserManagement: React.FC = () => {
       {/* Modal de Usuário */}
       {
         isModalOpen && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6">
             <div className="bg-white rounded-[3rem] w-full max-w-2xl shadow-2xl border border-white/20 animate-fade-in-up">
               <div className="p-10 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
                 <div className="flex items-center gap-6">
@@ -630,7 +623,7 @@ export const UserManagement: React.FC = () => {
       {/* Modal de Grupo */}
       {
         isGroupModalOpen && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-6">
             <div className="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl border border-white/20 animate-fade-in-up">
               <div className="p-10 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center rounded-t-[3rem]">
                 <div className="flex items-center gap-6">

@@ -274,7 +274,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
     const totalPages = Math.ceil(filteredContracts.length / ITEMS_PER_PAGE);
 
     return (
-        <div className="p-4 space-y-4 animate-fade-in flex flex-col h-full bg-slate-50/20 font-poppins">
+        <div className="p-4 space-y-4 flex flex-col h-full bg-slate-50/20 font-poppins">
             <div className="flex justify-between items-center">
                 <div>
                     <div className="flex items-center gap-3"><Briefcase className="text-[#1c2d4f]" size={32} /><h1 className="text-2xl font-bold text-slate-900 uppercase tracking-tight leading-none">Gestão de Contratos</h1></div>
@@ -302,69 +302,72 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
 
             <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
                 {/* Toolbar de Filtros Unificada */}
-                <div className="p-6 border-b border-slate-200 bg-slate-50/30 space-y-4">
-                    <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
-                        <div className="relative w-full max-w-xl">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Pesquisar código, cliente ou título..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-slate-100 transition-all shadow-sm"
-                            />
+                <div className="p-2 sm:p-3 bg-slate-50/30 border-b border-[#1c2d4f]/10">
+                    <div className="flex flex-col gap-3">
+                        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+                            <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar pmoc, cliente ou título..."
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+                                <button
+                                    onClick={() => setShowFilters(!showFilters)}
+                                    className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
+                                >
+                                    <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Avançado'}</span>
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className={`flex items-center gap-2 px-4 h-[42px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
-                          >
-                            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
-                          </button>
-                        </div>
+                        {showFilters && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Período de Ciclo</label>
+                                    <div className="flex items-center gap-2 bg-white border border-[#1c2d4f]/20 rounded-lg px-2 h-9 shadow-sm">
+                                        <Calendar size={12} className="text-[#1c2d4f]" />
+                                        <input type="date" value={startDateFilter} onChange={e => handleDateValidation(e.target.value, endDateFilter)} className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none w-full" />
+                                        <span className="text-[10px] text-slate-300">até</span>
+                                        <input type="date" value={endDateFilter} onChange={e => handleDateValidation(startDateFilter, e.target.value)} className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none w-full" />
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
+                                    <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
+                                        <ListFilter size={12} className="text-slate-400 mr-2" />
+                                        <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                                            <option value="ALL">Todos Status</option>
+                                            <option value={OrderStatus.PENDING}>Ativos</option>
+                                            <option value={OrderStatus.CANCELED}>Inativos</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-end pb-0.5">
+                                    <button
+                                        onClick={() => {
+                                            setSearchTerm(''); setStatusFilter('ALL'); setStartDateFilter(''); setEndDateFilter('');
+                                        }}
+                                        className="h-9 w-full px-4 text-[10px] font-bold bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 rounded-lg transition-colors uppercase tracking-widest border border-rose-100"
+                                    >
+                                        Limpar Filtros
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
-
-                    {showFilters && (
-                      <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <div className="flex flex-col lg:flex-row gap-4">
-                          <div className="flex items-center gap-3 bg-white border border-slate-200 p-1.5 rounded-xl shadow-lg shadow-slate-200/50">
-                              <div className="flex items-center gap-2 px-2 border-r border-slate-100">
-                                  <Calendar size={16} className="text-[#1c2d4f]" />
-                                  <span className="text-[9px] font-bold uppercase text-slate-400">Ciclo</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                  <input type="date" value={startDateFilter} onChange={e => handleDateValidation(e.target.value, endDateFilter)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
-                                  <span className="text-[10px] font-bold text-slate-300">até</span>
-                                  <input type="date" value={endDateFilter} onChange={e => handleDateValidation(startDateFilter, e.target.value)} className="bg-slate-50 border-none text-[10px] font-bold uppercase text-slate-600 rounded-lg px-2 py-1 outline-none" />
-                              </div>
-                          </div>
-
-                          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-10">
-                              <ListFilter size={14} className="text-slate-400 mr-2" />
-                              <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                                  <option value="ALL">Todos Status</option>
-                                  <option value={OrderStatus.PENDING}>Ativo</option>
-                                  <option value={OrderStatus.CANCELED}>Inativo</option>
-                              </select>
-                          </div>
-                        </div>
-
-                        <button
-                            onClick={() => {
-                                setSearchTerm(''); setStatusFilter('ALL'); setStartDateFilter(''); setEndDateFilter('');
-                            }}
-                            className="px-4 py-2 text-[9px] font-bold uppercase text-[#1c2d4f] hover:bg-slate-100 rounded-lg transition-colors border border-dashed border-slate-200"
-                        >
-                            Limpar Filtros
-                        </button>
-                      </div>
-                    )}
                 </div>
 
                 <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full border-separate border-spacing-y-0">
-                        <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-left">
+                        <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] text-center">
                             <tr className="border-b border-slate-200">
                                 <th className="px-4 py-2">Código / PMOC</th>
                                 <th className="px-4 py-2">Cliente</th>
@@ -421,16 +424,16 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
 
             {/* EDIT/CREATE MODAL - STANDARDIZED TO OS STYLE */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-6">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col h-[85vh]">
+                <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
+                    <div className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
                         {/* HEADER - Nexus Premium Standard */}
-                        <div className="px-10 py-6 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+                        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 bg-white">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-[#1c2d4f] rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary-900/20">
-                                    <Layers size={24} />
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-[#1c2d4f] shrink-0">
+                                    <Layers size={18} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">
+                                    <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins">
                                         {pendingAction === 'EDIT' ? 'Editar Contrato Master' : 'Novo Registro de Contrato'}
                                     </h2>
                                     <div className="flex items-center gap-2 mt-1">
@@ -467,8 +470,9 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                             </div>
                         </div>
 
-                        {/* TABS - Nexus Premium Standard */}
-                        <div className="px-10 border-b border-slate-200 bg-white flex gap-8 shrink-0">
+                        {/* TABS */}
+                        <div className="hidden md:flex flex-col w-48 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
+                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
                             {[
                                 { id: 'technical', label: 'Dados Técnicos', icon: Settings2 },
                                 { id: 'commercial', label: 'Comercial & Termos', icon: DollarSign },
@@ -477,20 +481,44 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                 <button
                                     key={tab.id}
                                     onClick={() => setModalTab(tab.id as any)}
-                                    className={`flex items-center gap-2 py-4 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all
-                                        ${modalTab === tab.id ? 'border-[#1c2d4f] text-[#1c2d4f]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
+                                        ${modalTab === tab.id
+                                            ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]'
+                                            : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
                                 >
-                                    <tab.icon size={14} /> {tab.label}
+                                    <tab.icon size={15} className={modalTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                                    <span className="flex-1 truncate">{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                        {/* MOBILE TABS */}
+                        <div className="md:hidden border-b border-slate-200 bg-white px-3 py-2 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
+                            {[
+                                { id: 'technical', label: 'Dados Técnicos', icon: Settings2 },
+                                { id: 'commercial', label: 'Comercial', icon: DollarSign },
+                                { id: 'monitoring', label: 'Monitor.', icon: BellRing }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setModalTab(tab.id as any)}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
+                                        ${modalTab === tab.id
+                                            ? 'bg-[#1c2d4f] text-white shadow-md'
+                                            : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                                >
+                                    <tab.icon size={13} className={modalTab === tab.id ? 'text-white' : 'text-slate-400'} />
+                                    {tab.label}
                                 </button>
                             ))}
                         </div>
 
                         {/* CONTENT AREA */}
-                        <div className="flex-1 overflow-y-auto p-10 bg-slate-50/30 custom-scrollbar">
+                        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/30 custom-scrollbar">
                             {modalTab === 'technical' && (
                                 <div className="grid grid-cols-2 gap-10 animate-fade-in">
                                     <div className="space-y-6">
-                                        <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
+                                        <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
                                             <div className="space-y-6">
                                                 <div className="relative">
                                                     <label className="text-[9px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Cliente Responsável</label>
@@ -518,7 +546,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                                             </div>
 
                                                             {isCustomerListOpen && (
-                                                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] max-h-[250px] overflow-y-auto custom-scrollbar p-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[1000] max-h-[250px] overflow-y-auto custom-scrollbar p-2 animate-in fade-in slide-in-from-top-2 duration-200">
                                                                     {customers
                                                                         .filter(c => 
                                                                             c.name.toLowerCase().includes(customerSearch.toLowerCase()) || 
@@ -583,7 +611,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                             </div>
                                         </div>
 
-                                        <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
+                                        <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
                                             <label className="text-[9px] font-black text-slate-400 uppercase mb-3 block tracking-widest">Dia de Visita Preferencial</label>
                                             <div className="grid grid-cols-7 gap-1.5">
                                                 {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
@@ -600,7 +628,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                     </div>
 
                                     <div className="flex flex-col h-full space-y-4">
-                                        <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm flex-1 flex flex-col min-h-0">
+                                        <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm flex-1 flex flex-col min-h-0">
                                             <div className="flex items-center justify-between mb-4">
                                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ativos Vinculados ({selectedEquipIds.length})</label>
                                                 <span className="text-[9px] font-bold text-primary-600 bg-primary-50 px-2 py-1 rounded italic">Controle PMOC</span>
@@ -628,7 +656,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                             {modalTab === 'commercial' && (
                                 <div className="space-y-8 animate-fade-in max-w-4xl mx-auto w-full">
                                     <div className="grid grid-cols-2 gap-8">
-                                        <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
+                                        <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
                                             <label className="text-[9px] font-black text-slate-400 uppercase mb-4 block tracking-widest">Mensalidade do Contrato</label>
                                             <div className="relative">
                                                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 font-bold text-lg italic">R$</div>
@@ -642,7 +670,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                             </div>
                                         </div>
                                         
-                                        <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm flex flex-col justify-center">
+                                        <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col justify-center">
                                             <label className="text-[9px] font-black text-slate-400 uppercase mb-6 block tracking-widest text-center">Visitas Programadas p/ Ciclo</label>
                                             <div className="flex items-center justify-center gap-6">
                                                 <button onClick={() => setVisitCount(Math.max(1, visitCount - 1))} className="w-10 h-10 bg-slate-100 text-slate-400 rounded-full border border-slate-200 flex items-center justify-center hover:bg-white hover:text-slate-600 transition-all">-</button>
@@ -652,7 +680,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                         </div>
                                     </div>
 
-                                    <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm">
+                                    <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
                                         <div className="flex items-center justify-between mb-6">
                                             <div>
                                                 <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest italic">Peças e Componentes Inclusos?</h4>
@@ -665,7 +693,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                         </div>
                                     </div>
 
-                                    <div className="p-8 bg-white border border-slate-200 rounded-[2rem] shadow-sm space-y-4">
+                                    <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
                                         <div className="flex items-center gap-3">
                                             <FileSignature className="text-primary-600" size={18} />
                                             <label className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Termos e Acordos de Redação</label>
@@ -682,7 +710,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
 
                             {modalTab === 'monitoring' && (
                                 <div className="max-w-2xl mx-auto py-10 space-y-8 animate-fade-in">
-                                    <div className="p-10 bg-white border border-slate-200 rounded-[2.5rem] shadow-sm space-y-10">
+                                    <div className="p-6 sm:p-8 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-8">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-5">
                                                 <div className={`p-4 rounded-2xl ${enableAlerts ? 'bg-[#1c2d4f]' : 'bg-slate-100'} text-white shadow-lg transition-colors`}>
@@ -719,24 +747,26 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                         </div>
                                     </div>
                                     
-                                    <div className="p-8 bg-blue-50 border border-blue-100 rounded-[2rem] flex items-center gap-4">
+                                    <div className="p-5 sm:p-6 bg-blue-50 border border-blue-100 rounded-2xl flex items-center gap-4">
                                         <ShieldAlert className="text-blue-500" size={24} />
                                         <p className="text-[10px] font-bold text-blue-700 leading-relaxed uppercase">O Nexus monitora o ciclo de faturamento e visitas preventivas automaticamente com base nestas configurações.</p>
                                     </div>
                                 </div>
                             )}
                         </div>
+                        </div>
                     </div>
                 </div>
             )}
 
+
             {isAuditModalOpen && (
-                <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-6">
-                    <div className="bg-white rounded-[4rem] shadow-2xl p-12 max-w-sm w-full text-center animate-fade-in-up border border-primary-100">
+                <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
+                    <div className="bg-white rounded-xl shadow-2xl p-10 max-w-sm w-full text-center border border-slate-200">
                         <div className="w-16 h-16 bg-primary-50 text-primary-600 rounded-2xl mx-auto flex items-center justify-center mb-6"><MessageSquare size={32} /></div>
                         <h2 className="text-xl font-black text-slate-900 uppercase italic mb-2 tracking-tighter">Protocolo de Auditoria</h2>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-6 leading-loose underline decoration-primary-200 underline-offset-4">Justificativa obrigatória para registrar a transação no nexus.</p>
-                        <textarea autoFocus value={changeReason} onChange={e => setChangeReason(e.target.value)} placeholder="Motivo da abertura/revisão deste PMOC..." className="w-full h-32 bg-slate-50 border border-slate-200 rounded-[2rem] p-6 text-[11px] font-medium mb-6 outline-none shadow-inner" />
+                        <textarea autoFocus value={changeReason} onChange={e => setChangeReason(e.target.value)} placeholder="Motivo da abertura/revisão deste PMOC..." className="w-full h-32 bg-slate-50 border border-slate-200 rounded-xl p-4 text-[11px] font-medium mb-6 outline-none shadow-inner" />
                         <div className="space-y-3">
                             <button onClick={handleConfirmAction} disabled={isSubmitting || !changeReason} className="w-full py-5 bg-primary-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-xl flex items-center justify-center gap-2 hover:bg-primary-700 transition-all">{isSubmitting && <Loader2 className="animate-spin" size={16} />} Confirmar Transação <ArrowUpRight size={16} /></button>
                             <button onClick={() => setIsAuditModalOpen(false)} className="w-full py-4 text-[10px] font-black uppercase text-slate-400 hover:text-red-500 transition-colors">Abortar Transação</button>
@@ -746,16 +776,16 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
             )}
 
             {isViewModalOpen && selectedContract && (
-                <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-6 print:p-0 print:bg-white print:relative print:z-0">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-6xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col h-[85vh] print:h-auto print:shadow-none print:rounded-none print:w-full print:max-w-none">
+                <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 print:p-0 print:bg-white print:relative print:z-0 animate-in fade-in">
+                    <div className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200 print:h-auto print:shadow-none print:rounded-none print:w-full print:max-w-none">
                         {/* HEADER - Nexus Premium Standard (Print Version Compatible) */}
-                        <div className="px-10 py-6 border-b border-slate-200 flex justify-between items-center bg-white shrink-0 print:hidden">
+                        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 bg-white print:hidden">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-primary-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary-900/20">
-                                    <Briefcase size={24} />
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-[#1c2d4f] shrink-0">
+                                    <Briefcase size={18} />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight truncate max-w-md">
+                                    <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins truncate max-w-md">
                                         {selectedContract.customerName}
                                     </h2>
                                     <div className="flex items-center gap-2 mt-1">
@@ -791,25 +821,50 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                             <ContractPrintLayout contract={selectedContract} tenant={tenant} equipments={equipments} />
                         </div>
 
-                        {/* TABS - Synchronized with Create/Edit */}
-                        <div className="px-10 border-b border-slate-200 bg-white flex gap-8 shrink-0 print:hidden">
-                             {[
+                        {/* SIDEBAR TABS (desktop) — igual ao painel de OS */}
+                        <div className="hidden md:flex flex-col w-48 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0 print:hidden">
+                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
+                            {[
                                 { id: 'details', label: 'Dados Técnicos', icon: Settings2 },
                                 { id: 'terms', label: 'Comercial & Termos', icon: DollarSign },
                                 { id: 'history', label: 'Histórico Nexus', icon: History }
                             ].map(tab => (
-                                <button 
+                                <button
                                     key={tab.id}
                                     onClick={() => setViewTab(tab.id as any)}
-                                    className={`flex items-center gap-2 py-4 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all
-                                        ${viewTab === tab.id ? 'border-[#1c2d4f] text-[#1c2d4f]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
+                                        ${viewTab === tab.id
+                                            ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]'
+                                            : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
                                 >
-                                    <tab.icon size={14} /> {tab.label}
+                                    <tab.icon size={15} className={viewTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                                    <span className="flex-1 truncate">{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                        {/* MOBILE TABS */}
+                        <div className="md:hidden border-b border-slate-200 bg-white px-3 py-2 flex gap-2 overflow-x-auto custom-scrollbar shrink-0 print:hidden">
+                            {[
+                                { id: 'details', label: 'Técnicos', icon: Settings2 },
+                                { id: 'terms', label: 'Comercial', icon: DollarSign },
+                                { id: 'history', label: 'Histórico', icon: History }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setViewTab(tab.id as any)}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
+                                        ${viewTab === tab.id
+                                            ? 'bg-[#1c2d4f] text-white shadow-md'
+                                            : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                                >
+                                    <tab.icon size={13} className={viewTab === tab.id ? 'text-white' : 'text-slate-400'} />
+                                    {tab.label}
                                 </button>
                             ))}
                         </div>
 
-                        <div className="flex-1 p-12 overflow-y-auto custom-scrollbar bg-slate-50/30 print:hidden">
+                        <div className="flex flex-col md:flex-row flex-1 overflow-hidden print:hidden">
+                        <div className="flex-1 p-4 sm:p-6 overflow-y-auto custom-scrollbar bg-slate-50/30">
                             {viewTab === 'details' ? (
                                 <div className="space-y-10 animate-fade-in">
                                     <div className="grid grid-cols-4 gap-4">
@@ -857,7 +912,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                                 <div className="bg-white p-8 rounded-[3rem] border border-slate-200 shadow-sm transition-all hover:border-primary-200">
                                                     <div className="flex justify-between items-center mb-5"><span className="px-3 py-1 bg-primary-600 text-white text-[9px] font-black uppercase italic rounded-lg tracking-widest">{log.action.replace(/_/g, ' ')}</span><span className="text-[9px] font-bold text-slate-400 bg-white border border-slate-200 px-3 py-1 rounded-xl">{new Date(log.timestamp).toLocaleString()}</span></div>
                                                     <p className="text-[13px] font-black text-slate-900 leading-snug mb-5 uppercase italic tracking-tighter">{log.details}</p>
-                                                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 shadow-inner"><p className="text-[8px] font-black text-primary-500 uppercase mb-2 italic">Justificativa Operacional:</p><p className="text-[12px] font-bold text-slate-600 italic leading-relaxed">"{log.reason}"</p></div>
+                                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 shadow-inner"><p className="text-[8px] font-black text-primary-500 uppercase mb-2 italic">Justificativa Operacional:</p><p className="text-[12px] font-bold text-slate-600 italic leading-relaxed">"{log.reason}"</p></div>
                                                     <div className="flex items-center gap-3 mt-8 pt-6 border-t border-slate-200"><div className="w-8 h-8 bg-primary-100 text-primary-600 rounded-xl flex items-center justify-center shadow-sm"><UserIcon size={16} /></div><span className="text-[10px] font-black text-slate-900 uppercase italic tracking-widest">{log.user}</span></div>
                                                 </div>
                                             </div>
@@ -865,6 +920,7 @@ export const PlannedMaintenance: React.FC<ContractsManagementProps> = ({
                                     </div>
                                 </div>
                             )}
+                        </div>
                         </div>
                     </div>
                 </div>

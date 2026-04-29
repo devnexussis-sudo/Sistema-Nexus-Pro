@@ -286,26 +286,28 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-col xl:flex-row gap-3 items-center">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input
-              type="text"
-              placeholder="Pesquisar por cliente, título ou protocolo..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-4 focus:ring-primary-500/5 focus:border-primary-500 transition-all shadow-sm"
-            />
-          </div>
+        <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
+            <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+              <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Pesquisar por cliente, título ou protocolo..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+                />
+              </div>
 
-          <div className="flex items-center gap-2 w-full xl:w-auto justify-end">
-            <button
-               onClick={() => setShowFilters(!showFilters)}
-               className={`flex items-center gap-2 px-4 h-11 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
-            >
-               <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros Avançados'}
-            </button>
-          </div>
+              <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
+                <button
+                   onClick={() => setShowFilters(!showFilters)}
+                   className={`flex items-center gap-2 px-4 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+                >
+                   <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
+                </button>
+              </div>
+            </div>
         </div>
 
         {showFilters && (

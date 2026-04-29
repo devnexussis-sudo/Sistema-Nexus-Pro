@@ -40,12 +40,15 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
         const arrivalTimeStr = d.arrival_time || v.arrivalTime;
         const departureTimeStr = d.finish_time || v.departureTime;
 
+        let rawTravelMins = 0;
+        let rawServiceMins = 0;
+
         if (startTimeStr && arrivalTimeStr) {
           const t1 = new Date(startTimeStr).getTime();
           const t2 = new Date(arrivalTimeStr).getTime();
-          const diffMins = Math.round(Math.abs(t2 - t1) / 60000);
-          const hours = Math.floor(diffMins / 60);
-          const mins = diffMins % 60;
+          rawTravelMins = Math.round(Math.abs(t2 - t1) / 60000);
+          const hours = Math.floor(rawTravelMins / 60);
+          const mins = rawTravelMins % 60;
           durationText = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
         }
 
@@ -53,9 +56,9 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
         if (arrivalTimeStr && departureTimeStr) {
           const t1 = new Date(arrivalTimeStr).getTime();
           const t2 = new Date(departureTimeStr).getTime();
-          const diffMins = Math.round(Math.abs(t2 - t1) / 60000);
-          const hours = Math.floor(diffMins / 60);
-          const mins = diffMins % 60;
+          rawServiceMins = Math.round(Math.abs(t2 - t1) / 60000);
+          const hours = Math.floor(rawServiceMins / 60);
+          const mins = rawServiceMins % 60;
           serviceDurationText = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
         }
 
@@ -74,7 +77,10 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
           arrivalLon,
           distance: distanceText,
           duration: durationText,
-          serviceDuration: serviceDurationText
+          serviceDuration: serviceDurationText,
+          rawDistanceKm,
+          rawTravelMins,
+          rawServiceMins
         };
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -107,6 +113,40 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
     });
   }, [displacementData]);
 
+  const summary = useMemo(() => {
+    let totalTravelMins = 0;
+    let totalServiceMins = 0;
+    let totalDistanceKm = 0;
+
+    displacementData.forEach(d => {
+      totalTravelMins += d.rawTravelMins;
+      totalServiceMins += d.rawServiceMins;
+      
+      const routeData = routeDistances[d.id];
+      if (routeData && !routeData.loading && routeData.distance) {
+        const kmMatch = routeData.distance.match(/([\d.]+)/);
+        if (kmMatch) {
+          totalDistanceKm += parseFloat(kmMatch[1]);
+        }
+      } else {
+        totalDistanceKm += d.rawDistanceKm;
+      }
+    });
+
+    const formatMins = (mins: number) => {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      if (h === 0 && m === 0) return '0m';
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    };
+
+    return {
+      travelTime: formatMins(totalTravelMins),
+      serviceTime: formatMins(totalServiceMins),
+      distance: `${totalDistanceKm.toFixed(2)} km`
+    };
+  }, [displacementData, routeDistances]);
+
   if (displacementData.length === 0) {
     return (
       <div className="bg-white p-8 rounded-lg border border-slate-200 text-center flex flex-col items-center">
@@ -120,68 +160,94 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {displacementData.map((d, idx) => (
-        <div key={d.id} className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
-          <div className="bg-slate-50 px-6 py-4 flex items-center justify-between border-b border-slate-200">
-            <div className="flex items-center gap-3">
-              <Navigation size={18} className="text-blue-500" />
-              <h3 className="font-bold text-sm text-slate-800 uppercase tracking-tight">Deslocamento da Visita {d.visitNumber}</h3>
-            </div>
+    <div className="space-y-4">
+      {/* SUMMARY DASHBOARD */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+        <div className="bg-[#1c2d4f] text-white p-3.5 rounded-xl shadow border border-[#1c2d4f] flex flex-col items-center text-center">
+          <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center mb-2">
+            <Clock size={16} className="text-blue-300" />
           </div>
-          
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="mt-1"><Activity size={16} className="text-emerald-500" /></div>
-                <div>
-                  <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">1. Início de Deslocamento</p>
-                  <p className="text-sm font-semibold text-slate-800 mt-1">{d.startTime}</p>
-                  {d.startLatLon !== 'N/A' && (
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${d.startLatLon}`} target="_blank" rel="noreferrer" className="text-xs text-blue-500 font-medium hover:underline inline-flex items-center gap-1 mt-1">
-                      <Map size={12} /> Ver no Mapa
-                    </a>
-                  )}
-                </div>
-              </div>
+          <p className="text-[9px] font-black uppercase tracking-widest text-white/60 mb-0.5">Tempo Total de Viagem</p>
+          <p className="text-xl font-bold">{summary.travelTime}</p>
+        </div>
+        <div className="bg-emerald-600 text-white p-3.5 rounded-xl shadow border border-emerald-500 flex flex-col items-center text-center">
+          <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center mb-2">
+            <Activity size={16} className="text-emerald-100" />
+          </div>
+          <p className="text-[9px] font-black uppercase tracking-widest text-emerald-100/80 mb-0.5">Tempo Total de Trabalho</p>
+          <p className="text-xl font-bold">{summary.serviceTime}</p>
+        </div>
+        <div className="bg-white p-3.5 rounded-xl shadow border border-slate-200 flex flex-col items-center text-center">
+          <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center mb-2 border border-amber-100">
+            <Navigation size={16} className="text-amber-500" />
+          </div>
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Distância Total Percorrida</p>
+          <p className="text-xl font-bold text-slate-800">{summary.distance}</p>
+        </div>
+      </div>
 
-              <div className="flex items-start gap-4">
-                <div className="mt-1"><MapPin size={16} className="text-amber-500" /></div>
-                <div>
-                  <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">2. Início do Atendimento no Cliente</p>
-                  <p className="text-sm font-semibold text-slate-800 mt-1">{d.arrivalTime}</p>
-                  {d.arrivalLatLon !== 'N/A' && (
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${d.arrivalLatLon}`} target="_blank" rel="noreferrer" className="text-xs text-blue-500 font-medium hover:underline inline-flex items-center gap-1 mt-1">
-                      <Map size={12} /> Ver no Mapa
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="mt-1"><CheckCircle2 size={16} className="text-rose-500" /></div>
-                <div>
-                  <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">3. Fim do Atendimento / Checkout</p>
-                  <p className="text-sm font-semibold text-slate-800 mt-1">{d.departureTime}</p>
-                </div>
+      <div className="space-y-4">
+        {displacementData.map((d, idx) => (
+          <div key={d.id} className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+            <div className="bg-slate-50 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Navigation size={14} className="text-blue-500" />
+                <h3 className="font-bold text-xs text-slate-800 uppercase tracking-tight">Deslocamento da Visita {d.visitNumber}</h3>
               </div>
             </div>
-
-            <div className="bg-slate-50 p-5 rounded-lg border border-slate-100 flex flex-col justify-center space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase text-slate-500 flex items-center gap-1"><Clock size={12}/> Tempo de Viagem</p>
-                  <p className="text-xl font-bold text-slate-900 mt-1">{d.duration}</p>
+            
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5"><Activity size={14} className="text-emerald-500" /></div>
+                  <div>
+                    <p className="text-[9px] font-black tracking-widest uppercase text-slate-400">1. Início de Deslocamento</p>
+                    <p className="text-xs font-semibold text-slate-800 mt-0.5">{d.startTime}</p>
+                    {d.startLatLon !== 'N/A' && (
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${d.startLatLon}`} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 font-medium hover:underline inline-flex items-center gap-1 mt-0.5">
+                        <Map size={10} /> Ver no Mapa
+                      </a>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-bold tracking-widest uppercase text-slate-500 flex items-center gap-1 justify-end"><Navigation size={12}/> Distância Percorrida</p>
-                  <p className="text-xl font-bold text-slate-900 mt-1">
-                    {routeDistances[d.id] ? routeDistances[d.id].distance : d.distance}
-                  </p>
-                  {d.startLatLon !== 'N/A' && d.arrivalLatLon !== 'N/A' && (
-                     <a href={`https://www.google.com/maps/dir/?api=1&origin=${d.startLat},${d.startLon}&destination=${d.arrivalLat},${d.arrivalLon}&travelmode=driving`} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 font-bold hover:underline inline-flex items-center gap-1 mt-2 justify-end">
-                       <Map size={10} /> Rota no Google Maps
-                     </a>
+
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5"><MapPin size={14} className="text-amber-500" /></div>
+                  <div>
+                    <p className="text-[9px] font-black tracking-widest uppercase text-slate-400">2. Início do Atendimento no Cliente</p>
+                    <p className="text-xs font-semibold text-slate-800 mt-0.5">{d.arrivalTime}</p>
+                    {d.arrivalLatLon !== 'N/A' && (
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${d.arrivalLatLon}`} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 font-medium hover:underline inline-flex items-center gap-1 mt-0.5">
+                        <Map size={10} /> Ver no Mapa
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5"><CheckCircle2 size={14} className="text-rose-500" /></div>
+                  <div>
+                    <p className="text-[9px] font-black tracking-widest uppercase text-slate-400">3. Fim do Atendimento / Checkout</p>
+                    <p className="text-xs font-semibold text-slate-800 mt-0.5">{d.departureTime}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 flex flex-col justify-center space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[9px] font-bold tracking-widest uppercase text-slate-500 flex items-center gap-1"><Clock size={10}/> Tempo de Viagem</p>
+                    <p className="text-lg font-bold text-slate-900 mt-0.5">{d.duration}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-bold tracking-widest uppercase text-slate-500 flex items-center gap-1 justify-end"><Navigation size={10}/> Distância Percorrida</p>
+                    <p className="text-lg font-bold text-slate-900 mt-0.5">
+                      {routeDistances[d.id] ? routeDistances[d.id].distance : d.distance}
+                    </p>
+                    {d.startLatLon !== 'N/A' && d.arrivalLatLon !== 'N/A' && (
+                       <a href={`https://www.google.com/maps/dir/?api=1&origin=${d.startLat},${d.startLon}&destination=${d.arrivalLat},${d.arrivalLon}&travelmode=driving`} target="_blank" rel="noreferrer" className="text-[9px] text-blue-500 font-bold hover:underline inline-flex items-center gap-1 mt-1 justify-end">
+                         <Map size={10} /> Rota no Google Maps
+                       </a>
                   )}
                 </div>
               </div>
@@ -190,14 +256,15 @@ export function DisplacementTab({ visits }: DisplacementTabProps) {
               
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-bold tracking-widest uppercase text-emerald-600 flex items-center gap-1"><Clock size={12}/> Tempo de Atendimento (Trabalho)</p>
-                  <p className="text-xl font-bold text-emerald-600 mt-1">{d.serviceDuration}</p>
+                  <p className="text-[9px] font-bold tracking-widest uppercase text-emerald-600 flex items-center gap-1"><Clock size={10}/> Tempo de Atendimento (Trabalho)</p>
+                  <p className="text-lg font-bold text-emerald-600 mt-0.5">{d.serviceDuration}</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 }

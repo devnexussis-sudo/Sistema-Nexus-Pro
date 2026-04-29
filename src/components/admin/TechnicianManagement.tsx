@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
@@ -101,43 +102,44 @@ export const TechnicianManagement: React.FC = () => {
 
 
   return (
-    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
+    <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
 
       {/* Toolbar */}
-      <div className="mb-2 flex flex-col md:flex-row gap-3 items-center">
-        {/* Search */}
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input
-            type="text"
-            placeholder="Localizar técnico por nome ou e-mail..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-emerald-50 transition-all shadow-sm"
-          />
-        </div>
-
-        {/* Filters & Actions */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px]">
-            <Filter size={14} className="text-slate-400 mr-2" />
-            <select
-              className="bg-transparent text-[10px] font-black uppercase text-slate-600 outline-none cursor-pointer"
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-            >
-              <option value="ALL">Status</option>
-              <option value="ACTIVE">Liberados</option>
-              <option value="INACTIVE">Suspensos</option>
-            </select>
+      <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+          
+          <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder="Buscar técnico por nome ou e-mail..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+            />
           </div>
 
-          <Button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 rounded-xl px-6 h-[42px] font-bold uppercase text-[10px] tracking-widest shadow-sm shadow-emerald-500/10 whitespace-nowrap text-white"
-          >
-            <Plus size={16} className="mr-2" /> Novo Técnico
-          </Button>
+          <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+            <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-xl pl-2 pr-1 h-10 shadow-sm">
+              <Filter size={12} className="text-slate-400 mr-2" />
+              <select
+                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full"
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+              >
+                <option value="ALL">Status</option>
+                <option value="ACTIVE">Liberados</option>
+                <option value="INACTIVE">Suspensos</option>
+              </select>
+            </div>
+
+            <Button
+              onClick={() => setIsModalOpen(true)}
+              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap text-white"
+            >
+              <Plus size={16} /> Novo Técnico
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -145,7 +147,7 @@ export const TechnicianManagement: React.FC = () => {
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           <table className="w-full border-separate border-spacing-y-1">
             <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm">
-              <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left font-poppins">
+              <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
                 <th className="px-4 py-3">Identidade Visual</th>
                 <th className="px-4 py-3">Credencial (E-mail)</th>
                 <th className="px-4 py-3 text-center">Status App</th>
@@ -188,8 +190,8 @@ export const TechnicianManagement: React.FC = () => {
       </div>
 
       {
-        isModalOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
+        isModalOpen && createPortal(
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6 animate-in fade-in">
             <div className="bg-white rounded-[3.5rem] w-full max-w-xl shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-fade-in-up">
               <div className="flex justify-between items-center px-10 py-8 border-b border-slate-200 bg-slate-50/50">
                 <div className="flex items-center gap-4">
@@ -282,7 +284,7 @@ export const TechnicianManagement: React.FC = () => {
                 </div>
               </form>
             </div>
-          </div>
+          </div>, document.body
         )
       }
     </div >

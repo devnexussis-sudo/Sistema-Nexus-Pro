@@ -62,6 +62,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [selectedItem, setSelectedItem] = useState<any | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
+    const [detailTab, setDetailTab] = useState<'overview' | 'financial' | 'linked'>('overview');
 
     // Form de Baixa
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -640,7 +641,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     };
 
     return (
-        <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden relative font-sans">
+        <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden relative font-sans">
 
             {/* ── FILTROS + STATS ── */}
             <div className="flex-shrink-0 space-y-2.5 mb-2.5">
@@ -775,7 +776,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 <div className="flex-1 overflow-auto">
                     <table className="w-full text-left">
                         <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 border-b border-slate-300 shadow-sm font-poppins">
-                            <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
+                            <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
                                 <th className="px-3 py-3 w-10 text-center">
                                     <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-200 text-[#1c2d4f] cursor-pointer" checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedIds.includes(i.id))} onChange={() => { 
                                         const pageIds = paginatedItems.map(i => i.id);
@@ -825,7 +826,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 <tr
                                     key={item.id}
                                     className={`group hover:bg-[#1c2d4f]/5 transition-all cursor-pointer ${selectedIds.includes(item.id) ? 'bg-[#1c2d4f]/5' : 'bg-white'}`}
-                                    onClick={() => { setSelectedItem(item); setIsSidebarOpen(true); }}
+                                    onClick={() => { setDetailTab('overview'); setSelectedItem(item); setIsSidebarOpen(true); }}
                                 >
                                     <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
                                         <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-[#1c2d4f] cursor-pointer" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
@@ -890,217 +891,298 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
 
 
-            {/* ── PAINEL DE DETALHES (Centrado no meio com formato Padrão OS) ── */}
+            {/* ── PAINEL DE DETALHES — Padrão idêntico à edição de OS ── */}
             {isSidebarOpen && selectedItem && (
-                <div className="fixed inset-0 z-[1200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center py-4 px-4 overflow-y-auto animate-fade-in" onClick={() => setIsSidebarOpen(false)}>
-                    <div className="bg-white w-full max-w-6xl max-h-[92vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative" onClick={e => e.stopPropagation()}>
-
-                        {/* Cabeçalho OS padrão minimalista (Big Tech) */}
-                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-slate-400">
-                                    {selectedItem.type === 'QUOTE' ? <FileText size={20} /> : <Wrench size={20} />}
+                <div
+                    className="fixed inset-0 z-[1200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-0 lg:p-4 animate-in fade-in"
+                    onClick={() => setIsSidebarOpen(false)}
+                >
+                    <div
+                        className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* HEADER — igual ao da OS */}
+                        <div className="px-3 sm:px-6 py-3 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 bg-white">
+                            <div className="flex items-start sm:items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-slate-400 shrink-0">
+                                    {selectedItem.type === 'QUOTE' ? <FileText size={18} /> : <Wrench size={18} />}
                                 </div>
-                                <div>
-                                    <div className="flex items-center gap-3">
-                                        <h2 className="text-base font-semibold text-slate-900 font-poppins">
+                                <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
+                                        <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins truncate">
                                             {selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'} #{getDocLabel(selectedItem)}
                                         </h2>
                                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${selectedItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
                                             {selectedItem.status === 'PAID' ? 'Faturado' : 'Pendente'}
                                         </span>
                                     </div>
-                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                        {selectedItem.title || (selectedItem.type === 'QUOTE' ? 'Criação' : 'Conclusão')}
+                                    <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate">
+                                        {selectedItem.customerName} • {selectedItem.title || (selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço')}
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
+
+                            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                                 <button
                                     onClick={() => {
                                         const route = selectedItem.type === 'QUOTE' ? 'view-quote' : 'view';
                                         const token = selectedItem.original?.publicToken || selectedItem.id;
                                         window.open(`${window.location.origin}/#/${route}/${token}`, '_blank');
                                     }}
-                                    className="h-9 px-4 gap-2 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-bold transition-all flex items-center"
+                                    className="h-9 px-2 sm:px-4 gap-1.5 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-bold transition-all flex items-center"
                                 >
-                                    <Share2 size={14} /> Visualizar
+                                    <Share2 size={14} /> <span className="hidden sm:inline">Visualizar</span>
                                 </button>
                                 <button
                                     onClick={() => handlePrint(selectedItem)}
-                                    className="h-9 px-4 gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-bold transition-all flex items-center"
+                                    className="h-9 px-2 sm:px-4 gap-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-bold transition-all flex items-center"
                                 >
-                                    <Printer size={14} /> Imprimir
+                                    <Printer size={14} /> <span className="hidden sm:inline">Imprimir</span>
                                 </button>
-                                <div className="h-6 w-px bg-slate-200 mx-2"></div>
-                                <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all rounded-full hover:bg-slate-50">
+                                {selectedItem.status !== 'PAID' && (
+                                    <button
+                                        onClick={() => { setSelectedIds([selectedItem.id]); setIsInvoiceModalOpen(true); }}
+                                        className="h-9 px-2 sm:px-4 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center shadow-md shadow-emerald-600/20"
+                                    >
+                                        <DollarSign size={14} /> <span className="hidden md:inline">Faturar</span>
+                                    </button>
+                                )}
+                                <div className="h-6 w-px bg-slate-200 mx-0.5 sm:mx-2" />
+                                <button onClick={() => setIsSidebarOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                                     <X size={20} />
                                 </button>
                             </div>
                         </div>
 
-                        {/* Corpo principal */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                        {/* BODY — sidebar tabs + conteúdo */}
+                        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
 
-                            {/* Cards de Informação */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Cliente */}
-                                <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5">
-                                    <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-4">
-                                        <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Users size={13} /></div>
-                                        <h3 className="text-xs font-black text-slate-800 tracking-wide">Dados do cliente</h3>
-                                    </div>
-                                    <p className="text-base font-bold text-slate-800 capitalize">{selectedItem.customerName?.toLowerCase()}</p>
-                                    {selectedItem.customerAddress && (
-                                        <div className="flex items-start gap-1.5 mt-2">
-                                            <MapPin size={11} className="text-slate-400 mt-0.5 shrink-0" />
-                                            <p className="text-[11px] text-slate-500 font-medium capitalize">{selectedItem.customerAddress?.toLowerCase()}</p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Valor */}
-                                <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5 relative overflow-hidden">
-                                    <p className="text-xs font-bold text-slate-500 tracking-wider mb-1">Valor Total</p>
-                                    <p className="text-3xl font-black tracking-tight border-b border-slate-100 pb-2 mb-2 text-slate-900">
-                                        {formatCurrency(selectedItem.value)}
-                                    </p>
-                                    {selectedItem.original?.discount > 0 && (
-                                        <div className="flex justify-between items-center mb-2">
-                                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Desconto Aplicado</p>
-                                            <p className="text-xs font-bold text-rose-500">
-                                                {selectedItem.original.discountType === 'percent' 
-                                                    ? `- ${selectedItem.original.discount}%` 
-                                                    : `- ${formatCurrency(selectedItem.original.discount)}`}
-                                            </p>
-                                        </div>
-                                    )}
-                                    <div className="flex items-center gap-2 mt-4">
-                                        <div className="w-6 h-6 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center"><Calendar size={12} className="text-slate-400" /></div>
-                                        <p className="text-[10px] font-bold text-slate-600">{new Date(selectedItem.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-                                    </div>
-                                </div>
+                            {/* DESKTOP SIDEBAR TABS */}
+                            <div className="hidden md:flex flex-col w-48 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
+                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
+                                {[
+                                    { id: 'overview', label: 'Visão Geral', icon: Info },
+                                    { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                                    { id: 'linked', label: selectedItem.type === 'ORDER' ? 'Vínculos' : 'Detalhes', icon: Layer },
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setDetailTab(tab.id as any)}
+                                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
+                                            ${detailTab === tab.id
+                                                ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]'
+                                                : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
+                                    >
+                                        <tab.icon size={15} className={detailTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                                        <span className="flex-1 truncate">{tab.label}</span>
+                                    </button>
+                                ))}
                             </div>
 
-                            {/* Técnico + Descrição */}
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5">
-                                <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-4">
-                                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Info size={13} /></div>
-                                    <h3 className="text-xs font-black text-slate-800 tracking-wide">Descrição do atendimento</h3>
-                                </div>
-                                <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                                    <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
-                                        <UserCheck size={15} className="text-slate-500" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Técnico designado</p>
-                                        <p className="text-xs font-bold text-slate-700 capitalize">{selectedItem.technician?.toLowerCase()}</p>
-                                    </div>
-                                </div>
-                                {selectedItem.description && <p className="text-xs text-slate-600 font-medium leading-relaxed italic">{selectedItem.description}</p>}
+                            {/* MOBILE TABS */}
+                            <div className="md:hidden border-b border-slate-200 bg-white p-3 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
+                                {[
+                                    { id: 'overview', label: 'Visão Geral', icon: Info },
+                                    { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                                    { id: 'linked', label: selectedItem.type === 'ORDER' ? 'Vínculos' : 'Detalhes', icon: Layer },
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setDetailTab(tab.id as any)}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
+                                            ${detailTab === tab.id
+                                                ? 'bg-[#1c2d4f] text-white shadow-md'
+                                                : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                                    >
+                                        <tab.icon size={14} className={detailTab === tab.id ? 'text-white' : 'text-slate-400'} />
+                                        {tab.label}
+                                    </button>
+                                ))}
                             </div>
 
-                            {/* Orçamentos vinculados (somente OS) */}
-                            {selectedItem.type === 'ORDER' && (
-                                <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5">
-                                    <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-4">
-                                        <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Layer size={13} /></div>
-                                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">Orçamentos Vinculados</h3>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {selectedItem.original.linkedQuotes?.map((qId: string) => {
-                                            const q = quotes.find(quote => quote.id === qId);
-                                            return q ? (
-                                                <div key={qId} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center">
-                                                    <div>
-                                                        <span className="text-[9px] font-black text-slate-500 uppercase">{q.displayId || 'ORC-' + qId.slice(0, 8).toUpperCase()}</span>
-                                                        <p className="text-xs font-bold text-slate-800 mt-0.5 truncate max-w-[150px]">{q.title}</p>
+                            {/* CONTEÚDO DA ABA */}
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+
+                                {detailTab === 'overview' && (
+                                    <div className="space-y-4">
+                                        {/* Cliente + Valor */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                                <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
+                                                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Users size={13} /></div>
+                                                    <h3 className="text-xs font-black text-slate-800 tracking-wide">Dados do Cliente</h3>
+                                                </div>
+                                                <p className="text-sm font-bold text-slate-800">{selectedItem.customerName}</p>
+                                                {selectedItem.customerAddress && (
+                                                    <div className="flex items-start gap-1.5 mt-2">
+                                                        <MapPin size={11} className="text-slate-400 mt-0.5 shrink-0" />
+                                                        <p className="text-[11px] text-slate-500 font-medium">{selectedItem.customerAddress}</p>
                                                     </div>
-                                                    <span className="text-sm font-black text-slate-900">{formatCurrency(q.totalValue)}</span>
+                                                )}
+                                            </div>
+
+                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Valor Total</p>
+                                                <p className="text-3xl font-black tracking-tight text-slate-900 border-b border-slate-100 pb-2 mb-2">
+                                                    {formatCurrency(selectedItem.value)}
+                                                </p>
+                                                {selectedItem.original?.discount > 0 && (
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Desconto Aplicado</p>
+                                                        <p className="text-xs font-bold text-rose-500">
+                                                            {selectedItem.original.discountType === 'percent'
+                                                                ? `- ${selectedItem.original.discount}%`
+                                                                : `- ${formatCurrency(selectedItem.original.discount)}`}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-2 mt-3">
+                                                    <div className="w-6 h-6 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center"><Calendar size={12} className="text-slate-400" /></div>
+                                                    <p className="text-[10px] font-bold text-slate-600">{new Date(selectedItem.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                                                 </div>
-                                            ) : null;
-                                        })}
-                                        {(!selectedItem.original.linkedQuotes || selectedItem.original.linkedQuotes.length === 0) && (
-                                            <div className="col-span-full py-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase">Nenhum orçamento vinculado</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Técnico + Descrição */}
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
+                                                <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Info size={13} /></div>
+                                                <h3 className="text-xs font-black text-slate-800 tracking-wide">Descrição do Atendimento</h3>
+                                            </div>
+                                            <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                                                <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
+                                                    <UserCheck size={14} className="text-slate-500" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Técnico Designado</p>
+                                                    <p className="text-xs font-bold text-slate-700">{selectedItem.technician || '—'}</p>
+                                                </div>
+                                            </div>
+                                            {selectedItem.description && <p className="text-xs text-slate-600 font-medium leading-relaxed italic">{selectedItem.description}</p>}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {detailTab === 'financial' && (
+                                    <div className="space-y-4">
+                                        {selectedItem.status === 'PAID' ? (
+                                            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center"><Check size={16} className="text-white" /></div>
+                                                    <p className="text-[11px] font-black text-emerald-800 uppercase tracking-widest">Baixa Realizada</p>
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                    <div className="bg-white rounded-xl p-3 border border-emerald-100">
+                                                        <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Forma de Pagamento</p>
+                                                        <p className="text-xs font-black text-emerald-900 uppercase">{selectedItem.original?.paymentMethod || '—'}</p>
+                                                    </div>
+                                                    <div className="bg-white rounded-xl p-3 border border-emerald-100">
+                                                        <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Desconto</p>
+                                                        <p className="text-xs font-black text-emerald-900 uppercase">
+                                                            {(() => {
+                                                                const disc = Number(selectedItem.original?.discount) || 0;
+                                                                const subtotal = selectedItem.original?.items?.reduce((a: number, i: any) => a + (Number(i.total) || 0), 0) || selectedItem.value;
+                                                                const infer = subtotal > selectedItem.original?.totalValue ? subtotal - selectedItem.original?.totalValue : 0;
+                                                                const finalDisc = disc > 0 ? disc : infer;
+                                                                const type = disc > 0 ? (selectedItem.original?.discountType || 'fixed') : 'fixed';
+                                                                if (finalDisc > 0) return type === 'percent' ? `${finalDisc}%` : formatCurrency(finalDisc);
+                                                                return 'Sem desconto';
+                                                            })()}
+                                                        </p>
+                                                    </div>
+                                                    <div className="bg-white rounded-xl p-3 border border-emerald-100">
+                                                        <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Data da Baixa</p>
+                                                        <p className="text-xs font-black text-emerald-900">{selectedItem.original?.paidAt ? new Date(selectedItem.original.paidAt).toLocaleDateString('pt-BR') : '—'}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-amber-50 border border-amber-100 rounded-xl p-5 text-center space-y-3">
+                                                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+                                                    <Clock size={20} className="text-amber-500" />
+                                                </div>
+                                                <p className="text-sm font-bold text-amber-800">Aguardando Faturamento</p>
+                                                <p className="text-xs text-amber-600">Valor de {formatCurrency(selectedItem.value)} ainda não liquidado.</p>
+                                                <button
+                                                    onClick={() => { setSelectedIds([selectedItem.id]); setIsInvoiceModalOpen(true); }}
+                                                    className="mx-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2"
+                                                >
+                                                    <DollarSign size={16} /> Confirmar Lançamento Financeiro
+                                                </button>
                                             </div>
                                         )}
-                                        {availableQuotesForClient.length > 0 && selectedItem.status !== 'PAID' && (
-                                            <div className="col-span-full pt-3 border-t border-slate-100 mt-2">
-                                                <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Disponíveis para vincular:</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {availableQuotesForClient.map(q => (
-                                                        <button key={q.id} onClick={() => handleLinkQuote(q.id)} disabled={isProcessing} className="px-3 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all text-[10px] font-bold text-slate-700 uppercase shadow-sm">
-                                                            {q.displayId || 'ORC-' + q.id.slice(0, 8).toUpperCase()} — {formatCurrency(q.totalValue)}
-                                                            <Plus size={12} className="text-slate-400" />
-                                                        </button>
-                                                    ))}
+                                    </div>
+                                )}
+
+                                {detailTab === 'linked' && (
+                                    <div className="space-y-4">
+                                        {selectedItem.type === 'ORDER' ? (
+                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                                <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
+                                                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Layer size={13} /></div>
+                                                    <h3 className="text-xs font-black text-slate-800 tracking-wide">Orçamentos Vinculados</h3>
                                                 </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    {selectedItem.original?.linkedQuotes?.map((qId: string) => {
+                                                        const q = quotes.find(quote => quote.id === qId);
+                                                        return q ? (
+                                                            <div key={qId} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center">
+                                                                <div>
+                                                                    <span className="text-[9px] font-black text-slate-500 uppercase">{q.displayId || 'ORC-' + qId.slice(0, 8).toUpperCase()}</span>
+                                                                    <p className="text-xs font-bold text-slate-800 mt-0.5 truncate max-w-[150px]">{q.title}</p>
+                                                                </div>
+                                                                <span className="text-sm font-black text-slate-900">{formatCurrency(q.totalValue)}</span>
+                                                            </div>
+                                                        ) : null;
+                                                    })}
+                                                    {(!selectedItem.original?.linkedQuotes || selectedItem.original.linkedQuotes.length === 0) && (
+                                                        <div className="col-span-full py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase">Nenhum orçamento vinculado</p>
+                                                        </div>
+                                                    )}
+                                                    {availableQuotesForClient.length > 0 && selectedItem.status !== 'PAID' && (
+                                                        <div className="col-span-full pt-3 border-t border-slate-100 mt-2">
+                                                            <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Disponíveis para vincular:</p>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {availableQuotesForClient.map(q => (
+                                                                    <button key={q.id} onClick={() => handleLinkQuote(q.id)} disabled={isProcessing} className="px-3 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all text-[10px] font-bold text-slate-700 uppercase shadow-sm">
+                                                                        {q.displayId || 'ORC-' + q.id.slice(0, 8).toUpperCase()} — {formatCurrency(q.totalValue)}
+                                                                        <Plus size={12} className="text-slate-400" />
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+                                                <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+                                                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><FileText size={13} /></div>
+                                                    <h3 className="text-xs font-black text-slate-800 tracking-wide">Detalhes do Orçamento</h3>
+                                                </div>
+                                                {selectedItem.original?.items?.map((item: any, i: number) => (
+                                                    <div key={i} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
+                                                        <div>
+                                                            <p className="text-xs font-bold text-slate-800">{item.description}</p>
+                                                            <p className="text-[10px] text-slate-400">{item.quantity} × {formatCurrency(item.unitPrice)}</p>
+                                                        </div>
+                                                        <span className="text-sm font-black text-slate-900">{formatCurrency(item.total)}</span>
+                                                    </div>
+                                                ))}
+                                                {(!selectedItem.original?.items || selectedItem.original.items.length === 0) && (
+                                                    <p className="text-xs text-slate-400 text-center py-4">Nenhum item encontrado.</p>
+                                                )}
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                            )}
-
-                            {/* Se já faturado: exibe detalhes */}
-                            {selectedItem.status === 'PAID' && (
-                                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center"><Check size={16} className="text-white" /></div>
-                                        <p className="text-[11px] font-black text-emerald-800 uppercase tracking-widest">Baixa Realizada</p>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                        <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                                            <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Pagamento (Ex: Cartão 3x)</p>
-                                            <p className="text-xs font-black text-emerald-900 uppercase">{selectedItem.original.paymentMethod || '—'}</p>
-                                        </div>
-                                        <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                                            <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Desconto</p>
-                                            <p className="text-xs font-black text-emerald-900 uppercase">
-                                                {(() => {
-                                                    const disc = Number(selectedItem.original?.discount) || 0;
-                                                    const subtotal = selectedItem.original?.items?.reduce((a: number, i: any) => a + (Number(i.total) || 0), 0) || selectedItem.value;
-                                                    const infer = subtotal > selectedItem.original?.totalValue ? subtotal - selectedItem.original?.totalValue : 0;
-                                                    const finalDisc = disc > 0 ? disc : infer;
-                                                    const type = disc > 0 ? (selectedItem.original.discountType || 'fixed') : 'fixed';
-                                                    if (finalDisc > 0) {
-                                                        return type === 'percent' ? `${finalDisc}%` : formatCurrency(finalDisc);
-                                                    }
-                                                    return 'Sem desconto';
-                                                })()}
-                                            </p>
-                                        </div>
-                                        <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                                            <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Data</p>
-                                            <p className="text-xs font-black text-emerald-900">{selectedItem.original.paidAt ? new Date(selectedItem.original.paidAt).toLocaleDateString('pt-BR') : '—'}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                        </div>
-
-                        {/* Footer de Ação */}
-                        <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 z-10 sticky bottom-0 border-t border-slate-200 rounded-b-xl">
-                            <button onClick={() => setIsSidebarOpen(false)} className="px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:text-slate-800 shadow-sm transition-all hover:bg-slate-50">
-                                Fechar Painel
-                            </button>
-                            {selectedItem.status !== 'PAID' ? (
-                                <button
-                                    onClick={() => { setSelectedIds([selectedItem.id]); setIsInvoiceModalOpen(true); }}
-                                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
-                                >
-                                    <DollarSign size={18} /> Confirmar Lançamento Financeiro
-                                </button>
-                            ) : (
-                                <div className="px-6 py-2.5 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl font-bold text-sm text-center flex items-center justify-center gap-2 shadow-inner">
-                                    <CheckCircle2 size={18} /> Lançamento Liquidado
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
+
 
             {/* ── MODAL DE FATURAMENTO (Padrão OS Big Tech) ── */}
             {isInvoiceModalOpen && (
@@ -1452,7 +1534,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     
                                     <table className="w-full text-sm">
                                         <thead>
-                                            <tr className="border-b-2 border-slate-200 text-left">
+                                            <tr className="border-b-2 border-slate-200 text-center">
                                                 <th className="py-3 px-2 font-bold text-slate-900 uppercase text-[10px] tracking-wider w-3/5">Descrição do Serviço / Histórico</th>
                                                 <th className="py-3 px-2 font-bold text-slate-900 uppercase text-[10px] tracking-wider text-center">Tipo</th>
                                                 <th className="py-3 px-2 font-bold text-slate-900 uppercase text-[10px] tracking-wider text-right">Valor Líquido</th>

@@ -400,7 +400,7 @@ export const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-2 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in font-poppins">
+    <div className="p-2 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
       {/* Toolbar */}
       <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
         {/* Tabs */}

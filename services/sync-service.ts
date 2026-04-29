@@ -141,7 +141,7 @@ class SyncService {
         if (!force && !this.offlineModeEnabled) return;
 
         const state = await NetInfo.fetch();
-        if (!state.isConnected) return;
+        if (state.isConnected === false) return;
 
         const queue = await this.getQueue();
         const pendingTasks = queue.filter(t => t.status === 'pending' || t.status === 'error');
@@ -307,7 +307,7 @@ class SyncService {
     private startListening() {
         if (!this.unsubscribeNetInfo) {
             this.unsubscribeNetInfo = NetInfo.addEventListener(state => {
-                if (state.isConnected && this.offlineModeEnabled) {
+                if (state.isConnected !== false && this.offlineModeEnabled) {
                     this.triggerSync();
                 }
             });

@@ -98,10 +98,8 @@ const VisitCountCell = ({ orderId }: { orderId: string }) => {
   }
 
   return (
-    <div className="flex justify-center">
-      <span className="px-2 py-0.5 text-[11px] font-semibold bg-slate-100 text-slate-600 rounded-full border border-slate-200">
-        {count}
-      </span>
+    <div className="flex justify-center text-[12px] text-slate-500 tracking-wide">
+      {count === 0 ? '---' : count}
     </div>
   );
 };
@@ -912,159 +910,123 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   return (
     <div className="p-2 sm:p-4 animate-fade-in flex flex-col h-full bg-slate-50 overflow-hidden">
       {/* Search & Filter Toolbar */}
-      <div className="mb-3 sm:mb-6 space-y-3 sm:space-y-4">
-        {/* Row 1: Search & Date Filters & Toggle */}
-        <div className="flex flex-col xl:flex-row gap-3">
-          <div className="relative flex-1">
+      <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
+        {/* Top Row: Search, Fast Filters, Toggle, Actions */}
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+          
+          {/* Left Side: Search */}
+          <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
-              placeholder="Pesquisar por protocolo, cliente ou descrição..."
+              placeholder="Buscar OS..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full h-11 bg-white border border-slate-200 rounded-xl pl-10 pr-4 text-sm font-medium text-slate-700 placeholder-slate-400 outline-none focus:ring-4 focus:ring-primary-500/5 focus:border-primary-500 transition-all shadow-sm"
+              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Middle: Fast Filters & Toggle */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {['today', 'week', 'month'].map((type) => (
+              <button
+                key={type}
+                onClick={() => handleFastFilter(type as any)}
+                className="h-10 px-2.5 sm:px-3 text-[9px] font-bold uppercase text-[#1c2d4f]/70 hover:text-[#1c2d4f] border border-[#1c2d4f]/20 rounded-xl hover:border-[#1c2d4f]/40 hover:bg-[#1c2d4f]/5 transition-all shadow-sm bg-white"
+              >
+                {type === 'today' ? 'Hoje' : type === 'week' ? '7 Dias' : '30 Dias'}
+              </button>
+            ))}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 h-11 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+              className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
             >
-              <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros Avançados'}
+              <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Avançado'}</span>
             </button>
+          </div>
+
+          {/* Right Side: Ações em Lote & Novo Atendimento */}
+          <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+            {/* Ações em Lote (Seleção) */}
+            {selectedOrderIds.length > 0 && (
+              <div className="flex items-center gap-1.5 px-2 py-1 h-10 bg-slate-900 rounded-xl shadow-lg animate-in fade-in slide-in-from-right-4">
+                <div className="flex items-center justify-center w-6 h-6 rounded bg-slate-800 text-white text-[10px] font-black">{selectedOrderIds.length}</div>
+                <button onClick={handleExportExcel} className="p-1.5 text-white hover:text-emerald-400 transition-colors" title="Excel"><FileSpreadsheet size={16} /></button>
+                <button onClick={handleBatchPrint} className="p-1.5 text-white hover:text-blue-400 transition-colors" title="PDF"><FileText size={16} /></button>
+                <div className="w-px h-4 bg-slate-700 mx-0.5" />
+                <button onClick={() => setSelectedOrderIds([])} className="p-1.5 text-white hover:text-rose-400 transition-colors" title="Limpar"><X size={16} /></button>
+              </div>
+            )}
+
+            <Button
+              variant="primary"
+              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap"
+              onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
+            >
+              <Plus size={16} /> Nova OS
+            </Button>
           </div>
         </div>
 
         {/* Collapsible Filters Row */}
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex flex-col gap-1.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex flex-col gap-1 lg:col-span-2">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Período</label>
-              <div className="flex items-center gap-2 bg-white border border-slate-200 p-1 rounded-xl shadow-lg shadow-slate-200/50 h-11">
-                <div className="flex items-center px-3 h-full border-r border-slate-100">
-                  <select
-                    value={dateTypeFilter}
-                    onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
-                    className="bg-transparent text-xs font-semibold text-slate-600 outline-none cursor-pointer"
-                  >
-                    <option value="scheduled">Agendamento</option>
-                    <option value="created">Abertura</option>
-                    <option value="completed">Conclusão</option>
-                  </select>
-                </div>
-                <div className="flex items-center gap-2 px-2 flex-1">
+              <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-lg shadow-sm h-9">
+                <select
+                  value={dateTypeFilter}
+                  onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
+                  className="bg-transparent text-[10px] font-bold text-slate-600 outline-none cursor-pointer border-r border-slate-100 pr-2 pl-1"
+                >
+                  <option value="scheduled">Agendamento</option>
+                  <option value="created">Abertura</option>
+                  <option value="completed">Conclusão</option>
+                </select>
+                <div className="flex items-center gap-1 px-1 flex-1 justify-between">
                   <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none focus:text-slate-900 w-full" />
-                  <span className="text-[10px] text-slate-300 font-bold">até</span>
+                  <span className="text-[9px] text-slate-300 font-bold uppercase mx-1">até</span>
                   <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none focus:text-slate-900 w-full" />
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
-              <div className="flex items-center bg-white border border-slate-200 rounded-xl pl-3 pr-1 h-11 shadow-lg shadow-slate-200/50">
-                <Filter size={14} className="text-slate-400 mr-2" />
-                <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
+                <Filter size={12} className="text-slate-400 mr-2" />
+                <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                   <option value="ALL">Todos Status</option>
                   {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Responsável</label>
-              <div className="flex items-center bg-white border border-slate-200 rounded-xl pl-3 pr-1 h-11 shadow-lg shadow-slate-200/50">
-                <UserCheck size={14} className="text-slate-400 mr-2" />
-                <select className="bg-transparent text-xs font-semibold text-slate-600 outline-none w-full cursor-pointer h-full" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
+              <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
+                <UserCheck size={12} className="text-slate-400 mr-2" />
+                <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
                   <option value="ALL">Todos Técnicos</option>
                   {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
             </div>
 
-            <div className="flex items-end pb-1.5">
+            <div className="flex items-end pb-0.5">
               <button
                 onClick={() => {
                   setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
                   onDateChange('', '');
                   setSelectedOrderIds([]);
                 }}
-                className="h-10 px-4 text-xs font-bold text-slate-400 hover:text-rose-500 transition-colors uppercase tracking-widest"
+                className="h-9 w-full px-4 text-[10px] font-bold bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 rounded-lg transition-colors uppercase tracking-widest border border-rose-100"
               >
-                Resetar Filtros
+                Limpar Todos os Filtros
               </button>
             </div>
           </div>
         )}
-
-        {/* Row for Actions (Export, New, etc.) */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Fast Filters */}
-            <div className="flex gap-1.5 sm:gap-2">
-              {['today', 'week', 'month'].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => handleFastFilter(type as any)}
-                  className="px-2 sm:px-3 py-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-primary-600 border border-slate-200 rounded-lg hover:border-primary-100 hover:bg-primary-50/50 transition-all"
-                >
-                  {type === 'today' ? 'Hoje' : type === 'week' ? '7 Dias' : '30 Dias'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3 ml-auto">
-
-
-            {/* Ações em Lote (Seleção) */}
-            {selectedOrderIds.length > 0 && (
-              <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 bg-slate-900 rounded-[1.5rem] shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100">
-                <div className="flex flex-col pr-2 sm:pr-3 border-r border-slate-700">
-                  <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5 hidden sm:block">Selecionados</span>
-                  <span className="text-xs font-black text-white leading-none">{selectedOrderIds.length}</span>
-                </div>
-
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <button
-                    onClick={handleExportExcel}
-                    className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
-                    title="Exportar Seleção para Excel"
-                  >
-                    <FileSpreadsheet size={14} /> <span className="hidden sm:inline">Excel</span>
-                  </button>
-
-                  <button
-                    onClick={handleBatchPrint}
-                    className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-slate-500/20 active:scale-95"
-                    title="Gerar PDF / Imprimir Seleção"
-                  >
-                    <FileText size={14} /> <span className="hidden sm:inline">Exportar PDF</span>
-                  </button>
-
-                  <div className="w-px h-6 bg-slate-700 mx-0.5 sm:mx-1" />
-
-                  <button
-                    onClick={() => setSelectedOrderIds([])}
-                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
-                    title="Limpar Seleção"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <Button
-              variant="primary"
-              className="h-10 px-3 sm:px-6 gap-2 bg-primary-600 hover:bg-primary-700 shadow-xl shadow-primary-500/20"
-              onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
-            >
-              <Plus size={16} /> <span className="hidden sm:inline">Novo Atendimento</span>
-            </Button>
-          </div>
-        </div>
       </div>
 
       {/* Main Table Container - Premium Look */}
@@ -1072,7 +1034,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
-              <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
+              <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
                 <th className="px-3 py-2 w-12 text-center text-slate-400">
                   <input
                     type="checkbox"
@@ -1082,34 +1044,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     title="Selecionar página atual"
                   />
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
-                  <div className="flex items-center gap-1">Protocolo {getSortIcon('displayId')}</div>
+                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('id')}>
+                  <div className="flex items-center justify-center gap-1">Protocolo {getSortIcon('displayId')}</div>
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
-                  <div className="flex items-center gap-1">Modalidade {getSortIcon('operationType')}</div>
+                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('operationType')}>
+                  <div className="flex items-center justify-center gap-1">Modalidade {getSortIcon('operationType')}</div>
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
-                  <div className="flex items-center gap-1">Cliente {getSortIcon('customerName')}</div>
+                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('customerName')}>
+                  <div className="flex items-center justify-center gap-1">Cliente {getSortIcon('customerName')}</div>
                 </th>
                 <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('assignedTo')}>
                   <div className="flex items-center justify-center gap-1">Técnico {getSortIcon('assignedTo')}</div>
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
-                  <div className="flex items-center gap-1">Abertura {getSortIcon('createdAt')}</div>
+                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('createdAt')}>
+                  <div className="flex items-center justify-center gap-1">Abertura {getSortIcon('createdAt')}</div>
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
-                  <div className="flex items-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
+                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('scheduledDate')}>
+                  <div className="flex items-center justify-center gap-1">Agendamento {getSortIcon('scheduledDate')}</div>
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('endDate')}>
-                  <div className="flex items-center gap-1">Conclusão {getSortIcon('endDate')}</div>
+                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('endDate')}>
+                  <div className="flex items-center justify-center gap-1">Conclusão {getSortIcon('endDate')}</div>
                 </th>
-                <th className="px-3 py-2 text-center text-slate-400">
+                <th className="px-3 py-2 text-center">
                   <div className="flex items-center justify-center gap-1">Visitas</div>
                 </th>
-                <th className="px-3 py-2 cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
-                  <div className="flex items-center gap-1">Status {getSortIcon('status')}</div>
+                <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
+                  <div className="flex items-center justify-center gap-1">Status {getSortIcon('status')}</div>
                 </th>
-                <th className="px-3 py-2 text-right pr-4">Ações</th>
+                <th className="px-3 py-2 text-center pr-4">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1248,8 +1210,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         />
       )}
 
-      {selectedOrder && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
+      {selectedOrder && createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
           <div className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
 
             {/* HEADER */}
@@ -1357,34 +1319,70 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            {/* TABS */}
-            <div className="px-2 sm:px-4 border-b border-slate-200 bg-white flex gap-1 shrink-0 overflow-x-auto custom-scrollbar">
-              {[
-                { id: 'overview', label: 'dados gerais', icon: LayoutDashboard },
-                { id: 'internal_notes', label: 'obs internas', icon: FileText },
-                { id: 'equipments', label: `ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
-                { id: 'forms', label: 'formulários', icon: ClipboardList },
-                { id: 'visits', label: `visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
-                { id: 'history', label: `histórico${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: History },
-                { id: 'displacement', label: 'Tempo / Distância', icon: MapPin },
-                { id: 'media', label: 'galeria', icon: Camera },
-                { id: 'costs', label: 'peças e custos', icon: DollarSign },
-                { id: 'vinculos', label: `vínculos${(selectedOrder.linkedQuotes?.length || 0) > 0 ? ` (${selectedOrder.linkedQuotes?.length})` : ''}`, icon: Link2 },
-                { id: 'audit', label: 'assinaturas', icon: ShieldCheck }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-1 sm:gap-1.5 px-1 sm:px-0 py-3 sm:py-4 text-[10px] sm:text-xs font-bold border-b-2 transition-all whitespace-nowrap font-poppins
-                    ${activeTab === tab.id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-                >
-                  <tab.icon size={15} /> {tab.label}
-                </button>
-              ))}
-            </div>
+            {/* BODY CONTAINER */}
+            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+              
+              {/* DESKTOP SIDEBAR TABS */}
+              <div className="hidden md:flex flex-col w-48 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
+                {[
+                  { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
+                  { id: 'internal_notes', label: 'Obs Internas', icon: FileText },
+                  { id: 'equipments', label: `Ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
+                  { id: 'forms', label: 'Formulários', icon: ClipboardList },
+                  { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
+                  { id: 'history', label: 'Histórico', icon: History },
+                  { id: 'displacement', label: 'Deslocamento', icon: MapPin },
+                  { id: 'media', label: 'Galeria', icon: Camera },
+                  { id: 'costs', label: 'Custos', icon: DollarSign },
+                  { id: 'vinculos', label: `Vínculos${(selectedOrder.linkedQuotes?.length || 0) > 0 ? ` (${selectedOrder.linkedQuotes?.length})` : ''}`, icon: Link2 },
+                  { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
+                      ${activeTab === tab.id 
+                        ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]' 
+                        : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
+                  >
+                    <tab.icon size={15} className={activeTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} /> 
+                    <span className="flex-1 truncate">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
 
-            {/* CONTENT AREA */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-8 bg-slate-50/50 custom-scrollbar">
+              {/* MOBILE TABS */}
+              <div className="md:hidden border-b border-slate-200 bg-white p-3 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
+                {[
+                  { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
+                  { id: 'internal_notes', label: 'Obs Internas', icon: FileText },
+                  { id: 'equipments', label: `Ativos${equipments.length > 0 ? ` (${equipments.length})` : ''}`, icon: Box },
+                  { id: 'forms', label: 'Formulários', icon: ClipboardList },
+                  { id: 'visits', label: `Visitas${visits.length > 0 ? ` (${visits.length})` : ''}`, icon: CalendarPlus },
+                  { id: 'history', label: 'Histórico', icon: History },
+                  { id: 'displacement', label: 'Deslocamento', icon: MapPin },
+                  { id: 'media', label: 'Galeria', icon: Camera },
+                  { id: 'costs', label: 'Custos', icon: DollarSign },
+                  { id: 'vinculos', label: `Vínculos${(selectedOrder.linkedQuotes?.length || 0) > 0 ? ` (${selectedOrder.linkedQuotes?.length})` : ''}`, icon: Link2 },
+                  { id: 'audit', label: 'Assinaturas', icon: ShieldCheck }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
+                      ${activeTab === tab.id 
+                        ? 'bg-[#1c2d4f] text-white shadow-md' 
+                        : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                  >
+                    <tab.icon size={14} className={activeTab === tab.id ? 'text-white' : 'text-slate-400'} /> 
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* CONTENT AREA */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 custom-scrollbar">
 
               {/* TAB: VISÃO GERAL */}
               {activeTab === 'overview' && (
@@ -1696,67 +1694,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <p className="text-[11px] text-slate-300 font-medium mt-1">O equipamento é vinculado durante a criação da OS</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {eqList.map((eq: any, idx: number) => {
-                          const eqPrefix = `[${eq.equipmentModel || eq.equipmentName || 'Equipamento'}`;
-                          const hasFormData = Object.keys(selectedOrder.formData || {}).some(k => k.startsWith(eqPrefix)) || !!(eq.formData && Object.keys(eq.formData).length > 0);
-                          const isActive = selectedOrder.status !== 'CONCLUÍDO' && selectedOrder.status !== 'CANCELADO';
-                          return (
-                            <div key={eq.id || idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-lg shadow-slate-200/50 hover:border-primary-200 transition-all">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="w-10 h-10 bg-primary-50 border border-primary-100 rounded-lg flex items-center justify-center shrink-0">
-                                  <Box size={18} className="text-primary-400" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-bold text-slate-900 truncate">{eq.equipmentName}</p>
-                                  {eq.equipmentModel && eq.equipmentModel !== eq.equipmentName && (
-                                    <p className="text-[11px] text-slate-500 font-medium">{eq.equipmentModel}</p>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isActive ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                                    {isActive ? 'Ativo' : 'Concluído'}
-                                  </span>
-                                  {isEditing && (
-                                    <button
-                                      onClick={() => handleRemoveEquipment(eq.id, eqList.length <= 1)}
-                                      className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-                                      title="Remover ativo da OS"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3">
-                                {eq.equipmentSerial && eq.equipmentSerial !== '-' && (
-                                  <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Série / Patrimônio</p>
-                                    <p className="text-xs font-bold text-slate-700 font-mono mt-0.5">{eq.equipmentSerial}</p>
-                                  </div>
-                                )}
-                                {eq.equipmentFamily && (
-                                  <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Família</p>
-                                    <p className="text-xs font-bold text-slate-700 mt-0.5">{eq.equipmentFamily}</p>
-                                  </div>
-                                )}
-                                <div>
-                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Formulário respondido</p>
-                                  <p className={`text-xs font-bold mt-0.5 ${hasFormData ? 'text-emerald-600' : 'text-amber-500'}`}>
-                                    {hasFormData ? '✓ Sim' : '○ Pendente'}
-                                  </p>
-                                </div>
-                                {eq.formId && (
-                                  <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Template</p>
-                                    <p className="text-xs font-bold text-slate-700 font-mono mt-0.5">{String(eq.formId).slice(0, 8)}…</p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-lg shadow-slate-200/50">
+                        <div className="overflow-x-auto custom-scrollbar">
+                          <table className="w-full text-left border-collapse whitespace-nowrap">
+                            <thead className="bg-[#f8fafc] text-[10px] uppercase tracking-widest text-slate-500 border-b border-slate-200">
+                              <tr>
+                                <th className="px-5 py-3 font-black text-center">Ativo / Equipamento</th>
+                                <th className="px-5 py-3 font-black">Família</th>
+                                <th className="px-5 py-3 font-black">Série / Patrimônio</th>
+                                <th className="px-5 py-3 font-black text-center">Formulário</th>
+                                <th className="px-5 py-3 font-black text-center">Status</th>
+                                {isEditing && <th className="px-5 py-3 font-black text-center">Ações</th>}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-sm">
+                              {eqList.map((eq: any, idx: number) => {
+                                const eqPrefix = `[${eq.equipmentModel || eq.equipmentName || 'Equipamento'}`;
+                                const hasFormData = Object.keys(selectedOrder.formData || {}).some(k => k.startsWith(eqPrefix)) || !!(eq.formData && Object.keys(eq.formData).length > 0);
+                                const isActive = selectedOrder.status !== 'CONCLUÍDO' && selectedOrder.status !== 'CANCELADO';
+                                
+                                return (
+                                  <tr key={eq.id || idx} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="px-5 py-3.5">
+                                      <div className="flex items-center justify-center gap-3">
+                                        <div className="w-8 h-8 bg-primary-50 border border-primary-100 rounded-md flex items-center justify-center shrink-0">
+                                          <Box size={14} className="text-primary-500" />
+                                        </div>
+                                        <div className="text-left min-w-[120px]">
+                                          <p className="text-xs font-bold text-slate-900 truncate max-w-[200px]">{eq.equipmentName}</p>
+                                          {eq.equipmentModel && eq.equipmentModel !== eq.equipmentName && (
+                                            <p className="text-[10px] text-slate-400 font-medium truncate max-w-[200px]">{eq.equipmentModel}</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="px-5 py-3.5">
+                                      <span className="text-xs font-semibold text-slate-600">{eq.equipmentFamily || '—'}</span>
+                                    </td>
+                                    <td className="px-5 py-3.5">
+                                      <span className="text-xs font-bold text-slate-700 font-mono">{eq.equipmentSerial && eq.equipmentSerial !== '-' ? eq.equipmentSerial : '—'}</span>
+                                    </td>
+                                    <td className="px-5 py-3.5 text-center">
+                                      <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${hasFormData ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-500 border-amber-100'}`}>
+                                        {hasFormData ? '✓ Sim' : '○ Pendente'}
+                                      </span>
+                                    </td>
+                                    <td className="px-5 py-3.5 text-center">
+                                      <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isActive ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                        {isActive ? 'Ativo' : 'Concluído'}
+                                      </span>
+                                    </td>
+                                    {isEditing && (
+                                      <td className="px-5 py-3.5 text-center">
+                                        <button
+                                          onClick={() => handleRemoveEquipment(eq.id, eqList.length <= 1)}
+                                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-all opacity-0 group-hover:opacity-100"
+                                          title="Remover ativo da OS"
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </td>
+                                    )}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2048,42 +2052,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* TAB: CUSTOS */}
               {activeTab === 'costs' && (
                 <div className="max-w-5xl mx-auto space-y-6">
-                  <div className="flex justify-between items-center bg-[#1c2d4f] p-8 rounded-lg shadow-lg text-white relative">
-                    {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => setEditDraft({ ...editDraft, showValueToClient: !(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) })}
-                        className={`absolute top-4 right-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg ${(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false)
-                          ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30'
-                          : 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-500/30'
-                          }`}
-                      >
-                        {(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) ? <><Eye size={14} /> Visível no Link e Impressão</> : <><EyeOff size={14} /> Oculto no Link e Impressão</>}
-                      </button>
-                    )}
-                    {!isEditing && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (window.confirm(`Deseja ${selectedOrder.showValueToClient ? 'ocultar' : 'mostrar'} os preços desta OS para o cliente? Isso afetará o link público e a impressão.`)) {
-                            await onEditOrder({ ...selectedOrder, showValueToClient: !selectedOrder.showValueToClient });
-                            setSelectedOrder({ ...selectedOrder, showValueToClient: !selectedOrder.showValueToClient });
-                          }
-                        }}
-                        className={`absolute top-4 right-4 flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shadow-lg transition-all ${selectedOrder.showValueToClient ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30' : 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-500/30'}`}
-                      >
-                        {selectedOrder.showValueToClient ? <><Eye size={14} /> Visível no Link Público e Impressão</> : <><EyeOff size={14} /> Oculto no Link Público e Impressão</>}
-                      </button>
-                    )}
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                     <div>
-                      <h3 className="text-base font-bold text-white mb-1">Mão de Obra e Peças</h3>
-                      <p className="text-xs text-white/60 font-medium">Consolidação financeira de insumos e atividades</p>
+                      <h3 className="text-sm font-bold text-slate-800">Gestão de Peças e Custos</h3>
+                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">Consolidação financeira de insumos e atividades</p>
                     </div>
-                    <div className="text-right">
-                      <div className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Total Consolidado</div>
-                      <div className="text-3xl font-bold font-mono">
-                        R$ {(selectedOrder.items?.reduce((acc, i) => acc + i.total, 0) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+
+                    <div className="flex items-center gap-3">
+                      {isEditing ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditDraft({ ...editDraft, showValueToClient: !(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) })}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-sm border ${(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false)
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'
+                            }`}
+                        >
+                          {(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) ? <><Eye size={14} /> Visível no Link</> : <><EyeOff size={14} /> Oculto no Link</>}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (window.confirm(`Deseja ${selectedOrder.showValueToClient ? 'ocultar' : 'mostrar'} os preços desta OS para o cliente? Isso afetará o link público e a impressão.`)) {
+                              await onEditOrder({ ...selectedOrder, showValueToClient: !selectedOrder.showValueToClient });
+                              setSelectedOrder({ ...selectedOrder, showValueToClient: !selectedOrder.showValueToClient });
+                            }
+                          }}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-sm border ${selectedOrder.showValueToClient ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'}`}
+                        >
+                          {selectedOrder.showValueToClient ? <><Eye size={14} /> Visível no Link</> : <><EyeOff size={14} /> Oculto no Link</>}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between bg-[#1c2d4f] px-5 py-3.5 rounded-xl shadow border border-[#1c2d4f]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/5">
+                        <DollarSign size={16} className="text-blue-300" />
                       </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Total Consolidado</span>
+                    </div>
+                    <div className="text-2xl font-bold font-mono text-white">
+                      R$ {(selectedOrder.items?.reduce((acc, i) => acc + i.total, 0) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
 
@@ -2164,6 +2176,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <tr>
                             <td colSpan={5} className="px-6 py-4">
                               <button
+                                type="button"
                                 onClick={() => setIsStockPickerOpen(true)}
                                 className="flex items-center gap-2 text-[10px] font-black text-primary-600 hover:text-primary-700 uppercase tracking-widest transition-all"
                               >
@@ -2544,8 +2557,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               }`}
                           >
                             {/* Card header */}
-                            <div className="p-5 flex items-center gap-5">
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0 border-2 ${isLast ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-slate-200 bg-white text-slate-500'
+                            <div className="p-3.5 flex items-center gap-4">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 border-2 ${isLast ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-slate-200 bg-white text-slate-500'
                                 }`}>
                                 {visit.visitNumber ?? idx + 1}
                               </div>
@@ -2668,11 +2681,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
 
+              </div>
             </div>
           </div>
-        </div>
-      )
-      }
+        </div>, document.body
+      )}
 
       {/* Batch Print Container — renderiza ordersToPrint completas inclusive de outras páginas */}
       {
@@ -2719,7 +2732,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
 
       {/* 📦 Stock Picker Modal */}
-      {isStockPickerOpen && (
+      {isStockPickerOpen && createPortal(
         <div className="fixed inset-0 z-[1000] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
@@ -2798,6 +2811,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <Box size={12} /> {allStockItems.length} Itens no catálogo
               </p>
               <button
+                type="button"
                 onClick={handleManualAdd}
                 className="flex items-center gap-2 px-4 py-2 text-[10px] font-black text-slate-500 hover:text-slate-900 uppercase tracking-widest transition-all"
               >
@@ -2805,10 +2819,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      )
-      }
-    </div >
+        </div>, document.body
+      )}
+    </div>
   );
 };
 

@@ -42,18 +42,16 @@ const sendLocationUpdate = async (location: Location.LocationObject, options = {
     const { latitude, longitude, speed, heading, accuracy } = location.coords;
     const now = Date.now();
 
-    // 🛡️ FILTRO DE PRECISÃO (Evitar pings de jitter/ indoor drift)
-    // Se a precisão for pior que 100m, ignoramos para o log de histórico.
+    // 🛡️ FILTRO DE PRECISÃO — ignora sinais fracos (indoor/jitter)
     if (accuracy && accuracy > 100) {
-        // Apenas logamos internamente mas não subimos pro banco
-        console.log(`[Location] 🛰️ GPS Signal weak (accuracy: ${accuracy.toFixed(1)}m). Skipping update.`);
+        logger.log(`[GPS] ⛔ Discarded, accuracy=${accuracy.toFixed(0)}m`, 'info');
         return;
     }
 
     isProcessing = true;
 
     try {
-        // 1. CARREGAR ESTADOS (Se ainda não estiver em memória)
+        // 1. Carregar estados persistidos (se ainda não estiver em memória)
         if (!lastSentLocation) {
             try {
                 const [storedLoc, storedHB] = await Promise.all([
@@ -65,7 +63,7 @@ const sendLocationUpdate = async (location: Location.LocationObject, options = {
             } catch (e) { /* ignore */ }
         }
 
-        // 2. FILTRO INTELIGENTE E HEARTBEAT
+        // 2. Filtro inteligente + heartbeat
         let distance = 0;
         if (lastSentLocation) {
             distance = calculateDistance(lastSentLocation.lat, lastSentLocation.lng, latitude, longitude);
@@ -74,13 +72,9 @@ const sendLocationUpdate = async (location: Location.LocationObject, options = {
         const isMoving = !lastSentLocation || distance >= MOVEMENT_THRESHOLD;
         const needsHeartbeat = (now - lastHeartbeatTime) >= HEARTBEAT_INTERVAL;
 
-        // Se estiver parado E não chegou a hora do heartbeat, ignora tudo. (A menos que seja FORCE)
-        if (!isMoving && !needsHeartbeat && !options.force) {
-            isProcessing = false;
-            return;
-        }
+        if (!isMoving && !needsHeartbeat && !options.force) return;
 
-        // 🔋 Battery Fetch
+        // 🔋 Battery
         let batteryLevel = null;
         try {
             const level = await Battery.getBatteryLevelAsync();
@@ -88,46 +82,56 @@ const sendLocationUpdate = async (location: Location.LocationObject, options = {
         } catch (e) { }
 
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
-            isProcessing = false;
-            return;
-        }
+        if (!session?.user) return;
 
         if (isMoving) {
-            // 🎯 MOVIMENTAÇÃO REAL (>30m): Update Full + Ping Log
-            logger.log(`[Location] 🚀 Movimentação detectada (${distance.toFixed(1)}m). Enviando telemetria...`, 'info');
-            const { error: rpcError } = await supabase.rpc('update_tech_location_v2', {
-                p_lat: latitude,
-                p_lng: longitude,
-                p_speed: speed || 0,
-                p_heading: heading || 0,
-                p_accuracy: accuracy || 0,
-                p_battery: batteryLevel
-            });
+            logger.log(`[GPS] 🚀 Move ${distance.toFixed(1)}m acc=${accuracy?.toFixed(0)}m`, 'info');
+            try {
+                const { error: rpcError } = await supabase.rpc('update_tech_location_v2', {
+                    p_lat: latitude,
+                    p_lng: longitude,
+                    p_speed: speed || 0,
+                    p_heading: heading || 0,
+                    p_accuracy: accuracy || 0,
+                    p_battery: batteryLevel
+                });
 
-            if (!rpcError) {
-                lastSentLocation = { lat: latitude, lng: longitude };
-                lastHeartbeatTime = now;
-                await Promise.all([
-                    AsyncStorage.setItem(STORAGE_KEY_LAST_LOC, JSON.stringify(lastSentLocation)),
-                    AsyncStorage.setItem(STORAGE_KEY_LAST_HB, now.toString())
-                ]);
+                if (!rpcError) {
+                    lastSentLocation = { lat: latitude, lng: longitude };
+                    lastHeartbeatTime = now;
+                    await Promise.all([
+                        AsyncStorage.setItem(STORAGE_KEY_LAST_LOC, JSON.stringify(lastSentLocation)),
+                        AsyncStorage.setItem(STORAGE_KEY_LAST_HB, now.toString())
+                    ]);
+                } else {
+                    // Erro de DB (não de rede) — logar mas não travar
+                    logger.log(`[GPS] ⚠️ RPC error: ${rpcError.message}`, 'warn');
+                }
+            } catch (netErr: any) {
+                // 🛡️ Erro de rede (Claro/CGNAT) — descarta o ping silenciosamente
+                // Não logar como ERROR para não poluir o dashboard de saúde
+                const msg = netErr?.message || String(netErr);
+                logger.log(`[GPS] 📡 Ping descartado (rede instável): ${msg.substring(0, 60)}`, 'info');
             }
         } else if (needsHeartbeat) {
-            // 💓 HEARTBEAT (15 min): Apenas presença para o mapa do painel
-            logger.log(`[Location] 💓 Enviando Heartbeat de 15 min (Técnico parado mas Online)`, 'info');
-            const { error: hbError } = await supabase.rpc('tech_heartbeat', {
-                p_battery: batteryLevel
-            });
-
-            if (!hbError) {
-                lastHeartbeatTime = now;
-                await AsyncStorage.setItem(STORAGE_KEY_LAST_HB, now.toString());
+            logger.log(`[GPS] 💓 Heartbeat (parado, online)`, 'info');
+            try {
+                const { error: hbError } = await supabase.rpc('tech_heartbeat', {
+                    p_battery: batteryLevel
+                });
+                if (!hbError) {
+                    lastHeartbeatTime = now;
+                    await AsyncStorage.setItem(STORAGE_KEY_LAST_HB, now.toString());
+                }
+            } catch (netErr: any) {
+                logger.log(`[GPS] 📡 Heartbeat descartado (rede instável)`, 'info');
             }
         }
-    } catch (err) {
-        console.error(`[Location] Sync Error:`, err);
+    } catch (err: any) {
+        // Erro inesperado (permissão, battery, etc.) — loga mas não trava o ciclo
+        logger.log(`[GPS] ❌ Unexpected error: ${err?.message || err}`, 'warn');
     } finally {
+        // SEMPRE libera o lock — sem isso o GPS congela para sempre após qualquer erro
         isProcessing = false;
     }
 };

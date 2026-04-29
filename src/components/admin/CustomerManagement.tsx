@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
@@ -315,52 +316,71 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
 
   return (
-    <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
+    <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
       {/* Toolbar */}
-      <div className="mb-2 flex flex-col md:flex-row gap-3 items-center">
-        {/* Search */}
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input
-            type="text"
-            placeholder="Localizar cliente..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
-          />
-        </div>
+      <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+          
+          <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder="Localizar cliente..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+            />
+          </div>
 
-        {/* Filters & Actions */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 h-[42px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
-          >
-            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
-          </button>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
+            >
+              <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Avançado'}</span>
+            </button>
+          </div>
 
-          {showFilters && (
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
-              <Filter size={14} className="text-slate-400 mr-2" />
-              <select
-                className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
+          <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+             <Button
+                onClick={() => setIsModalOpen(true)}
+                className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap"
               >
-                <option value="ALL">Status</option>
-                <option value="ACTIVE">Ativos</option>
-                <option value="INACTIVE">Inativos</option>
-              </select>
-            </div>
-          )}
-
-          <Button
-            onClick={() => setIsModalOpen(true)}
-            className="rounded-xl px-6 h-[42px] font-bold  text-[10px]  shadow-sm shadow-[#1c2d4f]/10 text-white whitespace-nowrap bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]"
-          >
-            <Plus size={16} className="mr-2" /> Novo Cliente
-          </Button>
+                <Plus size={16} /> Novo Cliente
+             </Button>
+          </div>
         </div>
+
+        {showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
+              <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
+                <Filter size={12} className="text-slate-400 mr-2" />
+                <select
+                  className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full"
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                >
+                  <option value="ALL">Todos Status</option>
+                  <option value="ACTIVE">Ativos</option>
+                  <option value="INACTIVE">Inativos</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex items-end pb-0.5">
+              <button
+                onClick={() => {
+                  setSearchTerm(''); setStatusFilter('ALL');
+                }}
+                className="h-9 w-full px-4 text-[10px] font-bold bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 rounded-lg transition-colors uppercase tracking-widest border border-rose-100"
+              >
+                Limpar Todos os Filtros
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
@@ -368,7 +388,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           <table className="w-full border-separate border-spacing-y-1">
             <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
-              <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-left lowercase">
+              <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-center lowercase">
                 <th className="px-3 py-2 w-8"></th>
                 <th className="px-4 py-2">cliente / documento</th>
                 <th className="px-4 py-2">contato principal</th>
@@ -489,27 +509,27 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
       </div>
 
       {
-        isModalOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-6">
-            <div className="bg-white rounded-[4rem] w-full max-w-4xl shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[92vh] animate-fade-in-up">
-              <div className="p-10 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center rounded-t-[4rem]">
+        isModalOpen && createPortal(
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
+            <div className="bg-white rounded-none lg:rounded-xl w-full max-w-4xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
+              <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 bg-white">
                 <div className="flex items-center gap-6">
-                  <div className="p-5 bg-[#1c2d4f] rounded-[1.5rem] text-white shadow-xl"><Building2 size={32} /></div>
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-[#1c2d4f] shrink-0"><Building2 size={18} /></div>
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-900  tracking-tight leading-none lowercase">{editingId ? 'atualizar cliente' : 'novo cadastro corporativo'}</h2>
-                    <p className="text-[10px] text-slate-400 font-bold  tracking-[0.2em] mt-2 lowercase">provisionamento de base operacional</p>
+                    <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins">{editingId ? 'atualizar cliente' : 'novo cadastro corporativo'}</h2>
+                    <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5">provisionamento de base operacional</p>
                   </div>
                 </div>
-                <button onClick={closeModal} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-300 hover:text-slate-900 transition-all"><X size={28} /></button>
+                <button onClick={closeModal} className="p-2 text-slate-400 hover:text-slate-900 transition-all"><X size={20} /></button>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-12 space-y-12 overflow-y-auto custom-scrollbar flex-1">
+              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
                 <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
                   <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })} className={`px-10 py-3 text-[10px] font-bold   rounded-xl transition-all ${formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Empresa (PJ)</button>
                   <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })} className={`px-10 py-3 text-[10px] font-bold   rounded-xl transition-all ${formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Individual (PF)</button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <Input label={formData.type === 'PJ' ? "Razão Social" : "Nome Completo"} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                   <div className="relative">
                     <Input
@@ -554,20 +574,20 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-10 border-t border-slate-200 space-y-10">
-                  <div className="flex items-center gap-3 text-primary-600 font-bold text-xs  tracking-[0.2em] italic"><MapPin size={20} /> localização e atendimento</div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="pt-5 border-t border-slate-200 space-y-5">
+                  <div className="flex items-center gap-2 text-primary-600 font-bold text-xs tracking-[0.2em] italic"><MapPin size={16} /> localização e atendimento</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     <Input label="CEP" onBlur={handleZipBlur} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} />
                     <Input label="Estado (UF)" value={formData.state || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-primary-600" onChange={e => setFormData({ ...formData, state: e.target.value })} />
                     <Input label="Cidade" value={formData.city || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-slate-700" onChange={e => setFormData({ ...formData, city: e.target.value })} />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                     <div className="md:col-span-2"><Input label="Logradouro" value={formData.address || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-slate-700" onChange={e => setFormData({ ...formData, address: e.target.value })} /></div>
                     <div className="md:col-span-1"><Input label="Número" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} /></div>
                     <div className="md:col-span-1"><Input label="Bairro" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} /></div>
                   </div>
                   <Input label="Ponto de Referência / Complemento" icon={<Info size={18} />} className="rounded-2xl py-4 font-bold border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-slate-50 p-4 rounded-xl border border-slate-100">
                     <div className="col-span-full">
                       <h4 className="text-[10px] font-bold  text-slate-400 ">Geolocalização Customizada (Opcional)</h4>
                       <p className="text-[9px] text-slate-400 mt-1">Preenchido automaticamente via CEP. Só altere se a posição do pino estiver incorreta.</p>
@@ -584,21 +604,21 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                 )}
               </form>
 
-              <div className="p-10 border-t border-slate-200 bg-slate-50/50 flex justify-end gap-6 rounded-b-[4rem]">
-                <Button variant="secondary" className="rounded-2xl px-12" onClick={closeModal}>Descartar</Button>
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+                <Button variant="secondary" className="h-9 px-5 rounded-xl text-xs" onClick={closeModal}>Cancelar</Button>
                 <Button
                   onClick={handleSubmit}
                   disabled={!!documentDuplicate}
-                  className={`rounded-2xl px-20 shadow-sm font-bold  transition-all ${documentDuplicate
+                  className={`h-9 px-6 rounded-xl text-xs font-bold transition-all ${documentDuplicate
                     ? 'bg-gray-400 cursor-not-allowed opacity-50'
                     : 'bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]'
                     }`}
                 >
-                  <Save size={20} className="mr-3" /> Salvar Cadastro
+                  <Save size={14} className="mr-2" /> Salvar Cadastro
                 </Button>
               </div>
             </div>
-          </div>
+          </div>, document.body
         )
       }
     </div >

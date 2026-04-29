@@ -1090,7 +1090,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
 
       {
         showNewVisitModal && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
             <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg border border-slate-200">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold text-slate-800">Agendar Nova Visita</h3>

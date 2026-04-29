@@ -565,53 +565,59 @@ export const StockManagement: React.FC = () => {
     };
 
     return (
-        <div className="p-4 pr-8 animate-fade-in font-poppins">
-            <div className="mb-6 flex flex-col gap-4 pr-2">
-                {/* Tabs */}
-                <div className="flex bg-[#f8fafc] p-1.5 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/40 shrink-0 overflow-x-auto max-w-full">
-                    <button onClick={() => setActiveTab('items')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-lg shadow-primary-900/20' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
-                        <List size={14} /> Itens em Estoque
-                    </button>
-                    <button onClick={() => setActiveTab('categories')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'categories' ? 'bg-[#10b981] text-white shadow-lg shadow-emerald-900/20' : 'text-slate-500 hover:text-emerald-600 hover:bg-white'}`}>
-                        <Tag size={14} /> Categorias
-                    </button>
-                    <button onClick={() => setActiveTab('techs')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'techs' ? 'bg-[#f59e0b] text-white shadow-lg shadow-amber-900/20' : 'text-slate-500 hover:text-amber-600 hover:bg-white'}`}>
-                        <Box size={14} /> Estoque Técnico
-                    </button>
-                    <button onClick={() => setActiveTab('movements')} className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap ${activeTab === 'movements' ? 'bg-slate-800 text-white shadow-lg shadow-slate-900/20' : 'text-slate-500 hover:text-slate-800 hover:bg-white'}`}>
-                        <Scale size={14} /> Auditoria / Logs
-                    </button>
-                </div>
+        <div className="p-4 pr-8 font-poppins">
+            <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
+                <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+                    
+                    <div className="flex items-center gap-1 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0 hide-scrollbar">
+                        <div className="flex bg-white/60 p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm shrink-0">
+                            <button onClick={() => setActiveTab('items')} className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                                <List size={14} /> <span className="whitespace-nowrap">Estoque</span>
+                            </button>
+                            <button onClick={() => setActiveTab('categories')} className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'categories' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                                <Tag size={14} /> <span className="whitespace-nowrap">Categorias</span>
+                            </button>
+                            <button onClick={() => setActiveTab('techs')} className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'techs' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                                <Box size={14} /> <span className="whitespace-nowrap">Técnicos</span>
+                            </button>
+                            <button onClick={() => setActiveTab('movements')} className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'movements' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                                <Scale size={14} /> <span className="whitespace-nowrap">Auditoria</span>
+                            </button>
+                        </div>
+                    </div>
 
-                <div className="flex flex-wrap items-center gap-3 w-full">
                     {activeTab === 'items' && (
-                        <div className="flex flex-1 items-center gap-3 min-w-[200px]">
-                            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm flex-1">
-                                <Search size={14} className="text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Localizar no estoque..."
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
-                                    className="bg-transparent text-[10px] font-bold uppercase text-slate-700 outline-none w-full placeholder:text-slate-300"
-                                />
-                            </div>
+                        <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input
+                                type="text"
+                                placeholder="Localizar no estoque..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+                            />
+                        </div>
+                    )}
 
-                            <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-sm max-w-[160px] hidden sm:flex">
-                                <Filter size={12} className="text-slate-400" />
-                                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="w-full bg-transparent text-[9px] font-black uppercase text-slate-600 outline-none cursor-pointer truncate">
+                    <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
+                        {activeTab === 'items' && (
+                            <div className="hidden sm:flex items-center bg-white border border-[#1c2d4f]/20 rounded-xl pl-2 pr-1 h-10 shadow-sm max-w-[160px]">
+                                <Filter size={12} className="text-slate-400 mr-2 shrink-0" />
+                                <select 
+                                    value={categoryFilter} 
+                                    onChange={e => setCategoryFilter(e.target.value)} 
+                                    className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full truncate"
+                                >
                                     <option value="ALL">Todas Categorias</option>
                                     {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                 </select>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    <div className="flex items-center gap-2 shrink-0 ml-auto w-full sm:w-auto justify-end mt-2 sm:mt-0">
                         {activeTab === 'items' && (
                             <Button
                                 onClick={() => setIsRestockModalOpen(true)}
-                                className="h-[38px] px-5 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-[10px] font-black uppercase shadow-sm border border-[#1c2d4f] flex items-center gap-2 transition-all rounded-lg"
+                                className="h-10 px-3 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white text-[10px] font-bold shadow-lg shadow-[#1c2d4f]/20 flex items-center gap-1.5 transition-all rounded-xl"
                             >
                                 <Scale size={14} /> Entrada
                             </Button>
@@ -620,7 +626,7 @@ export const StockManagement: React.FC = () => {
                         {(activeTab === 'items' || activeTab === 'categories') && (
                             <Button
                                 onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
-                                className={`h-[38px] px-5 text-white text-[10px] font-black uppercase shadow-sm flex items-center gap-2 whitespace-nowrap transition-all rounded-lg ${activeTab === 'items' ? 'bg-[#10b981] hover:bg-[#059669] border border-[#10b981]' : 'bg-[#10b981] hover:bg-[#059669]'}`}
+                                className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] font-bold shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
                             >
                                 <Plus size={14} /> {activeTab === 'items' ? 'Novo Cadastro' : 'Nova Categoria'}
                             </Button>
@@ -636,7 +642,7 @@ export const StockManagement: React.FC = () => {
                         <div className="flex-1 overflow-auto custom-scrollbar">
                             <table className="w-full border-collapse">
                                 <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
-                                    <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-left">
+                                    <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
                                         <th className="px-3 py-2 first:pl-6">Identificação / SKU</th>
                                         <th className="px-3 py-2">Descrição do Produto</th>
                                         <th className="px-3 py-2">Localização</th>
@@ -1050,7 +1056,7 @@ export const StockManagement: React.FC = () => {
                                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                                         <table className="w-full text-left">
                                             <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
-                                                <tr className="text-[10px] font-semibold text-slate-600 tracking-tight text-left uppercase">
+                                                <tr className="text-[10px] font-semibold text-slate-600 tracking-tight text-center uppercase">
                                                     <th className="px-6 py-3 text-center">Data</th>
                                                     <th className="px-6 py-3 text-center">Tipo</th>
                                                     <th className="px-6 py-3">Item</th>
@@ -1107,13 +1113,16 @@ export const StockManagement: React.FC = () => {
 
             {/* RESTOCK MODAL */}
             {isRestockModalOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-scale-up border border-slate-200">
-                        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-white">
-                            <h2 className="text-base font-semibold text-slate-900 font-poppins flex items-center gap-2">
-                                <Package className="text-primary-600" size={20} /> Entrada Rápida
-                            </h2>
-                            <button onClick={() => setIsRestockModalOpen(false)} className="text-slate-400 hover:text-rose-500 transition-colors">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
+                    <div className="bg-white rounded-none lg:rounded-xl w-full max-w-lg h-full lg:h-auto shadow-2xl overflow-hidden border-0 lg:border border-slate-200 flex flex-col">
+                        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-[#1c2d4f] shrink-0">
+                                    <Package size={18} />
+                                </div>
+                                <h2 className="text-sm font-semibold text-slate-900 font-poppins">Entrada Rápida de Estoque</h2>
+                            </div>
+                            <button onClick={() => setIsRestockModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                                 <X size={20} />
                             </button>
                         </div>
@@ -1179,8 +1188,8 @@ export const StockManagement: React.FC = () => {
 
             {/* ITEM MODAL (Pattern igual a OS Atividades) */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
                         {/* HEADER (Estilo Atividades) */}
                         <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                             <div className="flex items-center gap-4">
@@ -1220,26 +1229,50 @@ export const StockManagement: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* TABS (Igual a Atividades) */}
-                        <div className="px-6 border-b border-slate-200 bg-white flex gap-6 shrink-0 overflow-x-auto">
+                        {/* SIDEBAR TABS (desktop) + MOBILE TABS */}
+                        <div className="hidden md:flex flex-col w-48 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
+                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
                             {[
-                                { id: 'dados', label: 'dados gerais', icon: LayoutDashboard },
-                                { id: 'financial', label: 'financeiro', icon: DollarSign },
-                                { id: 'logs', label: 'movimentações', icon: History }
+                                { id: 'dados', label: 'Dados Gerais', icon: LayoutDashboard },
+                                { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                                { id: 'logs', label: 'Movimentações', icon: History }
                             ].map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setModalTab(tab.id as any)}
-                                    className={`flex items-center gap-2 py-4 text-xs font-medium border-b-2 transition-all whitespace-nowrap font-poppins uppercase tracking-wider
-                                        ${modalTab === tab.id ? 'border-primary-500 text-primary-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
+                                        ${modalTab === tab.id
+                                            ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]'
+                                            : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
                                 >
-                                    <tab.icon size={15} /> {tab.label}
+                                    <tab.icon size={15} className={modalTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                                    <span className="flex-1 truncate">{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="md:hidden border-b border-slate-200 bg-white px-3 py-2 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
+                            {[
+                                { id: 'dados', label: 'Dados', icon: LayoutDashboard },
+                                { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                                { id: 'logs', label: 'Movim.', icon: History }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setModalTab(tab.id as any)}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
+                                        ${modalTab === tab.id
+                                            ? 'bg-[#1c2d4f] text-white shadow-md'
+                                            : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                                >
+                                    <tab.icon size={13} className={modalTab === tab.id ? 'text-white' : 'text-slate-400'} />
+                                    {tab.label}
                                 </button>
                             ))}
                         </div>
 
                         {/* BODY */}
-                        <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 custom-scrollbar">
+                        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 custom-scrollbar">
                             <form onSubmit={handleSubmit} id="stock-item-form">
                                 {modalTab === 'dados' && (
                                     <div className="grid grid-cols-12 gap-8">
@@ -1517,33 +1550,33 @@ export const StockManagement: React.FC = () => {
                                 )}
                             </form>
                         </div>
+                        </div>
                     </div>
                 </div>
             )}
 
+
             {/* CATEGORY MODAL */}
             {isCategoryModalOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-xl p-4 sm:pt-20 animate-fade-in">
-                    <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-scale-up border border-white/50">
-                        <div className="px-8 py-6 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
-                            <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 border border-emerald-100 shadow-sm">
-                                    <Tag size={20} />
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
+                    <div className="bg-white rounded-none lg:rounded-xl w-full max-w-md h-full lg:h-auto shadow-2xl overflow-hidden border-0 lg:border border-slate-200 flex flex-col">
+                        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex justify-between items-center shrink-0 bg-white">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg flex items-center justify-center border bg-emerald-50 border-emerald-100 text-emerald-600 shrink-0">
+                                    <Tag size={16} />
                                 </div>
                                 <div>
-                                    <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight leading-none">
+                                    <h2 className="text-sm font-semibold text-slate-900 font-poppins">
                                         {editingCategory ? 'Modificar Categoria' : 'Nova Classificação'}
                                     </h2>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                                        Nexus Organizational Structure
-                                    </p>
+                                    <p className="text-[10px] text-slate-500 font-medium mt-0.5">Estrutura organizacional do estoque</p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsCategoryModalOpen(false)} className="p-2 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-all">
+                            <button onClick={() => setIsCategoryModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                                 <X size={20} />
                             </button>
                         </div>
-                        <form onSubmit={handleCategorySubmit} className="p-8 space-y-6">
+                        <form onSubmit={handleCategorySubmit} className="p-4 sm:p-6 space-y-5 flex-1">
                             <div className="space-y-1.5">
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Nome da Categoria</span>
                                 <Input
@@ -1556,10 +1589,10 @@ export const StockManagement: React.FC = () => {
                                 />
                             </div>
                             <div className="pt-2 flex justify-end gap-3">
-                                <Button type="button" onClick={() => setIsCategoryModalOpen(false)} variant="ghost" className="text-xs">
+                                <Button type="button" onClick={() => setIsCategoryModalOpen(false)} variant="ghost" className="h-9 px-5 rounded-xl text-xs">
                                     Cancelar
                                 </Button>
-                                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-6 rounded-xl">
+                                <Button type="submit" className="h-9 px-6 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
                                     Salvar
                                 </Button>
                             </div>

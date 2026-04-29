@@ -195,7 +195,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             </div>
 
             {isTechDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2">
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[1000] animate-in fade-in slide-in-from-top-2">
                 <div className="p-2 border-b border-slate-100 bg-slate-50/50 sticky top-0">
                   <div className="relative">
                     <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />

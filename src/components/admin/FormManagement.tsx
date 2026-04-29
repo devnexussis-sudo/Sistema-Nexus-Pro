@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, FileText, Trash2, Edit2, X, Save, GripVertical, CheckCircle2, List, Settings, Settings2, Tag, Layers, ArrowRight, Info, Box, Cpu, Workflow, Search, Filter, Loader2, ChevronLeft, RefreshCw } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { Button } from '../ui/Button';
@@ -211,92 +212,110 @@ export const FormManagement: React.FC = () => {
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
   return (
-    <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden animate-fade-in font-poppins">
+    <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
       {/* Toolbar */}
-      <div className="mb-2 flex flex-col xl:flex-row gap-3 items-center">
-        {/* Tabs */}
-        <div className="flex bg-white/60 p-1 rounded-xl border border-slate-200 backdrop-blur-sm shadow-lg shadow-slate-200/50 flex-shrink-0">
-          <button
-            onClick={() => setActiveTab('types')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold  transition-all ${activeTab === 'types' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Tag size={14} /> Tipos
-          </button>
-          <button
-            onClick={() => setActiveTab('templates')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold  transition-all ${activeTab === 'templates' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <FileText size={14} /> Modelos
-          </button>
-          <button
-            onClick={() => setActiveTab('rules')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold  transition-all ${activeTab === 'rules' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Layers size={14} /> Regras
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input
-            id="form-search"
-            name="form-search"
-            type="text"
-            autoComplete="off"
-            placeholder="Pesquisar..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-6 py-2.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
-          />
-        </div>
-
-        {/* Filters & Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0 w-full xl:w-auto justify-end">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 h-[42px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
-          >
-            <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
-          </button>
-
-          {/* Only show filters if needed (e.g. templates status) */}
-          {showFilters && activeTab === 'templates' && (
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 px-3 shadow-lg shadow-slate-200/50 h-[42px] animate-in fade-in slide-in-from-top-2 duration-200">
-              <Filter size={14} className="text-slate-400 mr-2" />
-              <select
-                className="bg-transparent text-[10px] font-bold  text-slate-600 outline-none cursor-pointer"
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
+      <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+          
+          <div className="flex items-center gap-1">
+            <div className="flex bg-white/60 p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm">
+              <button
+                onClick={() => setActiveTab('types')}
+                className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'types' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
               >
-                <option value="ALL">Status</option>
-                <option value="ACTIVE">Ativos</option>
-                <option value="INACTIVE">Inativo</option>
-              </select>
+                <Tag size={14} /> Tipos
+              </button>
+              <button
+                onClick={() => setActiveTab('templates')}
+                className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'templates' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
+              >
+                <FileText size={14} /> Modelos
+              </button>
+              <button
+                onClick={() => setActiveTab('rules')}
+                className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'rules' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
+              >
+                <Layers size={14} /> Regras
+              </button>
             </div>
-          )}
+          </div>
 
-          <button
-            onClick={handleManualRefresh}
-            disabled={loading}
-            title="Atualizar dados"
-            className="flex items-center justify-center w-[42px] h-[42px] rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-primary-600 hover:border-primary-300 transition-all shadow-sm disabled:opacity-50"
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          </button>
+          <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              id="form-search"
+              name="form-search"
+              type="text"
+              autoComplete="off"
+              placeholder="Pesquisar..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+            />
+          </div>
 
-          <Button
-            onClick={() => {
-              if (activeTab === 'types') { setEditingType({ name: '' }); setIsTypeModalOpen(true); }
-              if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true }); setIsModalOpen(true); }
-              if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '' }); setIsRuleModalOpen(true); }
-            }}
-            className="rounded-xl px-6 h-[42px] font-bold italic  text-[10px]  shadow-lg shadow-primary-600/20 text-white whitespace-nowrap bg-primary-600 hover:bg-primary-700"
-          >
-            <Plus size={16} className="mr-2" />
-            {activeTab === 'types' ? 'Novo Tipo' : activeTab === 'templates' ? 'Novo Modelo' : 'Nova Regra'}
-          </Button>
+          <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+            {activeTab === 'templates' && (
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
+              >
+                <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Avançado'}</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleManualRefresh}
+              disabled={loading}
+              title="Atualizar dados"
+              className="flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 transition-all shadow-sm disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            </button>
+
+            <Button
+              onClick={() => {
+                if (activeTab === 'types') { setEditingType({ name: '' }); setIsTypeModalOpen(true); }
+                if (activeTab === 'templates') { setEditingForm({ title: '', fields: [], active: true }); setIsModalOpen(true); }
+                if (activeTab === 'rules') { setEditingRule({ serviceTypeId: '', equipmentFamily: '', formId: '' }); setIsRuleModalOpen(true); }
+              }}
+              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap text-white"
+            >
+              <Plus size={16} /> {activeTab === 'types' ? 'Novo Tipo' : activeTab === 'templates' ? 'Novo Modelo' : 'Nova Regra'}
+            </Button>
+          </div>
         </div>
+
+        {showFilters && activeTab === 'templates' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
+              <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
+                <Filter size={12} className="text-slate-400 mr-2" />
+                <select
+                  className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full"
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                >
+                  <option value="ALL">Todos Status</option>
+                  <option value="ACTIVE">Ativos</option>
+                  <option value="INACTIVE">Inativo</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex items-end pb-0.5">
+              <button
+                onClick={() => {
+                  setSearchTerm(''); setStatusFilter('ALL');
+                }}
+                className="h-9 w-full px-4 text-[10px] font-bold bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 rounded-lg transition-colors uppercase tracking-widest border border-rose-100"
+              >
+                Limpar Filtros
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
@@ -314,7 +333,7 @@ export const FormManagement: React.FC = () => {
                 <div className="flex-1 overflow-auto custom-scrollbar">
                   <table className="w-full border-collapse">
                     <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                      <tr className="text-[11px] font-bold text-slate-500 text-left">
+                      <tr className="text-[11px] font-bold text-slate-500 text-center">
                         <th className="px-4 py-3">tipo de atendimento</th>
                         <th className="px-4 py-3 text-right">ações</th>
                       </tr>
@@ -349,7 +368,7 @@ export const FormManagement: React.FC = () => {
                 <div className="flex-1 overflow-auto custom-scrollbar">
                   <table className="w-full border-collapse">
                     <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                      <tr className="text-[11px] font-bold text-slate-500 text-left">
+                      <tr className="text-[11px] font-bold text-slate-500 text-center">
                         <th className="px-4 py-3">nome do modelo</th>
                         <th className="px-4 py-3">qtd. questões</th>
                         <th className="px-4 py-3 text-right">ações</th>
@@ -391,7 +410,7 @@ export const FormManagement: React.FC = () => {
                   </div>
                   <table className="w-full border-collapse">
                     <thead className="sticky top-0 bg-slate-200/60 border-b border-slate-300 z-10 shadow-sm">
-                      <tr className="text-[11px] font-bold text-slate-500 text-left">
+                      <tr className="text-[11px] font-bold text-slate-500 text-center">
                         <th className="px-4 py-3">tipo de atendimento</th>
                         <th className="px-4 py-3">família equipamento</th>
                         <th className="px-4 py-3"><Workflow size={14} className="inline mr-1" /> checklist vinculado</th>
@@ -446,8 +465,8 @@ export const FormManagement: React.FC = () => {
 
       {/* MODAL 1: TIPO DE SERVIÇO */}
       {
-        isTypeModalOpen && editingType && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d0e25]/80 backdrop-blur-md p-4">
+        isTypeModalOpen && editingType && createPortal(
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#0d0e25]/80 backdrop-blur-md p-4 animate-in fade-in">
             <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-white/20 animate-fade-in-up">
               <div className="p-6 border-b border-gray-100 flex justify-between items-center">
                 <div>
@@ -474,29 +493,31 @@ export const FormManagement: React.FC = () => {
                 </Button>
               </div>
             </div>
-          </div>
+          </div>, document.body
         )
       }
 
       {/* MODAL 2: CONSTRUTOR DE FORMULÁRIO */}
       {
-        isModalOpen && editingForm && (
-          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
-            <div className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+        isModalOpen && editingForm && createPortal(
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
+            <div className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
               {/* HEADER — Padrão CreateOrderModal */}
-              <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-white">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-primary-50 rounded-lg flex items-center justify-center text-primary-600 border border-primary-100">
+              <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 bg-white">
+                <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-[#1c2d4f] shrink-0">
                     <Settings2 size={18} />
                   </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">Construtor de Checklist</h2>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">Estruture os campos de coleta de dados técnicos</p>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
+                      <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins truncate">Construtor de Checklist</h2>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border bg-slate-50 text-slate-500 border-slate-200">{(editingForm.fields || []).length} questões</span>
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5">Estruture os campos de coleta de dados técnicos</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">{(editingForm.fields || []).length} questões</span>
-                  <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50">
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                     <X size={20} />
                   </button>
                 </div>
@@ -696,21 +717,21 @@ export const FormManagement: React.FC = () => {
               </div>
 
               {/* FOOTER */}
-              <div className="px-6 py-4 border-t border-slate-200 bg-white flex justify-end gap-4">
-                <Button variant="secondary" className="rounded-lg px-8" onClick={() => setIsModalOpen(false)}>Descartar</Button>
-                <Button onClick={handleSaveForm} className="rounded-lg px-12 shadow-lg shadow-primary-600/20 font-bold">
-                  <Save size={18} className="mr-2" /> Gravar Modelo
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+                <Button variant="secondary" className="h-9 px-5 rounded-xl text-xs" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                <Button onClick={handleSaveForm} className="h-9 px-6 rounded-xl text-xs font-bold shadow-md shadow-primary-600/20 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]">
+                  <Save size={14} className="mr-2" /> Gravar Modelo
                 </Button>
               </div>
             </div>
-          </div>
+          </div>, document.body
         )
       }
 
       {/* MODAL 3: REGRA DE VINCULAÇÃO */}
       {
-        isRuleModalOpen && editingRule && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d0e25]/80 backdrop-blur-md p-4">
+        isRuleModalOpen && editingRule && createPortal(
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#0d0e25]/80 backdrop-blur-md p-4 animate-in fade-in">
             <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border border-white/20 animate-fade-in-up">
               <div className="p-6 border-b border-gray-100 flex justify-between items-center">
                 <div>
@@ -761,7 +782,7 @@ export const FormManagement: React.FC = () => {
                 </Button>
               </div>
             </div>
-          </div>
+          </div>, document.body
         )
       }
     </div>

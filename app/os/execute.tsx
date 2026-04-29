@@ -449,7 +449,7 @@ export default function ExecuteOSScreen() {
             const netInfo = await NetInfo.fetch();
             let finalUri = compressedUri;
 
-            if (netInfo.isConnected && !syncService.isOfflineModeEnabled()) {
+            if (netInfo.isConnected !== false && !syncService.isOfflineModeEnabled()) {
                 const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/extra_photos`, order?.tenantId);
                 if (publicUrl) {
                     finalUri = publicUrl;
@@ -575,7 +575,7 @@ export default function ExecuteOSScreen() {
             setVideoProcessingStatus('Sincronizando com nuvem...');
             const netInfo = await NetInfo.fetch();
             
-            if (!netInfo.isConnected || syncService.isOfflineModeEnabled()) {
+            if (netInfo.isConnected === false || syncService.isOfflineModeEnabled()) {
                 // Offline fallback
                 const fileName = `offline_video_${id}_${Date.now()}.mp4`;
                 const destPath = `${FileSystem.documentDirectory}${fileName}`;
@@ -623,7 +623,7 @@ export default function ExecuteOSScreen() {
             const netInfo = await NetInfo.fetch();
             let finalUri = compressedUri;
 
-            if (netInfo.isConnected && !syncService.isOfflineModeEnabled()) {
+            if (netInfo.isConnected !== false && !syncService.isOfflineModeEnabled()) {
                 const publicUrl = await OrderService.uploadFile(compressedUri, `orders/${id}/form_photos`, order?.tenantId);
                 if (publicUrl) {
                     finalUri = publicUrl;
@@ -693,7 +693,8 @@ export default function ExecuteOSScreen() {
         try {
             setIsSubmitting(true);
             const netInfo = await NetInfo.fetch();
-            const isOffline = !netInfo.isConnected || syncService.isOfflineModeEnabled();
+            // Apenas considerar offline se EXPLICITAMENTE desconectado ou modo offline manual
+            const isOffline = netInfo.isConnected === false || syncService.isOfflineModeEnabled();
 
             const finalFormData: Record<string, any> = {};
             let localPhotosToSync: string[] = [];

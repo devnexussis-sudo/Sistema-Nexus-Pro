@@ -396,7 +396,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
   return (
     <div className="min-h-screen bg-black text-white p-4 md:p-6 font-poppins overflow-y-auto custom-scrollbar">
-      <div className="max-w-[1600px] mx-auto space-y-5 pb-10 animate-fade-in">
+      <div className="max-w-[1600px] mx-auto space-y-5 pb-10">
         {/* ─── Header ─── */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/5 pb-5">
           <div className="flex items-center gap-3">
@@ -598,7 +598,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
         {/* Modal de Cadastro/Edição de Empresa */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xl p-3 overflow-y-auto">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-xl p-3 overflow-y-auto">
             <div className="bg-[#111113] rounded-2xl w-full max-w-4xl shadow-2xl border border-white/10 animate-fade-in-up my-auto max-h-[95vh] flex flex-col">
               <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
@@ -1099,7 +1099,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
         {/* 🚨 Modal de Confirmação Crítica de Exclusão */}
         {deleteConfirm && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/98 backdrop-blur-3xl p-4">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/98 backdrop-blur-3xl p-4">
             <div className="bg-[#1c1c26] border border-red-500/20 rounded-[3rem] w-full max-w-lg p-12 shadow-2xl animate-scale-in">
               <div className="flex flex-col items-center text-center space-y-8 font-poppins">
                 <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center text-red-500 animate-pulse">

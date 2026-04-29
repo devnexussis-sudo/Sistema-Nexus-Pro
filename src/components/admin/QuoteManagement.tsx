@@ -40,6 +40,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [viewQuote, setViewQuote] = useState<Quote | null>(null);
     const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
 
+    // ── Filter States ─────────────────────────────────────────────
+    const [statusFilter, setStatusFilter] = useState('ALL');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+
     const [currentPage, setCurrentPage] = useState(1);
     const PAGE_SIZE = 20;
 
@@ -47,8 +52,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const { auth } = useAuth();
     const serverFilters = useMemo(() => ({
         search: searchTerm.trim() || undefined,
-        status: undefined 
-    }), [searchTerm]);
+        status: statusFilter !== 'ALL' ? statusFilter : undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+    }), [searchTerm, statusFilter, startDate, endDate]);
 
     const {
         data: pageResult,
@@ -377,59 +384,109 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     };
 
     return (
-        <div className="p-4 animate-fade-in flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
-            <div className="mb-2 flex flex-col md:flex-row items-center gap-3">
-                <div className="relative w-full md:flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input
-                        type="text"
-                        placeholder="Pesquisar por Código ou Cliente..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-6 py-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary-100 transition-all shadow-sm"
-                    />
+        <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
+            <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
+                {/* Top Row */}
+                <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+                    <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Buscar por código ou cliente..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
+                        {selectedQuoteIds.length > 0 && (
+                            <div className="hidden sm:flex items-center gap-2 px-3 h-10 bg-slate-900 rounded-xl shadow-lg border border-slate-700">
+                                <div className="flex flex-col pr-2 border-r border-slate-700">
+                                    <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
+                                    <span className="text-[11px] font-bold text-white leading-none">{selectedQuoteIds.length}</span>
+                                </div>
+                                <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-[9px] font-bold uppercase transition-all shadow-sm">
+                                    <FileSpreadsheet size={12} /> Excel
+                                </button>
+                                <button onClick={() => setSelectedQuoteIds([])} className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
+                        >
+                            <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Filtros'}</span>
+                        </button>
+
+                        <button
+                            onClick={() => { resetForm(); setIsModalOpen(true); }}
+                            className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] font-bold shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
+                        >
+                            <Plus size={14} /> Novo Orçamento
+                        </button>
+                    </div>
                 </div>
 
-
-
-                {selectedQuoteIds.length > 0 && (
-                    <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-900 rounded-[1.5rem] shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100 mr-auto" style={{ marginLeft: '1rem' }}>
-                        <div className="flex flex-col pr-3 border-r border-slate-700">
-                            <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
-                            <span className="text-xs font-black text-white leading-none">{selectedQuoteIds.length}</span>
+                {/* Collapsible Filters */}
+                {showFilters && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
+                        {/* Date Range */}
+                        <div className="flex flex-col gap-1 lg:col-span-2">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Período (criação)</label>
+                            <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-lg shadow-sm h-9">
+                                <Calendar size={13} className="text-slate-400 ml-1 shrink-0" />
+                                <div className="flex items-center gap-1 px-1 flex-1 justify-between">
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }}
+                                        className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none focus:text-slate-900 w-full"
+                                    />
+                                    <span className="text-[9px] text-slate-300 font-bold uppercase mx-1">até</span>
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }}
+                                        className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none focus:text-slate-900 w-full"
+                                    />
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
+
+                        {/* Status */}
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
+                            <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
+                                <Filter size={12} className="text-slate-400 mr-2 shrink-0" />
+                                <select
+                                    className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full"
+                                    value={statusFilter}
+                                    onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                                >
+                                    <option value="ALL">Todos Status</option>
+                                    <option value="ABERTO">Aberto</option>
+                                    <option value="APROVADO">Aprovado</option>
+                                    <option value="CONVERTIDO">Convertido</option>
+                                    <option value="REJEITADO">Rejeitado</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Clear */}
+                        <div className="flex items-end pb-0.5">
                             <button
-                                onClick={handleExportExcel}
-                                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                                onClick={() => { setSearchTerm(''); setStatusFilter('ALL'); setStartDate(''); setEndDate(''); setCurrentPage(1); }}
+                                className="w-full h-9 text-[10px] font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all border border-[#1c2d4f]/10 hover:border-rose-200 shadow-sm bg-white"
                             >
-                                <FileSpreadsheet size={14} /> Excel
-                            </button>
-                            <div className="w-px h-6 bg-slate-700 mx-1" />
-                            <button
-                                onClick={() => setSelectedQuoteIds([])}
-                                className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-                            >
-                                <X size={18} />
+                                Limpar Filtros
                             </button>
                         </div>
                     </div>
                 )}
-
-                <div className="flex items-center gap-2 ml-auto">
-                    <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        className={`flex items-center gap-2 px-4 h-[46px] rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
-                    >
-                        <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
-                    </button>
-                    <button
-                        onClick={() => { resetForm(); setIsModalOpen(true); }}
-                        className="px-6 py-3 h-[46px] bg-[#1c2d4f] text-white rounded-xl text-[10px] font-bold uppercase shadow-sm shadow-[#1c2d4f]/10 hover:bg-[#253a66] transition-all flex items-center gap-2 whitespace-nowrap"
-                    >
-                        <Plus size={16} /> Novo Orçamento
-                    </button>
-                </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
@@ -850,7 +907,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
             {/* MODAL DE VISUALIZAÇÃO */}
             {isViewModalOpen && viewQuote && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
                     <div className="bg-white rounded-xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
 
                         {/* HEADER — same pattern as Activity OS modal */}

@@ -95,6 +95,8 @@ export const getOrdersPage = async (
 export interface QuoteFilters {
     status?: string;
     search?: string;
+    startDate?: string;
+    endDate?: string;
 }
 
 export const getQuotesPage = async (
@@ -118,6 +120,12 @@ export const getQuotesPage = async (
 
     if (filters.status && filters.status !== 'ALL') {
         query = query.eq('status', filters.status);
+    }
+    if (filters.startDate) {
+        query = query.gte('created_at', filters.startDate);
+    }
+    if (filters.endDate) {
+        query = query.lte('created_at', filters.endDate + 'T23:59:59.999Z');
     }
     if (filters.search) {
         query = query.or(`customer_name.ilike.%${filters.search}%,display_id.ilike.%${filters.search}%,title.ilike.%${filters.search}%`);
