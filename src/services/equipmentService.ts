@@ -7,7 +7,38 @@ import { getCurrentTenantId } from '../lib/tenantContext';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
+// ─────────────────────────────────────────────────────────────
+// 🔑 Nexus Asset Code Engine — Código Visual Único (6 dígitos numéricos)
+// Formato: 6 dígitos (ex: "483921")
+// ─────────────────────────────────────────────────────────────
 
+function _generateRawCode(): string {
+    // Gera número aleatório entre 100000 e 999999 (sempre 6 dígitos)
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+/** Gera um código de 6 dígitos garantidamente único dentro do tenant */
+async function _generateUniqueAssetCode(tenantId: string): Promise<string> {
+    const MAX_ATTEMPTS = 20;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const code = _generateRawCode();
+        const { count } = await supabase
+            .from('equipments')
+            .select('id', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId)
+            .eq('asset_code', code);
+
+        if (count === 0) return code; // Único — pode usar
+    }
+    // Fallback extremamente improvável: usa timestamp para garantir unicidade
+    return Date.now().toString(36).toUpperCase().slice(-6);
+}
+
+/** Formata o código para exibição: sem alterações (somente números) */
+export function formatAssetCode(code: string | undefined): string {
+    if (!code) return '---';
+    return code;
+}
 
 export const EquipmentService = {
 
@@ -15,6 +46,8 @@ export const EquipmentService = {
         return {
             id: data.id,
             tenantId: data.tenant_id,
+            assetCode: data.asset_code,
+            name: (data as any).name,
             serialNumber: data.serial_number,
             model: data.model,
             familyId: data.family_id,
@@ -41,19 +74,17 @@ export const EquipmentService = {
                     .select('*')
                     .eq('tenant_id', tenantId)
                     .order('model')
-                    .limit(100);
+                    .limit(500);
 
                 if (currentSignal || signal) {
                     query = query.abortSignal((currentSignal || signal) as AbortSignal);
                 }
 
                 const { data, error } = await query;
+                if (error) throw error;
 
-                if (error) {
-                    throw error;
-                }
                 const mapped = (data || []).map(d => EquipmentService._mapEquipmentFromDB(d));
-                CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM); // 5 min
+                CacheManager.set(cacheKey, mapped, CacheManager.TTL.MEDIUM);
                 return mapped;
             }, signal);
         }
@@ -62,14 +93,16 @@ export const EquipmentService = {
 
     createEquipment: async (equipment: Equipment): Promise<Equipment> => {
         const tid = getCurrentTenantId();
-        if (isCloudEnabled) {
-            const { id: _id, tenantId: _tid, ...rest } = equipment;
-
-            // 🛡️ Nexus ID Gen: Gera ID se o banco não for auto-increment
+        if (isCloudEnabled && tid) {
             const newId = `eq-${Date.now().toString(36)}`;
+
+            // 🔑 Gera código único automaticamente
+            const assetCode = await _generateUniqueAssetCode(tid);
 
             const dbPayload = {
                 id: newId,
+                asset_code: assetCode,
+                name: equipment.name,
                 serial_number: equipment.serialNumber,
                 model: equipment.model,
                 family_id: equipment.familyId,
@@ -96,7 +129,8 @@ export const EquipmentService = {
             const tid = getCurrentTenantId();
             if (!tid) throw new Error("Tenant não identificado.");
 
-            const dbPayload = {
+            const dbPayload: Record<string, any> = {
+                name: equipment.name,
                 serial_number: equipment.serialNumber,
                 model: equipment.model,
                 family_id: equipment.familyId,
@@ -108,10 +142,15 @@ export const EquipmentService = {
                 updated_at: new Date().toISOString()
             };
 
+            // Se o ativo não tem código ainda, gera agora (backfill on-demand)
+            if (!equipment.assetCode) {
+                dbPayload.asset_code = await _generateUniqueAssetCode(tid);
+            }
+
             const { data, error } = await supabase.from('equipments')
                 .update(dbPayload)
                 .eq('id', equipment.id)
-                .eq('tenant_id', tid) // 🛡️ Nexus Security: Garante que só altera o próprio tenant
+                .eq('tenant_id', tid)
                 .select()
                 .single();
 
@@ -134,5 +173,43 @@ export const EquipmentService = {
             if (error) throw error;
             CacheManager.invalidate(`equipments_${tid}`);
         }
+    },
+
+    /**
+     * 🔄 Backfill Engine — Atribui códigos a todos os ativos que ainda não possuem.
+     * Chame manualmente uma vez ou ao montar o componente de ativos.
+     */
+    backfillMissingCodes: async (): Promise<number> => {
+        const tid = getCurrentTenantId();
+        if (!isCloudEnabled || !tid) return 0;
+
+        const { data, error } = await supabase
+            .from('equipments')
+            .select('id')
+            .eq('tenant_id', tid)
+            .is('asset_code', null);
+
+        if (error || !data || data.length === 0) return 0;
+
+        let updated = 0;
+        for (const eq of data) {
+            try {
+                const code = await _generateUniqueAssetCode(tid);
+                await supabase.from('equipments')
+                    .update({ asset_code: code })
+                    .eq('id', eq.id)
+                    .eq('tenant_id', tid);
+                updated++;
+            } catch (e) {
+                console.warn(`[EquipmentService] Backfill falhou para eq ${eq.id}`, e);
+            }
+        }
+
+        if (updated > 0) {
+            CacheManager.invalidate(`equipments_${tid}`);
+            console.log(`[EquipmentService] ✅ Backfill: ${updated} ativos receberam código único.`);
+        }
+
+        return updated;
     }
 };

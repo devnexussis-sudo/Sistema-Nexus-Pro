@@ -12,6 +12,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import SessionStorage from './lib/sessionStorage';
 import { DataService } from './services/dataService';
 import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
+import { NetworkStatusIndicator } from './components/common/NetworkStatusIndicator';
 
 // Wrapper para rotas públicas
 const PublicAppWrapper: React.FC<{ type: 'order' | 'quote' }> = ({ type }) => {
@@ -121,6 +122,7 @@ const App: React.FC = () => {
       <AuthProvider>
         <AppRoutes />
         <PwaInstallPrompt />
+        <NetworkStatusIndicator />
       </AuthProvider>
     </HashRouter>
   );

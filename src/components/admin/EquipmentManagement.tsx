@@ -9,10 +9,13 @@ import {
   Layers, Settings2, MapPin, Filter, Calendar, ChevronLeft
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
+import { supabase } from '../../lib/supabase';
+import { getCurrentTenantId } from '../../lib/tenantContext';
 
 import { Customer, Equipment, EquipmentFamily, OrderStatus } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
 import { DataService } from '../../services/dataService';
+import { EquipmentService, formatAssetCode } from '../../services/equipmentService';
 
 
 
@@ -31,6 +34,9 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [modalTab, setModalTab] = useState<'dados' | 'historico'>('dados');
+  const [equipmentOrders, setEquipmentOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
@@ -47,6 +53,11 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
       setActiveTab('list');
     }
   }, [initialParams]);
+
+  // 🔑 Backfill: Atribui códigos a ativos antigos sem código
+  useEffect(() => {
+    EquipmentService.backfillMissingCodes().catch(console.warn);
+  }, []);
 
 
   const [families, setFamilies] = useState<EquipmentFamily[]>([
@@ -74,7 +85,59 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
     setEditingId(null);
     setEqFormData({ active: true });
     setFamilyFormData({ active: true });
+    setModalTab('dados');
+    setEquipmentOrders([]);
   };
+
+  const loadEquipmentHistory = async (equipmentId: string, serial: string) => {
+    setLoadingOrders(true);
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) return;
+
+    try {
+      // Busca OS onde o equipamento está vinculado (forma direta)
+      const { data: directOrders } = await supabase
+        .from('orders')
+        .select('id, display_id, created_at, status, title')
+        .eq('tenant_id', tenantId)
+        .eq('equipment_serial', serial)
+        .order('created_at', { ascending: false });
+
+      // Busca OS via tabela de relacionamento
+      const { data: linkedOrders } = await supabase
+        .from('service_order_equipments')
+        .select('order_id, orders(id, display_id, created_at, status, title)')
+        .eq('tenant_id', tenantId)
+        .eq('equipment_id', equipmentId);
+
+      const allOrdersMap = new Map();
+      
+      (directOrders || []).forEach((o: any) => allOrdersMap.set(o.id, o));
+      
+      (linkedOrders || []).forEach((link: any) => {
+        if (link.orders && !allOrdersMap.has(link.orders.id)) {
+          allOrdersMap.set(link.orders.id, link.orders);
+        }
+      });
+
+      const finalOrders = Array.from(allOrdersMap.values()).sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setEquipmentOrders(finalOrders);
+    } catch (e) {
+      console.error("Erro ao buscar histórico:", e);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isModalOpen && activeTab === 'list' && editingId && modalTab === 'historico') {
+      const eq = equipments.find(e => e.id === editingId);
+      if (eq) loadEquipmentHistory(eq.id, eq.serialNumber);
+    }
+  }, [isModalOpen, activeTab, editingId, modalTab]);
 
   const handleSaveEquipment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,7 +289,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
             <table className="w-full border-separate border-spacing-y-1">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center font-poppins">
-                  <th className="px-4 py-2">equipamento / modelo</th>
+                  <th className="px-4 py-2 text-left">equipamento / modelo</th>
+                  <th className="px-4 py-2 text-center">código</th>
                   <th className="px-4 py-2 text-center whitespace-nowrap">nº de série</th>
                   <th className="px-4 py-2">proprietário</th>
                   <th className="px-4 py-2 text-center">status</th>
@@ -246,6 +310,11 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                           <p className="text-[11px] text-primary-400 mt-1 truncate">{e.familyName}</p>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-1.5 border-y border-slate-100 text-center">
+                      <span className="font-mono text-[11px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2.5 py-1 rounded-lg tracking-widest border border-[#1c2d4f]/15">
+                        {formatAssetCode(e.assetCode)}
+                      </span>
                     </td>
                     <td className="px-4 py-1.5 border-y border-slate-100 text-center font-mono text-[12px] text-slate-500 tracking-tighter whitespace-nowrap">#{e.serialNumber}</td>
                     <td className="px-4 py-1.5 border-y border-slate-100 text-[12px] text-slate-600 tracking-tight truncate max-w-[150px]">
@@ -320,82 +389,220 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
       {
         isModalOpen && createPortal(
           <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
-            <div className="bg-white rounded-none lg:rounded-xl w-full max-w-3xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
-              <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 bg-white">
-                <div className="flex items-center gap-6">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-[#1c2d4f] shrink-0">
+            <div className="bg-white rounded-none lg:rounded-2xl w-full max-w-4xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
+
+              {/* HEADER — padrão OS */}
+              <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
                     {activeTab === 'list' ? <Box size={18} /> : <Layers size={18} />}
                   </div>
                   <div>
-                    <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins">
-                      {activeTab === 'list' ? (editingId ? 'Atualizar Ativo' : 'Novo Registro de Ativo') : (editingId ? 'Editar Categoria' : 'Nova Categoria Técnica')}
+                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                      {activeTab === 'list' ? (editingId ? 'Editar Ativo' : 'Novo Ativo') : (editingId ? 'Editar Categoria' : 'Nova Categoria')}
                     </h2>
-                    <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5">Controle técnico de inventário</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-[10px] font-bold text-slate-400">Nexus Inventário • controle técnico</p>
+                      {editingId && eqFormData.assetCode && (
+                        <span className="font-mono text-[10px] font-bold text-[#1c2d4f] bg-[#1c2d4f]/8 px-2 py-0.5 rounded border border-[#1c2d4f]/15 tracking-widest">
+                          {formatAssetCode(eqFormData.assetCode)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <button onClick={closeModal} className="p-2 text-slate-400 hover:text-slate-900 transition-all shadow-sm"><X size={20} /></button>
+                <button onClick={closeModal} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50">
+                  <X size={20} />
+                </button>
               </div>
 
-              <form onSubmit={activeTab === 'list' ? handleSaveEquipment : handleSaveFamily} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
-                {activeTab === 'list' ? (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="md:col-span-2">
-                        <Input
-                          label="Nome do Ativo"
-                          required
-                          placeholder="Ex: Gerador Principal - Bloco A"
-                          icon={<Tag size={16} />}
-                          className="rounded-2xl py-4 font-bold border-slate-200"
-                          value={eqFormData.name || ''}
-                          onChange={e => setEqFormData({ ...eqFormData, name: e.target.value })}
-                        />
-                      </div>
-                      <Input label="Modelo do Ativo" required icon={<Laptop size={16} />} className="rounded-2xl py-4 font-bold border-slate-200" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
-                      <Input label="Número de Série (Serial)" required icon={<Hash size={16} />} className="rounded-2xl py-4 font-bold border-slate-200" value={eqFormData.serialNumber || ''} onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })} />
-                      <div className="w-full">
-                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Família Técnica</label>
-                        <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold  text-slate-900 focus:ring-4 focus:ring-primary-100 transition-all"
-                          required
-                          value={eqFormData.familyId || ''}
-                          onChange={e => setEqFormData({ ...eqFormData, familyId: e.target.value })}
-                        >
-                          <option value="" disabled>Selecione a Família...</option>
-                          {families.filter(f => f.active).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                        </select>
-                      </div>
-                      <div className="w-full">
-                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Cliente Proprietário</label>
-                        <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-xs font-bold  text-slate-900 focus:ring-4 focus:ring-primary-100 transition-all"
-                          required
-                          value={eqFormData.customerId || ''}
-                          onChange={e => setEqFormData({ ...eqFormData, customerId: e.target.value })}
-                        >
+              {/* ABAS INTERNAS — apenas ao editar ativo */}
+              {activeTab === 'list' && editingId && (
+                <div className="flex border-b border-slate-200 px-8 bg-white shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setModalTab('dados')}
+                    className={`px-5 py-3.5 text-xs font-bold border-b-2 transition-colors ${
+                      modalTab === 'dados' ? 'border-[#1c2d4f] text-[#1c2d4f]' : 'border-transparent text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    Dados do Ativo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalTab('historico')}
+                    className={`px-5 py-3.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 ${
+                      modalTab === 'historico' ? 'border-[#1c2d4f] text-[#1c2d4f]' : 'border-transparent text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    Histórico de OS
+                    {equipmentOrders.length > 0 && (
+                      <span className="bg-[#1c2d4f] text-white text-[9px] px-1.5 py-0.5 rounded-full leading-none">{equipmentOrders.length}</span>
+                    )}
+                  </button>
+                </div>
+              )}
 
-                          <option value="" disabled>Vincular a um Cliente...</option>
-                          {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {/* BODY */}
+              <form
+                onSubmit={activeTab === 'list' && modalTab === 'dados' ? handleSaveEquipment : handleSaveFamily}
+                className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/30"
+              >
+                <div className="p-8 space-y-6">
 
-                        </select>
+                  {/* ── ABA: DADOS ── */}
+                  {(activeTab === 'list' && (modalTab === 'dados' || !editingId)) && (
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-8 space-y-6">
+                      <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">identificação do ativo</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="md:col-span-2">
+                          <Input
+                            label="Nome do Ativo e Local de Instalação"
+                            required
+                            placeholder="Ex: Gerador Principal - Bloco A, 2º Andar"
+                            icon={<Tag size={16} />}
+                            className="rounded-xl py-3 font-medium border-slate-200"
+                            value={eqFormData.name || ''}
+                            onChange={e => setEqFormData({ ...eqFormData, name: e.target.value })}
+                          />
+                        </div>
+                        <Input label="Modelo" required icon={<Laptop size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.model || ''} onChange={e => setEqFormData({ ...eqFormData, model: e.target.value })} />
+                        <Input label="Número de Série (Serial)" required icon={<Hash size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={eqFormData.serialNumber || ''} onChange={e => setEqFormData({ ...eqFormData, serialNumber: e.target.value })} />
+
+                        {/* Código do Ativo — somente leitura */}
+                        <div className="w-full">
+                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Código do Ativo</label>
+                          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                            <Hash size={15} className="text-slate-300 shrink-0" />
+                            <span className="font-mono text-sm font-bold text-[#1c2d4f] tracking-[0.2em] flex-1">
+                              {eqFormData.assetCode ?? '— gerado ao salvar —'}
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest shrink-0">somente leitura</span>
+                          </div>
+                        </div>
+
+                        <div className="w-full">
+                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Família Técnica</label>
+                          <select
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
+                            required
+                            value={eqFormData.familyId || ''}
+                            onChange={e => setEqFormData({ ...eqFormData, familyId: e.target.value })}
+                          >
+                            <option value="" disabled>Selecione a Família...</option>
+                            {families.filter(f => f.active).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="w-full">
+                          <label className="text-[10px] font-bold text-slate-400 mb-1.5 block ml-1">Cliente Proprietário</label>
+                          <select
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-[#1c2d4f]/10 focus:border-[#1c2d4f] transition-all outline-none cursor-pointer"
+                            required
+                            value={eqFormData.customerId || ''}
+                            onChange={e => setEqFormData({ ...eqFormData, customerId: e.target.value })}
+                          >
+                            <option value="" disabled>Vincular a um Cliente...</option>
+                            {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </div>
                       </div>
+                      <TextArea label="Ficha Técnica / Memorial Descritivo" rows={3} className="rounded-xl p-3 border-slate-200" value={eqFormData.description || ''} onChange={e => setEqFormData({ ...eqFormData, description: e.target.value })} />
                     </div>
-                    <TextArea label="Ficha Técnica / Memorial Descritivo" rows={4} className="rounded-xl p-3 border-slate-200" value={eqFormData.description || ''} onChange={e => setEqFormData({ ...eqFormData, description: e.target.value })} />
-                  </>
-                ) : (
-                  <div className="space-y-5">
-                    <Input label="Nome da Categoria (Família)" required placeholder="Ex: Equipamentos de Redes" icon={<Layers size={16} />} className="rounded-2xl py-4 font-bold border-slate-200" value={familyFormData.name || ''} onChange={e => setFamilyFormData({ ...familyFormData, name: e.target.value })} />
-                    <TextArea label="Escopo Técnico da Família" placeholder="Quais ativos pertencem a este grupo de processos?" rows={4} className="rounded-xl p-3 border-slate-200" value={familyFormData.description || ''} onChange={e => setFamilyFormData({ ...familyFormData, description: e.target.value })} />
-                  </div>
-                )}
+                  )}
+
+                  {/* ── ABA: HISTÓRICO ── */}
+                  {activeTab === 'list' && editingId && modalTab === 'historico' && (
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 overflow-hidden">
+                      <div className="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ordens de Serviço Vinculadas</span>
+                        {equipmentOrders.length > 0 && (
+                          <span className="text-[10px] font-bold text-slate-400">{equipmentOrders.length} registros</span>
+                        )}
+                      </div>
+
+                      {loadingOrders ? (
+                        <div className="py-12 text-center text-slate-400 text-xs font-medium">
+                          <div className="w-6 h-6 border-2 border-slate-200 border-t-[#1c2d4f] rounded-full animate-spin mx-auto mb-3" />
+                          Buscando histórico...
+                        </div>
+                      ) : equipmentOrders.length === 0 ? (
+                        <div className="py-16 text-center">
+                          <Box size={32} className="mx-auto text-slate-200 mb-3" />
+                          <p className="text-xs font-semibold text-slate-400">Nenhuma Ordem de Serviço encontrada</p>
+                          <p className="text-[10px] text-slate-300 mt-1">Este ativo ainda não possui histórico de manutenções.</p>
+                        </div>
+                      ) : (
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-100">
+                              <th className="px-6 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Protocolo</th>
+                              <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Título</th>
+                              <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center">Status</th>
+                              <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
+                              <th className="px-4 py-2.5"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {equipmentOrders.map(order => (
+                              <tr key={order.id} className="hover:bg-slate-50/80 transition-colors group">
+                                <td className="px-6 py-3">
+                                  <span className="font-mono text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">#{order.display_id}</span>
+                                </td>
+                                <td className="px-4 py-3 max-w-[220px]">
+                                  <p className="text-xs font-semibold text-slate-800 truncate">{order.title}</p>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <StatusBadge status={order.status} />
+                                </td>
+                                <td className="px-4 py-3">
+                                  <p className="text-[11px] text-slate-500">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => { closeModal(); window.dispatchEvent(new CustomEvent('NEXUS_OPEN_ORDER', { detail: { orderId: order.id } })); }}
+                                    className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg group-hover:bg-[#1c2d4f] group-hover:text-white transition-colors shadow-sm ml-auto"
+                                    title="Abrir OS"
+                                  >
+                                    <ChevronLeft size={14} className="rotate-180" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── FAMÍLIAS ── */}
+                  {activeTab === 'families' && (
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-8 space-y-5">
+                      <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3">categoria técnica</h3>
+                      <Input label="Nome da Categoria (Família)" required placeholder="Ex: Equipamentos de Redes" icon={<Layers size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={familyFormData.name || ''} onChange={e => setFamilyFormData({ ...familyFormData, name: e.target.value })} />
+                      <TextArea label="Escopo Técnico da Família" placeholder="Quais ativos pertencem a este grupo de processos?" rows={4} className="rounded-xl p-3 border-slate-200" value={familyFormData.description || ''} onChange={e => setFamilyFormData({ ...familyFormData, description: e.target.value })} />
+                    </div>
+                  )}
+
+                </div>
               </form>
 
-              <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
-                <Button variant="secondary" className="h-9 px-5 rounded-xl text-xs" onClick={closeModal}>Cancelar</Button>
-                <Button onClick={activeTab === 'list' ? handleSaveEquipment : handleSaveFamily} className="h-9 px-6 rounded-xl text-xs font-bold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]">
-                  <Save size={14} className="mr-2" /> {activeTab === 'list' ? 'Salvar Ativo' : 'Salvar Categoria'}
-                </Button>
+              {/* FOOTER */}
+              <div className="px-8 py-5 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
+                <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
+                  Cancelar
+                </button>
+                {(activeTab !== 'list' || modalTab === 'dados') && (
+                  <Button
+                    onClick={activeTab === 'list' ? handleSaveEquipment : handleSaveFamily}
+                    className="h-9 px-6 rounded-xl text-xs font-bold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white"
+                  >
+                    <Save size={14} className="mr-2" />
+                    {activeTab === 'list' ? 'Salvar Ativo' : 'Salvar Categoria'}
+                  </Button>
+                )}
               </div>
+
             </div>
           </div>, document.body
         )

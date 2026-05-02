@@ -56,6 +56,7 @@ export const QuoteService = {
             paymentMethod: data.payment_method,
             paidAt: data.paid_at,
             billingNotes: data.billing_notes,
+            receiptUrl: data.approval_metadata?._receiptUrl,
             discount: Number(data.discount) || 0,
             discountType: data.discount_type || 'fixed'
         };
@@ -162,6 +163,7 @@ export const QuoteService = {
                 payment_method: quote.paymentMethod,
                 paid_at: quote.paidAt,
                 billing_notes: quote.billingNotes,
+                approval_metadata: { ...(quote.approvalMetadata || {}), _receiptUrl: quote.receiptUrl },
                 discount: quote.discount,
                 discount_type: quote.discountType,
                 updated_at: new Date().toISOString()

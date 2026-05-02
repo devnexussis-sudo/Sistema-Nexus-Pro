@@ -1,5 +1,5 @@
 
-import { AlertTriangle, Barcode, Box, Camera, DollarSign, Edit3, Filter, History, Info, Layers, LayoutDashboard, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X, Image as ImageIcon, Printer, QrCode } from 'lucide-react';
+import { AlertTriangle, Barcode, Box, Camera, DollarSign, Edit3, Filter, History, Info, Layers, LayoutDashboard, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X, Image as ImageIcon, Printer, QrCode, ClipboardCheck, CheckCircle, FileText } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { DataService } from '../../services/dataService';
@@ -14,7 +14,7 @@ export const StockManagement: React.FC = () => {
     const { isAuthLoading, session } = useAuth();
 
     // Application State
-    const [activeTab, setActiveTab] = useState<'items' | 'categories' | 'techs' | 'movements'>('items');
+    const [activeTab, setActiveTab] = useState<'items' | 'categories' | 'techs' | 'movements' | 'balance'>('items');
 
     // --- Items State ---
     const [items, setItems] = useState<StockItem[]>([]);
@@ -36,6 +36,9 @@ export const StockManagement: React.FC = () => {
     const abortControllerRef = useRef<AbortController | null>(null);
     const isFetching = useRef<boolean>(false);
     const ITEMS_PER_PAGE = 20;
+
+    // --- Selection & Export State ---
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
     // --- Categories State ---
     const [categories, setCategories] = useState<Category[]>([]);
@@ -103,6 +106,383 @@ export const StockManagement: React.FC = () => {
     const [transferItemSearch, setTransferItemSearch] = useState('');
     const [transferTechSearch, setTransferTechSearch] = useState('');
     const [modalTab, setModalTab] = useState<'dados' | 'financial' | 'logs'>('dados');
+
+    // --- Balance State ---
+    const [stagedBalances, setStagedBalances] = useState<Record<string, { newQty: number, item: StockItem }>>({});
+    const [isBalanceReportModalOpen, setIsBalanceReportModalOpen] = useState(false);
+    const [balanceReports, setBalanceReports] = useState<any[]>([]);
+    const [loadingReports, setLoadingReports] = useState(false);
+    const [reportDateFrom, setReportDateFrom] = useState('');
+    const [reportDateTo, setReportDateTo] = useState('');
+    const [printModalOpen, setPrintModalOpen] = useState(false);
+    const [printConfig, setPrintConfig] = useState({ quantity: 1, type: 'a4_maxprint_33', companyName: 'NEXUS PRO' });
+
+    const handleBatchBalanceSave = async () => {
+        const keys = Object.keys(stagedBalances);
+        if (keys.length === 0) return;
+
+        if (!confirm(`Deseja confirmar o balanço de ${keys.length} item(ns)? Uma auditoria será gerada para o lote.`)) return;
+
+        const referenceId = 'BALANCO-' + new Date().getTime().toString().slice(-6);
+        const user = await DataService.getCurrentUser();
+        const tenantId = user?.tenantId || DataService.getCurrentTenantId();
+
+        try {
+            const movementsToInsert = [];
+            for (const id of keys) {
+                const { newQty, item } = stagedBalances[id];
+                const currentQty = Number(item.quantity) || 0;
+                const diff = newQty - currentQty;
+
+                if (diff !== 0) {
+                    await DataService.updateStockItem({
+                        ...item,
+                        quantity: newQty,
+                        lastRestockDate: diff > 0 ? new Date().toISOString() : item.lastRestockDate
+                    });
+
+                    if (tenantId) {
+                        movementsToInsert.push({
+                            tenant_id: tenantId,
+                            stock_item_id: item.id,
+                            type: diff > 0 ? 'RESTOCK' : 'CONSUMPTION',
+                            quantity: Math.abs(diff),
+                            created_by: user?.id,
+                            reference_id: `${referenceId}|${currentQty}|${newQty}`
+                        });
+                    }
+                }
+            }
+
+            if (movementsToInsert.length > 0) {
+                const { error: insertError } = await DataService.getServiceClient()
+                    .from('stock_movements')
+                    .insert(movementsToInsert);
+                if (insertError) {
+                    console.error('Erro no Supabase ao inserir movimentos:', insertError);
+                    throw new Error(insertError.message || 'Falha ao registrar auditoria no banco de dados.');
+                }
+            }
+
+            setStagedBalances({});
+            alert('Auditoria de balanço salva com sucesso!');
+            loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
+            loadMovements();
+        } catch (error: any) {
+            alert('Erro ao salvar o balanço: ' + (error.message || 'Falha desconhecida'));
+            console.error(error);
+        }
+    };
+
+    const fetchBalanceReports = async () => {
+        setLoadingReports(true);
+        try {
+            const user = await DataService.getCurrentUser();
+            const tenantId = user?.tenantId || DataService.getCurrentTenantId();
+            if (!tenantId) return;
+
+            let query = DataService.getServiceClient()
+                .from('stock_movements')
+                .select(`
+                    *,
+                    stock_items (*)
+                `)
+                .eq('tenant_id', tenantId)
+                .like('reference_id', 'BALANCO-%')
+                .order('created_at', { ascending: false });
+
+            if (reportDateFrom) {
+                query = query.gte('created_at', new Date(reportDateFrom).toISOString());
+            }
+            if (reportDateTo) {
+                const end = new Date(reportDateTo);
+                end.setHours(23, 59, 59, 999);
+                query = query.lte('created_at', end.toISOString());
+            }
+
+            const { data, error } = await query;
+            
+            if (error) {
+                console.error('Erro ao buscar relatórios:', error);
+                throw new Error(error.message);
+            }
+
+            if (data) {
+                // Obter nomes de usuários separadamente para evitar falhas de RLS em joins diretos
+                const userIds = [...new Set(data.flatMap((m: any) => [m.user_id, m.created_by]).filter(Boolean))];
+                let usersMap: Record<string, string> = {};
+                
+                if (userIds.length > 0) {
+                    const { data: usersData } = await DataService.getServiceClient()
+                        .from('users')
+                        .select('id, name')
+                        .in('id', userIds);
+                        
+                    if (usersData) {
+                        usersMap = usersData.reduce((acc: any, u: any) => {
+                            acc[u.id] = u.name;
+                            return acc;
+                        }, {});
+                    }
+                }
+
+                const groups = data.reduce((acc: any, m: any) => {
+                    const rawRef = m.reference_id || 'Avulso';
+                    const parts = rawRef.split('|');
+                    const baseRef = parts[0];
+                    
+                    // Armazenar os metadados de quantidade temporariamente no objeto para uso nos relatórios
+                    m._prevQty = parts[1] || '-';
+                    m._currQty = parts[2] || '-';
+
+                    const uId = m.user_id || m.created_by;
+                    const executorName = uId && usersMap[uId] ? usersMap[uId] : 'Sistema';
+                    if (!acc[baseRef]) acc[baseRef] = { reference_id: baseRef, created_at: m.created_at, items: [], executor: executorName };
+                    acc[baseRef].items.push(m);
+                    return acc;
+                }, {});
+                setBalanceReports(Object.values(groups));
+            }
+        } catch(err: any) {
+            console.error(err);
+            alert(`Erro ao carregar relatórios: ${err.message}`);
+        } finally {
+            setLoadingReports(false);
+        }
+    };
+
+    const openBalanceReports = () => {
+        setIsBalanceReportModalOpen(true);
+        fetchBalanceReports();
+    };
+
+    useEffect(() => {
+        if (isBalanceReportModalOpen) {
+            fetchBalanceReports();
+        }
+    }, [reportDateFrom, reportDateTo, isBalanceReportModalOpen]);
+
+    const handlePrintBalanceReport = async (report: any) => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        const tenant = await DataService.getTenantById(null);
+        
+        const logoHtml = tenant?.logo_url 
+            ? `<img src="${tenant.logo_url}" alt="Logo" style="max-height: 60px; object-fit: contain;" />` 
+            : `<h2 style="margin:0; font-size: 24px; color: #1c2d4f;">${tenant?.company_name || tenant?.name || 'Empresa'}</h2>`;
+            
+        const companyInfoHtml = `
+            <div style="font-size: 11px; color: #555; text-align: right; line-height: 1.4;">
+                <strong>${tenant?.company_name || tenant?.name || 'Empresa'}</strong><br/>
+                CNPJ: ${tenant?.cnpj || 'Não informado'} | Tel: ${tenant?.phone || 'Não informado'}<br/>
+                ${tenant?.email || ''} | ${tenant?.website || ''}<br/>
+                ${tenant?.street || ''}, ${tenant?.number || ''} - ${tenant?.neighborhood || ''}, ${tenant?.city || ''}
+            </div>
+        `;
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Relatório de Balanço ${report.reference_id}</title>
+                    <style>
+                        @page { size: landscape; margin: 10mm; }
+                        body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+                        .header-container { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1c2d4f; padding-bottom: 15px; margin-bottom: 20px; }
+                        h1 { font-size: 20px; margin: 0; color: #1c2d4f; padding-bottom: 5px; }
+                        .meta { font-size: 14px; margin-bottom: 20px; color: #666; }
+                        table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
+                        th { background-color: #f5f5f5; }
+                        .diff-pos { color: #10b981; font-weight: bold; }
+                        .diff-neg { color: #ef4444; font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header-container">
+                        <div>${logoHtml}</div>
+                        <div>${companyInfoHtml}</div>
+                    </div>
+                    <h1>Auditoria de Balanço: ${report.reference_id}</h1>
+                    <div class="meta">
+                        <p><strong>Data da Aferição:</strong> ${new Date(report.created_at).toLocaleString('pt-BR')}</p>
+                        <p><strong>Responsável:</strong> ${report.executor || 'Sistema'}</p>
+                        <p><strong>Total de Itens Aferidos (com alteração):</strong> ${report.items.length}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Cód/SKU</th>
+                                <th>Descrição da Peça/Produto</th>
+                                <th>Tipo de Ajuste</th>
+                                <th style="text-align:center;">Qtd. Anterior</th>
+                                <th style="text-align:center;">Ajuste</th>
+                                <th style="text-align:center;">Saldo Final</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${report.items.map((m: any) => {
+                                return `
+                                <tr>
+                                    <td>${m.stock_items?.code || '-'}</td>
+                                    <td>${m.stock_items?.description || '-'}</td>
+                                    <td>${m.type === 'RESTOCK' ? 'Sobra de Estoque (+)' : 'Quebra/Falta (-)'}</td>
+                                    <td style="text-align:center;">${m._prevQty || '-'}</td>
+                                    <td class="${m.type === 'RESTOCK' ? 'diff-pos' : 'diff-neg'}" style="text-align:center;">
+                                        ${m.type === 'RESTOCK' ? '+' : '-'}${m.quantity}
+                                    </td>
+                                    <td style="text-align:center; font-weight:bold;">${m._currQty || '-'}</td>
+                                </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                    <script>window.onload = () => { window.print(); }</script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
+    const handleExportExcelBalance = (report: any) => {
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        csvContent += "Cód/SKU;Descrição da Peça/Produto;Tipo de Ajuste;Qtd. Anterior;Ajuste;Saldo Final;Data;Responsável\n";
+        
+        const dateStr = new Date(report.created_at).toLocaleString('pt-BR');
+        const executor = report.executor || 'Sistema';
+
+        report.items.forEach((m: any) => {
+            const code = m.stock_items?.code || '-';
+            const desc = (m.stock_items?.description || '-').replace(/;/g, ',');
+            const type = m.type === 'RESTOCK' ? 'Sobra de Estoque (+)' : 'Quebra/Falta (-)';
+            const qty = m.type === 'RESTOCK' ? `+${m.quantity}` : `-${m.quantity}`;
+            csvContent += `${code};${desc};${type};${m._prevQty || '-'};${qty};${m._currQty || '-'};${dateStr};${executor}\n`;
+        });
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `balanco_${report.reference_id}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // --- Print & Export Stock ---
+    const getExportItems = () => {
+        if (selectedItems.size > 0) {
+            return items.filter(i => selectedItems.has(i.id));
+        }
+        return items; // all loaded/filtered items
+    };
+
+    const handlePrintStock = async () => {
+        const exportItems = getExportItems();
+        if (exportItems.length === 0) { alert('Nenhum item para imprimir.'); return; }
+        const tenant = await DataService.getTenantById(null);
+        const logoHtml = tenant?.logo_url
+            ? `<img src="${tenant.logo_url}" alt="Logo" style="max-height:50px;object-fit:contain;"/>`
+            : `<strong style="font-size:20px;color:#1c2d4f;">${tenant?.company_name || 'Empresa'}</strong>`;
+        const now = new Date().toLocaleString('pt-BR');
+        const filterInfo = [
+            searchTerm ? `Busca: "${searchTerm}"` : '',
+            categoryFilter !== 'ALL' ? `Categoria: ${categoryFilter}` : '',
+            statusFilter !== 'ALL' ? `Status: ${statusFilter}` : '',
+            selectedItems.size > 0 ? `Selecionados: ${selectedItems.size} itens` : `Total: ${exportItems.length} itens`
+        ].filter(Boolean).join(' | ');
+
+        const rows = exportItems.map((item, i) => {
+            const totalCost = (Number(item.costPrice) || 0) + (Number(item.freightCost) || 0) + ((Number(item.costPrice) || 0) * (Number((item as any).taxPercent) || 0) / 100);
+            const margin = totalCost > 0 ? (((Number(item.sellPrice) || 0) - totalCost) / totalCost * 100).toFixed(1) : '-';
+            const isLow = Number(item.quantity) <= Number(item.minQuantity || 0);
+            return `<tr style="background:${i % 2 === 0 ? '#fff' : '#f8fafc'}">
+                <td>${item.code || '-'}</td>
+                <td>${item.description}</td>
+                <td>${(item as any).category || '-'}</td>
+                <td>${(item as any).location || '-'}</td>
+                <td style="text-align:center;font-weight:bold;color:${isLow ? '#ef4444' : '#10b981'}">${item.quantity}</td>
+                <td style="text-align:right;">R$ ${Number(item.costPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td style="text-align:right;">R$ ${Number(item.sellPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td style="text-align:center;">${margin !== '-' ? margin + '%' : '-'}</td>
+                <td style="text-align:right;">R$ ${(Number(item.quantity) * Number(item.sellPrice || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+            </tr>`;
+        }).join('');
+
+        const totalValue = exportItems.reduce((a, i) => a + (Number(i.quantity) * Number(i.sellPrice || 0)), 0);
+
+        const w = window.open('', '_blank');
+        if (!w) return;
+        w.document.write(`<!DOCTYPE html><html><head><title>Relatório de Estoque</title>
+        <style>
+            @page { size: A4 landscape; margin: 12mm; }
+            body { font-family: Arial, sans-serif; color: #333; font-size: 11px; }
+            .hdr { display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #1c2d4f; padding-bottom:10px; margin-bottom:12px; }
+            .meta { font-size:10px; color:#666; margin-bottom:8px; }
+            table { width:100%; border-collapse:collapse; }
+            th { background:#1c2d4f; color:#fff; padding:6px 8px; font-size:10px; text-align:left; }
+            td { padding:5px 8px; border-bottom:1px solid #e2e8f0; font-size:10px; }
+            .footer { margin-top:14px; border-top:1px solid #e2e8f0; padding-top:8px; display:flex; justify-content:space-between; font-size:10px; color:#666; }
+            .total { font-weight:bold; color:#1c2d4f; }
+        </style></head><body>
+        <div class="hdr"><div>${logoHtml}</div><div style="text-align:right;"><strong>Relatório de Estoque</strong><br/><span style="font-size:10px;color:#666;">Emitido em: ${now}</span></div></div>
+        <div class="meta">${filterInfo}</div>
+        <table>
+            <thead><tr>
+                <th>Código</th><th>Descrição</th><th>Categoria</th><th>Localização</th>
+                <th style="text-align:center">Saldo</th>
+                <th style="text-align:right">Custo</th>
+                <th style="text-align:right">Venda</th>
+                <th style="text-align:center">Margem</th>
+                <th style="text-align:right">Valor Total</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+        <div class="footer">
+            <span>${exportItems.length} item(ns)</span>
+            <span class="total">Valor Total em Estoque: R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+        </div>
+        <script>window.onload=()=>window.print();</script>
+        </body></html>`);
+        w.document.close();
+    };
+
+    const handleExportExcelStock = () => {
+        const exportItems = getExportItems();
+        if (exportItems.length === 0) { alert('Nenhum item para exportar.'); return; }
+        const now = new Date().toLocaleString('pt-BR');
+        let csv = '\uFEFF'; // BOM for Excel UTF-8
+        csv += `Código;Cód. Externo;Descrição;Categoria;Localização;Saldo;Mínimo;Custo (R$);Venda (R$);Margem (%);Valor Total (R$);Status;Exportado em\n`;
+        exportItems.forEach(item => {
+            const totalCost = (Number(item.costPrice) || 0) + (Number(item.freightCost) || 0) + ((Number(item.costPrice) || 0) * (Number((item as any).taxPercent) || 0) / 100);
+            const margin = totalCost > 0 ? (((Number(item.sellPrice) || 0) - totalCost) / totalCost * 100).toFixed(2) : '0';
+            const totalVal = (Number(item.quantity) * Number(item.sellPrice || 0)).toFixed(2);
+            const status = Number(item.quantity) <= Number(item.minQuantity || 0) ? 'Crítico' : (item.active !== false ? 'Normal' : 'Inativo');
+            csv += [
+                item.code || '',
+                (item as any).externalCode || '',
+                `"${(item.description || '').replace(/"/g, '""')}"`,
+                (item as any).category || '',
+                (item as any).location || '',
+                item.quantity,
+                item.minQuantity || 0,
+                (Number(item.costPrice || 0).toFixed(2)).replace('.', ','),
+                (Number(item.sellPrice || 0).toFixed(2)).replace('.', ','),
+                margin.replace('.', ','),
+                totalVal.replace('.', ','),
+                status,
+                `"${now}"`
+            ].join(';') + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `estoque_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
 
     // --- Loaders ---
     const loadItems = async (page: number, search: string, category: string, status: string) => {
@@ -266,6 +646,12 @@ export const StockManagement: React.FC = () => {
         }
     }, [movTypeFilter, movDateFrom, movDateTo, activeTab]);
 
+    useEffect(() => {
+        if (activeTab === 'balance') {
+            setStagedBalances({}); // Clear inputs when entering tab
+        }
+    }, [activeTab, currentPage, searchTerm, categoryFilter]);
+
     // --- Item Handlers ---
     const handleOpenModal = (item?: StockItem) => {
         setModalTab('dados');
@@ -319,34 +705,84 @@ export const StockManagement: React.FC = () => {
 
     const handlePrintQR = () => {
         if (!formData.code) return;
+        setPrintModalOpen(true);
+    };
+
+    const executePrintQR = () => {
+        if (!formData.code) return;
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
+        
         const itemName = (formData.description || 'Produto Nexus').replace(/['"]/g, '');
-        printWindow.document.write(`
+        const qty = printConfig.quantity || 1;
+        const companyName = printConfig.companyName || 'NEXUS PRO';
+
+        let htmlContent = '';
+        
+        if (printConfig.type === 'a4_maxprint_33') {
+            htmlContent = `
+            <!DOCTYPE html>
             <html>
                 <head>
-                    <title>Etiqueta ${formData.code}</title>
+                    <title>Etiquetas - ${formData.code}</title>
                     <style>
-                        body { font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #fff; }
-                        .label { border: 2px solid #000; padding: 20px; text-align: center; border-radius: 10px; width: 300px; display: flex; flex-direction: column; align-items: center; }
-                        img { max-width: 150px; margin-bottom: 15px; }
-                        h1 { margin: 0 0 10px; font-size: 16px; font-weight: 900; text-transform: uppercase; }
-                        p { margin: 0; font-size: 14px; font-weight: bold; }
+                        @page { margin: 12.7mm 4mm; size: A4; }
+                        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #fff; }
+                        .page { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 25.4mm; gap: 0; width: 210mm; margin: 0 auto; page-break-after: always; }
+                        .label { box-sizing: border-box; width: 66.7mm; height: 25.4mm; padding: 2mm 3mm; display: flex; align-items: center; justify-content: flex-start; border: 1px dashed transparent; }
+                        .qr { width: 21mm; height: 21mm; margin-right: 3mm; object-fit: contain; }
+                        .info { display: flex; flex-direction: column; justify-content: center; overflow: hidden; flex: 1; }
+                        .company { font-size: 7px; font-weight: bold; text-transform: uppercase; color: #555; margin-top: 2px; }
+                        .sku { font-size: 11px; font-weight: 900; margin: 1px 0; color: #000; }
+                        .desc { font-size: 8px; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #333; }
                     </style>
                 </head>
                 <body>
-                    <div class="label">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(formData.code)}" alt="QR Code" />
-                        <h1>${itemName}</h1>
-                        <p>SKU: ${formData.code}</p>
+                    <div class="page">
+                        ${Array.from({length: qty}).map(() => `
+                        <div class="label">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(formData.code)}" class="qr" />
+                            <div class="info">
+                                <span class="sku">${formData.code}</span>
+                                <span class="desc">${itemName}</span>
+                                <span class="company">${companyName}</span>
+                            </div>
+                        </div>
+                        `).join('')}
                     </div>
-                    <script>
-                        window.onload = () => { window.print(); window.close(); }
-                    </script>
+                    <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); }</script>
                 </body>
-            </html>
-        `);
+            </html>`;
+        } else {
+            htmlContent = `
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <title>Etiquetas - ${formData.code}</title>
+                    <style>
+                        @page { margin: 0; size: 40mm 40mm; }
+                        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: #fff; width: 40mm; }
+                        .label { width: 40mm; height: 40mm; box-sizing: border-box; padding: 2mm; display: flex; flex-direction: column; align-items: center; justify-content: center; page-break-after: always; text-align: center; }
+                        .qr { width: 24mm; height: 24mm; margin-bottom: 1.5mm; }
+                        .sku { font-size: 11px; font-weight: 900; line-height: 1; margin-bottom: 2px; }
+                        .company { font-size: 7px; font-weight: bold; text-transform: uppercase; color: #555; }
+                    </style>
+                </head>
+                <body>
+                    ${Array.from({length: qty}).map(() => `
+                    <div class="label">
+                        <span class="sku">${formData.code}</span>
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(formData.code)}" class="qr" />
+                        <span class="company">${companyName}</span>
+                    </div>
+                    `).join('')}
+                    <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); }</script>
+                </body>
+            </html>`;
+        }
+        printWindow.document.write(htmlContent);
         printWindow.document.close();
+        setPrintModalOpen(false);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -502,7 +938,7 @@ export const StockManagement: React.FC = () => {
     };
     // Use Effect for filtering debounce and pagination
     useEffect(() => {
-        if (activeTab !== 'items') return;
+        if (activeTab !== 'items' && activeTab !== 'balance') return;
 
         const timer = setTimeout(() => {
             loadItems(currentPage, searchTerm, categoryFilter, statusFilter);
@@ -567,31 +1003,36 @@ export const StockManagement: React.FC = () => {
     return (
         <div className="p-4 pr-8 font-poppins">
             <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
-                <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
-                    
-                    <div className="flex items-center gap-1 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0 hide-scrollbar">
-                        <div className="flex bg-white/60 p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm shrink-0">
-                            <button onClick={() => setActiveTab('items')} className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                <div className="w-full overflow-x-auto custom-scrollbar pb-1 mb-1">
+                    <div className="flex items-center gap-1 w-max">
+                        <div className="flex bg-white/60 p-0.5 sm:p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm">
+                            <button onClick={() => setActiveTab('items')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
                                 <List size={14} /> <span className="whitespace-nowrap">Estoque</span>
                             </button>
-                            <button onClick={() => setActiveTab('categories')} className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'categories' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                            <button onClick={() => setActiveTab('categories')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 ${activeTab === 'categories' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
                                 <Tag size={14} /> <span className="whitespace-nowrap">Categorias</span>
                             </button>
-                            <button onClick={() => setActiveTab('techs')} className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'techs' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                            <button onClick={() => setActiveTab('techs')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 ${activeTab === 'techs' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
                                 <Box size={14} /> <span className="whitespace-nowrap">Técnicos</span>
                             </button>
-                            <button onClick={() => setActiveTab('movements')} className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'movements' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                            <button onClick={() => setActiveTab('movements')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 ${activeTab === 'movements' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
                                 <Scale size={14} /> <span className="whitespace-nowrap">Auditoria</span>
+                            </button>
+                            <button onClick={() => setActiveTab('balance')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 ${activeTab === 'balance' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                                <ClipboardCheck size={14} /> <span className="whitespace-nowrap">Balanço</span>
                             </button>
                         </div>
                     </div>
+                </div>
 
-                    {activeTab === 'items' && (
+                <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
+
+                    {(activeTab === 'items' || activeTab === 'balance') && (
                         <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
                                 type="text"
-                                placeholder="Localizar no estoque..."
+                                placeholder={activeTab === 'balance' ? "Digite ou bipe o cód. da peça / nome..." : "Localizar no estoque..."}
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                                 className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
@@ -600,7 +1041,7 @@ export const StockManagement: React.FC = () => {
                     )}
 
                     <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
-                        {activeTab === 'items' && (
+                        {(activeTab === 'items' || activeTab === 'balance') && (
                             <div className="hidden sm:flex items-center bg-white border border-[#1c2d4f]/20 rounded-xl pl-2 pr-1 h-10 shadow-sm max-w-[160px]">
                                 <Filter size={12} className="text-slate-400 mr-2 shrink-0" />
                                 <select 
@@ -631,6 +1072,46 @@ export const StockManagement: React.FC = () => {
                                 <Plus size={14} /> {activeTab === 'items' ? 'Novo Cadastro' : 'Nova Categoria'}
                             </Button>
                         )}
+
+                        {activeTab === 'items' && (
+                            <>
+                                <button
+                                    onClick={handleExportExcelStock}
+                                    title="Exportar para Excel / CSV"
+                                    className="h-10 px-3 bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-50 text-[10px] font-bold flex items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
+                                >
+                                    <FileText size={14} /> Excel
+                                    {selectedItems.size > 0 && <span className="ml-1 bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">{selectedItems.size}</span>}
+                                </button>
+                                <button
+                                    onClick={handlePrintStock}
+                                    title="Imprimir relatório PDF paisagem"
+                                    className="h-10 px-3 bg-white border border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-slate-50 text-[10px] font-bold flex items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
+                                >
+                                    <Printer size={14} /> PDF
+                                    {selectedItems.size > 0 && <span className="ml-1 bg-[#1c2d4f]/10 text-[#1c2d4f] text-[9px] font-black px-1.5 py-0.5 rounded-full">{selectedItems.size}</span>}
+                                </button>
+                            </>
+                        )}
+
+                        {activeTab === 'items' && items.length > 0 && (
+                            <button
+                                onClick={() => {
+                                    if (selectedItems.size === items.length) {
+                                        setSelectedItems(new Set());
+                                    } else {
+                                        setSelectedItems(new Set(items.map(i => i.id)));
+                                    }
+                                }}
+                                className={`h-10 px-3 border text-[10px] font-bold flex items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap ${
+                                    selectedItems.size === items.length
+                                        ? 'bg-[#1c2d4f] text-white border-[#1c2d4f]'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-[#1c2d4f]/40'
+                                }`}
+                            >
+                                {selectedItems.size === items.length ? 'Desmarcar' : 'Selecionar Todos'}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -643,7 +1124,17 @@ export const StockManagement: React.FC = () => {
                             <table className="w-full border-collapse">
                                 <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm">
                                     <tr className="text-[12px] font-semibold text-slate-600 tracking-tight text-center">
-                                        <th className="px-3 py-2 first:pl-6">Identificação / SKU</th>
+                                        <th className="px-3 py-2 w-10 first:pl-4">
+                                            <input type="checkbox"
+                                                className="w-3.5 h-3.5 rounded border-slate-300 accent-[#1c2d4f] cursor-pointer"
+                                                checked={selectedItems.size === items.length && items.length > 0}
+                                                onChange={() => {
+                                                    if (selectedItems.size === items.length) setSelectedItems(new Set());
+                                                    else setSelectedItems(new Set(items.map(i => i.id)));
+                                                }}
+                                            />
+                                        </th>
+                                        <th className="px-3 py-2">Identificação / SKU</th>
                                         <th className="px-3 py-2">Descrição do Produto</th>
                                         <th className="px-3 py-2">Localização</th>
                                         <th className="px-3 py-2 text-center">Saldo</th>
@@ -656,7 +1147,7 @@ export const StockManagement: React.FC = () => {
                                 <tbody>
                                     {error ? (
                                         <tr>
-                                            <td colSpan={8} className="py-20 text-center px-6">
+                                            <td colSpan={9} className="py-20 text-center px-6">
                                                 <div className="max-w-md mx-auto">
                                                     <AlertTriangle size={40} className="mx-auto text-rose-500 mb-4 animate-pulse" />
                                                     <p className="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] mb-2">Falha na Sincronização</p>
@@ -672,7 +1163,7 @@ export const StockManagement: React.FC = () => {
                                         </tr>
                                     ) : loading ? (
                                         <tr>
-                                            <td colSpan={8} className="py-20 text-center">
+                                            <td colSpan={9} className="py-20 text-center">
                                                 <RefreshCw size={40} className="mx-auto text-primary-600 animate-spin mb-4" />
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sincronizando Estoque...</p>
                                             </td>
@@ -680,7 +1171,7 @@ export const StockManagement: React.FC = () => {
                                     ) :
                                         items.length === 0 ? (
                                             <tr>
-                                                <td colSpan={8} className="py-20 text-center">
+                                                <td colSpan={9} className="py-20 text-center">
                                                     <div className="w-16 h-16 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-slate-100">
                                                         <Package size={24} className="text-slate-300" />
                                                     </div>
@@ -694,10 +1185,21 @@ export const StockManagement: React.FC = () => {
                                                 return (
                                                     <tr
                                                         key={item.id}
-                                                        className="transition-all border-b border-slate-100 hover:border-slate-200 group cursor-pointer bg-white hover:bg-slate-50"
-                                                        onClick={() => handleOpenModal(item)}
+                                                        className={`transition-all border-b border-slate-100 group bg-white ${selectedItems.has(item.id) ? 'bg-emerald-50/50 hover:bg-emerald-50' : 'hover:bg-slate-50'}`}
                                                     >
-                                                        <td className="px-3 py-3 pl-6">
+                                                        <td className="px-3 py-3 pl-4" onClick={(e) => e.stopPropagation()}>
+                                                            <input type="checkbox"
+                                                                className="w-3.5 h-3.5 rounded border-slate-300 accent-[#1c2d4f] cursor-pointer"
+                                                                checked={selectedItems.has(item.id)}
+                                                                onChange={() => {
+                                                                    const next = new Set(selectedItems);
+                                                                    if (next.has(item.id)) next.delete(item.id);
+                                                                    else next.add(item.id);
+                                                                    setSelectedItems(next);
+                                                                }}
+                                                            />
+                                                        </td>
+                                                        <td className="px-3 py-3 cursor-pointer" onClick={() => handleOpenModal(item)}>
                                                             <div className="flex flex-col truncate max-w-[100px]">
                                                                 <span className="text-[12px] font-medium text-primary-600 truncate">{item?.code || '---'}</span>
                                                                 {item?.externalCode && (
@@ -707,7 +1209,7 @@ export const StockManagement: React.FC = () => {
                                                                 )}
                                                             </div>
                                                         </td>
-                                                        <td className="px-3 py-3">
+                                                        <td className="px-3 py-3 cursor-pointer" onClick={() => handleOpenModal(item)}>
                                                             <p className="text-[12px] font-medium text-slate-700 truncate max-w-[220px]">{item?.description || 'Item sem descrição'}</p>
                                                             <div className="flex gap-1.5 overflow-hidden">
                                                                 <span className="text-[10px] text-slate-400 truncate">{item?.category || '-'}</span>
@@ -715,16 +1217,16 @@ export const StockManagement: React.FC = () => {
                                                                 <span className="text-[10px] text-slate-400 shrink-0">{item?.unit || 'UN'}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-3 py-3 text-[11px] text-slate-500 truncate max-w-[100px]">{item?.location || '-'}</td>
-                                                        <td className="px-3 py-3 text-center">
+                                                        <td className="px-3 py-3 text-[11px] text-slate-500 truncate max-w-[100px] cursor-pointer" onClick={() => handleOpenModal(item)}>{item?.location || '-'}</td>
+                                                        <td className="px-3 py-3 text-center cursor-pointer" onClick={() => handleOpenModal(item)}>
                                                             <div className="flex items-center justify-center gap-1.5">
                                                                 <span className={`text-[12px] font-semibold tracking-tight ${(item?.quantity || 0) <= (item?.minQuantity || 0) ? 'text-rose-500' : 'text-slate-700'}`}>{item?.quantity || 0}</span>
                                                                 {(item?.quantity || 0) <= (item?.minQuantity || 0) && <AlertTriangle size={12} className="text-rose-500 shrink-0" />}
                                                             </div>
                                                         </td>
-                                                        <td className="px-3 py-3 text-[11px] text-slate-500 text-right whitespace-nowrap">R$ {totalCost.toFixed(2)}</td>
-                                                        <td className="px-3 py-3 text-[11px] text-slate-700 text-right whitespace-nowrap font-medium">R$ {(item?.sellPrice || 0).toFixed(2)}</td>
-                                                        <td className="px-3 py-3">
+                                                        <td className="px-3 py-3 text-[11px] text-slate-500 text-right whitespace-nowrap cursor-pointer" onClick={() => handleOpenModal(item)}>R$ {totalCost.toFixed(2)}</td>
+                                                        <td className="px-3 py-3 text-[11px] text-slate-700 text-right whitespace-nowrap font-medium cursor-pointer" onClick={() => handleOpenModal(item)}>R$ {(item?.sellPrice || 0).toFixed(2)}</td>
+                                                        <td className="px-3 py-3 cursor-pointer" onClick={() => handleOpenModal(item)}>
                                                             <div className={`flex items-center justify-center gap-1 text-[11px] font-bold ${margin >= 30 ? 'text-emerald-500' : (margin > 0 ? 'text-amber-500' : 'text-rose-500')}`}>
                                                                 {margin >= 0 ? <TrendingUp size={12} className="shrink-0" /> : <TrendingDown size={12} className="shrink-0" />}
                                                                 {margin.toFixed(1)}%
@@ -1107,9 +1609,281 @@ export const StockManagement: React.FC = () => {
                                 </div>
                             );
                         })()}
+                        
+                        {activeTab === 'balance' && (
+                            <div className="space-y-6 animate-fade-in font-poppins flex flex-col h-full">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 px-4 sm:px-10 pt-4 sm:pt-10">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-[#1c2d4f] rounded-xl flex items-center justify-center text-white border border-primary-900/20 shadow-sm">
+                                            <ClipboardCheck size={20} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-800 uppercase leading-none">
+                                                Balanço de Estoque
+                                            </h3>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-1 uppercase tracking-wider">Aferição física e auditoria de saldos</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <Button
+                                            onClick={openBalanceReports}
+                                            variant="secondary"
+                                            className="h-9 px-4 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-2 hover:bg-slate-50 hover:text-slate-900"
+                                        >
+                                            <FileText size={14} /> Relatórios
+                                        </Button>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex-1 min-h-0 flex flex-col bg-white border-t border-slate-200 mt-2 rounded-b-2xl">
+                                    <div className="overflow-auto custom-scrollbar flex-1">
+                                        <table className="w-full text-left border-collapse min-w-[700px]">
+                                            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+                                                <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+                                                    <th className="px-6 py-4">Item / Produto</th>
+                                                    <th className="px-6 py-4 text-center">Saldo Sistema</th>
+                                                    <th className="px-6 py-4 text-center">Saldo Físico (Real)</th>
+                                                    <th className="px-6 py-4 text-center">Diferença</th>
+                                                    <th className="px-6 py-4 text-right">Ação</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {loading ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="py-20 text-center">
+                                                            <RefreshCw size={30} className="mx-auto text-primary-600 animate-spin mb-3" />
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carregando Itens...</p>
+                                                        </td>
+                                                    </tr>
+                                                ) : items.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="py-20 text-center">
+                                                            <div className="w-16 h-16 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                                                                <Package size={24} className="text-slate-300" />
+                                                            </div>
+                                                            <p className="text-[10px] font-black tracking-widest uppercase text-slate-400">Nenhum item localizado</p>
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    items.map(item => {
+                                                        const currentQty = item.quantity || 0;
+                                                        const staged = stagedBalances[item.id];
+                                                        const realQty = staged ? staged.newQty : null;
+                                                        const diff = realQty !== null ? realQty - currentQty : 0;
+                                                        const isChanged = realQty !== null && diff !== 0;
+                                                        
+                                                        return (
+                                                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                                                <td className="px-6 py-4">
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[12px] font-bold text-slate-800 uppercase tracking-tight">{item.description}</span>
+                                                                        <span className="text-[10px] font-medium text-slate-400 mt-0.5 uppercase tracking-wider flex items-center gap-1">
+                                                                            <Barcode size={10} /> {item.code} {item.externalCode && `• ${item.externalCode}`}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <span className="inline-flex items-center justify-center h-8 px-4 bg-slate-100 text-slate-700 rounded-lg text-[12px] font-black">
+                                                                        {currentQty} {item.unit}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <div className="flex justify-center">
+                                                                        <input
+                                                                            type="number"
+                                                                            placeholder={String(currentQty)}
+                                                                            value={realQty !== null ? realQty : ''}
+                                                                            onChange={e => {
+                                                                                const val = e.target.value;
+                                                                                if (val === '') {
+                                                                                    const next = {...stagedBalances};
+                                                                                    delete next[item.id];
+                                                                                    setStagedBalances(next);
+                                                                                } else {
+                                                                                    setStagedBalances({...stagedBalances, [item.id]: { newQty: Number(val), item }});
+                                                                                }
+                                                                            }}
+                                                                            className="w-24 h-9 text-center bg-white border border-slate-300 rounded-lg text-sm font-black text-[#1c2d4f] outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all shadow-inner"
+                                                                        />
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    {realQty !== null ? (
+                                                                        <span className={`inline-flex items-center justify-center h-7 px-3 rounded-lg text-[11px] font-black tracking-widest ${diff > 0 ? 'bg-emerald-50 text-emerald-600' : diff < 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-50 text-slate-500'}`}>
+                                                                            {diff > 0 ? '+' : ''}{diff}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-[10px] text-slate-300 font-bold">-</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <div className="flex items-center justify-end gap-2">
+                                                                        {isChanged && (
+                                                                            <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest bg-amber-50 px-2 py-1 rounded">Modificado</span>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                    {!loading && totalPages > 1 && (
+                                        <div className="p-4 border-t border-slate-100 shrink-0">
+                                            <Pagination
+                                                currentPage={currentPage}
+                                                totalPages={totalPages}
+                                                totalItems={totalItemsCount}
+                                                itemsPerPage={ITEMS_PER_PAGE}
+                                                onPageChange={setCurrentPage}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Batch Save Action Bar */}
+                                    {Object.keys(stagedBalances).length > 0 && (
+                                        <div className="bg-slate-50 border-t border-slate-200 p-4 shrink-0 flex items-center justify-between shadow-[0_-4px_6px_-1px_rgb(0,0,0,0.05)] rounded-b-2xl relative z-20">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-black text-sm">
+                                                    {Object.keys(stagedBalances).length}
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-bold text-slate-800">Itens modificados aguardando confirmação</p>
+                                                    <p className="text-[10px] font-medium text-slate-500 uppercase">Lote atualizado será salvo como uma única auditoria.</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-3">
+                                                <Button onClick={() => setStagedBalances({})} variant="ghost" className="text-slate-500 text-xs">
+                                                    Cancelar Tudo
+                                                </Button>
+                                                <Button onClick={handleBatchBalanceSave} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 text-xs font-bold px-6 py-2 rounded-xl flex items-center gap-2">
+                                                    <Save size={16} /> Gravar Balanço ({Object.keys(stagedBalances).length})
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
+
+            {/* BALANCE REPORTS MODAL */}
+            {isBalanceReportModalOpen && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-xl w-full max-w-4xl h-full lg:h-auto lg:max-h-[85vh] shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0 flex-wrap gap-4">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400">
+                                    <FileText size={20} />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-semibold text-slate-900 font-poppins">Relatórios de Auditoria de Balanço</h2>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5">Histórico completo de contagens físicas</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
+                                    <input 
+                                        type="date" 
+                                        value={reportDateFrom} 
+                                        onChange={e => setReportDateFrom(e.target.value)} 
+                                        className="bg-transparent text-[10px] font-bold text-slate-600 outline-none h-[28px]" 
+                                    />
+                                    <span className="text-[9px] font-black text-slate-400">ATÉ</span>
+                                    <input 
+                                        type="date" 
+                                        value={reportDateTo} 
+                                        onChange={e => setReportDateTo(e.target.value)} 
+                                        className="bg-transparent text-[10px] font-bold text-slate-600 outline-none h-[28px]" 
+                                    />
+                                    {(reportDateFrom || reportDateTo) && (
+                                        <button onClick={() => { setReportDateFrom(''); setReportDateTo(''); }} className="px-2 text-[9px] font-bold uppercase text-rose-400 hover:text-rose-600">Limpar</button>
+                                    )}
+                                </div>
+                                <Button variant="ghost" onClick={() => setIsBalanceReportModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900">
+                                    <X size={20} />
+                                </Button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 custom-scrollbar">
+                            {loadingReports ? (
+                                <div className="py-20 text-center">
+                                    <Loader2 size={30} className="mx-auto text-primary-600 animate-spin mb-3" />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Buscando Relatórios...</p>
+                                </div>
+                            ) : balanceReports.length === 0 ? (
+                                <div className="py-20 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
+                                    <History size={40} className="mx-auto text-slate-300 mb-4" />
+                                    <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Nenhuma auditoria encontrada</p>
+                                </div>
+                            ) : (
+                                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 border-b border-slate-200">
+                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Referência</th>
+                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data/Hora</th>
+                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Itens</th>
+                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável</th>
+                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {balanceReports.map((report: any, idx: number) => (
+                                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                                    <td className="px-4 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                                                <ClipboardCheck size={14} />
+                                                            </div>
+                                                            <span className="text-xs font-bold text-slate-700">{report.reference_id}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 whitespace-nowrap">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs font-bold text-slate-800">{new Date(report.created_at).toLocaleDateString('pt-BR')}</span>
+                                                            <span className="text-[10px] text-slate-500">às {new Date(report.created_at).toLocaleTimeString('pt-BR')}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-center whitespace-nowrap">
+                                                        <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 min-w-[24px]">
+                                                            {report.items.length}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-4 whitespace-nowrap">
+                                                        <span className="text-xs font-medium text-slate-600">{report.executor || 'Sistema'}</span>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-right whitespace-nowrap">
+                                                        <div className="flex justify-end gap-2">
+                                                            <button
+                                                                onClick={() => handlePrintBalanceReport(report)}
+                                                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] uppercase rounded-lg transition-colors flex items-center gap-1.5"
+                                                            >
+                                                                <Printer size={12} /> PDF
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleExportExcelBalance(report)}
+                                                                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-[10px] uppercase rounded-lg transition-colors flex items-center gap-1.5"
+                                                            >
+                                                                <FileText size={12} /> Excel
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* RESTOCK MODAL */}
             {isRestockModalOpen && (
@@ -1189,9 +1963,9 @@ export const StockManagement: React.FC = () => {
             {/* ITEM MODAL (Pattern igual a OS Atividades) */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-none lg:rounded-xl w-full max-w-6xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
-                        {/* HEADER (Estilo Atividades) */}
-                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                    <div className="bg-white rounded-none lg:rounded-xl w-full max-w-5xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
+                        {/* HEADER (Estilo Atividades/OS) */}
+                        <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between bg-white shrink-0 gap-4">
                             <div className="flex items-center gap-4">
                                 <div className="w-10 h-10 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 transition-colors">
                                     <Package size={20} />
@@ -1203,7 +1977,7 @@ export const StockManagement: React.FC = () => {
                                         </h2>
                                         {editingItem && (
                                             <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${(editingItem.quantity || 0) > (editingItem.minQuantity || 0) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                                                {(editingItem.quantity || 0) > (editingItem.minQuantity || 0) ? 'Estoque Regular' : 'Atenção: Baixo Estoque'}
+                                                {(editingItem.quantity || 0) > (editingItem.minQuantity || 0) ? 'Estoque Regular' : 'Baixo Estoque'}
                                             </span>
                                         )}
                                     </div>
@@ -1213,70 +1987,73 @@ export const StockManagement: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-4 sm:gap-2">
                                 <Button
                                     onClick={handleSubmit}
                                     form="stock-item-form"
                                     variant="primary"
-                                    className="h-9 px-5 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-lg shadow-md shadow-primary-500/20 transition-all flex items-center gap-2"
+                                    className="h-9 px-5 bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold rounded-lg shadow-md shadow-primary-500/20 transition-all flex items-center gap-2 w-full sm:w-auto justify-center"
                                 >
-                                    <Save size={14} /> Salvar Alterações
+                                    <Save size={14} /> Salvar
                                 </Button>
-                                <div className="h-6 w-px bg-slate-200 mx-2"></div>
-                                <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
+                                <div className="hidden sm:block h-6 w-px bg-slate-200 mx-2"></div>
+                                <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all absolute top-4 right-4 sm:relative sm:top-0 sm:right-0">
                                     <X size={20} />
                                 </Button>
                             </div>
                         </div>
 
-                        {/* SIDEBAR TABS (desktop) + MOBILE TABS */}
-                        <div className="hidden md:flex flex-col w-48 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
-                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
-                            {[
-                                { id: 'dados', label: 'Dados Gerais', icon: LayoutDashboard },
-                                { id: 'financial', label: 'Financeiro', icon: DollarSign },
-                                { id: 'logs', label: 'Movimentações', icon: History }
-                            ].map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setModalTab(tab.id as any)}
-                                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
-                                        ${modalTab === tab.id
-                                            ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]'
-                                            : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
-                                >
-                                    <tab.icon size={15} className={modalTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
-                                    <span className="flex-1 truncate">{tab.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                        <div className="md:hidden border-b border-slate-200 bg-white px-3 py-2 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
-                            {[
-                                { id: 'dados', label: 'Dados', icon: LayoutDashboard },
-                                { id: 'financial', label: 'Financeiro', icon: DollarSign },
-                                { id: 'logs', label: 'Movim.', icon: History }
-                            ].map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setModalTab(tab.id as any)}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
-                                        ${modalTab === tab.id
-                                            ? 'bg-[#1c2d4f] text-white shadow-md'
-                                            : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
-                                >
-                                    <tab.icon size={13} className={modalTab === tab.id ? 'text-white' : 'text-slate-400'} />
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
+                        {/* BODY WRAPPER */}
+                        <div className="flex flex-col md:flex-row flex-1 overflow-hidden bg-white">
+                            
+                            {/* SIDEBAR TABS (desktop) */}
+                            <div className="hidden md:flex flex-col w-56 border-r border-slate-200 bg-slate-50/80 p-4 gap-1 overflow-y-auto custom-scrollbar shrink-0">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Navegação</div>
+                                {[
+                                    { id: 'dados', label: 'Dados Gerais', icon: LayoutDashboard },
+                                    { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                                    { id: 'logs', label: 'Movimentações', icon: History }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setModalTab(tab.id as any)}
+                                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
+                                            ${modalTab === tab.id
+                                                ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]'
+                                                : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
+                                    >
+                                        <tab.icon size={15} className={modalTab === tab.id ? 'text-white' : 'text-slate-400 shrink-0'} />
+                                        <span className="flex-1 truncate">{tab.label}</span>
+                                    </button>
+                                ))}
+                            </div>
 
-                        {/* BODY */}
-                        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 custom-scrollbar">
+                            {/* MOBILE TABS */}
+                            <div className="md:hidden border-b border-slate-200 bg-white px-3 py-2 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
+                                {[
+                                    { id: 'dados', label: 'Dados Gerais', icon: LayoutDashboard },
+                                    { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                                    { id: 'logs', label: 'Movimentações', icon: History }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setModalTab(tab.id as any)}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
+                                            ${modalTab === tab.id
+                                                ? 'bg-[#1c2d4f] text-white shadow-md'
+                                                : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                                    >
+                                        <tab.icon size={13} className={modalTab === tab.id ? 'text-white' : 'text-slate-400'} />
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* MAIN CONTENT */}
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 custom-scrollbar relative">
                             <form onSubmit={handleSubmit} id="stock-item-form">
                                 {modalTab === 'dados' && (
-                                    <div className="grid grid-cols-12 gap-8">
-                                        <div className="col-span-12 lg:col-span-8 space-y-6">
+                                    <div className="max-w-3xl mx-auto space-y-6 pb-20">
                                             {/* Photo Upload Card at the Top */}
                                             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-6 cursor-pointer hover:border-slate-300 transition-all group" onClick={() => fileInputRef.current?.click()}>
                                                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
@@ -1369,65 +2146,61 @@ export const StockManagement: React.FC = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-
-                                        {/* Right Column: Status Summary */}
-                                        <div className="col-span-12 lg:col-span-4 space-y-6">
-                                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                                            {/* Controle Fisico */}
+                                            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
                                                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><Box size={16} className="text-slate-400" /> Controle Físico</h3>
-                                                <div className="space-y-4">
-                                                    <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                                                        <span className="text-xs font-semibold text-slate-400">Posição / Local</span>
-                                                        <input value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="text-xs font-bold text-slate-700 text-right bg-transparent outline-none" placeholder="Ex: Prateleira A" />
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 block px-1">Posição / Local</label>
+                                                        <Input value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="rounded-lg border-slate-200 h-11 text-sm font-semibold" placeholder="Ex: Prateleira A" />
                                                     </div>
-                                                    <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
-                                                        <div className="flex justify-between items-center mb-1">
-                                                            <span className="text-[10px] font-bold text-emerald-600 uppercase">Quantidade Atual</span>
-                                                        </div>
-                                                        <input type="number" value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} className="text-2xl font-black text-emerald-700 bg-transparent outline-none w-full" />
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-emerald-500 block px-1">Quantidade Atual</label>
+                                                        <Input type="number" value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} className="rounded-lg border-emerald-200 h-11 text-sm font-bold bg-emerald-50/30 focus:bg-white text-emerald-700" />
                                                     </div>
-                                                    <div className="p-4 bg-rose-50 rounded-lg border border-rose-100">
-                                                        <div className="flex justify-between items-center mb-1">
-                                                            <span className="text-[10px] font-bold text-rose-600 uppercase">Mínimo (Alerta)</span>
-                                                        </div>
-                                                        <input type="number" value={formData.minQuantity} onChange={e => setFormData({...formData, minQuantity: e.target.value})} className="text-2xl font-black text-rose-700 bg-transparent outline-none w-full" />
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-rose-500 block px-1">Mínimo (Alerta)</label>
+                                                        <Input type="number" value={formData.minQuantity} onChange={e => setFormData({...formData, minQuantity: e.target.value})} className="rounded-lg border-rose-200 h-11 text-sm font-bold bg-rose-50/30 focus:bg-white text-rose-700" />
                                                     </div>
                                                 </div>
                                             </div>
-                                            
-                                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-                                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><QrCode size={16} className="text-slate-400" /> Etiqueta QR Code</h3>
-                                                {formData.code ? (
-                                                    <>
-                                                        <div className="bg-white p-2 border-2 border-dashed border-slate-200 rounded-xl mb-4 inline-block">
-                                                            <img 
-                                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(formData.code)}`} 
-                                                                alt="QR Code"
-                                                                className="w-[120px] h-[120px] mx-auto"
-                                                            />
+
+                                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center gap-6">
+                                                <div className="flex-1 flex flex-col sm:flex-row items-center gap-6">
+                                                    {formData.code ? (
+                                                        <>
+                                                            <div className="bg-white p-2 border-2 border-dashed border-slate-200 rounded-xl shrink-0">
+                                                                <img 
+                                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(formData.code)}`} 
+                                                                    alt="QR Code"
+                                                                    className="w-[80px] h-[80px]"
+                                                                />
+                                                            </div>
+                                                            <div className="flex-1 text-center sm:text-left space-y-2">
+                                                                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight flex items-center justify-center sm:justify-start gap-2"><QrCode size={16} className="text-slate-400" /> Etiqueta QR Code</h3>
+                                                                <p className="text-xs font-mono font-bold text-slate-500">{formData.code}</p>
+                                                                <Button
+                                                                    type="button"
+                                                                    onClick={handlePrintQR}
+                                                                    className="w-full sm:w-auto h-9 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg text-xs font-bold font-poppins flex items-center justify-center gap-2 transition-all shadow-sm"
+                                                                >
+                                                                    <Printer size={14} /> Imprimir Etiqueta
+                                                                </Button>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="w-full p-6 opacity-50 flex flex-col items-center">
+                                                            <QrCode size={32} className="mb-2 text-slate-300" />
+                                                            <p className="text-[10px] font-bold text-slate-500">Gere ou informe o código SKU primeiro para ver a etiqueta.</p>
                                                         </div>
-                                                        <p className="text-[10px] font-mono font-bold text-slate-500 mb-4">{formData.code}</p>
-                                                        <Button
-                                                            type="button"
-                                                            onClick={handlePrintQR}
-                                                            className="w-full h-10 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg text-xs font-bold font-poppins flex items-center justify-center gap-2 transition-all"
-                                                        >
-                                                            <Printer size={16} /> Imprimir Etiqueta
-                                                        </Button>
-                                                    </>
-                                                ) : (
-                                                    <div className="p-6 opacity-50 flex flex-col items-center">
-                                                        <QrCode size={48} className="mb-3 text-slate-300" />
-                                                        <p className="text-[10px] font-bold text-slate-500">Gere ou informe o código SKU primeiro para ver a etiqueta.</p>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
                                 )}
 
                                 {modalTab === 'financial' && (
-                                    <div className="max-w-4xl mx-auto space-y-8">
+                                    <div className="max-w-3xl mx-auto space-y-8">
                                         <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-12">
                                             <div className="space-y-6">
                                                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1489,7 +2262,7 @@ export const StockManagement: React.FC = () => {
                                 )}
 
                                 {modalTab === 'logs' && (
-                                    <div className="max-w-4xl mx-auto space-y-6">
+                                    <div className="max-w-3xl mx-auto space-y-6">
                                         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                                             <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
                                                 <table className="w-full text-left relative">
@@ -1555,6 +2328,67 @@ export const StockManagement: React.FC = () => {
                 </div>
             )}
 
+            {/* PRINT LABELS MODAL */}
+            {printModalOpen && (
+                <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-xl w-full max-w-sm shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
+                        <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center border bg-[#1c2d4f]/5 border-[#1c2d4f]/10 text-[#1c2d4f]">
+                                    <Printer size={16} />
+                                </div>
+                                <div>
+                                    <h2 className="text-sm font-bold text-slate-900 font-poppins">Imprimir Etiquetas</h2>
+                                    <p className="text-[10px] font-medium text-slate-500">Configuração de impressão</p>
+                                </div>
+                            </div>
+                            <Button variant="ghost" onClick={() => setPrintModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-900">
+                                <X size={16} />
+                            </Button>
+                        </div>
+                        <div className="p-5 space-y-4 bg-slate-50/50">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Formato do Papel</label>
+                                <select 
+                                    value={printConfig.type} 
+                                    onChange={e => setPrintConfig({...printConfig, type: e.target.value})}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-100"
+                                >
+                                    <option value="a4_maxprint_33">Folha A4 Adesiva (Ex: Maxprint/Pimaco 3 Colunas)</option>
+                                    <option value="thermal_40x40">Bobina Térmica (40x40mm)</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Quantidade de Etiquetas</label>
+                                <input 
+                                    type="number" 
+                                    min="1" 
+                                    value={printConfig.quantity} 
+                                    onChange={e => setPrintConfig({...printConfig, quantity: parseInt(e.target.value) || 1})}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-primary-100"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Nome da Empresa (Rodapé)</label>
+                                <input 
+                                    type="text" 
+                                    value={printConfig.companyName} 
+                                    onChange={e => setPrintConfig({...printConfig, companyName: e.target.value})}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-primary-100"
+                                />
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-2">
+                            <Button variant="ghost" onClick={() => setPrintModalOpen(false)} className="text-xs font-bold px-4">
+                                Cancelar
+                            </Button>
+                            <Button variant="primary" onClick={executePrintQR} className="bg-[#1c2d4f] hover:bg-[#253a66] text-white text-xs font-bold px-6 py-2 h-9 rounded-lg shadow-md flex items-center gap-2">
+                                <Printer size={14} /> Gerar Impressão
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* CATEGORY MODAL */}
             {isCategoryModalOpen && (

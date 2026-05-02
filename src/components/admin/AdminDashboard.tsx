@@ -56,6 +56,7 @@ import { OrderTimeline } from '../shared/OrderTimeline';
 import { Button } from '../ui/Button';
 import { Pagination } from '../ui/Pagination';
 import { StatusBadge } from '../ui/StatusBadge';
+import { SearchableSelect } from '../common/SearchableSelect';
 import { CreateOrderModal } from './CreateOrderModal';
 import { VisitHistoryTab } from './VisitHistoryTab';
 import { DisplacementTab } from './DisplacementTab';
@@ -356,6 +357,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setEquipments([]);
     }
   }, [selectedOrder]);
+
+  // Listener para abrir OS a partir de outros componentes (ex: aba de ativos)
+  useEffect(() => {
+    const handleOpenOrder = async (e: any) => {
+      const orderId = e.detail?.orderId;
+      if (!orderId) return;
+      
+      const localOrder = pagedOrders.find(o => o.id === orderId);
+      if (localOrder) {
+        setSelectedOrder(localOrder);
+      } else {
+        try {
+          const { OrderService } = await import('../../services/orderService');
+          const fetched = await OrderService.getPublicOrderById(orderId);
+          if (fetched) setSelectedOrder(fetched);
+        } catch (error) {
+          console.error("Erro ao buscar detalhes da OS:", error);
+        }
+      }
+    };
+    window.addEventListener('NEXUS_OPEN_ORDER', handleOpenOrder);
+    return () => window.removeEventListener('NEXUS_OPEN_ORDER', handleOpenOrder);
+  }, [pagedOrders]);
 
   // Lazy load: quando abre aba equipamentos — service_order_equipments é fonte principal
   useEffect(() => {
@@ -2441,14 +2465,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <label className="text-[11px] font-semibold text-slate-500 uppercase">Técnico Responsável *</label>
-                          <select
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all bg-white"
+                          <SearchableSelect
+                            options={techs}
                             value={newVisitDraft.technicianId}
-                            onChange={e => setNewVisitDraft(d => ({ ...d, technicianId: e.target.value }))}
-                          >
-                            <option value="">Selecionar técnico...</option>
-                            {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                          </select>
+                            onChange={(val) => setNewVisitDraft(d => ({ ...d, technicianId: val }))}
+                            placeholder="Selecionar técnico..."
+                            searchPlaceholder="Pesquisar técnico..."
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-[11px] font-semibold text-slate-500 uppercase">Data de Agendamento *</label>

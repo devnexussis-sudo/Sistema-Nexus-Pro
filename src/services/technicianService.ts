@@ -2,15 +2,36 @@
 import { CacheManager } from '../lib/cache';
 import { adminAuthProxy, publicSupabase, supabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
-import { UserRole } from '../types'; // Adjust import path if needed
+import { UserRole } from '../types';
 import { StorageService } from './storageService';
 
 const isCloudEnabled = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
+// ─────────────────────────────────────────────────────────────
+// 🔑 Nexus Tech Code Engine — Código Único do Técnico (6 dígitos numéricos)
+// ─────────────────────────────────────────────────────────────
 
+function _generateTechCode(): string {
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
 
-// getServiceClient() REMOVIDO — use `supabase` diretamente (RLS ativo).
-// Para operações de Auth Admin, use adminAuthProxy.
+async function _generateUniqueTechCode(tenantId: string): Promise<string> {
+    for (let i = 0; i < 20; i++) {
+        const code = _generateTechCode();
+        const { count } = await supabase
+            .from('technicians')
+            .select('id', { count: 'exact', head: true })
+            .eq('tenant_id', tenantId)
+            .eq('tech_code', code);
+        if (count === 0) return code;
+    }
+    return String(Date.now()).slice(-6);
+}
+
+export function formatTechCode(code: string | undefined): string {
+    if (!code) return '---';
+    return code;
+}
 
 export const TechnicianService = {
 
@@ -24,12 +45,13 @@ export const TechnicianService = {
             avatar: d.avatar,
             active: d.active,
             tenantId: d.tenant_id,
+            techCode: d.tech_code,
             last_latitude: d.last_latitude,
             last_longitude: d.last_longitude,
             last_seen: d.last_seen,
             speed: d.speed,
             battery_level: d.battery_level,
-            batteryLevel: d.battery_level, // Alias for compatibility
+            batteryLevel: d.battery_level,
             jobTitle: d.job_title
         };
     },
@@ -211,14 +233,18 @@ export const TechnicianService = {
             }
 
             // 2. Sincronizar com a tabela public.technicians
+            // 🔑 Gera tech_code único
+            const techCode = await _generateUniqueTechCode(tenantId);
+
             const dbTech: any = {
                 id: userId,
                 name: tech.name,
-                email: tech.email.toLowerCase(), // Pode falhar se não rodou a migração
+                email: tech.email.toLowerCase(),
                 active: tech.active ?? true,
                 phone: tech.phone || '',
                 avatar: tech.avatar || '',
                 job_title: tech.jobTitle || '',
+                tech_code: techCode,
                 tenant_id: tenantId
             };
 
@@ -408,5 +434,41 @@ export const TechnicianService = {
         } catch (e) {
             console.error("[TechnicianService] Erro ao atualizar localização:", e);
         }
+    },
+
+    /**
+     * 🔄 Backfill Engine — Atribui tech_code a técnicos que ainda não possuem.
+     */
+    backfillMissingCodes: async (): Promise<number> => {
+        const tid = getCurrentTenantId();
+        if (!isCloudEnabled || !tid) return 0;
+
+        const { data, error } = await supabase
+            .from('technicians')
+            .select('id')
+            .eq('tenant_id', tid)
+            .is('tech_code', null);
+
+        if (error || !data || data.length === 0) return 0;
+
+        let updated = 0;
+        for (const tech of data) {
+            try {
+                const code = await _generateUniqueTechCode(tid);
+                await supabase.from('technicians')
+                    .update({ tech_code: code })
+                    .eq('id', tech.id)
+                    .eq('tenant_id', tid);
+                updated++;
+            } catch (e) {
+                console.warn(`[TechnicianService] Backfill falhou para tech ${tech.id}`, e);
+            }
+        }
+
+        if (updated > 0) {
+            CacheManager.invalidate(`techs_${tid}`);
+            console.log(`[TechnicianService] ✅ Backfill: ${updated} técnicos receberam código único.`);
+        }
+        return updated;
     }
 };

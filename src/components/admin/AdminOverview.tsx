@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { ServiceOrder, OrderStatus, User, Customer, OrderPriority } from '../../types';
+import { useTenant } from '../../hooks/nexusHooks';
 import {
   ClipboardList, CheckCircle, Clock, AlertCircle, TrendingUp, BarChart3,
   Briefcase, Activity, ShieldAlert, Timer, ArrowRight, Calendar, Zap, Layers, Target, Boxes, PieChart, BarChart,
@@ -27,7 +28,9 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
   const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('scheduled');
   const [showFilters, setShowFilters] = useState(false);
-  const [slaTarget, setSlaTarget] = useState<number>(85);
+  const { data: tenantData } = useTenant();
+  const slaTarget = tenantData?.metadata?.slaTargetPercentage ?? 85;
+  const sla48Target = tenantData?.metadata?.sla48hTargetPercentage ?? 90;
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
@@ -241,138 +244,102 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   return (
     <div className="p-3 sm:p-6 lg:p-8 space-y-5 sm:space-y-8 bg-slate-50/50 h-full overflow-y-auto custom-scrollbar">
 
-      {/* HEADER & FILTERS */}
-      <div className="space-y-4 sm:space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
+      {/* Search & Filter Toolbar */}
+      <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
+        {/* Top Row: Title, Search, Fast Filters, Toggle */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 sm:gap-4">
+          
+          {/* Left Side: Title */}
+          <div className="shrink-0">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight lowercase">visão geral</h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">Monitore o desempenho operacional e SLAs em tempo real</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap items-center bg-white border border-slate-200 p-1.5 rounded-lg shadow-lg shadow-slate-200/50">
-              <select
-                value={dateTypeFilter}
-                onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
-                className="bg-slate-50 text-[10px] font-bold  text-slate-600 px-3 py-1.5 rounded-md border border-slate-100 outline-none cursor-pointer"
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px] w-full sm:w-auto">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                placeholder="Pesquisar cliente, OS..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+              />
+            </div>
+
+            {/* Fast Filters & Toggle */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {['today', 'week', 'month'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => handleFastFilter(type as any)}
+                  className="h-10 px-2.5 sm:px-3 text-[9px] font-bold uppercase text-[#1c2d4f]/70 hover:text-[#1c2d4f] border border-[#1c2d4f]/20 rounded-xl hover:border-[#1c2d4f]/40 hover:bg-[#1c2d4f]/5 transition-all shadow-sm bg-white"
+                >
+                  {type === 'today' ? 'Hoje' : type === 'week' ? '7 Dias' : '30 Dias'}
+                </button>
+              ))}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
               >
-                <option value="scheduled">Agenda</option>
-                <option value="created">Abertura</option>
-                <option value="completed">Conclusão</option>
-              </select>
-              <div className="h-6 w-px bg-slate-200 mx-2 sm:mx-3 hidden sm:block"></div>
-              <div className="flex gap-1 mr-2 sm:mr-3">
-                {[
-                  { id: 'today', label: 'Hoje' },
-                  { id: 'week', label: '7 dias' },
-                  { id: 'month', label: 'Trinta' }
-                ].map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => handleFastFilter(f.id as any)}
-                    className="px-2 sm:px-3 py-1.5 text-[10px] font-bold  rounded-md transition-all text-slate-500 hover:text-[#1c2d4f] hover:bg-slate-50 active:scale-95"
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-              <div className="h-6 w-px bg-slate-200 mr-2 sm:mr-3 hidden sm:block"></div>
-              <div className="flex items-center gap-2 sm:gap-3 px-1">
-                <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent text-[11px] font-semibold text-slate-700 outline-none w-24 sm:w-28" />
-                <span className="text-[10px] font-bold text-slate-300 ">Até</span>
-                <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent text-[11px] font-semibold text-slate-700 outline-none w-24 sm:w-28" />
-              </div>
+                <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Filtros'}</span>
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
-            <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
-              <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input
-                  type="text"
-                  placeholder="Pesquisar por cliente, título ou protocolo..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
-                <button
-                   onClick={() => setShowFilters(!showFilters)}
-                   className={`flex items-center gap-2 px-4 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+        {/* Collapsible Filters Row */}
+        {showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200 mt-1">
+            <div className="flex flex-col gap-1 lg:col-span-2">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Período de Análise</label>
+              <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-lg shadow-sm h-9">
+                <select
+                  value={dateTypeFilter}
+                  onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
+                  className="bg-slate-50 text-[10px] font-bold text-[#1c2d4f] px-2 py-1 rounded border border-[#1c2d4f]/10 outline-none cursor-pointer w-24 shrink-0 h-full"
                 >
-                   <Filter size={14} /> {showFilters ? 'Ocultar Filtros' : 'Filtros'}
-                </button>
+                  <option value="scheduled">Agenda</option>
+                  <option value="created">Abertura</option>
+                  <option value="completed">Conclusão</option>
+                </select>
+                <div className="w-px h-4 bg-[#1c2d4f]/10 mx-1" />
+                <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent text-[11px] font-bold text-slate-700 outline-none flex-1 px-1" />
+                <span className="text-[9px] font-bold text-slate-300">ATÉ</span>
+                <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent text-[11px] font-bold text-slate-700 outline-none flex-1 px-1" />
               </div>
             </div>
-        </div>
 
-        {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-             <div className="flex flex-col gap-1.5">
-               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Período Analítico</label>
-               <div className="flex flex-col bg-white border border-slate-200 p-1.5 rounded-xl shadow-lg shadow-slate-200/50">
-                  <div className="flex items-center gap-2 mb-1.5 border-b border-slate-200 pb-1.5 px-1">
-                    <select
-                      value={dateTypeFilter}
-                      onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
-                      className="bg-slate-50 text-[10px] font-bold text-slate-600 px-2 py-1 rounded border border-slate-100 outline-none cursor-pointer w-full"
-                    >
-                      <option value="scheduled">Agenda</option>
-                      <option value="created">Abertura</option>
-                      <option value="completed">Conclusão</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2 px-1">
-                    <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent text-[10px] font-bold text-slate-700 outline-none w-full" />
-                    <span className="text-[9px] font-bold text-slate-300">ATÉ</span>
-                    <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent text-[10px] font-bold text-slate-700 outline-none w-full" />
-                  </div>
-               </div>
-             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Técnico / Responsável</label>
+              <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg px-2 shadow-sm h-9">
+                <UserCheck size={12} className="text-slate-400 mr-1.5 shrink-0" />
+                <select className="bg-transparent text-[10px] font-bold text-slate-700 outline-none w-full cursor-pointer h-full" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
+                  <option value="ALL">Todos Técnicos</option>
+                  {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                </select>
+              </div>
+            </div>
 
-             <div className="flex flex-col gap-1.5">
-               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Responsável</label>
-               <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-[58px] shadow-lg shadow-slate-200/50">
-                 <UserCheck size={14} className="text-slate-400 mr-2" />
-                 <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
-                   <option value="ALL">Todos Técnicos</option>
-                   {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                 </select>
-               </div>
-             </div>
-
-             <div className="flex flex-col gap-1.5">
-               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Carteira de Clientes</label>
-               <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 h-[58px] shadow-lg shadow-slate-200/50">
-                 <Users size={14} className="text-slate-400 mr-2" />
-                 <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer" value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}>
-                   <option value="ALL">Todos Clientes</option>
-                   {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                 </select>
-               </div>
-             </div>
-
-             <div className="flex items-end pb-1.5">
-               <button
-                 onClick={() => {
-                   setSearchTerm(''); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
-                   onDateChange('', '');
-                 }}
-                 className="w-full h-10 text-[9px] font-bold uppercase tracking-widest text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all border border-slate-200 hover:border-rose-200 shadow-sm"
-               >
-                 Limpar Tudo
-               </button>
-             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Carteira de Clientes</label>
+              <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg px-2 shadow-sm h-9">
+                <Users size={12} className="text-slate-400 mr-1.5 shrink-0" />
+                <select className="bg-transparent text-[10px] font-bold text-slate-700 outline-none w-full cursor-pointer h-full" value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}>
+                  <option value="ALL">Todos Clientes</option>
+                  {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* KPI GRID */}
-      <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
+      {/* KPI GRID - DESEMPENHO SLA */}
+      <div className="mb-2">
+         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Desempenho de SLA</h3>
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
 
         {/* KPI: SLA 24H (Vibrant Gradient) */}
         <div className="bg-gradient-to-br from-indigo-600 to-[#1c2d4f] rounded-2xl p-6 shadow-xl shadow-indigo-900/20 flex flex-col justify-between text-white relative overflow-hidden group">
@@ -382,29 +349,22 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               <p className="text-[11px] font-bold   text-indigo-200">Eficiência SLA (24h)</p>
               <div className="flex items-baseline gap-2 mt-1.5">
                 <h2 className="text-4xl font-bold tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency24}%</h2>
-                <span className="text-lg font-bold text-indigo-300/80 tracking-tight">({closureKPIs.within24})</span>
+                <span className="text-lg font-bold text-indigo-300/80 tracking-tight">({closureKPIs.within24} OS)</span>
               </div>
             </div>
             <div className="flex flex-col items-end gap-2">
               <div className="p-2.5 bg-white/10 rounded-xl text-indigo-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Gauge size={22} /></div>
-              <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/20 mt-1 cursor-pointer hover:bg-white/20 transition-all">
+              <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/20 mt-1 cursor-default hover:bg-white/20 transition-all">
                 <Settings size={10} className="text-indigo-200" />
-                <input
-                  type="number"
-                  value={slaTarget}
-                  onChange={(e) => setSlaTarget(Number(e.target.value))}
-                  className="bg-transparent w-7 text-center text-[10px] font-bold text-white outline-none appearance-none m-0 p-0"
-                  title="Ajustar Meta % SLA"
-                />
-                <span className="text-[10px] font-bold text-indigo-200">%</span>
+                <span className="text-[10px] font-bold text-white px-1">Meta: {slaTarget}%</span>
               </div>
             </div>
           </div>
           <div className="mt-4 relative z-10">
             <div className="flex justify-between items-baseline mb-2">
-              <span className="text-[10px] font-bold text-indigo-200  ">Meta: {slaTarget}%</span>
-              <span className={`text-[10px] font-bold   px-2 py-0.5 rounded-full ${closureKPIs.slaEfficiency24 >= slaTarget ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
-                {closureKPIs.within24} OS ({closureKPIs.slaEfficiency24 >= slaTarget ? 'Ating.' : 'Abaixo'})
+              <span className="text-[10px] font-bold text-indigo-200">🎯 Meta: {slaTarget}%</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${closureKPIs.slaEfficiency24 >= slaTarget ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                ✓ Atingido: {closureKPIs.slaEfficiency24}% ({closureKPIs.within24} OS)
               </span>
             </div>
             <div className="w-full h-2 bg-indigo-900/50 rounded-full overflow-hidden border border-indigo-400/20">
@@ -421,26 +381,31 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl transition-all duration-700 group-hover:bg-white/20" />
           <div className="flex justify-between items-start relative z-10 w-full mb-4">
             <div>
-              <p className="text-[11px] font-bold   text-emerald-100">Eficiência SLA (24h a 48h)</p>
+              <p className="text-[11px] font-bold text-emerald-100">Eficiência SLA (Até 48h)</p>
               <div className="flex items-baseline gap-2 mt-1.5">
-                <h2 className="text-4xl font-bold tracking-tighter drop-shadow-md">{closureKPIs.between24and48Pct}%</h2>
-                <span className="text-lg font-bold text-emerald-300/80 tracking-tight">({closureKPIs.between24and48})</span>
+                <h2 className="text-4xl font-bold tracking-tighter drop-shadow-md">{closureKPIs.slaEfficiency48}%</h2>
+                <span className="text-lg font-bold text-emerald-300/80 tracking-tight">({closureKPIs.within48} OS)</span>
               </div>
-              <p className="text-[10px] font-bold   text-emerald-200 mt-2 border-t border-emerald-400/20 pt-1.5">Total &lt; 48h: {closureKPIs.within48}</p>
             </div>
-            <div className="p-2.5 bg-white/10 rounded-xl text-emerald-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Target size={22} /></div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="p-2.5 bg-white/10 rounded-xl text-emerald-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><Target size={22} /></div>
+              <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/20 mt-1 cursor-default hover:bg-white/20 transition-all">
+                <Settings size={10} className="text-emerald-200" />
+                <span className="text-[10px] font-bold text-white px-1">Meta: {sla48Target}%</span>
+              </div>
+            </div>
           </div>
           <div className="mt-4 relative z-10">
             <div className="flex justify-between items-baseline mb-2">
-              <span className="text-[10px] font-bold text-emerald-100  ">Meta: {Math.min(slaTarget + 5, 100)}%</span>
-              <span className={`text-[10px] font-bold   px-2 py-0.5 rounded-full ${closureKPIs.between24and48Pct >= (slaTarget + 5) ? 'bg-white/20 text-white' : 'bg-rose-500/40 text-rose-100'}`}>
-                {closureKPIs.between24and48Pct >= (slaTarget + 5) ? 'Excelente' : 'Atenção'}
+              <span className="text-[10px] font-bold text-emerald-100">🎯 Meta: {sla48Target}%</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${closureKPIs.slaEfficiency48 >= sla48Target ? 'bg-white/20 text-white' : 'bg-rose-500/40 text-rose-100'}`}>
+                ✓ Atingido: {closureKPIs.slaEfficiency48}% ({closureKPIs.within48} OS)
               </span>
             </div>
             <div className="w-full h-2 bg-emerald-900/50 rounded-full overflow-hidden border border-emerald-400/20">
               <div
-                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.4)] ${closureKPIs.between24and48Pct >= (slaTarget + 5) ? 'bg-white' : 'bg-rose-300'}`}
-                style={{ width: `${Math.min(closureKPIs.between24and48Pct, 100)}%` }}>
+                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.4)] ${closureKPIs.slaEfficiency48 >= sla48Target ? 'bg-white' : 'bg-rose-300'}`}
+                style={{ width: `${Math.min(closureKPIs.slaEfficiency48, 100)}%` }}>
               </div>
             </div>
           </div>
@@ -451,8 +416,11 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-2xl transition-all duration-700 group-hover:bg-white/20" />
           <div className="flex justify-between items-start relative z-10 w-full mb-4">
             <div>
-              <p className="text-[11px] font-bold   text-red-200">Atrasos SLA</p>
-              <h2 className="text-4xl font-bold mt-2 tracking-tighter drop-shadow-md">{closureKPIs.over24}</h2>
+              <p className="text-[11px] font-bold text-red-200">Atrasos SLA (Fora do Prazo)</p>
+              <div className="flex items-baseline gap-2 mt-1.5">
+                <h2 className="text-4xl font-bold tracking-tighter drop-shadow-md">{closureKPIs.over24}</h2>
+                <span className="text-[10px] font-bold text-red-300 tracking-tight">OS em atraso</span>
+              </div>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl text-red-100 backdrop-blur-sm border border-white/20 shadow-inner group-hover:scale-110 transition-transform"><AlertCircle size={22} /></div>
           </div>
@@ -469,6 +437,14 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      </div>
+
+      {/* KPI GRID - STATUS DA OPERAÇÃO */}
+      <div className="mb-6">
+         <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3">Status da Operação</h3>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
 
         {/* KPI: FILA OPERACIONAL */}
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-lg shadow-slate-200/50 flex flex-col justify-between group hover:border-[#1c2d4f] transition-all hover:shadow-xl hover:-translate-y-1 duration-300">
@@ -523,6 +499,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               <p className="text-lg font-bold text-slate-700">{filteredOrders.filter(o => o.status === OrderStatus.BLOCKED).length}</p>
             </div>
           </div>
+        </div>
         </div>
       </div>
 

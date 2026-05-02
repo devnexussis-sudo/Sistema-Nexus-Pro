@@ -1,19 +1,36 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import {
-    Search, Plus, FileText, DollarSign, Clock, CheckCircle,
-    XCircle, MoreHorizontal, ArrowRight, Trash2, Edit3, Trash, Edit,
-    ChevronRight, CreditCard, User, MapPin, Briefcase, Hexagon, Lock,
-    ArrowUpRight, Loader2, ListPlus, Calculator, Inbox, Calendar, Link2, Share2,
-    Eye, Link, ExternalLink, Globe, ClipboardCheck, ShieldCheck, Box, Signature as SignatureIcon,
-    AlertCircle, ChevronLeft, Filter, FileSpreadsheet, X, Cpu, ShoppingCart, Printer
+    Briefcase,
+    Calculator,
+    Calendar,
+    Clock,
+    Edit3,
+    Eye,
+    FileSpreadsheet,
+    FileText,
+    Filter,
+    Hexagon,
+    Link2,
+    ListPlus,
+    Loader2,
+    Lock,
+    MapPin,
+    Plus,
+    Printer,
+    Search,
+    ShieldCheck,
+    ShoppingCart,
+    Signature as SignatureIcon,
+    Trash2,
+    User,
+    X
 } from 'lucide-react';
-import { Pagination } from '../ui/Pagination';
-import { NexusBranding } from '../ui/NexusBranding';
-import { Customer, OrderStatus, OrderPriority, ServiceOrder, StockItem, Quote, QuoteItem } from '../../types';
-import { usePagedQuotes, useTenant } from '../../hooks/nexusHooks';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePagedQuotes, useTenant } from '../../hooks/nexusHooks';
+import { Customer, OrderPriority, OrderStatus, Quote, QuoteItem, ServiceOrder, StockItem } from '../../types';
+import { NexusBranding } from '../ui/NexusBranding';
+import { Pagination } from '../ui/Pagination';
 
 interface QuoteManagementProps {
     quotes: Quote[];
@@ -83,7 +100,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
     const filteredClients = useMemo(() => {
         const term = clientSearch.toLowerCase();
-        return customers.filter(c => 
+        return customers.filter(c =>
             c.name.toLowerCase().includes(term) ||
             (c.document && c.document.toLowerCase().includes(term)) ||
             (c.cpf && c.cpf.toLowerCase().includes(term)) ||
@@ -92,9 +109,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     }, [clientSearch, customers]);
 
     const subtotal = useMemo(() => items.reduce((acc, curr) => acc + curr.total, 0), [items]);
-    const discountAmount = useMemo(() => 
+    const discountAmount = useMemo(() =>
         discountType === 'percent' ? (subtotal * discount / 100) : discount
-    , [subtotal, discount, discountType]);
+        , [subtotal, discount, discountType]);
     const totalValue = useMemo(() => Math.max(0, subtotal - discountAmount), [subtotal, discountAmount]);
 
     const { data: tenant } = useTenant(auth.isAuthenticated);
@@ -104,21 +121,86 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
         return `#${quote.id.slice(0, 8).toUpperCase()}`;
     };
 
-    // ── Print handler (same portal pattern as OS print) ──
+    // ── Print handler (isolated window with inline A4 constraints) ──
     const handlePrintQuote = () => {
         if (!viewQuote) return;
-        setIsPrinting(true);
-        document.body.classList.add('is-printing');
-        setTimeout(() => {
-            window.print();
-            const cleanup = () => {
-                setIsPrinting(false);
-                document.body.classList.remove('is-printing');
-                window.removeEventListener('afterprint', cleanup);
-            };
-            window.addEventListener('afterprint', cleanup);
-            setTimeout(cleanup, 5000);
-        }, 800);
+
+        const container = document.getElementById('quote-print-container');
+        if (!container) return;
+
+        const printWindow = window.open('', '_blank', 'width=900,height=700');
+        if (!printWindow) {
+            alert('Por favor, permita pop-ups neste site para imprimir.');
+            return;
+        }
+
+        const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+            .map(el => el.outerHTML)
+            .join('\n');
+
+        printWindow.document.write(`<!DOCTYPE html>
+        <html>
+            <head>
+                <title>Proposta Comercial - ${viewQuote.displayId || viewQuote.id}</title>
+                ${styleLinks}
+                <style>
+                    @page { size: A4; margin: 10mm; }
+                    *, *::before, *::after { box-sizing: border-box !important; }
+                    html, body {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        width: 100% !important;
+                        overflow: hidden !important;
+                        background: white !important;
+                    }
+                    .print-root {
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        overflow: hidden !important;
+                        padding: 0 !important;
+                        margin: 0 auto !important;
+                    }
+                    table {
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        table-layout: fixed !important;
+                        border-collapse: collapse !important;
+                        overflow: hidden !important;
+                    }
+                    td, th {
+                        overflow: hidden !important;
+                        text-overflow: ellipsis !important;
+                        word-wrap: break-word !important;
+                        overflow-wrap: break-word !important;
+                    }
+                    img { max-width: 100% !important; }
+                    @media print {
+                        html, body {
+                            width: 100% !important;
+                            overflow: visible !important;
+                        }
+                        .print-root {
+                            width: 100% !important;
+                            max-width: 100% !important;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="print-root">
+                    ${container.innerHTML}
+                </div>
+                <script>
+                    window.onload = () => {
+                        setTimeout(() => {
+                            window.print();
+                            window.close();
+                        }, 500);
+                    };
+                </script>
+            </body>
+        </html>`);
+        printWindow.document.close();
     };
 
     const previewId = useMemo(() => {
@@ -523,8 +605,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     </td>
                                 </tr>
                             ) : pagedQuotes.map(quote => (
-                                <tr 
-                                    key={quote.id} 
+                                <tr
+                                    key={quote.id}
                                     className={`bg-white hover:bg-primary-50/40 border-b border-slate-50 transition-all group last:border-0 shadow-sm hover:shadow-md cursor-pointer ${selectedQuoteIds.includes(quote.id) ? 'bg-indigo-50/40' : ''}`}
                                     onClick={() => { setViewQuote(quote); setIsViewModalOpen(true); }}
                                 >
@@ -658,15 +740,15 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     onChange={e => {
                                                         setClientSearch(e.target.value);
                                                         setIsClientListOpen(true);
-                                                        if (!e.target.value) setCustomerName(''); 
+                                                        if (!e.target.value) setCustomerName('');
                                                     }}
                                                     onFocus={() => setIsClientListOpen(true)}
                                                     className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-10 py-3 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#1c2d4f10] focus:border-[#1c2d4f] transition-all"
                                                 />
                                                 {customerName && !isClientListOpen && (
-                                                  <button onClick={() => {setCustomerName(''); setClientSearch('');}} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500">
-                                                    <X size={14} />
-                                                  </button>
+                                                    <button onClick={() => { setCustomerName(''); setClientSearch(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500">
+                                                        <X size={14} />
+                                                    </button>
                                                 )}
                                             </div>
                                             {isClientListOpen && (
@@ -800,7 +882,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                         </button>
                                                                         {stockItems
                                                                             .filter(s => s.active !== false && (
-                                                                                s.description.toLowerCase().includes(item.description.toLowerCase()) || 
+                                                                                s.description.toLowerCase().includes(item.description.toLowerCase()) ||
                                                                                 (s.code && s.code.toLowerCase().includes(item.description.toLowerCase()))
                                                                             ))
                                                                             .map(s => (
@@ -919,12 +1001,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 <div>
                                     <div className="flex items-center gap-3">
                                         <h2 className="text-base font-semibold text-slate-900 font-poppins">Orçamento #{getQuoteDisplayId(viewQuote)}</h2>
-                                        <div className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                            viewQuote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                            viewQuote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                                            viewQuote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
-                                            'bg-primary-50 text-primary-600 border border-primary-100'
-                                        }`}>
+                                        <div className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${viewQuote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                                viewQuote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                                                    viewQuote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
+                                                        'bg-primary-50 text-primary-600 border border-primary-100'
+                                            }`}>
                                             {viewQuote.status}
                                         </div>
                                     </div>
@@ -955,11 +1036,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 setIsModalOpen(true);
                                             }}
                                             disabled={isLocked}
-                                            className={`h-9 px-4 gap-2 border rounded-lg text-xs font-bold transition-all flex items-center ${
-                                                isLocked 
-                                                ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60' 
-                                                : 'border-blue-200 text-blue-700 hover:bg-blue-50 active:scale-95 shadow-sm'
-                                            }`}
+                                            className={`h-9 px-4 gap-2 border rounded-lg text-xs font-bold transition-all flex items-center ${isLocked
+                                                    ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60'
+                                                    : 'border-blue-200 text-blue-700 hover:bg-blue-50 active:scale-95 shadow-sm'
+                                                }`}
                                             title={isLocked ? "Propostas aprovadas ou faturadas não podem ser editadas" : "Editar proposta"}
                                         >
                                             {isLocked ? <Lock size={14} /> : <Edit3 size={14} />}
@@ -1095,8 +1175,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         <div className="mt-4 flex flex-col items-end gap-2">
                                             {(() => {
                                                 const subtotal = viewQuote.items.reduce((acc, item) => acc + (item.total || 0), 0);
-                                                let discountValue = viewQuote.discountType === 'percent' 
-                                                    ? (subtotal * (Number(viewQuote.discount) || 0) / 100) 
+                                                let discountValue = viewQuote.discountType === 'percent'
+                                                    ? (subtotal * (Number(viewQuote.discount) || 0) / 100)
                                                     : (Number(viewQuote.discount) || 0);
 
                                                 if (discountValue <= 0 && subtotal > (viewQuote.totalValue || subtotal)) {
@@ -1247,14 +1327,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 </div>
             )}
 
-            {/* ── PORTAL: Quote Print Layout (same pattern as OS print) ── */}
-            {isPrinting && viewQuote && createPortal(
-                <div id="batch-print-root" className="bg-white">
-                    <div className="print:break-after-page w-full">
-                        <QuotePrintLayout quote={viewQuote} tenant={tenant} />
-                    </div>
-                </div>,
-                document.body
+            {/* ── HIDDEN PRINT CONTAINER ── */}
+            {viewQuote && (
+                <div className="hidden print:hidden" id="quote-print-container">
+                    <QuotePrintLayout quote={viewQuote} tenant={tenant} />
+                </div>
             )}
         </div>
     );
@@ -1271,7 +1348,7 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
         // Prioritiza campos individuais, fallbacks para 'address'
         const street = tenant.street || tenant.address || '';
         if (!street) return '';
-        
+
         const parts = [];
         parts.push(street);
         if (tenant.number) parts.push(`, ${tenant.number}`);
@@ -1279,7 +1356,7 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
         if (tenant.neighborhood) parts.push(` - ${tenant.neighborhood}`);
         if (tenant.city) parts.push(`, ${tenant.city}`);
         if (tenant.state) parts.push(`/${tenant.state}`);
-        
+
         return parts.join('');
     }, [tenant]);
 
@@ -1305,7 +1382,7 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
     };
 
     return (
-        <div className="bg-white text-[10px] leading-tight font-poppins p-6 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+        <div className="bg-white text-[10px] leading-tight font-poppins p-6 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', overflow: 'hidden', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
             {/* Print Header — same as OS */}
             <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
                 <div className="flex gap-4 items-center">
@@ -1371,26 +1448,33 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                 </div>
 
                 {/* Itens / Composição */}
-                <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                <div className="border border-slate-300 rounded-lg" style={{ overflow: 'hidden', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                     <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Composição da Proposta (Itens e Serviços)</div>
-                    <table className="w-full text-left">
+                    <table style={{ width: '100%', maxWidth: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', boxSizing: 'border-box' }}>
+                        <colgroup>
+                            <col style={{ width: '6%' }} />
+                            <col style={{ width: '46%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '19%' }} />
+                            <col style={{ width: '19%' }} />
+                        </colgroup>
                         <thead>
                             <tr className="bg-slate-50 text-[8px] font-black text-slate-500 uppercase border-b border-slate-200">
-                                <th className="px-3 py-2 w-10">#</th>
-                                <th className="px-3 py-2">Descrição do Item</th>
-                                <th className="px-3 py-2 text-center w-16">Qtd</th>
-                                <th className="px-3 py-2 text-right w-24">V. Unitário</th>
-                                <th className="px-3 py-2 text-right w-24">Total</th>
+                                <th className="px-2 py-2">#</th>
+                                <th className="px-2 py-2 text-left">Descrição do Item</th>
+                                <th className="px-2 py-2 text-center">Qtd</th>
+                                <th className="px-2 py-2 text-right">V. Unitário</th>
+                                <th className="px-2 py-2 text-right">Total</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200 bg-white">
                             {quote.items.map((item, idx) => (
-                                <tr key={idx}>
-                                    <td className="px-3 py-2 text-[10px] font-bold text-slate-400">{String(idx + 1).padStart(2, '0')}</td>
-                                    <td className="px-3 py-2 text-[10px] uppercase font-bold text-slate-800">{item.description}</td>
-                                    <td className="px-3 py-2 text-[10px] text-center font-bold text-slate-600">{item.quantity}</td>
-                                    <td className="px-3 py-2 text-[10px] text-right text-slate-600 font-mono">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                    <td className="px-3 py-2 text-[10px] text-right font-black text-slate-900 font-mono">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                <tr key={idx} className="break-inside-avoid">
+                                    <td className="px-2 py-2 text-[10px] font-bold text-slate-400 align-top">{String(idx + 1).padStart(2, '0')}</td>
+                                    <td className="px-2 py-2 text-[10px] uppercase font-bold text-slate-800 align-top" style={{ wordWrap: 'break-word', overflowWrap: 'break-word', overflow: 'hidden' }}>{item.description}</td>
+                                    <td className="px-2 py-2 text-[10px] text-center font-bold text-slate-600 align-top">{item.quantity}</td>
+                                    <td className="px-2 py-2 text-[10px] text-right text-slate-600 font-mono" style={{ overflow: 'hidden' }}>R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-2 py-2 text-[10px] text-right font-black text-slate-900 font-mono" style={{ overflow: 'hidden' }}>R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1398,8 +1482,8 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                     <div className="bg-slate-50 border-t border-slate-200 divide-y divide-slate-100">
                         {(() => {
                             const subtotal = quote.items.reduce((acc, item) => acc + (item.total || 0), 0);
-                            let discountValue = quote.discountType === 'percent' 
-                                ? (subtotal * (Number(quote.discount) || 0) / 100) 
+                            let discountValue = quote.discountType === 'percent'
+                                ? (subtotal * (Number(quote.discount) || 0) / 100)
                                 : (Number(quote.discount) || 0);
 
                             if (discountValue <= 0 && subtotal > (quote.totalValue || subtotal)) {

@@ -1,15 +1,17 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { ServiceOrder, OrderStatus, User, Quote } from '../../types';
 import type { DbTenant } from '../../types/database';
 import {
     Search, X, DollarSign, Calendar, Users, Tag,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
-    TrendingUp, Clock, FileSpreadsheet, ChevronRight, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2
+    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Hexagon, Paperclip, Image as ImageIcon
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
 import { DataService } from '../../services/dataService';
+import { StorageService } from '../../services/storageService';
 import XLSX from 'xlsx-js-style';
 import { NexusQueryClient } from '../../hooks/nexusHooks';
 
@@ -57,12 +59,29 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         setCurrentPage(1);
     };
     const [techFilter, setTechFilter] = useState('ALL');
+    const [isTechDropdownOpen, setIsTechDropdownOpen] = useState(false);
+    const [techSearchQuery, setTechSearchQuery] = useState('');
+    const techDropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (techDropdownRef.current && !techDropdownRef.current.contains(event.target as Node)) {
+                setIsTechDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedItem, setSelectedItem] = useState<any | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
-    const [detailTab, setDetailTab] = useState<'overview' | 'financial' | 'linked'>('overview');
+    const [detailTab, setDetailTab] = useState<'overview' | 'financial' | 'linked' | 'attachments'>('overview');
+    const [printWithAttachment, setPrintWithAttachment] = useState(false);
+    const [showAttachmentConfirmModal, setShowAttachmentConfirmModal] = useState(false);
+    const [pendingPrintItem, setPendingPrintItem] = useState<any | null>(null);
 
     // Form de Baixa
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -71,6 +90,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
     const [installments, setInstallments] = useState(2);
     const [billingNotes, setBillingNotes] = useState('');
+    const [receiptFile, setReceiptFile] = useState<File | null>(null);
     const [billingDiscount, setBillingDiscount] = useState(0);
     const [billingDiscountType, setBillingDiscountType] = useState<'fixed' | 'percent'>('fixed');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -78,20 +98,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 12;
 
-    // 🔥 Auto-trigger print when modal opens and close it after
-    useEffect(() => {
-        if (isPrintModalOpen && printItem) {
-            const timer = setTimeout(() => {
-                window.print();
-                // Close the modal after a short delay to give the browser time to initiate
-                setTimeout(() => {
-                    setIsPrintModalOpen(false);
-                    setPrintItem(null);
-                }, 1000);
-            }, 500); // 500ms delay to ensure rendering
-            return () => clearTimeout(timer);
-        }
-    }, [isPrintModalOpen, printItem]);
+    // Removido o useEffect que chamava window.print() automaticamente,
+    // pois causava conflito com o executePrint e abria duas telas de impressão.
+    // Agora a impressão é controlada exclusivamente pela função executePrint.
 
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
         key: 'date',
@@ -210,7 +219,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 original: q,
                 billingDiscount: q.discount || 0,
                 billingDiscountType: q.discountType || 'fixed',
-                technician: 'Administrador'
+                technician: techs.find(t => t.id === (q as any).createdBy || t.id === (q as any).authorId)?.name || 'Administrador'
             }));
 
         const completedOrders = orders
@@ -371,6 +380,17 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         const baseAmount = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
         const discountValue = billingDiscountType === 'percent' ? (baseAmount * billingDiscount / 100) : billingDiscount;
         const finalAmount = Math.max(0, baseAmount - discountValue);
+        
+        let uploadedReceiptUrl = '';
+        if (receiptFile) {
+            try {
+                const folderId = selectedIds[0] || Date.now().toString();
+                uploadedReceiptUrl = await StorageService.uploadBlob(receiptFile, `financial/receipts/${folderId}`);
+            } catch (err) {
+                console.error("[FinancialDashboard] Error uploading receipt:", err);
+            }
+        }
+        
         try {
             for (const id of selectedIds) {
                 // ─── Prioridade: usa selectedItem (estado mais atualizado) quando possível ───
@@ -400,6 +420,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                         billingStatus: 'PAID',
                         paymentMethod: finalMethod,
                         billingNotes: billingNotes,
+                        receiptUrl: uploadedReceiptUrl || item.original?.receiptUrl,
                         discount: effectiveDiscount,
                         discountType: effectiveDiscountType,
                         paidAt
@@ -476,22 +497,80 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     // ── Handler de Impressão ──────────────────────────────────────────────────
     const handlePrint = (item: any) => {
-        // DEBUG: ver campos de desconto disponíveis
-        console.log('[PRINT DEBUG] item:', {
-            value: item.value,
-            billingDiscount: item.billingDiscount,
-            billingDiscountType: item.billingDiscountType,
-            'original.discount': item.original?.discount,
-            'original.discountType': item.original?.discountType,
-            'original.totalValue': item.original?.totalValue,
-            fullOriginal: item.original
-        });
-        setPrintItem(item);
-        setIsPrintModalOpen(true);
+        if (item.original?.receiptUrl) {
+            // Mostra popup visual para escolha
+            setPendingPrintItem(item);
+            setShowAttachmentConfirmModal(true);
+        } else {
+            // Garante que o componente seja renderizado antes de imprimir
+            flushSync(() => {
+                setPrintWithAttachment(false);
+                setPrintItem(item);
+                setIsPrintModalOpen(true);
+            });
+            executePrint(false);
+        }
     };
 
-    const executePrint = () => {
-        window.print();
+    const executePrint = (includeAttachment = false) => {
+        const container = document.getElementById('print-container');
+        if (!container) { window.print(); return; }
+
+        const printWindow = window.open('', '_blank', 'width=900,height=700');
+        if (!printWindow) {
+            alert('Por favor, permita pop-ups neste site para imprimir.');
+            return;
+        }
+
+        const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+            .map(el => el.outerHTML)
+            .join('\n');
+
+        printWindow.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <title>Recibo de Faturamento</title>
+    ${styleLinks}
+    <style>
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        body { margin: 0 !important; padding: 0 !important; background: white; }
+        /* Remove altura mínima artificial para evitar páginas em branco */
+        #printable-receipt { min-height: unset !important; }
+        /* Força quebra de página SOMENTE quando há comprovante na 2ª página */
+        ${includeAttachment ? '#printable-receipt { page-break-after: always !important; break-after: page !important; }' : ''}
+        .print\\:hidden { display: none !important; }
+        @media print {
+            @page { margin: 10mm; }
+            body { margin: 0; padding: 0; }
+            #printable-receipt { min-height: unset !important; }
+            ${includeAttachment ? '#printable-receipt { page-break-after: always !important; break-after: page !important; }' : ''}
+        }
+    </style>
+</head>
+<body>
+${container.innerHTML}
+</body>
+</html>`);
+
+        printWindow.document.close();
+
+        const doPrint = () => {
+            printWindow.focus();
+            printWindow.print();
+            setTimeout(() => { 
+                if (!printWindow.closed) printWindow.close(); 
+                setIsPrintModalOpen(false);
+                setPrintItem(null);
+            }, 1000);
+        };
+
+        if (printWindow.document.readyState === 'complete') {
+            setTimeout(doPrint, 300);
+        } else {
+            printWindow.onload = () => setTimeout(doPrint, 300);
+            setTimeout(doPrint, 2500);
+        }
     };
 
     const handleExportExcel = () => {
@@ -611,6 +690,28 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const formatCurrency = (val: number) =>
         new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+    const getItemNetValue = (item: any) => {
+        if (!item) return 0;
+        const subtotal = item.original?.items?.reduce((a: number, i: any) => a + (Number(i.total) || 0), 0) || item.value;
+        const disc = Number(item.original?.discount) || 0;
+        const infer = subtotal > item.original?.totalValue ? subtotal - item.original?.totalValue : 0;
+        const finalDisc = disc > 0 ? disc : infer;
+        const type = disc > 0 ? (item.original?.discountType || 'fixed') : 'fixed';
+        
+        const discountAmount = type === 'percent' ? (subtotal * finalDisc / 100) : finalDisc;
+        return Math.max(0, subtotal - discountAmount);
+    };
+
+    const renderInstallmentsDetails = (item: any) => {
+        if (!item?.original?.paymentMethod) return null;
+        const match = item.original.paymentMethod.match(/(\d+)x$/i);
+        if (!match) return null;
+        const numInstallments = parseInt(match[1], 10);
+        if (numInstallments <= 1) return null;
+        const netValue = getItemNetValue(item);
+        return ` (${numInstallments}x de ${formatCurrency(netValue / numInstallments)})`;
+    };
+
     const getDocLabel = (item: any) => {
         if (item.type === 'QUOTE') return item.displayId || `ORC-${item.id.slice(0, 8).toUpperCase()}`;
         return item.displayId || `OS-${item.id.slice(0, 8).toUpperCase()}`;
@@ -716,7 +817,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 {/* Collapsible Filters */}
                 {showFilters && (
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 p-3 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <div className="md:col-span-6 flex flex-col gap-1">
+                        <div className="md:col-span-4 flex flex-col gap-1">
                             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Período de Referência</label>
                             <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm px-2.5 items-center gap-2 h-8">
                                 <Calendar size={12} className="text-[#1c2d4f] shrink-0" />
@@ -725,15 +826,63 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 <input type="date" value={endDate} onChange={e => handleDateValidation(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
                             </div>
                         </div>
-                        <div className="md:col-span-3 flex flex-col gap-1">
+                        <div className="md:col-span-4 flex flex-col gap-1">
                             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Técnico / Responsável</label>
-                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm px-2.5 items-center gap-2 h-8">
-                                <UserCheck size={12} className="text-[#1c2d4f] shrink-0" />
-                                <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" value={techFilter} onChange={e => { setTechFilter(e.target.value); setCurrentPage(1); }}>
-                                    <option value="ALL">Técnicos (Todos)</option>
-                                    {techs.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                                    <option value="Administrador">Admin</option>
-                                </select>
+                            <div className="relative w-full h-8" ref={techDropdownRef}>
+                                <div 
+                                    className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-6 text-[10px] font-bold text-slate-700 cursor-pointer shadow-sm flex items-center h-full outline-none transition-all relative"
+                                    onClick={() => setIsTechDropdownOpen(!isTechDropdownOpen)}
+                                >
+                                    <UserCheck size={12} className="absolute left-2.5 text-[#1c2d4f] shrink-0" />
+                                    <span className="truncate uppercase">
+                                        {techFilter === 'ALL' ? 'Técnicos (Todos)' : techFilter}
+                                    </span>
+                                    <ChevronDown size={14} className={`absolute right-2 text-slate-400 transition-transform ${isTechDropdownOpen ? 'rotate-180' : ''}`} />
+                                </div>
+
+                                {isTechDropdownOpen && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2">
+                                        <div className="p-2 border-b border-slate-100 bg-slate-50/50">
+                                            <div className="relative">
+                                                <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Buscar técnico..." 
+                                                    className="w-full bg-white border border-slate-200 rounded-lg pl-7 pr-2 py-1 text-[10px] font-bold outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
+                                                    value={techSearchQuery}
+                                                    onChange={e => setTechSearchQuery(e.target.value)}
+                                                    onClick={e => e.stopPropagation()}
+                                                    autoFocus
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                                            <div 
+                                                className={`px-3 py-2 cursor-pointer text-[10px] font-bold uppercase hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'bg-primary-50 text-primary-700' : 'text-slate-700'}`}
+                                                onClick={() => { setTechFilter('ALL'); setCurrentPage(1); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
+                                            >
+                                                Técnicos (Todos)
+                                            </div>
+                                            {techs.filter(t => t.name.toLowerCase().includes(techSearchQuery.toLowerCase())).map(t => (
+                                                <div 
+                                                    key={t.id} 
+                                                    className={`px-3 py-2 cursor-pointer text-[10px] font-bold uppercase transition-colors border-t border-slate-50 truncate ${techFilter === t.name ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    onClick={() => { setTechFilter(t.name); setCurrentPage(1); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
+                                                >
+                                                    {t.name}
+                                                </div>
+                                            ))}
+                                            {'administrador'.includes(techSearchQuery.toLowerCase()) && (
+                                                <div 
+                                                    className={`px-3 py-2 cursor-pointer text-[10px] font-bold uppercase transition-colors border-t border-slate-50 truncate ${techFilter === 'Administrador' ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    onClick={() => { setTechFilter('Administrador'); setCurrentPage(1); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
+                                                >
+                                                    Administrador (Admin)
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                         <div className="md:col-span-3 flex flex-col gap-1">
@@ -747,6 +896,18 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                 </select>
                             </div>
                         </div>
+
+                        {(techFilter !== 'ALL' || statusFilter !== 'ALL') && (
+                            <div className="md:col-span-1 flex flex-col justify-end">
+                                <button
+                                    onClick={() => { setTechFilter('ALL'); setStatusFilter('ALL'); setCurrentPage(1); }}
+                                    className="h-8 px-3 bg-rose-50 hover:bg-rose-500 hover:text-white text-rose-500 rounded-lg transition-all shadow-sm flex items-center justify-center border border-rose-100"
+                                    title="Limpar Filtros"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -964,6 +1125,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     { id: 'overview', label: 'Visão Geral', icon: Info },
                                     { id: 'financial', label: 'Financeiro', icon: DollarSign },
                                     { id: 'linked', label: selectedItem.type === 'ORDER' ? 'Vínculos' : 'Detalhes', icon: Layer },
+                                    { id: 'attachments', label: 'Anexos', icon: Paperclip },
                                 ].map(tab => (
                                     <button
                                         key={tab.id}
@@ -985,6 +1147,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                     { id: 'overview', label: 'Visão Geral', icon: Info },
                                     { id: 'financial', label: 'Financeiro', icon: DollarSign },
                                     { id: 'linked', label: selectedItem.type === 'ORDER' ? 'Vínculos' : 'Detalhes', icon: Layer },
+                                    { id: 'attachments', label: 'Anexos', icon: Paperclip },
                                 ].map(tab => (
                                     <button
                                         key={tab.id}
@@ -1005,8 +1168,8 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
                                 {detailTab === 'overview' && (
                                     <div className="space-y-4">
-                                        {/* Cliente + Valor */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Cliente */}
                                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                                                 <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
                                                     <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Users size={13} /></div>
@@ -1021,50 +1184,97 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                 )}
                                             </div>
 
+                                            {/* Técnico + Descrição */}
                                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Valor Total</p>
-                                                <p className="text-3xl font-black tracking-tight text-slate-900 border-b border-slate-100 pb-2 mb-2">
-                                                    {formatCurrency(selectedItem.value)}
-                                                </p>
-                                                {selectedItem.original?.discount > 0 && (
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Desconto Aplicado</p>
-                                                        <p className="text-xs font-bold text-rose-500">
-                                                            {selectedItem.original.discountType === 'percent'
-                                                                ? `- ${selectedItem.original.discount}%`
-                                                                : `- ${formatCurrency(selectedItem.original.discount)}`}
-                                                        </p>
+                                                <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
+                                                    <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Info size={13} /></div>
+                                                    <h3 className="text-xs font-black text-slate-800 tracking-wide">Contexto e Detalhes</h3>
+                                                </div>
+                                                <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                                                    <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center shrink-0">
+                                                        <UserCheck size={14} className="text-slate-500" />
                                                     </div>
-                                                )}
-                                                <div className="flex items-center gap-2 mt-3">
-                                                    <div className="w-6 h-6 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center"><Calendar size={12} className="text-slate-400" /></div>
-                                                    <p className="text-[10px] font-bold text-slate-600">{new Date(selectedItem.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                                    <div>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Usuário / Responsável</p>
+                                                        <p className="text-xs font-bold text-slate-700">{selectedItem.technician || '—'}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100 space-y-3">
+                                                    <div>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Referência Original</p>
+                                                        <p className="text-xs font-bold text-slate-700">{selectedItem.type === 'QUOTE' ? 'Orçamento Aprovado' : 'Ordem de Serviço Concluída'}</p>
+                                                    </div>
+                                                    <div className="h-px bg-slate-200" />
+                                                    <div>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Descrição</p>
+                                                        {selectedItem.description ? <p className="text-xs text-slate-600 font-medium leading-relaxed">{selectedItem.description}</p> : <p className="text-xs text-slate-400 italic">Nenhuma descrição informada.</p>}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-
-                                        {/* Técnico + Descrição */}
-                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                                            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
-                                                <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Info size={13} /></div>
-                                                <h3 className="text-xs font-black text-slate-800 tracking-wide">Descrição do Atendimento</h3>
-                                            </div>
-                                            <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                                                <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center">
-                                                    <UserCheck size={14} className="text-slate-500" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Técnico Designado</p>
-                                                    <p className="text-xs font-bold text-slate-700">{selectedItem.technician || '—'}</p>
-                                                </div>
-                                            </div>
-                                            {selectedItem.description && <p className="text-xs text-slate-600 font-medium leading-relaxed italic">{selectedItem.description}</p>}
                                         </div>
                                     </div>
                                 )}
 
                                 {detailTab === 'financial' && (
                                     <div className="space-y-4">
+                                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                                            {getItemNetValue(selectedItem) < selectedItem.value ? (
+                                                <>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Valor Bruto</p>
+                                                    <p className="text-xl font-bold tracking-tight text-slate-400 line-through mb-2">
+                                                        {formatCurrency(selectedItem.value)}
+                                                    </p>
+                                                    
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Desconto Aplicado</p>
+                                                        <p className="text-xs font-bold text-rose-500">
+                                                            {selectedItem.original.discountType === 'percent' && selectedItem.original.discount > 0
+                                                                ? `- ${selectedItem.original.discount}%`
+                                                                : `- ${formatCurrency(selectedItem.value - getItemNetValue(selectedItem))}`}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="border-t border-slate-100 pt-2 pb-2">
+                                                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Valor Líquido</p>
+                                                        <p className="text-2xl font-black tracking-tight text-emerald-600">
+                                                            {formatCurrency(getItemNetValue(selectedItem))}
+                                                        </p>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Valor Total</p>
+                                                    <p className="text-2xl font-black tracking-tight text-slate-900 border-b border-slate-100 pb-2 mb-2">
+                                                        {formatCurrency(selectedItem.value)}
+                                                    </p>
+                                                </>
+                                            )}
+                                            <div className="grid grid-cols-2 gap-2 mt-3">
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-6 h-6 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center shrink-0"><Calendar size={12} className="text-slate-400" /></div>
+                                                    <div>
+                                                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">Emissão / Início</p>
+                                                        <p className="text-[10px] font-bold text-slate-600 mt-1">{new Date(selectedItem.createdAt || selectedItem.date).toLocaleDateString('pt-BR')}</p>
+                                                    </div>
+                                                </div>
+                                                {selectedItem.paidAt && (
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-6 h-6 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-center shrink-0"><Check size={12} className="text-emerald-500" /></div>
+                                                    <div>
+                                                        <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Recebimento</p>
+                                                        <p className="text-[10px] font-bold text-emerald-700 mt-1">{new Date(selectedItem.paidAt).toLocaleDateString('pt-BR')}</p>
+                                                    </div>
+                                                </div>
+                                                )}
+                                            </div>
+                                            
+                                            {selectedItem.original?.billingNotes && (
+                                                <div className="mt-4 bg-slate-50/50 border border-slate-100 rounded-lg p-3">
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Observações Fiscais/Faturamento</p>
+                                                    <p className="text-xs text-slate-700 font-medium leading-relaxed">{selectedItem.original.billingNotes}</p>
+                                                </div>
+                                            )}
+                                        </div>
                                         {selectedItem.status === 'PAID' ? (
                                             <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
                                                 <div className="flex items-center gap-3 mb-4">
@@ -1074,7 +1284,10 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                     <div className="bg-white rounded-xl p-3 border border-emerald-100">
                                                         <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Forma de Pagamento</p>
-                                                        <p className="text-xs font-black text-emerald-900 uppercase">{selectedItem.original?.paymentMethod || '—'}</p>
+                                                        <p className="text-xs font-black text-emerald-900 uppercase">
+                                                            {selectedItem.original?.paymentMethod || '—'}
+                                                            {renderInstallmentsDetails(selectedItem)}
+                                                        </p>
                                                     </div>
                                                     <div className="bg-white rounded-xl p-3 border border-emerald-100">
                                                         <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Desconto</p>
@@ -1095,6 +1308,14 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                         <p className="text-xs font-black text-emerald-900">{selectedItem.original?.paidAt ? new Date(selectedItem.original.paidAt).toLocaleDateString('pt-BR') : '—'}</p>
                                                     </div>
                                                 </div>
+                                                {selectedItem.original?.billingNotes && (
+                                                    <div className="mt-4 pt-4 border-t border-emerald-100/50 space-y-4">
+                                                        <div>
+                                                            <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Observações do Faturamento</p>
+                                                            <p className="text-xs font-medium text-emerald-800 whitespace-pre-wrap">{selectedItem.original.billingNotes}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="bg-amber-50 border border-amber-100 rounded-xl p-5 text-center space-y-3">
@@ -1173,6 +1394,57 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                 {(!selectedItem.original?.items || selectedItem.original.items.length === 0) && (
                                                     <p className="text-xs text-slate-400 text-center py-4">Nenhum item encontrado.</p>
                                                 )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {detailTab === 'attachments' && (
+                                    <div className="p-4 sm:p-6 space-y-6 max-w-3xl mx-auto w-full font-poppins animate-in slide-in-from-right-4 duration-300">
+                                        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                                            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                                                <Paperclip size={20} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black text-slate-800">Anexos</h3>
+                                                <p className="text-xs font-medium text-slate-500">Documentos e comprovantes vinculados a esta transação.</p>
+                                            </div>
+                                        </div>
+
+                                        {!selectedItem.original?.receiptUrl ? (
+                                            <div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center">
+                                                <Paperclip size={32} className="text-slate-300 mb-3" />
+                                                <p className="text-sm font-bold text-slate-500">Nenhum anexo encontrado</p>
+                                                <p className="text-xs text-slate-400 mt-1">Os comprovantes anexados durante o faturamento aparecerão aqui.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+                                                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                                    <h4 className="text-sm font-bold text-slate-800">Comprovante de Faturamento</h4>
+                                                    <a 
+                                                        href={selectedItem.original.receiptUrl} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                                                    >
+                                                        Abrir Original
+                                                    </a>
+                                                </div>
+                                                <div className="flex justify-center bg-slate-50 rounded-lg p-2 border border-slate-100">
+                                                    {selectedItem.original.receiptUrl.toLowerCase().includes('.pdf') ? (
+                                                        <div className="w-full py-12 flex flex-col items-center justify-center text-center">
+                                                            <FileText size={48} className="text-slate-300 mb-4" />
+                                                            <p className="text-sm font-bold text-slate-600">Documento PDF anexado</p>
+                                                            <p className="text-xs text-slate-500 mt-1">Clique em "Abrir Original" para visualizar o arquivo completo.</p>
+                                                        </div>
+                                                    ) : (
+                                                        <img 
+                                                            src={selectedItem.original.receiptUrl} 
+                                                            alt="Comprovante" 
+                                                            className="max-w-full max-h-[400px] object-contain rounded border border-slate-200 shadow-sm"
+                                                        />
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1266,11 +1538,36 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                             <FileText size={16} className="text-slate-400"/> Observações e Comprovante
                                         </h3>
                                         <textarea
-                                            className="w-full min-h-[100px] bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all resize-none placeholder:text-slate-400"
+                                            className="w-full min-h-[100px] bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all resize-none placeholder:text-slate-400 mb-4"
                                             placeholder="Ex: Nº do comprovante transacional, código Pix, NSU da maquineta..."
                                             value={billingNotes}
                                             onChange={e => setBillingNotes(e.target.value)}
                                         />
+                                        
+                                        <div className="flex flex-col gap-2">
+                                            <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5 cursor-pointer">
+                                                <Paperclip size={14} className="text-slate-400"/>
+                                                Anexar Comprovante (Imagem/PDF)
+                                                <input 
+                                                    type="file" 
+                                                    className="hidden" 
+                                                    accept="image/*,application/pdf"
+                                                    onChange={e => {
+                                                        if (e.target.files && e.target.files.length > 0) {
+                                                            setReceiptFile(e.target.files[0]);
+                                                        }
+                                                    }}
+                                                />
+                                            </label>
+                                            {receiptFile && (
+                                                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                                                    <span className="text-xs font-medium text-slate-700 truncate max-w-[200px]">{receiptFile.name}</span>
+                                                    <button onClick={() => setReceiptFile(null)} className="text-slate-400 hover:text-rose-500 transition-colors">
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1336,7 +1633,12 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                     <div className="flex flex-col items-end">
                                                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Valor da Parcela</span>
                                                         <span className="text-sm font-black text-slate-800">
-                                                            {installments}x de {formatCurrency((selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal) / (installments || 1))}
+                                                            {(() => {
+                                                                const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
+                                                                const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
+                                                                const finalAmount = Math.max(0, base - dv);
+                                                                return `${installments}x de ${formatCurrency(finalAmount / (installments || 1))}`;
+                                                            })()}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1435,17 +1737,18 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                             </div>
                         </div>
 
-                        {/* ─── Conteúdo do Recibo FORMAL SAAS (imprimível) ─── */}
-                        <div id="printable-receipt" ref={printRef} className="p-10 bg-white font-poppins min-h-[1056px] flex flex-col relative w-[210mm] mx-auto print:w-full print:p-8">
+                        {/* ─── Conteúdo do Recibo FORMAL SAAS (imprimível) — BASEADO NA O.S E ORÇAMENTO ─── */}
+                        <div id="print-container" className="w-full">
+                            <div id="printable-receipt" ref={printRef} className="bg-white text-[10px] leading-tight font-poppins p-6 print:p-0 print:break-inside-avoid min-h-[1056px] flex flex-col relative w-[210mm] mx-auto print:w-full" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
                             {/* Marca D'Água (Status) */}
                             <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none select-none text-[8rem] font-black uppercase -rotate-45 tracking-widest whitespace-nowrap z-0`}>
                                 {printItem.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}
                             </div>
 
                             <div className="relative z-10 flex-1 flex flex-col">
-                                {/* Header SaaS Moderno */}
-                                <div className="flex items-start justify-between pb-8 border-b-2 border-slate-200">
-                                    <div className="flex items-end gap-6">
+                                {/* Print Header */}
+                                <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
+                                    <div className="flex gap-4 items-center">
                                         {(tenant?.logo_url || tenant?.logoUrl) ? (
                                             <img
                                                 src={tenant.logo_url || tenant.logoUrl}
@@ -1453,224 +1756,281 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                                                 className="h-16 w-auto object-contain"
                                             />
                                         ) : (
-                                            <div className="w-16 h-16 bg-[#1c2d4f] rounded-2xl flex items-center justify-center shadow-lg">
-                                                <Wallet size={28} className="text-white" />
+                                            <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px] text-white">
+                                                <Wallet size={32} className="text-white fill-white/10" />
                                             </div>
                                         )}
-                                        <div>
-                                            <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight leading-none mb-1">
-                                                {tenant?.company_name || tenant?.trading_name || tenant?.name || 'Sua Empresa'}
-                                            </h1>
-                                            {tenant?.cnpj || tenant?.document ? (
-                                                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide">
-                                                    CNPJ: {tenant.cnpj || tenant.document}
-                                                </p>
-                                            ) : null}
-                                            <p className="text-[10px] text-slate-400 mt-1 max-w-xs leading-tight">
-                                                {(tenant?.address || tenant?.street) ? `${tenant.street}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' - ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}` : 'Endereço da Empresa Não Informado'}
-                                            </p>
+                                        <div className="space-y-1">
+                                            <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{tenant?.company_name || tenant?.trading_name || tenant?.name || 'Sua Empresa'}</h1>
+                                            <div className="text-[9px] text-slate-600 max-w-[400px]">
+                                                {((tenant?.address || tenant?.street) ? `${tenant.street || tenant.address}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' - ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}` : 'Endereço da Empresa Não Informado')}
+                                                <div className="flex flex-wrap gap-x-3 mt-0.5">
+                                                    {tenant?.cnpj || tenant?.document ? <span>CNPJ: {tenant.cnpj || tenant.document}</span> : null}
+                                                    {tenant?.phone && <span className="font-semibold">Tel: {tenant.phone}</span>}
+                                                    {(tenant?.admin_email || tenant?.email) && <span>E-mail: {tenant.admin_email || tenant.email}</span>}
+                                                    {tenant?.website && <span>Site: {tenant.website}</span>}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-
-                                    <div className="text-right">
-                                        <div className="inline-block px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg mb-3">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Fatura/Recibo Nº</p>
-                                            <p className="text-xl font-bold text-[#1c2d4f] font-mono tracking-tight text-right">
-                                                {getDocLabel(printItem)}
-                                            </p>
+                                    <div className="text-right shrink-0">
+                                        <div className="border-2 border-slate-800 px-5 py-2 rounded-lg bg-slate-50 min-w-[160px]">
+                                            <div className="text-[8px] font-black text-[#1c2d4f] uppercase tracking-wider mb-0.5 leading-tight">
+                                                Comprovante de Faturamento
+                                                <div className="text-[7px] font-bold text-slate-500 tracking-widest mt-0.5">
+                                                    Referente a {printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}
+                                                </div>
+                                            </div>
+                                            <div className="text-base font-black text-slate-900 tracking-tight whitespace-nowrap mt-1">{getDocLabel(printItem)}</div>
                                         </div>
-                                        <p className="text-[10px] font-bold text-slate-500">Data de Emissão: {new Date().toLocaleDateString('pt-BR')}</p>
-                                        <p className="text-[10px] font-bold text-slate-400">Vencimento: {new Date(printItem.date).toLocaleDateString('pt-BR')}</p>
+                                        <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
+                                            Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Seção: Cobrado A (Cliente) */}
-                                <div className="py-8 grid grid-cols-12 gap-8 border-b border-slate-100">
-                                    <div className="col-span-7">
-                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Faturado para:</h3>
-                                        <h2 className="text-lg font-bold text-slate-900 capitalize mb-1">{printItem.customerName?.toLowerCase() || 'Cliente Não Identificado'}</h2>
-                                        {printItem.customerAddress && (
-                                            <p className="text-sm text-slate-600 max-w-md">{printItem.customerAddress}</p>
-                                        )}
-                                        {printItem.customerDocument && (
-                                            <p className="text-xs text-slate-500 font-medium mt-1">Doc: {printItem.customerDocument}</p>
-                                        )}
+                                <div className="space-y-3">
+                                    {/* Dados do Cliente e Faturamento */}
+                                    <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Cliente e Faturamento</div>
+                                        <div className="grid grid-cols-12 divide-x divide-slate-200">
+                                            <div className="col-span-7 p-2.5 space-y-2">
+                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente / Razão Social</label><div className="font-bold text-slate-900 text-sm uppercase">{printItem.customerName || 'Cliente Não Identificado'}</div></div>
+                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{printItem.customerAddress || 'Não informado'}</div></div>
+                                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                                    {printItem.customerDocument && (
+                                                        <div><label className="block text-[8px] font-bold text-slate-400 uppercase">CPF / CNPJ</label><div className="font-medium text-slate-700 text-xs">{printItem.customerDocument}</div></div>
+                                                    )}
+                                                    {(printItem.original?.customerPhone || (printItem as any).customerPhone) && (
+                                                        <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Telefone</label><div className="font-medium text-slate-700 text-xs">{printItem.original?.customerPhone || (printItem as any).customerPhone}</div></div>
+                                                    )}
+                                                    {(printItem.original?.customerEmail || (printItem as any).customerEmail) && (
+                                                        <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">E-mail</label><div className="font-medium text-slate-700 text-xs">{printItem.original?.customerEmail || (printItem as any).customerEmail}</div></div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
+                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Origem Ref.</label><div className="font-bold uppercase">{printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</div></div>
+                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Vencimento</label><div className="font-bold uppercase">{new Date(printItem.date).toLocaleDateString('pt-BR')}</div></div>
+                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Status do Pgto</label><div className={`font-bold text-[9px] border px-1.5 py-0.5 rounded inline-block uppercase ${printItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{printItem.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}</div></div>
+                                                {printItem.original?.paidAt && (
+                                                    <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Data do Recebimento</label><div className="font-bold uppercase">{new Date(printItem.original.paidAt).toLocaleDateString('pt-BR')}</div></div>
+                                                )}
+                                                {printItem.original?.paymentMethod && (
+                                                    <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">Forma de Pagamento / Parcelas</label><div className="font-bold uppercase text-slate-800">{printItem.original.paymentMethod}{renderInstallmentsDetails(printItem)}</div></div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                    
-                                    <div className="col-span-5 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Detalhes do Documento</h3>
-                                        <table className="w-full text-xs">
-                                            <tbody>
-                                                <tr>
-                                                    <td className="py-1 text-slate-500 font-medium">Origem do Ref.:</td>
-                                                    <td className="py-1 text-slate-900 font-bold text-right uppercase">{printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</td>
+
+                                    {/* Objeto / Descrição */}
+                                    <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Objeto do Faturamento</div>
+                                        <div className="p-3 bg-white space-y-2">
+                                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Título / Referência</label><div className="font-bold text-slate-900 text-xs uppercase">{printItem.title || 'Serviços Prestados'}</div></div>
+                                            {printItem.description && (
+                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase mt-2">Descrição Registrada</label><div className="text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{printItem.description}</div></div>
+                                            )}
+                                            {printItem.original?.billingNotes && (
+                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase mt-2">Observações Fiscais/Faturamento</label><div className="text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{printItem.original.billingNotes}</div></div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Itens / Composição */}
+                                    <div className="border border-slate-300 rounded-lg overflow-hidden">
+                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Descritivo dos Lançamentos</div>
+                                        <table className="w-full text-left table-fixed">
+                                            <thead>
+                                                <tr className="bg-slate-50 text-[8px] font-black text-slate-500 uppercase border-b border-slate-200">
+                                                    <th className="px-3 py-2 w-10">#</th>
+                                                    <th className="px-3 py-2">Descrição do Lançamento</th>
+                                                    <th className="px-3 py-2 text-center w-16">Tipo</th>
+                                                    <th className="px-3 py-2 text-right w-24">V. Nominal</th>
                                                 </tr>
-                                                <tr>
-                                                    <td className="py-1 text-slate-500 font-medium">Status de Pagamento:</td>
-                                                    <td className={`py-1 font-bold text-right uppercase ${printItem.status === 'PAID' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                                        {printItem.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-200 bg-white">
+                                                <tr className="break-inside-avoid">
+                                                    <td className="px-3 py-2 text-[10px] font-bold text-slate-400 align-top">01</td>
+                                                    <td className="px-3 py-2 text-[10px] uppercase font-bold text-slate-800 break-words whitespace-pre-wrap align-top">Valor Acordado ({printItem.type === 'QUOTE' ? 'Orçamento Base' : 'Ordem de Serviço Base'})</td>
+                                                    <td className="px-3 py-2 text-[10px] text-center font-bold text-slate-600 align-top">{printItem.type === 'QUOTE' ? 'ORC' : 'O.S.'}</td>
+                                                    <td className="px-3 py-2 text-[10px] text-right font-black text-slate-900 font-mono align-top">
+                                                        {`R$ ${(printItem?.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                                                     </td>
                                                 </tr>
-                                                {printItem.original?.paymentMethod && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-500 font-medium whitespace-nowrap flex items-center pt-2 mt-2 border-t border-slate-200">Meio de Pagamento:</td>
-                                                        <td className="py-1 text-slate-900 font-bold text-right pt-2 mt-2 border-t border-slate-200">{printItem.original.paymentMethod}</td>
-                                                    </tr>
-                                                )}
-                                                {printItem.original?.paidAt && (
-                                                    <tr>
-                                                        <td className="py-1 text-slate-500 font-medium">Data do Recebimento:</td>
-                                                        <td className="py-1 text-slate-900 font-bold text-right">{new Date(printItem.original.paidAt).toLocaleDateString('pt-BR')}</td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                {/* Tabela de Serviços/Itens */}
-                                <div className="mt-8 flex-1">
-                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Descritivo dos Lançamentos</h3>
-                                    
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="border-b-2 border-slate-200 text-center">
-                                                <th className="py-3 px-2 font-bold text-slate-900 uppercase text-[10px] tracking-wider w-3/5">Descrição do Serviço / Histórico</th>
-                                                <th className="py-3 px-2 font-bold text-slate-900 uppercase text-[10px] tracking-wider text-center">Tipo</th>
-                                                <th className="py-3 px-2 font-bold text-slate-900 uppercase text-[10px] tracking-wider text-right">Valor Líquido</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {/* Item Principal (A Descrição base da OS/ORC) */}
-                                            <tr className="border-b border-slate-100">
-                                                <td className="py-4 px-2">
-                                                    <p className="font-bold text-slate-800">{printItem.title || 'Serviços Prestados'}</p>
-                                                    {printItem.description && (
-                                                        <p className="text-xs text-slate-500 mt-1 whitespace-pre-wrap">{printItem.description}</p>
-                                                    )}
-                                                </td>
-                                                <td className="py-4 px-2 text-center text-slate-600 text-xs uppercase font-medium">{printItem.type === 'QUOTE' ? 'ORC' : 'OS'}</td>
-                                                <td className="py-4 px-2 text-right font-medium text-slate-900">{formatCurrency(printItem.value)}</td>
-                                            </tr>
-                                            
-                                            {/* Listar orçamentos vinculados caso exista e seja O.S */}
-                                            {printItem.type === 'ORDER' && printItem.original?.linkedQuotes?.length > 0 && (() => {
-                                                const linkedQts = (printItem.original.linkedQuotes as string[]).map((qId: string) => quotes.find(q => q.id === qId)).filter(Boolean);
-                                                return linkedQts.map((q: any) => (
-                                                    <tr key={q.id} className="border-b border-slate-100 bg-slate-50/50">
-                                                        <td className="py-3 px-2">
-                                                            <p className="font-semibold text-slate-700 block"><span className="text-slate-400 font-normal mr-2">Vínculo O.S:</span> {q.title || 'Orçamento Vinculado'}</p>
-                                                            <p className="text-xs text-slate-400 mt-0.5">Ref: {q.displayId || q.id.slice(0, 8)}</p>
-                                                        </td>
-                                                        <td className="py-3 px-2 text-center text-slate-500 text-xs font-medium">SUB-IT</td>
-                                                        <td className="py-3 px-2 text-right font-medium text-slate-700">(incluso no principal)</td>
-                                                    </tr>
-                                                ));
-                                            })()}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Resumo de Valores e Totais */}
-                                <div className="mt-8 flex justify-end">
-                                    <div className="w-1/2 ml-auto">
-                                        <table className="w-full text-sm">
-                                            <tbody>
-                                                {(() => {
-                                                    // printItem.value = totalValue já descontado (líquido)
-                                                    const netValue = printItem?.value || 0;
-
-                                                    // Tier 1: usar campo discount do DB se disponível
-                                                    const storedDisc = Number(printItem?.billingDiscount ?? printItem?.original?.discount ?? 0);
-                                                    const storedDiscType: string = printItem?.billingDiscountType ?? printItem?.original?.discountType ?? 'fixed';
-
-                                                    // Tier 2: calcular desconto implícito via items (para registros antigos onde discount foi zerado)
-                                                    const originalItems: any[] = printItem?.original?.items || [];
-                                                    const itemsGross = originalItems.reduce((acc: number, it: any) => {
-                                                        return acc + Number(it.total ?? (it.quantity * it.unitPrice) ?? 0);
-                                                    }, 0);
-                                                    const impliedDiscountAmount = itemsGross > 0 ? Math.max(0, Math.round((itemsGross - netValue) * 100) / 100) : 0;
-
-                                                    // Escolher estratégia: campo DB > calculado de items
-                                                    let grossValue = netValue;
-                                                    let discountAmount = 0;
-                                                    let discLabel = '';
-
-                                                    if (storedDisc > 0) {
-                                                        // Tier 1: temos o valor do campo discount
-                                                        if (storedDiscType === 'percent') {
-                                                            grossValue = netValue / (1 - storedDisc / 100);
-                                                            discountAmount = grossValue - netValue;
-                                                            discLabel = `(${storedDisc}%)`;
-                                                        } else {
-                                                            grossValue = netValue + storedDisc;
-                                                            discountAmount = storedDisc;
-                                                        }
-                                                    } else if (impliedDiscountAmount > 0.01) {
-                                                        // Tier 2: desconto calculado dos itens (registro antigo)
-                                                        grossValue = itemsGross;
-                                                        discountAmount = impliedDiscountAmount;
-                                                    }
-
-                                                    const hasDiscount = discountAmount > 0.01;
-
-                                                    return (
-                                                        <>
-                                                            {hasDiscount && (
-                                                                <tr>
-                                                                    <td className="py-2 px-4 text-slate-500 text-right font-medium">Valor Nominal (Bruto):</td>
-                                                                    <td className="py-2 px-4 text-right font-medium text-slate-800">{formatCurrency(grossValue)}</td>
-                                                                </tr>
-                                                            )}
-                                                            {hasDiscount && (
-                                                                <tr>
-                                                                    <td className="py-2 px-4 text-rose-500 text-right font-bold italic">
-                                                                        Desconto Aplicado {discLabel}:
-                                                                    </td>
-                                                                    <td className="py-2 px-4 text-right font-bold text-rose-600 italic">
-                                                                        - {formatCurrency(discountAmount)}
-                                                                    </td>
-                                                                </tr>
-                                                            )}
-                                                            <tr>
-                                                                <td className="py-3 px-4 text-[#1c2d4f] font-black text-right border-t-2 border-[#1c2d4f] uppercase text-xs tracking-widest">
-                                                                    Total Líquido Recebido:
-                                                                </td>
-                                                                <td className="py-3 px-4 text-right font-black text-[#1c2d4f] border-t-2 border-[#1c2d4f] text-xl tracking-tighter italic">
-                                                                    {formatCurrency(netValue)}
-                                                                </td>
-                                                            </tr>
-                                                        </>
-                                                    );
+                                                {printItem.type === 'ORDER' && printItem.original?.linkedQuotes?.length > 0 && (() => {
+                                                    const linkedQts = (printItem.original.linkedQuotes as string[]).map((qId: string) => quotes.find(q => q.id === qId)).filter(Boolean);
+                                                    return linkedQts.map((q: any, i) => (
+                                                        <tr key={q.id} className="bg-slate-50/50 break-inside-avoid">
+                                                            <td className="px-3 py-2 text-[10px] font-bold text-slate-400 align-top">0{i + 2}</td>
+                                                            <td className="px-3 py-2 text-[10px] uppercase font-bold text-slate-700 break-words whitespace-pre-wrap align-top">Vínculo: {q.title || 'Orçamento Vinculado'} (Ref: {q.displayId || q.id.slice(0, 8)})</td>
+                                                            <td className="px-3 py-2 text-[10px] text-center font-bold text-slate-500 align-top">SUB</td>
+                                                            <td className="px-3 py-2 text-[10px] text-right font-medium text-slate-500 font-mono align-top">Incluso</td>
+                                                        </tr>
+                                                    ));
                                                 })()}
                                             </tbody>
                                         </table>
+                                        <div className="bg-slate-50 border-t border-slate-200 divide-y divide-slate-100">
+                                            {(() => {
+                                                const grossValue = printItem?.value || 0;
+                                                const storedDisc = Number(printItem?.billingDiscount ?? printItem?.original?.discount ?? 0);
+                                                const storedDiscType = printItem?.billingDiscountType ?? printItem?.original?.discountType ?? 'fixed';
+                                                
+                                                let discountAmount = 0;
+                                                let discLabel = '';
+
+                                                if (storedDisc > 0) {
+                                                    if (storedDiscType === 'percent') {
+                                                        discountAmount = grossValue * (storedDisc / 100);
+                                                        discLabel = `(${storedDisc}%)`;
+                                                    } else {
+                                                        discountAmount = storedDisc;
+                                                    }
+                                                }
+
+                                                const netValue = Math.max(0, grossValue - discountAmount);
+                                                const hasDiscount = discountAmount > 0.01;
+
+                                                return (
+                                                    <>
+                                                        <div className="px-6 py-2 flex justify-end gap-12 items-center">
+                                                            <span className="text-[8px] uppercase font-bold tracking-widest text-slate-400">Total Nominal / Bruto</span>
+                                                            <span className="text-[10px] font-bold text-slate-600 font-mono">R$ {grossValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                        {hasDiscount && (
+                                                            <div className="px-6 py-2 flex justify-end gap-12 items-center">
+                                                                <span className="text-[8px] uppercase font-bold tracking-widest text-rose-400 italic">Desconto Aplicado {discLabel}</span>
+                                                                <span className="text-[10px] font-bold text-rose-500 font-mono italic">- R$ {discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                            </div>
+                                                        )}
+                                                        <div className="bg-slate-800 text-white px-6 py-3 flex justify-end gap-12 items-center">
+                                                            <span className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-300">Total Líquido do Faturamento</span>
+                                                            <span className="text-xl font-black tracking-tighter font-mono">R$ {netValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+
+                                    {/* Aceite e Conformidade / Assinaturas */}
+                                    <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
+                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Autenticação e Assinaturas</div>
+                                        <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
+                                            <div className="p-4 flex flex-col items-center justify-center gap-3">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Emitente / Responsável</p>
+                                                <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-[10px] font-bold uppercase">
+                                                    Visto Eletrônico Nexus
+                                                </div>
+                                                <div className="w-full border-t border-slate-300 pt-2">
+                                                    <p className="text-[12px] font-black text-slate-900 uppercase">{tenant?.company_name || 'Assinatura Oficial'}</p>
+                                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Técnico: {printItem.technician || '—'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="p-4 flex flex-col items-center justify-center gap-3">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">De Acordo / Assinatura do Cliente</p>
+                                                <div className="h-[60px] flex items-center justify-center">
+                                                    {printItem.status === 'PAID' ? (
+                                                        <span className="text-emerald-300 italic text-[10px] font-bold uppercase">Liquidado Eletronicamente</span>
+                                                    ) : (
+                                                        <span className="text-slate-200 italic text-[10px] font-bold uppercase">—</span>
+                                                    )}
+                                                </div>
+                                                <div className="w-full border-t border-slate-300 pt-2">
+                                                    <p className="text-[12px] font-black text-slate-900 uppercase">{printItem.customerName || 'Cliente'}</p>
+                                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{printItem.customerDocument ? `Doc: ${printItem.customerDocument}` : ''}</p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Assinaturas e Termos */}
-                                <div className="mt-auto pt-16">
-                                    <div className="grid grid-cols-2 gap-16 px-10">
-                                        <div className="text-center">
-                                            <div className="border-t border-slate-300 w-full mb-3"></div>
-                                            <p className="text-xs font-bold text-slate-800">{tenant?.company_name || 'Assinatura Oficial'}</p>
-                                            <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">EMISSOR</p>
-                                        </div>
-                                        <div className="text-center">
-                                            <div className="border-t border-slate-300 w-full mb-3"></div>
-                                            <p className="text-xs font-bold text-slate-800 capitalize">{printItem.customerName?.toLowerCase()}</p>
-                                            <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">CLIENTE (DE ACORDO)</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                
                                 {/* Footer Minimalista SaaS */}
-                                <div className="mt-12 pt-4 border-t border-slate-100 flex justify-between items-center text-[9px] text-slate-400 font-medium">
-                                    <p>Recibo gerado eletronicamente e válido digitalmente.</p>
-                                    <p>Powered by Nexus Pro OS System</p>
+                                <div className="mt-8 pt-4 border-t-2 border-slate-800 flex justify-end items-center text-slate-500">
+                                    <div className="text-right">
+                                        <p className="text-[7px] uppercase tracking-tight mt-0.5">Recibo emitido eletronicamente. Auditável na plataforma central.</p>
+                                    </div>
                                 </div>
-
                             </div>
+                            </div>{/* fecha #printable-receipt */}
+
+                            {/* Página 2: Comprovante Anexo (dentro do print-container) */}
+                            {(printItem.original?.receiptUrl && printWithAttachment) && (
+                                <div className="bg-white text-[10px] leading-tight font-poppins p-6 print:p-0 flex flex-col relative w-[210mm] mx-auto print:w-full" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', pageBreakBefore: 'always', breakBefore: 'page' }}>
+                                    <div className="border-b-2 border-slate-800 pb-4 mb-6">
+                                        <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Comprovante de Transação</h2>
+                                        <p className="text-[10px] text-slate-500 mt-1 uppercase">Anexo referente ao faturamento: {getDocLabel(printItem)}</p>
+                                    </div>
+                                    <div className="flex-1 flex flex-col items-center justify-start">
+                                        {printItem.original.receiptUrl.toLowerCase().includes('.pdf') ? (
+                                            <div className="w-full border-2 border-dashed border-slate-300 rounded-xl p-10 flex flex-col items-center justify-center text-center">
+                                                <Paperclip size={48} className="text-slate-300 mb-4" />
+                                                <p className="text-sm font-bold text-slate-600 mb-2">Comprovante em formato PDF anexado</p>
+                                                <p className="text-[10px] text-slate-400">Os documentos PDF precisam ser impressos a partir do visualizador digital original.</p>
+                                            </div>
+                                        ) : (
+                                            <img
+                                                src={printItem.original.receiptUrl}
+                                                alt="Comprovante"
+                                                className="max-w-full object-contain border border-slate-200 rounded-lg shadow-sm"
+                                                style={{ maxHeight: '85vh' }}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── POPUP: Imprimir comprovante? ── */}
+            {showAttachmentConfirmModal && pendingPrintItem && (
+                <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden">
+                        <div className="p-6">
+                            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mx-auto mb-4">
+                                <Paperclip size={22} className="text-blue-600" />
+                            </div>
+                            <h3 className="text-base font-black text-slate-800 text-center mb-1">Imprimir Comprovante?</h3>
+                            <p className="text-xs text-slate-500 text-center font-medium">
+                                Este faturamento possui um comprovante anexado.<br/>Deseja incluí-lo na impressão como segunda página?
+                            </p>
+                        </div>
+                        <div className="flex flex-col gap-2 px-6 pb-6">
+                            <button
+                                onClick={() => {
+                                    const item = pendingPrintItem;
+                                    flushSync(() => {
+                                        setPrintWithAttachment(true);
+                                        setPrintItem(item);
+                                        setIsPrintModalOpen(true);
+                                        setShowAttachmentConfirmModal(false);
+                                        setPendingPrintItem(null);
+                                    });
+                                    executePrint(true);
+                                }}
+                                className="w-full py-3 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-sm font-black transition-all flex items-center justify-center gap-2"
+                            >
+                                <Printer size={16} /> Imprimir comprovante junto
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const item = pendingPrintItem;
+                                    flushSync(() => {
+                                        setPrintWithAttachment(false);
+                                        setPrintItem(item);
+                                        setIsPrintModalOpen(true);
+                                        setShowAttachmentConfirmModal(false);
+                                        setPendingPrintItem(null);
+                                    });
+                                    executePrint(false);
+                                }}
+                                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                            >
+                                <FileText size={16} /> Não imprimir comprovante junto
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1682,23 +2042,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     to { transform: translateX(0); opacity: 1; }
                 }
                 .animate-slide-in-right { animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-                @media print {
-                    body * {
-                        visibility: hidden;
-                    }
-                    #printable-receipt, #printable-receipt * {
-                        visibility: visible;
-                    }
-                    #printable-receipt {
-                        position: absolute;
-                        left: 0;
-                        top: 0;
-                        width: 100%;
-                        margin: 0;
-                        padding: 0;
-                    }
-                    .print\\:hidden { visibility: hidden !important; display: none !important; }
-                }
+                .print\\:hidden { visibility: hidden !important; display: none !important; }
             `}</style>
         </div>
     );

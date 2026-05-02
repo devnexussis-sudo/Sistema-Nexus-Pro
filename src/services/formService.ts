@@ -109,7 +109,11 @@ export const FormService = {
                 const { data, error } = result;
 
                 if (error) {
-                    console.warn('[FormService] form_templates não encontrado:', error.message);
+                    console.error('[FormService] ❌ Falha crítica ao buscar form_templates:', {
+                        message: error.message,
+                        code: error.code,
+                        tenantId: tenantId
+                    });
                     return [];
                 }
 

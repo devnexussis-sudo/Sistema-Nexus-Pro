@@ -145,11 +145,15 @@ export const supabase: SupabaseClient = createClient(safeUrl, safeKey, {
 
             for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
                 const controller = new AbortController();
+                // 🛡️ Proteção Nexus: Apenas requisições de leitura (GET/HEAD) ou sem método definido (GET)
+                // são rastreadas para cancelamento no Wake Up. Escritas devem persistir até o timeout.
+                const isWrite = init?.method && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(init.method.toUpperCase());
+                
                 // Combina signal do caller (se houver) com nosso timeout
                 const callerSignal = (init as RequestInit & { signal?: AbortSignal })?.signal;
                 if (callerSignal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-                activeNexusFetches.add(controller);
+                if (!isWrite) activeNexusFetches.add(controller);
 
                 // Garante que se o componente abortar, o timeout interno também morre
                 const onAbort = () => controller.abort(callerSignal?.reason || new Error('Caller Aborted'));

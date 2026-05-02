@@ -281,6 +281,38 @@ const VisitCard: React.FC<{
   );
 };
 
+const formatPublicValue = (val: string) => {
+  if (typeof val !== 'string') return val;
+  const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+  if (isoDateRegex.test(val)) {
+    try {
+      return new Date(val).toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch {
+      return val;
+    }
+  }
+  return val;
+};
+
+const resolvePublicLabel = (key: string) => {
+  const cleanKey = key.replace(/^\[.*?\]\s*-\s*/, '');
+  if (!isNaN(Number(cleanKey)) && cleanKey.trim() !== '') return `Pergunta nº ${cleanKey}`;
+  
+  const lowerKey = cleanKey.toLowerCase();
+  if (lowerKey === 'blockedat' || lowerKey === 'blocked_at') return 'Data/Hora do Impedimento';
+  if (lowerKey === 'blockphotourls' || lowerKey === 'block_photo_urls' || lowerKey === 'block_photo' || lowerKey === 'blockphotourl' || lowerKey === 'block_photo_url') return 'Fotos do Impedimento';
+  if (lowerKey === 'blockreason' || lowerKey === 'block_reason' || lowerKey === 'reason' || lowerKey === 'impediment_reason') return 'Motivo do Impedimento';
+  if (lowerKey === 'impedimentresponsible' || lowerKey === 'impediment_responsible') return 'Responsável pelo Impedimento';
+  if (lowerKey === 'impedimentcategory' || lowerKey === 'impediment_category') return 'Categoria do Impedimento';
+  if (lowerKey === 'notes' || lowerKey === 'observacao') return 'Observações';
+  if (lowerKey === 'photo' || lowerKey === 'photo_url' || lowerKey === 'photourl' || lowerKey === 'attachment' || lowerKey === 'attachments') return 'Anexos';
+  
+  return cleanKey;
+};
+
 const CollapsibleFormSection: React.FC<{
   formData: Record<string, any>;
   order: ServiceOrder;
@@ -430,7 +462,7 @@ const CollapsibleFormSection: React.FC<{
                         <div className="px-4 pt-4 pb-3">
                           <div className="bg-slate-200/40 rounded px-2.5 py-1.5 mb-2.5 border border-slate-200/50 inline-block">
                             <p className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                              {!isNaN(Number(cleanKey)) ? `Pergunta nº ${cleanKey}` : cleanKey}
+                              {resolvePublicLabel(key)}
                             </p>
                           </div>
                           {text !== null && (
@@ -439,7 +471,7 @@ const CollapsibleFormSection: React.FC<{
                               : 'text-slate-800'
                               }`}>
                               {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
-                              {text}
+                              {formatPublicValue(text)}
                             </p>
                           )}
                           {text === null && photos.length > 0 && (
@@ -1071,12 +1103,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                         <div className="flex-1">
                            <div className="bg-slate-50 rounded px-1.5 py-0.5 mb-1 inline-block border border-slate-200">
                              <p className="text-[9px] font-bold uppercase tracking-tight text-slate-600">
-                               {item.key.replace(/^\[.*?\]\s*-\s*/, '')}
+                               {resolvePublicLabel(item.key)}
                              </p>
                            </div>
                            {item.text && (
                              <p className={`text-[10px] font-bold uppercase ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>
-                               {item.text}
+                               {formatPublicValue(item.text)}
                              </p>
                            )}
                         </div>

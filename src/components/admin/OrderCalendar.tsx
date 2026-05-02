@@ -69,6 +69,8 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
   const [selectedDayData, setSelectedDayData] = useState<{ day: Date; orders: ServiceOrder[] } | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
 
+  const hasActiveFilters = searchTerm !== '' || techFilter !== 'ALL' || statusFilter !== 'ALL';
+
   // Filtro de Técnico Avançado (Dropdown Pesquisável)
   const [isTechDropdownOpen, setIsTechDropdownOpen] = useState(false);
   const [techSearchQuery, setTechSearchQuery] = useState('');
@@ -139,7 +141,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
           <button onClick={prevMonth} className="p-2 hover:bg-white rounded-xl text-slate-500 transition-all active:scale-90 shadow-sm">
             <ChevronLeft size={16} />
           </button>
-          <div className="px-3 py-1 min-w-[130px] text-center">
+          <div className="px-3 py-1 min-w-[110px] sm:min-w-[130px] text-center">
             <span className="text-[13px] font-black text-slate-800 capitalize block leading-none">
               {format(currentMonth, 'MMMM', { locale: ptBR })}
             </span>
@@ -165,11 +167,11 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
           <span className="text-[10px] font-black text-primary-700">{monthTotal} OS no mês</span>
         </div>
 
-        <div className="h-6 w-px bg-slate-200 mx-1 hidden lg:block" />
+        <div className="h-6 w-px bg-slate-200 mx-1 hidden lg:block shrink-0" />
 
         {/* Filtros */}
         <div className="flex-1 flex flex-wrap md:flex-nowrap items-center gap-2 w-full lg:w-auto">
-          <div className="relative flex-1 min-w-[180px]">
+          <div className="relative flex-1 min-w-[140px] md:min-w-[180px]">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
             <input
               type="text"
@@ -180,7 +182,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             />
           </div>
 
-          <div className="relative shrink-0 min-w-[200px]" ref={techDropdownRef}>
+          <div className="relative shrink-0 w-full md:w-[180px]" ref={techDropdownRef}>
             <div 
               className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-9 pr-8 text-[10px] font-bold text-slate-700 cursor-pointer shadow-sm flex flex-col justify-center min-h-[42px]"
               onClick={() => setIsTechDropdownOpen(!isTechDropdownOpen)}
@@ -241,7 +243,7 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             )}
           </div>
 
-          <div className="relative shrink-0 min-w-[140px]">
+          <div className="relative shrink-0 w-full md:w-[130px]">
             <Filter size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
             <select
               className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-6 text-[10px] font-bold text-slate-700 outline-none transition-all cursor-pointer shadow-sm appearance-none"
@@ -254,6 +256,20 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
               ))}
             </select>
           </div>
+
+          {hasActiveFilters && (
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setTechFilter('ALL');
+                setStatusFilter('ALL');
+              }}
+              className="p-2.5 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all shadow-sm shrink-0 flex items-center justify-center"
+              title="Limpar todos os filtros"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
       </header>
 

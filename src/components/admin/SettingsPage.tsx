@@ -9,7 +9,7 @@ import {
   ShieldCheck, Briefcase, Hash, CreditCard, Settings,
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
   ShieldAlert, Terminal, X, UploadCloud, Languages,
-  BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle
+  BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle, PieChart, Target
 } from 'lucide-react';
 
 interface CompanyData {
@@ -50,10 +50,12 @@ interface SystemParams {
   showStockHistory: boolean;
   allowImpediment: boolean;
   showVisitHistory: boolean;
+  slaTargetPercentage: number;
+  sla48hTargetPercentage: number;
 }
 
 export const SettingsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'company' | 'system' | 'app'>('company');
+  const [activeTab, setActiveTab] = useState<'company' | 'system' | 'app' | 'dashboard'>('company');
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showSuperUserUnlock, setShowSuperUserUnlock] = useState(false);
@@ -97,6 +99,8 @@ export const SettingsPage: React.FC = () => {
     showStockHistory: true,
     allowImpediment: true,
     showVisitHistory: true,
+    slaTargetPercentage: 85,
+    sla48hTargetPercentage: 90,
   });
 
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
@@ -143,6 +147,8 @@ export const SettingsPage: React.FC = () => {
         showStockHistory: data.metadata?.showStockHistory ?? true,
         allowImpediment: data.metadata?.allowImpediment ?? true,
         showVisitHistory: data.metadata?.showVisitHistory ?? true,
+        slaTargetPercentage: data.metadata?.slaTargetPercentage ?? 85,
+        sla48hTargetPercentage: data.metadata?.sla48hTargetPercentage ?? 90,
       }));
 
       setDbInfo({ slug: data.slug || '', id: data.id });
@@ -283,6 +289,8 @@ export const SettingsPage: React.FC = () => {
           showStockHistory: params.showStockHistory,
           allowImpediment: params.allowImpediment,
           showVisitHistory: params.showVisitHistory,
+          slaTargetPercentage: params.slaTargetPercentage,
+          sla48hTargetPercentage: params.sla48hTargetPercentage,
         }
       };
 
@@ -425,6 +433,13 @@ export const SettingsPage: React.FC = () => {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'app' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <Smartphone size={14} /> APP do Técnico
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'dashboard' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <PieChart size={14} /> Parâmetros de Dashboard
           </button>
         </div>
 
@@ -764,6 +779,74 @@ export const SettingsPage: React.FC = () => {
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
                           WhatsApp automático ao iniciar deslocamento.
                         </p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'dashboard' && (
+              <div className="space-y-4 animate-fade-in">
+                <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
+                  <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+                    <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
+                      <PieChart size={20} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Parâmetros Analíticos</h2>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Defina as metas e indicadores para o funcionamento do painel.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors bg-indigo-600 text-white`}>
+                        <Target size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Meta de Eficiência SLA (24h)</h4>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed mb-3">
+                          Porcentagem alvo para o fechamento de ordens em até 24h.
+                        </p>
+                        <div className="flex items-center gap-2">
+                           <Input
+                             type="number"
+                             min={0}
+                             max={100}
+                             value={params.slaTargetPercentage}
+                             onChange={e => setParams({ ...params, slaTargetPercentage: Number(e.target.value) })}
+                             className="rounded-xl py-1 font-black border-gray-100 bg-white text-gray-900 text-sm shadow-inner w-24 text-center"
+                           />
+                           <span className="text-[10px] font-bold text-gray-500">%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors bg-emerald-600 text-white`}>
+                        <Target size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Meta de Eficiência SLA (48h)</h4>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed mb-3">
+                          Porcentagem alvo para o fechamento de ordens em até 48h.
+                        </p>
+                        <div className="flex items-center gap-2">
+                           <Input
+                             type="number"
+                             min={0}
+                             max={100}
+                             value={params.sla48hTargetPercentage}
+                             onChange={e => setParams({ ...params, sla48hTargetPercentage: Number(e.target.value) })}
+                             className="rounded-xl py-1 font-black border-gray-100 bg-white text-gray-900 text-sm shadow-inner w-24 text-center"
+                           />
+                           <span className="text-[10px] font-bold text-gray-500">%</span>
+                        </div>
                       </div>
                     </div>
                   </div>

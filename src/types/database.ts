@@ -301,8 +301,10 @@ export type DbCustomerInsert = Omit<DbCustomer, 'id' | 'created_at' | 'updated_a
 export interface DbEquipment {
     id: string;
     tenant_id: string;
+    asset_code?: string;        // Código visual único de 6 dígitos alfanuméricos
     serial_number: string;
     model: string;
+    name?: string;
     family_id: string;
     family_name: string;
     description: string;

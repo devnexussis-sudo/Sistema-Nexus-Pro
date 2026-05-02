@@ -12,6 +12,7 @@ import { Pagination } from '../ui/Pagination';
 
 import { Customer, Equipment } from '../../types';
 import { DataService } from '../../services/dataService';
+import { EquipmentService } from '../../services/equipmentService';
 
 interface LinkedEquipment {
   id: string;
@@ -36,6 +37,10 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 }) => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<'dados' | 'ativos'>('dados');
+  const [showLinkAsset, setShowLinkAsset] = useState(false);
+  const [linkingAsset, setLinkingAsset] = useState(false);
+  const [assetSearch, setAssetSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -295,7 +300,38 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
+    setModalTab('dados');
+    setShowLinkAsset(false);
+    setAssetSearch('');
     setFormData({ type: 'PJ', state: '', city: '', address: '', active: true });
+  };
+
+  const handleLinkAsset = async (eq: Equipment) => {
+    if (!editingId) return;
+    setLinkingAsset(true);
+    try {
+      await EquipmentService.updateEquipment({ ...eq, customerId: editingId });
+      // Rebuild grouped equipments locally
+      const grouped: Record<string, LinkedEquipment[]> = {};
+      equipments.forEach((e: any) => {
+        const cid = e.id === eq.id ? editingId : e.customerId;
+        if (!cid) return;
+        if (!grouped[cid]) grouped[cid] = [];
+        grouped[cid].push(e);
+      });
+      // Ensure newly linked shows up
+      if (!grouped[editingId]) grouped[editingId] = [];
+      if (!grouped[editingId].find(e => e.id === eq.id)) {
+        grouped[editingId].push(eq as any);
+      }
+      setMockEquipments(grouped);
+      setShowLinkAsset(false);
+      setAssetSearch('');
+    } catch (err: any) {
+      alert('Erro ao vincular ativo: ' + err.message);
+    } finally {
+      setLinkingAsset(false);
+    }
   };
 
   const toggleSelectCustomer = (id: string) => {
@@ -510,117 +546,241 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
       {
         isModalOpen && createPortal(
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
-            <div className="bg-white rounded-none lg:rounded-xl w-full max-w-4xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
-              <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex justify-between items-start sm:items-center shrink-0 bg-white">
-                <div className="flex items-center gap-6">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center border bg-slate-50 border-slate-200 text-[#1c2d4f] shrink-0"><Building2 size={18} /></div>
+          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
+            <div className="bg-white rounded-xl w-full max-w-3xl h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+
+              {/* HEADER */}
+              <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
+                    <Building2 size={18} />
+                  </div>
                   <div>
-                    <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins">{editingId ? 'atualizar cliente' : 'novo cadastro corporativo'}</h2>
-                    <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5">provisionamento de base operacional</p>
+                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                      {editingId ? 'Editar Cliente' : 'Novo Cliente'}
+                    </h2>
+                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">Nexus Operacional • registro de unidade</p>
                   </div>
                 </div>
-                <button onClick={closeModal} className="p-2 text-slate-400 hover:text-slate-900 transition-all"><X size={20} /></button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
-                <div className="flex bg-slate-100 p-1.5 rounded-2xl w-fit">
-                  <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })} className={`px-10 py-3 text-[10px] font-bold   rounded-xl transition-all ${formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Empresa (PJ)</button>
-                  <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })} className={`px-10 py-3 text-[10px] font-bold   rounded-xl transition-all ${formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>Individual (PF)</button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Input label={formData.type === 'PJ' ? "Razão Social" : "Nome Completo"} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
-                  <div className="relative">
-                    <Input
-                      label={formData.type === 'PJ' ? "CNPJ" : "CPF"}
-                      required
-                      className={`rounded-2xl py-4 font-bold ${documentDuplicate ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
-                      value={formData.document || ''}
-                      onChange={e => {
-                        const formatted = formData.type === 'PJ'
-                          ? formatCNPJ(e.target.value)
-                          : formatCPF(e.target.value);
-                        setFormData({ ...formData, document: formatted });
-                      }}
-                      placeholder={formData.type === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
-                    />
-                    {documentDuplicate && (
-                      <div className="mt-2 p-3 bg-red-100 border border-red-300 rounded-xl flex items-start gap-2 animate-pulse">
-                        <span className="text-red-600 font-bold text-lg">⚠️</span>
-                        <p className="text-red-700 text-xs font-bold">
-                          {formData.type === 'PJ' ? 'CNPJ' : 'CPF'} já cadastrado para: <span className="font-bold ">{documentDuplicate}</span>
-                        </p>
-                      </div>
+                <div className="flex items-center gap-4">
+                  {/* Abas */}
+                  <div className="hidden md:flex bg-slate-100 p-1 rounded-xl gap-1">
+                    <button type="button" onClick={() => setModalTab('dados')}
+                      className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                        modalTab === 'dados' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                      }`}>Dados do Cliente</button>
+                    {editingId && (
+                      <button type="button" onClick={() => setModalTab('ativos')}
+                        className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                          modalTab === 'ativos' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                        }`}>Ativos Vinculados</button>
                     )}
                   </div>
-                  <Input label="E-mail Administrativo" type="email" required icon={<Mail size={16} />} className="rounded-2xl py-4 font-bold border-slate-200" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
-                  <div className="grid grid-cols-2 gap-6">
-                    <Input
-                      label="Telefone Fixo"
-                      className="rounded-2xl py-4 font-bold border-slate-200"
-                      value={formData.phone || ''}
-                      onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })}
-                      placeholder="(00) 0000-0000"
-                    />
-                    <Input
-                      label="WhatsApp Direto"
-                      icon={<Phone size={14} className="text-emerald-500" />}
-                      className="rounded-2xl py-4 font-bold border-slate-200"
-                      value={formData.whatsapp || ''}
-                      onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })}
-                      placeholder="(00) 00000-0000"
-                    />
-                  </div>
+                  <button onClick={closeModal} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50">
+                    <X size={20} />
+                  </button>
                 </div>
+              </div>
 
-                <div className="pt-5 border-t border-slate-200 space-y-5">
-                  <div className="flex items-center gap-2 text-primary-600 font-bold text-xs tracking-[0.2em] italic"><MapPin size={16} /> localização e atendimento</div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <Input label="CEP" onBlur={handleZipBlur} required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} />
-                    <Input label="Estado (UF)" value={formData.state || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-primary-600" onChange={e => setFormData({ ...formData, state: e.target.value })} />
-                    <Input label="Cidade" value={formData.city || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-slate-700" onChange={e => setFormData({ ...formData, city: e.target.value })} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-                    <div className="md:col-span-2"><Input label="Logradouro" value={formData.address || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-slate-700" onChange={e => setFormData({ ...formData, address: e.target.value })} /></div>
-                    <div className="md:col-span-1"><Input label="Número" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} /></div>
-                    <div className="md:col-span-1"><Input label="Bairro" required className="rounded-2xl py-4 font-bold border-slate-200" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} /></div>
-                  </div>
-                  <Input label="Ponto de Referência / Complemento" icon={<Info size={18} />} className="rounded-2xl py-4 font-bold border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <div className="col-span-full">
-                      <h4 className="text-[10px] font-bold  text-slate-400 ">Geolocalização Customizada (Opcional)</h4>
-                      <p className="text-[9px] text-slate-400 mt-1">Preenchido automaticamente via CEP. Só altere se a posição do pino estiver incorreta.</p>
+              {/* BODY */}
+              <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
+
+                {/* ABA: DADOS */}
+                {modalTab === 'dados' && (
+                  <form id="customer-form" onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto">
+
+                    {/* Tipo */}
+                    <div className="flex bg-white p-1 rounded-xl w-fit border border-slate-200 shadow-sm">
+                      <button type="button" onClick={() => setFormData({ ...formData, type: 'PJ' })}
+                        className={`px-8 py-2 rounded-lg text-xs font-bold transition-all ${
+                          formData.type === 'PJ' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
+                        }`}>Empresa (PJ)</button>
+                      <button type="button" onClick={() => setFormData({ ...formData, type: 'PF' })}
+                        className={`px-8 py-2 rounded-lg text-xs font-bold transition-all ${
+                          formData.type === 'PF' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'
+                        }`}>Individual (PF)</button>
                     </div>
-                    <Input label="Latitude" type="number" step="any" value={formData.latitude || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-primary-600" onChange={e => setFormData({ ...formData, latitude: parseFloat(e.target.value) || undefined })} />
-                    <Input label="Longitude" type="number" step="any" value={formData.longitude || ''} className="rounded-2xl py-4 border-slate-200 font-bold text-primary-600" onChange={e => setFormData({ ...formData, longitude: parseFloat(e.target.value) || undefined })} />
-                  </div>
-                </div>
 
-                {errorMessage && (
-                  <div className="mx-auto w-full p-4 bg-red-100 border border-red-200 text-red-600 rounded-2xl text-center font-bold text-xs  animate-pulse">
-                    Erro: {errorMessage}
+                    {/* Card: Identificação */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                      <div className="px-6 py-4 border-b border-slate-100">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">identificação</h3>
+                      </div>
+                      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="md:col-span-2">
+                          <Input label={formData.type === 'PJ' ? 'Razão Social' : 'Nome Completo'} required className="rounded-xl py-3 font-medium border-slate-200" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                        </div>
+                        <div className="relative">
+                          <Input label={formData.type === 'PJ' ? 'CNPJ' : 'CPF'} required
+                            className={`rounded-xl py-3 font-medium ${documentDuplicate ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}
+                            value={formData.document || ''}
+                            placeholder={formData.type === 'PJ' ? '00.000.000/0000-00' : '000.000.000-00'}
+                            onChange={e => setFormData({ ...formData, document: formData.type === 'PJ' ? formatCNPJ(e.target.value) : formatCPF(e.target.value) })} />
+                          {documentDuplicate && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">⚠️ Já cadastrado: {documentDuplicate}</p>}
+                        </div>
+                        <Input label="E-mail" type="email" required icon={<Mail size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                        <Input label="Telefone" className="rounded-xl py-3 font-medium border-slate-200" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })} placeholder="(00) 0000-0000" />
+                        <Input label="WhatsApp" icon={<Phone size={14} className="text-emerald-500" />} className="rounded-xl py-3 font-medium border-slate-200" value={formData.whatsapp || ''} onChange={e => setFormData({ ...formData, whatsapp: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" />
+                      </div>
+                    </div>
+
+                    {/* Card: Localização */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                      <div className="px-6 py-4 border-b border-slate-100">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">localização e atendimento</h3>
+                      </div>
+                      <div className="p-6 space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                          <Input label="CEP" onBlur={handleZipBlur} required className="rounded-xl py-3 font-medium border-slate-200" value={formData.zip || ''} onChange={e => setFormData({ ...formData, zip: e.target.value })} />
+                          <Input label="Estado (UF)" className="rounded-xl py-3 font-medium border-slate-200" value={formData.state || ''} onChange={e => setFormData({ ...formData, state: e.target.value })} />
+                          <Input label="Cidade" className="rounded-xl py-3 font-medium border-slate-200" value={formData.city || ''} onChange={e => setFormData({ ...formData, city: e.target.value })} />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                          <div className="md:col-span-2"><Input label="Logradouro" className="rounded-xl py-3 font-medium border-slate-200" value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} /></div>
+                          <Input label="Número" required className="rounded-xl py-3 font-medium border-slate-200" value={formData.number || ''} onChange={e => setFormData({ ...formData, number: e.target.value })} />
+                          <Input label="Bairro" required className="rounded-xl py-3 font-medium border-slate-200" value={formData.neighborhood || ''} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })} />
+                        </div>
+                        <Input label="Complemento / Referência" icon={<Info size={16} />} className="rounded-xl py-3 font-medium border-slate-200" value={formData.complement || ''} onChange={e => setFormData({ ...formData, complement: e.target.value })} />
+                        <div className="grid grid-cols-2 gap-5 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                          <div className="col-span-full"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Geolocalização (preenchida automaticamente via CEP)</p></div>
+                          <Input label="Latitude" type="number" step="any" className="rounded-xl py-3 font-medium border-slate-200" value={formData.latitude || ''} onChange={e => setFormData({ ...formData, latitude: parseFloat(e.target.value) || undefined })} />
+                          <Input label="Longitude" type="number" step="any" className="rounded-xl py-3 font-medium border-slate-200" value={formData.longitude || ''} onChange={e => setFormData({ ...formData, longitude: parseFloat(e.target.value) || undefined })} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {errorMessage && (
+                      <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-bold">{errorMessage}</div>
+                    )}
+                  </form>
+                )}
+
+                {/* ABA: ATIVOS VINCULADOS */}
+                {modalTab === 'ativos' && editingId && (
+                  <div className="max-w-4xl mx-auto space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">ativos vinculados ao cliente</h3>
+                      <button type="button" onClick={() => { setShowLinkAsset(true); setAssetSearch(''); }}
+                        className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-[11px] font-bold hover:bg-[#253a66] transition-all">
+                        <Plus size={14} /> Vincular Ativo
+                      </button>
+                    </div>
+
+                    {/* Sub-painel: vincular ativo livre */}
+                    {showLinkAsset && (() => {
+                      const freeAssets = equipments.filter((eq: any) =>
+                        (!eq.customerId || eq.customerId === editingId) && eq.id !== editingId
+                      ).filter((eq: any) =>
+                        assetSearch === '' ||
+                        eq.model?.toLowerCase().includes(assetSearch.toLowerCase()) ||
+                        eq.serialNumber?.toLowerCase().includes(assetSearch.toLowerCase())
+                      );
+                      const alreadyLinked = new Set((mockEquipments[editingId!] || []).map(e => e.id));
+                      const available = freeAssets.filter((eq: any) => !alreadyLinked.has(eq.id));
+                      return (
+                        <div className="bg-slate-50 border border-[#1c2d4f]/20 rounded-xl overflow-hidden">
+                          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-white">
+                            <p className="text-xs font-bold text-[#1c2d4f]">Selecione um ativo para vincular</p>
+                            <button onClick={() => setShowLinkAsset(false)} className="p-1 text-slate-400 hover:text-rose-500 rounded"><X size={16} /></button>
+                          </div>
+                          <div className="p-3">
+                            <div className="relative mb-3">
+                              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input
+                                value={assetSearch}
+                                onChange={e => setAssetSearch(e.target.value)}
+                                placeholder="Buscar por modelo ou serial..."
+                                className="w-full pl-8 pr-3 py-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#1c2d4f]/10"
+                              />
+                            </div>
+                            {available.length === 0 ? (
+                              <p className="text-center py-6 text-xs text-slate-400 font-medium">Nenhum ativo disponível para vincular</p>
+                            ) : (
+                              <div className="max-h-52 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
+                                {available.map((eq: any) => (
+                                  <div key={eq.id} className="flex items-center justify-between py-2.5 px-2 hover:bg-white rounded-lg transition-colors">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-7 h-7 bg-[#1c2d4f]/8 rounded-lg flex items-center justify-center text-[#1c2d4f]"><Laptop size={13} /></div>
+                                      <div>
+                                        <p className="text-xs font-semibold text-slate-800">{eq.model || eq.name}</p>
+                                        <p className="font-mono text-[10px] text-slate-400">{eq.serialNumber}</p>
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => handleLinkAsset(eq)}
+                                      disabled={linkingAsset}
+                                      className="px-3 py-1 bg-[#1c2d4f] text-white rounded-lg text-[10px] font-bold hover:bg-[#253a66] transition-colors disabled:opacity-50"
+                                    >
+                                      Vincular
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                      {mockEquipments[editingId] && mockEquipments[editingId].length > 0 ? (
+                        <table className="w-full">
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                              <th className="px-5 py-3 text-left">Modelo / Nome</th>
+                              <th className="px-5 py-3 text-left">Nº de Série</th>
+                              <th className="px-5 py-3 text-left">Família</th>
+                              <th className="px-5 py-3 text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {mockEquipments[editingId].map(eq => (
+                              <tr key={eq.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="px-5 py-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-[#1c2d4f]/8 rounded-lg flex items-center justify-center text-[#1c2d4f]"><Laptop size={14} /></div>
+                                    <span className="text-xs font-semibold text-slate-800">{eq.model}</span>
+                                  </div>
+                                </td>
+                                <td className="px-5 py-3 font-mono text-xs text-slate-500">{eq.serialNumber}</td>
+                                <td className="px-5 py-3 text-xs text-slate-500">{eq.familyName || '—'}</td>
+                                <td className="px-5 py-3 text-center">
+                                  <span className={`px-3 py-1 rounded-full text-[9px] font-bold ${
+                                    eq.active ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-400'
+                                  }`}>{eq.active ? 'Ativo' : 'Inativo'}</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="py-16 text-center">
+                          <Laptop size={32} className="mx-auto text-slate-200 mb-3" />
+                          <p className="text-sm font-bold text-slate-300">Nenhum ativo vinculado</p>
+                          <p className="text-xs text-slate-300 mt-1">Cadastre ativos na aba de Equipamentos</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-              </form>
-
-              <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
-                <Button variant="secondary" className="h-9 px-5 rounded-xl text-xs" onClick={closeModal}>Cancelar</Button>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={!!documentDuplicate}
-                  className={`h-9 px-6 rounded-xl text-xs font-bold transition-all ${documentDuplicate
-                    ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                    : 'bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]'
-                    }`}
-                >
-                  <Save size={14} className="mr-2" /> Salvar Cadastro
-                </Button>
               </div>
+
+              {/* FOOTER */}
+              <div className="px-8 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
+                <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Cancelar</button>
+                {modalTab === 'dados' && (
+                  <Button form="customer-form" onClick={handleSubmit} disabled={!!documentDuplicate}
+                    className={`h-9 px-6 rounded-xl text-xs font-bold ${
+                      documentDuplicate ? 'bg-gray-400 cursor-not-allowed opacity-50' : 'bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]'
+                    }`}>
+                    <Save size={14} className="mr-2" /> Salvar Cadastro
+                  </Button>
+                )}
+              </div>
+
             </div>
           </div>, document.body
         )
       }
-    </div >
+    </div>
   );
 };

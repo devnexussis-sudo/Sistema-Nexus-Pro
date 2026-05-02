@@ -148,6 +148,7 @@ export interface Technician {
   avatar?: string;
   active: boolean;
   tenantId?: string;
+  techCode?: string; // Código único de 6 dígitos numéricos (ex: 483921)
   last_latitude?: number;
   last_longitude?: number;
   last_seen?: string;
@@ -225,6 +226,7 @@ export interface ServiceOrder {
   paymentMethod?: string;
   paidAt?: string;
   billingNotes?: string;
+  receiptUrl?: string; // Anexo do comprovante de pagamento
   linkedQuotes?: string[];
   discount?: number;
   discountType?: 'fixed' | 'percent';
@@ -415,6 +417,7 @@ export interface EquipmentFamily {
 export interface Equipment {
   id: string;
   tenantId?: string; // Multi-tenancy
+  assetCode?: string; // Código visual único de 6 dígitos (ex: A3F9K2)
   name?: string; // Nome descritivo amigável
   serialNumber: string;
   model: string;
@@ -492,6 +495,7 @@ export interface Quote {
   paymentMethod?: string;
   paidAt?: string;
   billingNotes?: string;
+  receiptUrl?: string;
   discount?: number;
   discountType?: 'fixed' | 'percent';
 }

@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { FormTemplate, FormField, FormFieldType } from '../../types';
 import { DataService } from '../../services/dataService';
-import { useForms, useServiceTypes, useActivationRules } from '../../hooks/nexusHooks';
+import { useForms, useServiceTypes, useActivationRules, useTenant, NexusQueryClient } from '../../hooks/nexusHooks';
 
 // Famílias vindas do EquipmentManagement para consistência
 export const EQUIPMENT_FAMILIES = [
@@ -32,7 +32,7 @@ interface ActivationRule {
 }
 
 export const FormManagement: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'types' | 'templates' | 'rules'>('types');
+  const [activeTab, setActiveTab] = useState<'types' | 'templates' | 'rules'>('templates');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
@@ -41,24 +41,52 @@ export const FormManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
 
-  // ✅ React Query hooks — cache persistente, sem loop de loading
+  const [tenantReady, setTenantReady] = useState(false);
+
   const {
     data: serviceTypesRaw = [],
     isLoading: typesLoading,
     refetch: refetchTypes
-  } = useServiceTypes(true);
+  } = useServiceTypes(tenantReady);
 
   const {
     data: formsRaw = [],
     isLoading: formsLoading,
     refetch: refetchForms
-  } = useForms(true);
+  } = useForms(tenantReady);
 
   const {
     data: rulesRaw = [],
     isLoading: rulesLoading,
     refetch: refetchRules
-  } = useActivationRules(true);
+  } = useActivationRules(tenantReady);
+
+  // 🛡️ Lógica de "Wake up" para garantir Tenant ID (crítico para localhost)
+  useEffect(() => {
+    async function wakeUp() {
+      const tid = DataService.getCurrentTenantId();
+      if (tid) {
+        setTenantReady(true);
+        return;
+      }
+
+      // Se não tem no cache, tenta forçar leitura da sessão
+      try {
+        const { data: { session } } = await (await import('../../lib/supabase')).supabase.auth.getSession();
+        if (session?.user?.user_metadata?.tenantId || session?.user?.user_metadata?.tenant_id) {
+          console.log('🛡️ [FormManagement] Tenant ID recuperado via Session Wake-up');
+          setTenantReady(true);
+        } else {
+          // Fallback: se houver sessão mas sem metadata, o serviceTypes pode falhar, 
+          // mas vamos liberar o tenantReady para que o erro apareça ou tente o default
+          setTenantReady(true);
+        }
+      } catch (e) {
+        setTenantReady(true);
+      }
+    }
+    wakeUp();
+  }, []);
 
   // Estado local apenas para edição (não afeta o cache)
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
@@ -67,15 +95,15 @@ export const FormManagement: React.FC = () => {
 
   // Sincroniza dados do cache com estado local para edição otimista
   useEffect(() => {
-    if (serviceTypesRaw.length > 0) setServiceTypes(serviceTypesRaw as ServiceType[]);
+    setServiceTypes(serviceTypesRaw as ServiceType[]);
   }, [serviceTypesRaw]);
 
   useEffect(() => {
-    if (formsRaw.length > 0) setForms(formsRaw as FormTemplate[]);
+    setForms(formsRaw as FormTemplate[]);
   }, [formsRaw]);
 
   useEffect(() => {
-    if (rulesRaw.length > 0) {
+    if (rulesRaw) {
       // Normaliza snake_case → camelCase vindo do banco
       const normalized = (rulesRaw as any[]).map(r => ({
         ...r,
@@ -321,10 +349,13 @@ export const FormManagement: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="overflow-auto flex-1 p-6 custom-scrollbar">
           {/* Só mostra spinner se estiver carregando E não tiver dados ainda */}
-          {loading && serviceTypes.length === 0 && forms.length === 0 ? (
-            <div className="py-10 flex flex-col items-center justify-center gap-4 text-primary-600">
-              <Loader2 size={48} className="animate-spin" />
-              <p className="text-xs font-bold   italic">Sincronizando com a Cloud DUNO...</p>
+          {(loading && forms.length === 0 && serviceTypes.length === 0) ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-4 text-slate-400">
+              <Loader2 size={48} className="animate-spin text-primary-500" />
+              <div className="text-center">
+                <p className="text-sm font-bold text-slate-600">Sincronizando com a Cloud DUNO...</p>
+                <p className="text-[10px] uppercase tracking-widest mt-1">Aguarde um momento</p>
+              </div>
             </div>
           ) : (
             <>
