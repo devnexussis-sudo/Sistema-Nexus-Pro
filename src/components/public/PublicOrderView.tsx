@@ -305,7 +305,7 @@ const resolvePublicLabel = (key: string) => {
   if (lowerKey === 'blockedat' || lowerKey === 'blocked_at') return 'Data/Hora do Impedimento';
   if (lowerKey === 'blockphotourls' || lowerKey === 'block_photo_urls' || lowerKey === 'block_photo' || lowerKey === 'blockphotourl' || lowerKey === 'block_photo_url') return 'Fotos do Impedimento';
   if (lowerKey === 'blockreason' || lowerKey === 'block_reason' || lowerKey === 'reason' || lowerKey === 'impediment_reason') return 'Motivo do Impedimento';
-  if (lowerKey === 'impedimentresponsible' || lowerKey === 'impediment_responsible') return 'Responsável pelo Impedimento';
+  if (lowerKey === 'impedimentresponsible' || lowerKey === 'impediment_responsible') return 'Cliente / responsável por acompanhar o atendimento';
   if (lowerKey === 'impedimentcategory' || lowerKey === 'impediment_category') return 'Categoria do Impedimento';
   if (lowerKey === 'notes' || lowerKey === 'observacao') return 'Observações';
   if (lowerKey === 'photo' || lowerKey === 'photo_url' || lowerKey === 'photourl' || lowerKey === 'attachment' || lowerKey === 'attachments') return 'Anexos';
