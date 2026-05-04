@@ -914,7 +914,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">
               Equipamentos Vinculados ({linkedEquipments.length})
             </div>
-            <div className="overflow-x-auto w-full"><table className="w-full text-left">
+            <div className="w-full"><table className="w-full text-left break-words table-fixed">
               <thead>
                 <tr className="bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200">
                   <th className="px-3 py-1.5">#</th>
@@ -1070,7 +1070,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 <div className="divide-y divide-slate-100 bg-white">
                   {items.map((item, iIdx) => (
                     <div key={iIdx} className="p-2 break-inside-avoid">
-                      <div className="flex gap-4">
+                      <div className="flex flex-col gap-2">
                         <div className="flex-1">
                            <div className="bg-slate-50 rounded px-1.5 py-0.5 mb-1 inline-block border border-slate-200">
                              <p className="text-[9px] font-bold uppercase tracking-tight text-slate-600">
@@ -1084,15 +1084,18 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                            )}
                         </div>
                         {item.photos.length > 0 && (
-                          <div className="grid grid-cols-3 gap-2 w-[340px] shrink-0">
-                            {item.photos.slice(0, 3).map((p, pIdx) => (
-                              <div key={pIdx} className="border border-slate-200 rounded p-0.5 h-[100px] overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
-                                {isVideoUrl(p) ? <Video size={14} className="text-slate-300" /> : <img src={p} className="w-full h-full object-cover" />}
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {item.photos.map((p: string, pIdx: number) => (
+                              <div key={pIdx} className="w-[80px] h-[80px] border border-slate-200 rounded overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
+                                {isVideoUrl(p) ? (
+                                  <div className="w-full h-full bg-slate-200 flex items-center justify-center relative">
+                                    <span className="absolute bottom-1 bg-black/60 text-white text-[6px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                  </div>
+                                ) : (
+                                  <img src={p} className="w-full h-full object-contain" />
+                                )}
                               </div>
                             ))}
-                            {item.photos.length > 3 && (
-                               <div className="col-span-3 text-[8px] text-slate-400 text-right italic">+ {item.photos.length - 3} fotos no link digital</div>
-                            )}
                           </div>
                         )}
                       </div>
@@ -1262,21 +1265,43 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                               <div className="p-2 grid grid-cols-2 gap-2">
                                 {Object.entries(gData).map(([key, val], idx) => {
                                   let text: string | null = null;
+                                  let photos: string[] = [];
                                   const isImg = (x: any) => typeof x === 'string' && (x.startsWith('data:image') || x.startsWith('http'));
+                                  
                                   if (Array.isArray(val)) {
                                     text = val.filter(x => typeof x === 'string' && !isImg(x)).join(', ');
-                                  } else if (val !== null && val !== undefined && val !== '' && !isImg(val)) {
+                                    photos = val.filter(x => isImg(x));
+                                  } else if (isImg(val)) {
+                                    photos = [val as string];
+                                  } else if (val !== null && val !== undefined && val !== '') {
                                     text = String(val);
                                   }
                                   
-                                  if (!text) return null;
+                                  if (!text && photos.length === 0) return null;
                                   
                                   return (
-                                    <div key={idx} className="col-span-1">
-                                      <div className="text-[8px] font-bold uppercase tracking-tight text-slate-400">{resolvePublicLabel(key)}</div>
-                                      <div className={`text-[9px] font-bold uppercase ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-800'}`}>
-                                        {formatPublicValue(text)}
-                                      </div>
+                                    <div key={idx} className={`p-1 border border-slate-100 rounded break-inside-avoid bg-slate-50/50 ${photos.length > 0 ? 'col-span-2' : 'col-span-1'}`}>
+                                      <div className="text-[8px] font-bold uppercase tracking-tight text-slate-400 mb-0.5">{resolvePublicLabel(key)}</div>
+                                      {text && (
+                                        <div className={`text-[9px] font-bold uppercase leading-tight ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                          {formatPublicValue(text)}
+                                        </div>
+                                      )}
+                                      {photos.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {photos.map((p, pIdx) => (
+                                            <div key={pIdx} className="w-[80px] h-[80px] border border-slate-200 rounded overflow-hidden flex items-center justify-center bg-white shadow-sm">
+                                              {isVideoUrl(p) ? (
+                                                <div className="w-full h-full bg-slate-200 flex items-center justify-center relative">
+                                                  <span className="absolute bottom-1 bg-black/60 text-white text-[6px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                                </div>
+                                              ) : (
+                                                <img src={p} className="w-full h-full object-contain" />
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -1348,7 +1373,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {order.items && order.items.length > 0 && (
           <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
             <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">{showPrices ? 'Composição Financeira' : 'Peças e Materiais Aplicados'}</div>
-            <div className="overflow-x-auto w-full"><table className="w-full text-left">
+            <div className="w-full"><table className="w-full text-left break-words">
               <thead>
                 <tr className="bg-slate-50 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
                   <th className="px-3 py-1">Item</th>
