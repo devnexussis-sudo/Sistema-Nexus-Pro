@@ -1581,59 +1581,6 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           })()}
 
 
-          {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}
-          {order.items && order.items.length > 0 && (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
-              <div className="p-6 sm:p-8">
-                <SectionHeader icon={<Package size={15} />} title="Peças e Materiais Aplicados" />
-                <div className="rounded-xl border border-slate-100 overflow-hidden">
-                  <div className="overflow-x-auto w-full"><table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                        <th className="px-5 py-3">Descrição</th>
-                        <th className="px-5 py-3 text-center w-20">Qtd</th>
-                        {showPrices && <th className="px-5 py-3 text-right w-28">Unitário</th>}
-                        {showPrices && <th className="px-5 py-3 text-right w-28">Total</th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {order.items.map((item, i) => (
-                        <tr key={item.id || i} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-5 py-3.5">
-                            <span className="text-xs font-bold text-slate-800 uppercase">{item.description}</span>
-                            {item.equipmentName && (
-                              <div className="flex items-center gap-1 text-xs text-slate-400 font-bold uppercase mt-1">
-                                <Box size={10} className="text-slate-300" /> {item.equipmentName}
-                              </div>
-                            )}
-                            {item.fromStock && <span className="text-xs font-bold text-emerald-600 uppercase mt-1 block">✦ Estoque Técnico</span>}
-                          </td>
-                          <td className="px-5 py-3.5 text-center text-xs text-slate-500 font-bold">{item.quantity}</td>
-                          {showPrices && <td className="px-5 py-3.5 text-right text-xs  text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                          {showPrices && <td className="px-5 py-3.5 text-right text-xs font-bold text-slate-900 ">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table></div>
-                </div>
-
-                {/* Total bar — somente se valores estiverem habilitados */}
-                {showPrices && (
-                  <div className="mt-4 flex items-center justify-between bg-[#1c2d4f] text-white px-6 py-4 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <DollarSign size={18} className="opacity-60" />
-                      <span className="text-xs font-bold uppercase tracking-widest opacity-70">Total do Atendimento</span>
-                    </div>
-                    <span className="text-xl font-bold  tracking-tighter">
-                      R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-
           {/* ── SEÇÃO CONSOLIDADA REMOVIDA ── */}
           {false && (() => {
             const getFormData = (fd: any) => {
@@ -1795,6 +1742,60 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               ))}
             </div>
           )}
+
+
+          {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}
+          {order.items && order.items.length > 0 && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
+              <div className="p-6 sm:p-8">
+                <SectionHeader icon={<Package size={15} />} title="Peças e Materiais Aplicados" />
+                <div className="rounded-xl border border-slate-100 overflow-hidden">
+                  <div className="overflow-x-auto w-full"><table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50 text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
+                        <th className="px-5 py-3">Descrição</th>
+                        <th className="px-5 py-3 text-center w-20">Qtd</th>
+                        {showPrices && <th className="px-5 py-3 text-right w-28">Unitário</th>}
+                        {showPrices && <th className="px-5 py-3 text-right w-28">Total</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {order.items.map((item, i) => (
+                        <tr key={item.id || i} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-5 py-3.5">
+                            <span className="text-xs font-bold text-slate-800 uppercase">{item.description}</span>
+                            {item.equipmentName && (
+                              <div className="flex items-center gap-1 text-xs text-slate-400 font-bold uppercase mt-1">
+                                <Box size={10} className="text-slate-300" /> {item.equipmentName}
+                              </div>
+                            )}
+                            {item.fromStock && <span className="text-xs font-bold text-emerald-600 uppercase mt-1 block">✦ Estoque Técnico</span>}
+                          </td>
+                          <td className="px-5 py-3.5 text-center text-xs text-slate-500 font-bold">{item.quantity}</td>
+                          {showPrices && <td className="px-5 py-3.5 text-right text-xs  text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                          {showPrices && <td className="px-5 py-3.5 text-right text-xs font-bold text-slate-900 ">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table></div>
+                </div>
+
+                {/* Total bar — somente se valores estiverem habilitados */}
+                {showPrices && (
+                  <div className="mt-4 flex items-center justify-between bg-[#1c2d4f] text-white px-6 py-4 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <DollarSign size={18} className="opacity-60" />
+                      <span className="text-xs font-bold uppercase tracking-widest opacity-70">Total do Atendimento</span>
+                    </div>
+                    <span className="text-xl font-bold  tracking-tighter">
+                      R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
 
           {/* ── CARD DE CONCLUSÃO GLOBAL REMOVIDO (DADOS AGORA ESTÃO DENTRO DAS VISITAS) ── */}
 
