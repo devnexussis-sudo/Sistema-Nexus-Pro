@@ -966,40 +966,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         )}
 
-        {order.items && order.items.length > 0 && (
-          <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">{showPrices ? 'Composição Financeira' : 'Peças e Materiais Aplicados'}</div>
-            <div className="overflow-x-auto w-full"><table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
-                  <th className="px-3 py-1">Item</th>
-                  <th className="px-3 py-1 text-center w-12">Qtd</th>
-                  {showPrices && <th className="px-3 py-1 text-right w-20">Unit.</th>}
-                  {showPrices && <th className="px-3 py-1 text-right w-20">Total</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {order.items.map((it: any, i: number) => (
-                  <tr key={i}>
-                    <td className="px-3 py-1 text-[9px] uppercase font-bold text-slate-800">{it.description}</td>
-                    <td className="px-3 py-1 text-[9px] text-center font-bold text-slate-600">{it.quantity}</td>
-                    {showPrices && <td className="px-3 py-1 text-[9px] text-right text-slate-600">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                    {showPrices && <td className="px-3 py-1 text-[9px] text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table></div>
-            {showPrices && (
-              <div className="bg-slate-800 text-white px-3 py-1.5 flex justify-end gap-6 items-center border-t border-slate-800">
-                <span className="text-[8px] uppercase font-bold tracking-widest text-slate-300">Total Geral</span>
-                <span className="text-[11px] font-bold tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Formulários agrupados por equipamento (print) */}
-        {(() => {
+        {orderVisits.length === 0 && (() => {
           const getFD = (fd: any) => {
             if (!fd) return {};
             if (typeof fd === 'string') { try { return JSON.parse(fd); } catch { return {}; } }
@@ -1177,7 +1146,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         })()}
 
         {/* ── Evidências Fotográficas Adicionais (print) ── */}
-        {(() => {
+        {orderVisits.length === 0 && (() => {
           const extractExtras = (fData: any) => {
             const extras = fData.extra_photos || fData.extraPhotos || fData.photos || [];
             const photosArr = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
@@ -1216,30 +1185,195 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* ── Histórico de Visitas (print) ── */}
         {orderVisits.length > 0 && (
-          <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
-            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Histórico de Visitas Detalhado</div>
-            <div className="divide-y divide-slate-200">
-              {orderVisits.map((v, i) => {
-                const vFd = typeof v.form_data === 'string' ? JSON.parse(v.form_data) : (v.form_data || {});
-                return (
-                  <div key={v.id} className="p-3 bg-white space-y-2 break-inside-avoid">
-                    <div className="flex justify-between items-center bg-slate-50 px-2 py-1 rounded border border-slate-200">
-                      <span className="font-bold text-[9px] uppercase">Visita #{i + 1} - {fmt(v.scheduled_date || v.created_at)}</span>
-                      <span className="font-bold text-[8px] uppercase text-slate-500">
-                        {v.arrival_time ? `Entrada: ${new Date(v.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''} 
-                        {v.departure_time ? ` · Saída: ${new Date(v.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
-                      </span>
-                    </div>
+          <div className="space-y-4 mt-4">
+            {orderVisits.map((v, i) => {
+              const vFd = typeof v.form_data === 'string' ? JSON.parse(v.form_data) : (v.form_data || {});
+              
+              // Extract forms
+              const grps: Record<string, any> = {};
+              const internalKeys = new Set([
+                'signature', 'signatureName', 'signatureDoc', 'signatureBirth',
+                'timeline', 'checkinLocation', 'checkoutLocation', 'pauseReason',
+                'impediment_reason', 'impediment_photos', 'impedimento_tipo', 'impedimento_motivo', 'impedimento_peca_nome', 'impedimento_peca_modelo', 'impedimento_peca_codigo', 'impedimento_fotos', 'impediment_at', 'totalValue', 'price',
+                'finishedAt', 'completedAt', 'technical_report', 'parts_used',
+                'technicalReport', 'partsUsed', 'blockReason', 'clientDoc',
+                'clientName', 'customerName', 'customerAddress', 'tenantId',
+                'assignedTo', 'formId', 'billingStatus', 'paymentMethod',
+                'extra_photos', 'photos', 'equipment_ids', 'videoUrl', 'video_url'
+              ]);
+              Object.entries(vFd).forEach(([key, val]) => {
+                if (internalKeys.has(key) || key.toLowerCase().includes('assinatura')) return;
+                const match = key.match(/^\[(.*?)\]\s*(?:-|$)/);
+                const gName = match ? match[1] : 'Relatório de Atendimento';
+                if (!grps[gName]) grps[gName] = {};
+                grps[gName][key] = val;
+              });
+
+              // Extract photos
+              const extras = vFd.extra_photos || vFd.extraPhotos || vFd.photos || [];
+              const photosArr = Array.isArray(extras) ? extras : (typeof extras === 'string' ? [extras] : []);
+              const visitPhotos = photosArr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
+
+              return (
+                <div key={v.id} className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                  <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700 flex justify-between">
+                    <span>Visita #{i + 1} — {new Date(v.scheduled_date || v.created_at).toLocaleDateString('pt-BR')}</span>
+                    <span className="text-[9px] text-slate-500 font-normal">
+                      {v.arrival_time ? `Entrada: ${new Date(v.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''} 
+                      {v.departure_time ? ` · Saída: ${new Date(v.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                    </span>
+                  </div>
+                  
+                  <div className="p-3 bg-white space-y-3">
+                    {/* Relato do Técnico */}
                     {(vFd.technical_report || vFd.technicalReport || v.notes) && (
                       <div className="text-[9px] text-slate-700 leading-tight">
-                        <span className="font-bold uppercase text-slate-400">Relato:</span> {vFd.technical_report || vFd.technicalReport || v.notes}
+                        <span className="font-bold uppercase text-slate-400 block mb-0.5">Relatório do Técnico:</span> 
+                        {vFd.technical_report || vFd.technicalReport || v.notes}
                       </div>
                     )}
-                    {/* Exibe se houver dados de formulário específicos (opcional no print para economia de espaço) */}
+
+                    {/* Peças da Visita */}
+                    {(vFd.parts_used || vFd.partsUsed) && (
+                      <div className="text-[9px] text-slate-700 leading-tight border border-slate-200 bg-slate-50 p-2 rounded">
+                        <span className="font-bold uppercase text-slate-500 block mb-0.5">Peças Utilizadas (Relato):</span> 
+                        {vFd.parts_used || vFd.partsUsed}
+                      </div>
+                    )}
+
+                    {/* Formulários (Checklists) */}
+                    {Object.keys(grps).length > 0 && (
+                      <div className="space-y-2 mt-2">
+                        {Object.entries(grps).map(([gName, gData]) => {
+                          const eq = linkedEquipments.find(e => {
+                            const eN = (e.equipment_name || e.equipmentName || '').toLowerCase();
+                            return gName.toLowerCase().includes(eN) || eN.includes(gName.toLowerCase());
+                          });
+                          return (
+                            <div key={gName} className="border border-slate-200 rounded break-inside-avoid">
+                              <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 flex justify-between items-center">
+                                <span className="font-bold text-[9px] uppercase tracking-wider text-slate-600">
+                                  {eq ? (eq.equipment_name || eq.equipmentName) : gName}
+                                </span>
+                                {eq && (eq.equipment_serial || eq.equipmentSerial) && (
+                                  <span className="text-[8px] text-slate-400">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
+                                )}
+                              </div>
+                              <div className="p-2 grid grid-cols-2 gap-2">
+                                {Object.entries(gData).map(([key, val], idx) => {
+                                  let text: string | null = null;
+                                  const isImg = (x: any) => typeof x === 'string' && (x.startsWith('data:image') || x.startsWith('http'));
+                                  if (Array.isArray(val)) {
+                                    text = val.filter(x => typeof x === 'string' && !isImg(x)).join(', ');
+                                  } else if (val !== null && val !== undefined && val !== '' && !isImg(val)) {
+                                    text = String(val);
+                                  }
+                                  
+                                  if (!text) return null;
+                                  
+                                  return (
+                                    <div key={idx} className="col-span-1">
+                                      <div className="text-[8px] font-bold uppercase tracking-tight text-slate-400">{resolvePublicLabel(key)}</div>
+                                      <div className={`text-[9px] font-bold uppercase ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                        {formatPublicValue(text)}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Fotos */}
+                    {(visitPhotos.length > 0 || vFd.videoUrl || vFd.video_url) && (
+                      <div className="mt-2 break-inside-avoid">
+                        <span className="font-bold uppercase text-[9px] text-slate-400 block mb-1">Evidências e Anexos</span>
+                        <div className="flex flex-wrap gap-2">
+                          {(vFd.videoUrl || vFd.video_url) && (
+                            <div className="border border-slate-200 rounded p-0.5 w-[100px] h-[75px] overflow-hidden flex items-center justify-center bg-slate-50 relative">
+                              <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                            </div>
+                          )}
+                          {visitPhotos.map((url: string, pIdx: number) => (
+                            <div key={pIdx} className="border border-slate-200 rounded p-0.5 w-[100px] h-[75px] overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
+                              {isVideoUrl(url) ? (
+                                <div className="w-full h-full bg-slate-200 flex items-center justify-center relative">
+                                  <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                </div>
+                              ) : (
+                                <img src={url} className="w-full h-full object-contain" alt={`Foto ${pIdx + 1}`} />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Assinatura da Visita */}
+                    {(() => {
+                      const sigKey = Object.keys(vFd).find(k => k.toLowerCase().includes('assinatura') && typeof vFd[k] === 'string' && vFd[k].startsWith('http'));
+                      const sigNameKey = Object.keys(vFd).find(k => k.toLowerCase().includes('assinatura') && k.toLowerCase().includes('nome'));
+                      const sigDocKey = Object.keys(vFd).find(k => k.toLowerCase().includes('assinatura') && (k.toLowerCase().includes('documento') || k.toLowerCase().includes('cpf')));
+                      
+                      const sigUrl = sigKey ? vFd[sigKey] : null;
+                      if (!sigUrl) return null;
+                      
+                      return (
+                        <div className="mt-3 pt-2 border-t border-slate-200 flex items-end gap-4 break-inside-avoid">
+                          <div>
+                            <span className="font-bold uppercase text-[8px] text-slate-400 block mb-0.5">Assinatura da Visita</span>
+                            <div className="h-[40px] w-[100px] border border-slate-200 rounded bg-slate-50 flex items-center justify-center p-1">
+                              <img src={sigUrl} className="max-h-full max-w-full object-contain mix-blend-multiply" />
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-bold uppercase text-slate-800">{vFd[sigNameKey as string] || 'Cliente'}</p>
+                            {sigDocKey && vFd[sigDocKey] && <p className="text-[8px] text-slate-500">{vFd[sigDocKey]}</p>}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}
+        {order.items && order.items.length > 0 && (
+          <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
+            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">{showPrices ? 'Composição Financeira' : 'Peças e Materiais Aplicados'}</div>
+            <div className="overflow-x-auto w-full"><table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
+                  <th className="px-3 py-1">Item</th>
+                  <th className="px-3 py-1 text-center w-12">Qtd</th>
+                  {showPrices && <th className="px-3 py-1 text-right w-20">Unit.</th>}
+                  {showPrices && <th className="px-3 py-1 text-right w-20">Total</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {order.items.map((it: any, i: number) => (
+                  <tr key={i}>
+                    <td className="px-3 py-1 text-[9px] uppercase font-bold text-slate-800">{it.description}</td>
+                    <td className="px-3 py-1 text-[9px] text-center font-bold text-slate-600">{it.quantity}</td>
+                    {showPrices && <td className="px-3 py-1 text-[9px] text-right text-slate-600">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                    {showPrices && <td className="px-3 py-1 text-[9px] text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table></div>
+            {showPrices && (
+              <div className="bg-slate-800 text-white px-3 py-1.5 flex justify-end gap-6 items-center border-t border-slate-800">
+                <span className="text-[8px] uppercase font-bold tracking-widest text-slate-300">Total Geral</span>
+                <span className="text-[11px] font-bold tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
           </div>
         )}
 
