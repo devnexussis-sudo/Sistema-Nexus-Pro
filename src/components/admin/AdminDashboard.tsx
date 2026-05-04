@@ -2079,7 +2079,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                     <div>
                       <h3 className="text-sm font-bold text-slate-800">Gestão de Peças e Custos</h3>
-                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">Consolidação financeira de insumos e atividades</p>
+                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">Peças sempre aparecem no link público. O botão abaixo controla somente a exibição dos valores (R$).</p>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -2092,20 +2092,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'
                             }`}
                         >
-                          {(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) ? <><Eye size={14} /> Visível no Link</> : <><EyeOff size={14} /> Oculto no Link</>}
+                          {(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) ? <><Eye size={14} /> Valores Visíveis</> : <><EyeOff size={14} /> Valores Ocultos</>}
                         </button>
                       ) : (
                         <button
                           type="button"
                           onClick={async () => {
-                            if (window.confirm(`Deseja ${selectedOrder.showValueToClient ? 'ocultar' : 'mostrar'} os preços desta OS para o cliente? Isso afetará o link público e a impressão.`)) {
+                            if (window.confirm(`Deseja ${selectedOrder.showValueToClient ? 'ocultar' : 'mostrar'} os valores (R$) das peças no link público e na impressão? As peças continuarão visíveis.`)) {
                               await onEditOrder({ ...selectedOrder, showValueToClient: !selectedOrder.showValueToClient });
                               setSelectedOrder({ ...selectedOrder, showValueToClient: !selectedOrder.showValueToClient });
                             }
                           }}
                           className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-sm border ${selectedOrder.showValueToClient ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'}`}
                         >
-                          {selectedOrder.showValueToClient ? <><Eye size={14} /> Visível no Link</> : <><EyeOff size={14} /> Oculto no Link</>}
+                          {selectedOrder.showValueToClient ? <><Eye size={14} /> Valores Visíveis</> : <><EyeOff size={14} /> Valores Ocultos</>}
                         </button>
                       )}
                     </div>

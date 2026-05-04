@@ -966,16 +966,16 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         )}
 
-        {showPrices && order.showValueToClient && order.items && order.items.length > 0 && (
+        {order.items && order.items.length > 0 && (
           <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Composição Financeira</div>
+            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">{showPrices ? 'Composição Financeira' : 'Peças e Materiais Aplicados'}</div>
             <div className="overflow-x-auto w-full"><table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
                   <th className="px-3 py-1">Item</th>
                   <th className="px-3 py-1 text-center w-12">Qtd</th>
-                  <th className="px-3 py-1 text-right w-20">Unit.</th>
-                  <th className="px-3 py-1 text-right w-20">Total</th>
+                  {showPrices && <th className="px-3 py-1 text-right w-20">Unit.</th>}
+                  {showPrices && <th className="px-3 py-1 text-right w-20">Total</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -983,16 +983,18 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   <tr key={i}>
                     <td className="px-3 py-1 text-[9px] uppercase font-bold text-slate-800">{it.description}</td>
                     <td className="px-3 py-1 text-[9px] text-center font-bold text-slate-600">{it.quantity}</td>
-                    <td className="px-3 py-1 text-[9px] text-right text-slate-600">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                    <td className="px-3 py-1 text-[9px] text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    {showPrices && <td className="px-3 py-1 text-[9px] text-right text-slate-600">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                    {showPrices && <td className="px-3 py-1 text-[9px] text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                   </tr>
                 ))}
               </tbody>
             </table></div>
-            <div className="bg-slate-800 text-white px-3 py-1.5 flex justify-end gap-6 items-center border-t border-slate-800">
-              <span className="text-[8px] uppercase font-bold tracking-widest text-slate-300">Total Geral</span>
-              <span className="text-[11px] font-bold tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </div>
+            {showPrices && (
+              <div className="bg-slate-800 text-white px-3 py-1.5 flex justify-end gap-6 items-center border-t border-slate-800">
+                <span className="text-[8px] uppercase font-bold tracking-widest text-slate-300">Total Geral</span>
+                <span className="text-[11px] font-bold tracking-tighter">R$ {totalItems.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -1579,8 +1581,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           })()}
 
 
-          {/* ── PEÇAS E VALORES ── */}
-          {order.showValueToClient && order.items && order.items.length > 0 && (
+          {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}
+          {order.items && order.items.length > 0 && (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
               <div className="p-6 sm:p-8">
                 <SectionHeader icon={<Package size={15} />} title="Peças e Materiais Aplicados" />
@@ -1615,7 +1617,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   </table></div>
                 </div>
 
-                {/* Total bar */}
+                {/* Total bar — somente se valores estiverem habilitados */}
                 {showPrices && (
                   <div className="mt-4 flex items-center justify-between bg-[#1c2d4f] text-white px-6 py-4 rounded-xl">
                     <div className="flex items-center gap-3">
