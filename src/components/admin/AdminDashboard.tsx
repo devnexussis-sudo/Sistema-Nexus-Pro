@@ -291,21 +291,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const orderToPrint = pagedOrders.find(o => o.id === orderId) || selectedOrder;
     if (!orderToPrint) return;
 
-    setSelectedOrderIds([orderId]);
-    setOrdersToPrint([orderToPrint as ServiceOrder]);
-    setIsBatchPrinting(true);
-    document.body.classList.add('is-printing');
-    setTimeout(() => {
-      window.print();
-      const cleanup = () => {
-        setIsBatchPrinting(false);
-        setOrdersToPrint([]);
-        document.body.classList.remove('is-printing');
-        window.removeEventListener('afterprint', cleanup);
-      };
-      window.addEventListener('afterprint', cleanup);
-      setTimeout(cleanup, 5000);
-    }, 1500);
+    const publicUrl = `${window.location.origin}/#/order/view/${orderToPrint.publicToken || orderToPrint.id}?print=true`;
+    console.log('[AdminDashboard] Abrindo viewer público para impressão:', publicUrl);
+    window.open(publicUrl, '_blank');
   };
 
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);

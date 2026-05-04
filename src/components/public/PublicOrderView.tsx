@@ -722,6 +722,16 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
     fetchVisits();
   }, [order?.id, order?.publicToken]);
 
+  // Handle auto-print when opening from Admin with ?print=true
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.href.includes('print=true')) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 1500); // Give it time to load data, map and images
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // Busca endereço atualizado do cliente na tabela customers
   React.useEffect(() => {
     const fetchCustomerAddress = async () => {
