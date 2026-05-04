@@ -1120,20 +1120,20 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   return (
                     <div className="p-3 border-t border-slate-200 bg-slate-50/50 break-inside-avoid">
                       <div className="bg-slate-50 rounded-md border border-slate-300 overflow-hidden">
-                        <table className="w-full text-left table-fixed break-words">
+                        <table className="w-full text-left break-words">
                           <thead>
                             <tr className="bg-slate-200/50 text-[8px] font-bold text-slate-600 uppercase border-b border-slate-300">
-                              <th className="px-2 py-1.5 w-auto">Peças Utilizadas neste Equipamento</th>
-                              <th className="px-2 py-1.5 text-center w-12">Qtd</th>
-                              {showPrices && <th className="px-2 py-1.5 text-right w-20">Total</th>}
+                              <th className="px-3 py-1.5">Peças Utilizadas neste Equipamento</th>
+                              <th className="px-3 py-1.5 text-center whitespace-nowrap">Qtd</th>
+                              {showPrices && <th className="px-3 py-1.5 text-right whitespace-nowrap">Total</th>}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200">
                             {eqParts.map((pIt, pIdx) => (
                               <tr key={pIdx}>
-                                <td className="px-2 py-1.5 text-[9px] font-bold text-slate-700 uppercase break-words whitespace-normal">{pIt.description}</td>
-                                <td className="px-2 py-1.5 text-[9px] text-center font-bold text-slate-900">{pIt.quantity || 1}</td>
-                                {showPrices && <td className="px-2 py-1.5 text-[9px] text-right font-bold text-slate-900 whitespace-nowrap">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                                <td className="px-3 py-1.5 text-[9px] font-bold text-slate-700 uppercase break-words whitespace-normal">{pIt.description}</td>
+                                <td className="px-3 py-1.5 text-[9px] text-center font-bold text-slate-900 whitespace-nowrap">{pIt.quantity || 1}</td>
+                                {showPrices && <td className="px-3 py-1.5 text-[9px] text-right font-bold text-slate-900 whitespace-nowrap">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                               </tr>
                             ))}
                           </tbody>
@@ -1373,22 +1373,22 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {order.items && order.items.length > 0 && (
           <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
             <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">{showPrices ? 'Composição Financeira' : 'Peças e Materiais Aplicados'}</div>
-            <div className="w-full"><table className="w-full text-left table-fixed break-words">
+            <div className="w-full"><table className="w-full text-left break-words">
               <thead>
                 <tr className="bg-slate-50 text-[8px] font-bold text-slate-500 uppercase border-b border-slate-200">
-                  <th className="px-2 py-1 w-auto">Item</th>
-                  <th className="px-2 py-1 text-center w-12">Qtd</th>
-                  {showPrices && <th className="px-2 py-1 text-right w-16">Unit.</th>}
-                  {showPrices && <th className="px-2 py-1 text-right w-20">Total</th>}
+                  <th className="px-3 py-1">Item</th>
+                  <th className="px-3 py-1 text-center whitespace-nowrap">Qtd</th>
+                  {showPrices && <th className="px-3 py-1 text-right whitespace-nowrap">Unit.</th>}
+                  {showPrices && <th className="px-3 py-1 text-right whitespace-nowrap">Total</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
                 {order.items.map((it: any, i: number) => (
                   <tr key={i}>
-                    <td className="px-2 py-1 text-[9px] uppercase font-bold text-slate-800 break-words whitespace-normal">{it.description}</td>
-                    <td className="px-2 py-1 text-[9px] text-center font-bold text-slate-900">{it.quantity || 1}</td>
-                    {showPrices && <td className="px-2 py-1 text-[9px] text-right text-slate-600 whitespace-nowrap">R$ {(it.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                    {showPrices && <td className="px-2 py-1 text-[9px] text-right font-bold text-slate-900 whitespace-nowrap">R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                    <td className="px-3 py-1 text-[9px] uppercase font-bold text-slate-800 break-words whitespace-normal">{it.description}</td>
+                    <td className="px-3 py-1 text-[9px] text-center font-bold text-slate-900 whitespace-nowrap">{it.quantity || 1}</td>
+                    {showPrices && <td className="px-3 py-1 text-[9px] text-right text-slate-600 whitespace-nowrap">R$ {(it.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                    {showPrices && <td className="px-3 py-1 text-[9px] text-right font-bold text-slate-900 whitespace-nowrap">R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                   </tr>
                 ))}
               </tbody>
