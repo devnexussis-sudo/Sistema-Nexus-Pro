@@ -23,7 +23,8 @@ import {
     Signature as SignatureIcon,
     Trash2,
     User,
-    X
+    X,
+    RefreshCw
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -77,6 +78,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const {
         data: pageResult,
         isLoading: quotesLoading,
+        refetch: quotesRefetch,
     } = usePagedQuotes(currentPage, serverFilters, auth.isAuthenticated);
 
     const pagedQuotes = pageResult?.data ?? [];
@@ -505,6 +507,13 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </button>
 
                         <button
+                            onClick={() => quotesRefetch()}
+                            className="h-10 px-3 flex items-center justify-center bg-white hover:bg-slate-50 border border-[#1c2d4f]/20 rounded-xl text-[#1c2d4f] hover:text-primary-600 shadow-sm transition-all active:scale-95"
+                            title="Atualizar lista"
+                        >
+                            <RefreshCw size={16} className={quotesLoading ? "animate-spin" : ""} />
+                        </button>
+                        <button
                             onClick={() => { resetForm(); setIsModalOpen(true); }}
                             className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] font-bold shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
                         >
@@ -849,9 +858,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         <table className="w-full text-left table-fixed lg:table-auto overflow-visible">
                                             <thead className="bg-slate-50 border-b border-slate-200">
                                                 <tr className="text-[10px] font-bold text-slate-400 uppercase">
-                                                    <th className="px-6 py-3">Descrição / Item</th>
-                                                    <th className="px-4 py-3 w-24 text-center">Qtd</th>
-                                                    <th className="px-4 py-3 w-32">Unitário</th>
+                                                    <th className="px-6 py-3 w-28">Código</th>
+                                                    <th className="px-4 py-3">Descrição / Item</th>
+                                                    <th className="px-4 py-3 w-20 text-center">Qtd</th>
+                                                    <th className="px-4 py-3 w-28">Unitário</th>
                                                     <th className="px-4 py-3 w-32 text-right">Subtotal</th>
                                                     <th className="px-6 py-3 w-16"></th>
                                                 </tr>
@@ -860,6 +870,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 {items.map((item, index) => (
                                                     <tr key={item.id} className={`hover:bg-slate-50/50 group transition-all ${isStockListOpen[index] ? 'z-[1400] relative bg-slate-50/80 shadow-sm' : 'z-auto'}`}>
                                                         <td className="px-6 py-4">
+                                                            <input
+                                                                placeholder="Opcional"
+                                                                value={item.stockCode || ''}
+                                                                onChange={e => updateItem(index, { stockCode: e.target.value })}
+                                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold py-1.5 px-3 font-mono tracking-wider text-[#3e5b99] uppercase"
+                                                            />
+                                                        </td>
+                                                        <td className="px-4 py-4">
                                                             <div className="relative">
                                                                 <input
                                                                     placeholder="Buscar item ou descrever..."
@@ -889,7 +907,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                                 <button
                                                                                     key={s.id}
                                                                                     onClick={() => {
-                                                                                        updateItem(index, { description: s.description, unitPrice: s.sellPrice });
+                                                                                        updateItem(index, { description: s.description, unitPrice: s.sellPrice, stockCode: s.code });
                                                                                         setIsStockListOpen(prev => ({ ...prev, [index]: false }));
                                                                                     }}
                                                                                     className="w-full text-left px-5 py-4 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors group/item"
@@ -1452,15 +1470,17 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                     <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Composição da Proposta (Itens e Serviços)</div>
                     <table style={{ width: '100%', maxWidth: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', boxSizing: 'border-box' }}>
                         <colgroup>
-                            <col style={{ width: '6%' }} />
-                            <col style={{ width: '46%' }} />
-                            <col style={{ width: '10%' }} />
-                            <col style={{ width: '19%' }} />
-                            <col style={{ width: '19%' }} />
+                            <col style={{ width: '5%' }} />
+                            <col style={{ width: '12%' }} />
+                            <col style={{ width: '38%' }} />
+                            <col style={{ width: '9%' }} />
+                            <col style={{ width: '18%' }} />
+                            <col style={{ width: '18%' }} />
                         </colgroup>
                         <thead>
                             <tr className="bg-slate-50 text-[8px] font-black text-slate-500 uppercase border-b border-slate-200">
                                 <th className="px-2 py-2">#</th>
+                                <th className="px-2 py-2 text-left">Código</th>
                                 <th className="px-2 py-2 text-left">Descrição do Item</th>
                                 <th className="px-2 py-2 text-center">Qtd</th>
                                 <th className="px-2 py-2 text-right">V. Unitário</th>
@@ -1471,6 +1491,9 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                             {quote.items.map((item, idx) => (
                                 <tr key={idx} className="break-inside-avoid">
                                     <td className="px-2 py-2 text-[10px] font-bold text-slate-400 align-top">{String(idx + 1).padStart(2, '0')}</td>
+                                    <td className="px-2 py-2 text-[9px] font-bold text-[#3e5b99] align-top font-mono tracking-wider uppercase" style={{ wordBreak: 'break-all', overflow: 'hidden' }}>
+                                        {item.stockCode || <span style={{ color: '#cbd5e1', fontStyle: 'italic', fontWeight: 400 }}>—</span>}
+                                    </td>
                                     <td className="px-2 py-2 text-[10px] uppercase font-bold text-slate-800 align-top" style={{ wordWrap: 'break-word', overflowWrap: 'break-word', overflow: 'hidden' }}>{item.description}</td>
                                     <td className="px-2 py-2 text-[10px] text-center font-bold text-slate-600 align-top">{item.quantity}</td>
                                     <td className="px-2 py-2 text-[10px] text-right text-slate-600 font-mono" style={{ overflow: 'hidden' }}>R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>

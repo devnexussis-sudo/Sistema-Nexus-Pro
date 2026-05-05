@@ -38,7 +38,8 @@ import {
   Unlink,
   Eye,
   EyeOff,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -970,6 +971,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             )}
 
+            <button
+              onClick={() => ordersRefetch()}
+              className="h-10 px-3 flex items-center justify-center bg-white hover:bg-slate-50 border border-[#1c2d4f]/20 rounded-xl text-[#1c2d4f] hover:text-primary-600 shadow-sm transition-all active:scale-95"
+              title="Atualizar lista"
+            >
+              <RefreshCw size={16} className={ordersLoading ? "animate-spin" : ""} />
+            </button>
             <Button
               variant="primary"
               className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap"
@@ -1449,6 +1457,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </select>
                             )
                             : <div className="text-sm text-slate-600 font-medium leading-relaxed">{selectedOrder.operationType || 'Não informada'}</div>
+                          }
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Prioridade</label>
+                          {isEditing
+                            ? (
+                              <select
+                                className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all cursor-pointer"
+                                value={editDraft.priority || 'MÉDIA'}
+                                onChange={e => setEditDraft(d => ({ ...d, priority: e.target.value as any }))}
+                              >
+                                <option value="BAIXA">Baixa</option>
+                                <option value="MÉDIA">Média</option>
+                                <option value="ALTA">Alta</option>
+                                <option value="CRÍTICA">Crítica</option>
+                              </select>
+                            )
+                            : (
+                              <div className="text-[11px] font-bold uppercase tracking-wider leading-relaxed">
+                                {selectedOrder.priority === 'CRÍTICA' ? <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded">🔴 Crítica</span> :
+                                 selectedOrder.priority === 'ALTA' ? <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded">🟡 Alta</span> :
+                                 selectedOrder.priority === 'BAIXA' ? <span className="text-slate-500 bg-slate-50 px-2 py-0.5 rounded">Baixa</span> :
+                                 <span className="text-slate-600 bg-slate-50 px-2 py-0.5 rounded">Média</span>}
+                              </div>
+                            )
                           }
                         </div>
                       </div>

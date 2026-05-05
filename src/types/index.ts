@@ -461,6 +461,7 @@ export interface QuoteItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  stockCode?: string; // Código do item no estoque
 }
 
 export interface Quote {

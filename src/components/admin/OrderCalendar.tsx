@@ -386,13 +386,13 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
           onClick={() => setSelectedDayData(null)}
         >
           <div
-            className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="bg-gradient-to-br from-[#1c2d4f] to-[#2a457a] p-6 shrink-0 relative overflow-hidden">
+            <div className="bg-gradient-to-br from-[#1c2d4f] to-[#2a457a] px-8 py-6 shrink-0 relative overflow-hidden">
               <div className="absolute top-0 right-0 p-6 opacity-5">
-                <CalendarIcon size={100} className="rotate-12" />
+                <CalendarIcon size={120} className="rotate-12" />
               </div>
               <button
                 onClick={() => setSelectedDayData(null)}
@@ -400,19 +400,28 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
               >
                 <X size={18} />
               </button>
-              <p className="text-[10px] font-black text-white/70 tracking-[0.25em] uppercase mb-1">agenda do dia</p>
-              <h3 className="text-2xl font-black text-white capitalize leading-none">
+              <p className="text-[10px] font-black text-white/60 tracking-[0.25em] uppercase mb-1">agenda do dia</p>
+              <h3 className="text-3xl font-black text-white capitalize leading-none">
                 {format(selectedDayData.day, "dd ", { locale: ptBR })}
-                <span className="font-light">{format(selectedDayData.day, "MMMM", { locale: ptBR })}</span>
+                <span className="font-light">{format(selectedDayData.day, "MMMM yyyy", { locale: ptBR })}</span>
               </h3>
-              <div className="mt-2 inline-flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-lg px-2.5 py-1">
-                <span className="text-white text-[10px] font-black">{selectedDayData.orders.length}</span>
-                <span className="text-white/70 text-[10px] font-bold">ordens de serviço</span>
+              <div className="mt-3 flex items-center gap-3 flex-wrap">
+                <div className="inline-flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-lg px-3 py-1.5">
+                  <span className="text-white text-[11px] font-black">{selectedDayData.orders.length}</span>
+                  <span className="text-white/70 text-[10px] font-bold">ordens de serviço</span>
+                </div>
+                {/* mini legenda de status */}
+                {Array.from(new Set(selectedDayData.orders.map(o => o.status))).map(s => (
+                  <div key={s} className="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-lg px-2.5 py-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: getStatusHexColor(s) }} />
+                    <span className="text-white/70 text-[9px] font-bold uppercase tracking-wider">{STATUS_LABELS[s] || s}: {selectedDayData.orders.filter(o => o.status === s).length}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
             {/* Lista */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar bg-slate-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar bg-slate-50/80">
               {selectedDayData.orders.map(order => {
                 const tech = techs.find(t => t.id === order.assignedTo);
                 const color = getStatusHexColor(order.status);
@@ -420,45 +429,93 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   <div
                     key={order.id}
                     onClick={() => setSelectedOrder(order)}
-                    className="flex items-center gap-3 p-3.5 bg-white rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:border-slate-200 transition-all active:scale-[0.98] group"
+                    className="bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:border-primary-200 transition-all active:scale-[0.99] group overflow-hidden"
                   >
-                    {/* Hora */}
-                    <div className="flex flex-col items-center justify-center min-w-[46px] shrink-0 text-center">
-                      <span className="text-[15px] font-black text-slate-800 leading-none">{order.scheduledTime?.substring(0, 5) || '--:--'}</span>
-                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wide mt-0.5">hora</span>
-                    </div>
+                    {/* Faixa de status */}
+                    <div className="h-[4px] w-full" style={{ backgroundColor: color }} />
 
-                    {/* Divider colorida */}
-                    <div className="w-[3px] h-10 rounded-full shrink-0" style={{ backgroundColor: color }} />
-
-                    {/* Conteúdo */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: color }}
-                        />
-                        <span className="text-[8px] font-black uppercase tracking-wider" style={{ color }}>
-                          {STATUS_LABELS[order.status] || order.status}
+                    <div className="flex items-center gap-3 px-4 py-2.5">
+                      {/* Bloco de hora */}
+                      <div
+                        className="flex flex-col items-center justify-center w-[58px] shrink-0 rounded-lg py-2 border"
+                        style={{ backgroundColor: `${color}12`, borderColor: `${color}30` }}
+                      >
+                        <span className="text-[17px] font-black leading-none" style={{ color }}>
+                          {order.scheduledTime?.substring(0, 5) || '--:--'}
                         </span>
-                        <span className="text-[8px] font-bold text-slate-400 ml-auto">#{order.displayId || 'S/N'}</span>
+                        <span className="text-[7px] font-bold uppercase tracking-widest mt-0.5" style={{ color: `${color}99` }}>hora</span>
                       </div>
-                      <p className="text-[12px] font-bold text-slate-800 truncate leading-tight">{order.title || 'sem título'}</p>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500">
-                          <MapPin size={9} className="text-slate-400" />
-                          <span className="truncate max-w-[100px]">{order.customerName}</span>
-                        </span>
-                        {tech && (
-                          <span className="flex items-center gap-1 text-[9px] font-bold text-primary-600">
-                            <User size={9} />
-                            {tech.name.split(' ')[0]}
+
+                      {/* Conteúdo */}
+                      <div className="flex-1 min-w-0">
+                        {/* Linha 1: título + ID */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="text-[13px] font-black text-slate-800 truncate leading-tight group-hover:text-primary-700 transition-colors flex-1">
+                            {order.title || 'sem título'}
+                          </p>
+                          <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
+                            #{order.displayId || order.id.split('-')[0].toUpperCase()}
                           </span>
-                        )}
-                      </div>
-                    </div>
+                        </div>
 
-                    <ChevronRight size={16} className="text-slate-300 group-hover:text-primary-500 transition-colors shrink-0" />
+                        {/* Linha 2: cliente + endereço */}
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <MapPin size={9} className="text-slate-400 shrink-0" />
+                          <span className="text-[10px] font-bold text-slate-600 truncate">
+                            {order.customerName || '—'}
+                            {order.customerAddress && (
+                              <span className="font-normal text-slate-400"> · {order.customerAddress}</span>
+                            )}
+                          </span>
+                        </div>
+
+                        {/* Linha 3: status + técnico + equipamento + tipo inline */}
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          <span
+                            className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full border shrink-0"
+                            style={{ color, backgroundColor: `${color}15`, borderColor: `${color}30` }}
+                          >
+                            <span className="w-1 h-1 rounded-full" style={{ backgroundColor: color }} />
+                            {STATUS_LABELS[order.status] || order.status}
+                          </span>
+
+                          {order.priority && order.priority !== 'MÉDIA' && (
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded shrink-0 ${
+                              order.priority === 'CRÍTICA' ? 'bg-rose-100 text-rose-600' : 
+                              order.priority === 'ALTA' ? 'bg-amber-100 text-amber-600' : 
+                              'bg-slate-100 text-slate-500'
+                            }`}>
+                              {order.priority === 'CRÍTICA' ? '🔴 crítica' : 
+                               order.priority === 'ALTA' ? '🟡 alta' : 
+                               'baixa'}
+                            </span>
+                          )}
+
+                          {tech && (
+                            <span className="flex items-center gap-1 text-[9px] font-bold text-primary-600 shrink-0">
+                              <User size={9} />
+                              {tech.name.split(' ')[0]}
+                            </span>
+                          )}
+
+                          {(order.equipmentName || order.equipmentModel) && (
+                            <span className="flex items-center gap-1 text-[9px] font-bold text-amber-600 shrink-0">
+                              <Box size={9} />
+                              {(order.equipmentName || order.equipmentModel || '').split(' ').slice(0, 2).join(' ')}
+                            </span>
+                          )}
+
+                          {order.operationType && (
+                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
+                              {order.operationType}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Seta */}
+                      <ChevronRight size={15} className="text-slate-300 group-hover:text-primary-500 group-hover:translate-x-0.5 transition-all shrink-0" />
+                    </div>
                   </div>
                 );
               })}
@@ -495,6 +552,18 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                     <span className="px-2.5 py-1 rounded-full bg-black/20 border border-black/10 text-[8px] font-black uppercase">
                       OS #{selectedOrder.displayId || selectedOrder.id.split('-')[0]}
                     </span>
+                    {selectedOrder.priority && (
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm ${
+                        selectedOrder.priority === 'CRÍTICA' ? 'bg-rose-500 text-white' : 
+                        selectedOrder.priority === 'ALTA' ? 'bg-amber-400 text-amber-900' :
+                        selectedOrder.priority === 'BAIXA' ? 'bg-slate-200 text-slate-600' :
+                        'bg-white/20 text-white'
+                      }`}>
+                        {selectedOrder.priority === 'CRÍTICA' ? '🔴 Crítica' : 
+                         selectedOrder.priority === 'ALTA' ? '🟡 Alta' : 
+                         selectedOrder.priority === 'BAIXA' ? 'Baixa' : 'Média'}
+                      </span>
+                    )}
                   </div>
                   <h2 className="text-2xl font-black tracking-tight leading-tight max-w-[85%] drop-shadow-lg">
                     {selectedOrder.title || 'manutenção programada'}

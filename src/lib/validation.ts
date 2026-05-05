@@ -154,6 +154,7 @@ export const QuoteItemSchema = z.object({
     quantity: z.number().positive('Quantidade deve ser positiva'),
     unitPrice: z.number().nonnegative('Preço não pode ser negativo'),
     total: z.number().nonnegative(),
+    stockCode: z.string().max(50).optional(),
 });
 
 export const QuoteSchema = z.object({

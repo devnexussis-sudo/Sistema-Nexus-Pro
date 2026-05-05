@@ -159,6 +159,38 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         };
     };
 
+    const enterSignatureMode = async (mode: 'approve' | 'reject') => {
+        if (window.innerWidth <= 768) {
+            try {
+                if (document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                }
+                if (screen.orientation && screen.orientation.lock) {
+                    await screen.orientation.lock('landscape');
+                }
+            } catch (e) {
+                console.warn('Nexus: Falha ao forçar landscape mode', e);
+            }
+        }
+        if (mode === 'approve') setIsApproveMode(true);
+        if (mode === 'reject') setIsRejectMode(true);
+    };
+
+    const exitSignatureMode = async (mode: 'approve' | 'reject') => {
+        try {
+            if (document.fullscreenElement && document.exitFullscreen) {
+                await document.exitFullscreen();
+            }
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
+        } catch (e) {
+            console.warn('Nexus: Falha ao sair do landscape mode', e);
+        }
+        if (mode === 'approve') setIsApproveMode(false);
+        if (mode === 'reject') setIsRejectMode(false);
+    };
+
     const handleApprove = async () => {
         if (!approverName || sigCanvas.current?.isEmpty()) {
             alert('Por favor, preencha seu nome e assine o documento.');
@@ -215,7 +247,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
             }
 
             setIsSuccess(true);
-            setIsApproveMode(false);
+            exitSignatureMode('approve');
         } catch (err: any) {
             console.error('❌ [Nexus] Erro na aprovação:', err);
             alert(`Falha na aprovação: ${err.message}`);
@@ -276,7 +308,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
             }
 
             setIsRejected(true);
-            setIsRejectMode(false);
+            exitSignatureMode('reject');
         } catch (err) {
             console.error('❌ [Nexus] Erro na recusa:', err);
             alert('Falha ao processar recusa.');
@@ -348,7 +380,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                 <div className="flex items-center justify-center gap-2 opacity-50">
                     <NexusBranding size="sm" />
                 </div>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-2">Protocolo Nexus Digital v2.0</p>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-2">Protocolo Digital Duno</p>
             </div>
         </div>
     </div>
@@ -359,7 +391,11 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
     // ── PRINT LAYOUT COMPONENT ──
     // ── PRINT LAYOUT COMPONENT ──
     const PrintLayout = () => (
-        <div className="bg-white text-xs leading-relaxed font-poppins p-4 sm:p-6 print:break-inside-avoid min-h-[297mm] w-[210mm] mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+        <>
+        <style type="text/css" media="print">
+            {`@page { size: A4 portrait; margin: 10mm; }`}
+        </style>
+        <div className="bg-white text-xs leading-relaxed font-poppins p-4 sm:p-6 print:break-inside-avoid min-h-[297mm] w-full max-w-full mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', boxSizing: 'border-box' }}>
             {/* Header: Company & Quote Info */}
             <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
                 <div className="flex gap-4 items-center">
@@ -379,10 +415,10 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                         </div>
                     </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0 min-w-fit">
                     <div className="border-2 border-slate-800 px-4 py-2 rounded-lg bg-slate-50">
-                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Orçamento N°</div>
-                        <div className="text-2xl font-bold text-slate-900 tracking-tighter leading-none">
+                        <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Orçamento N°</div>
+                        <div className="text-sm font-bold text-slate-900 tracking-tighter leading-none whitespace-nowrap">
                             #{quote.displayId || quote.id.slice(0, 8).toUpperCase()}
                         </div>
                     </div>
@@ -424,84 +460,128 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                 </div>
             )}
 
-            {/* Items Table */}
-            {quote.items && quote.items.length > 0 && (
-                <div className="border border-slate-300 rounded-xl overflow-hidden mb-4 break-inside-avoid shadow-sm">
-                    <div className="overflow-x-auto w-full"><table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-[#1c2d4f] text-xs font-bold text-white uppercase tracking-wider">
-                                <th className="px-4 py-3 w-12 text-center border-r border-white/20">Item</th>
-                                <th className="px-4 py-3 border-r border-white/20">Descrição dos Serviços / Peças</th>
-                                <th className="px-4 py-3 text-center w-20 border-r border-white/20">Qtd</th>
-                                <th className="px-4 py-3 text-right w-32 border-r border-white/20">V. Unitárió</th>
-                                <th className="px-4 py-3 text-right w-32">Total Item</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200 bg-white">
+            {/* Items Section */}
+            {quote.items && quote.items.length > 0 && (() => {
+                const subtotal = quote.items.reduce((a: number, i: any) => a + (i.total || 0), 0);
+                const disc = Number(quote.discount) || 0;
+                const type = quote.discountType || 'fixed';
+                let dv = type === 'percent' ? (subtotal * disc / 100) : disc;
+                if (dv <= 0 && subtotal > (quote.totalValue || subtotal)) {
+                    dv = subtotal - (quote.totalValue || subtotal);
+                }
+                const totalFinal = quote.totalValue || subtotal;
+
+                return (
+                    <div className="mb-4 break-inside-avoid">
+                        {/* ── MOBILE CARDS (hidden on print/md+) ── */}
+                        <div className="md:hidden print:hidden space-y-2">
+                            <div className="bg-[#1c2d4f] px-3 py-2 rounded-t-xl">
+                                <span className="text-[9px] font-bold text-white/80 uppercase tracking-widest">Itens e Serviços</span>
+                            </div>
                             {quote.items.map((it: any, i: number) => (
-                                <tr key={i}>
-                                    <td className="px-4 py-3 text-center font-bold text-slate-400 text-xs border-r border-slate-200 bg-slate-50/30">{String(i + 1).padStart(2, '0')}</td>
-                                    <td className="px-4 py-3 text-sm uppercase font-bold text-slate-800 border-r border-slate-200 leading-snug">{it.description || it.title}</td>
-                                    <td className="px-4 py-3 text-sm text-center font-bold text-slate-600 border-r border-slate-200">{it.quantity}</td>
-                                    <td className="px-4 py-3 text-sm text-right text-slate-600  border-r border-slate-200">
-                                        R$ {(it.unitPrice || it.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </td>
-                                    <td className="px-4 py-3 text-sm text-right font-bold text-[#1c2d4f]  bg-slate-50/50">
-                                        R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table></div>
-
-                    <div className="flex bg-[#1c2d4f] text-white">
-                        <div className="flex-1 p-4 border-r border-white/20 flex flex-col justify-center">
-                            <span className="text-xs font-bold text-white/70 uppercase mb-1">Notas sobre Condições Financeiras:</span>
-                            <span className="text-xs font-medium text-white/90 uppercase tracking-tighter italic">Valores expressos em Reais (BRL). O aceite eletrônico via portal possui validade jurídica para processamento de faturamento e ordens de serviço.</span>
-                        </div>
-                        <div className="w-64 p-4 flex flex-col justify-center items-end bg-[#132039]">
-                            {(() => {
-                                const subtotal = quote.items.reduce((a: number, i: any) => a + (i.total || 0), 0);
-                                const disc = Number(quote.discount) || 0;
-                                const type = quote.discountType || 'fixed';
-                                let dv = type === 'percent' ? (subtotal * disc / 100) : disc;
-                                if (dv <= 0 && subtotal > (quote.totalValue || subtotal)) {
-                                    dv = subtotal - (quote.totalValue || subtotal);
-                                }
-
-                                if (dv > 0) {
-                                    return (
-                                        <>
-                                            <span className="text-xs uppercase font-bold tracking-widest text-[#a8b8d8]/70 mb-0.5">Subtotal</span>
-                                            <span className="text-sm font-bold tracking-tighter text-white/60 line-through">
-                                                R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                            </span>
-                                            <span className="text-xs uppercase font-bold tracking-widest text-rose-300 mt-1">
-                                                Desconto Aplicado {type === 'percent' ? `(${disc}%)` : ''}
-                                            </span>
-                                            <span className="text-sm font-bold text-rose-300">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                            <div className="w-full border-t border-white/20 mt-2 pt-2 text-right">
-                                                <span className="text-xs uppercase font-bold tracking-widest text-[#a8b8d8] mb-1 block text-right">Investimento Total</span>
-                                                <span className="text-2xl font-bold tracking-tighter">
-                                                    R$ {(quote.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                <div key={i} className="border border-slate-200 rounded-lg bg-white p-3">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase">Item {String(i + 1).padStart(2, '0')}</span>
+                                            {(it.stockCode || it.stock_code) && (
+                                                <span className="text-[8px] font-bold text-[#3e5b99] bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5 font-mono tracking-wider uppercase">
+                                                    {it.stockCode || it.stock_code}
                                                 </span>
-                                            </div>
-                                        </>
-                                    );
-                                }
-                                return (
+                                            )}
+                                        </div>
+                                        <span className="text-xs font-black text-[#1c2d4f]">
+                                            R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs font-bold text-slate-800 uppercase leading-tight mb-2">{it.description || it.title}</p>
+                                    <div className="flex gap-4 text-[10px] text-slate-500">
+                                        <span><span className="font-bold text-slate-400 uppercase">Qtd:</span> {it.quantity}</span>
+                                        <span><span className="font-bold text-slate-400 uppercase">Unit:</span> R$ {(it.unitPrice || it.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* ── DESKTOP TABLE & FOOTER (hidden on mobile, shown on print/md+) ── */}
+                        <div className="hidden md:block print:block" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: '12px', overflow: 'hidden' }}>
+                            <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
+                                <colgroup>
+                                    <col style={{ width: '5%' }} />
+                                    <col style={{ width: '13%' }} />
+                                    <col style={{ width: '30%' }} />
+                                    <col style={{ width: '7%' }} />
+                                    <col style={{ width: '19%' }} />
+                                    <col style={{ width: '26%' }} />
+                                </colgroup>
+                                <thead>
+                                    <tr style={{ backgroundColor: '#1c2d4f', color: 'white', fontSize: '8px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)', borderRadius: '11px 0 0 0' }}>#</th>
+                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Código</th>
+                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Descrição</th>
+                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>Qtd</th>
+                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRight: '1px solid rgba(255,255,255,0.2)' }}>V. Unit.</th>
+                                        <th style={{ padding: '8px 5px', textAlign: 'left', borderRadius: '0 11px 0 0' }}>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {quote.items.map((it: any, i: number) => (
+                                        <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                                            <td style={{ padding: '8px 5px', textAlign: 'left', fontWeight: 700, color: '#94a3b8', fontSize: '9px', borderRight: '1px solid #e2e8f0' }}>{String(i + 1).padStart(2, '0')}</td>
+                                            <td style={{ padding: '8px 5px', textAlign: 'left', fontSize: '9px', fontWeight: 700, color: '#3e5b99', fontFamily: 'monospace', letterSpacing: '0.05em', borderRight: '1px solid #e2e8f0', wordBreak: 'break-all' }}>
+                                                {it.stockCode || it.stock_code || <span style={{ color: '#cbd5e1', fontStyle: 'italic', fontWeight: 400 }}>—</span>}
+                                            </td>
+                                            <td style={{ padding: '8px 5px', fontSize: '9px', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', borderRight: '1px solid #e2e8f0', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{it.description || it.title}</td>
+                                            <td style={{ padding: '8px 5px', textAlign: 'left', fontWeight: 700, fontSize: '9px', color: '#475569', borderRight: '1px solid #e2e8f0' }}>{it.quantity}</td>
+                                            <td style={{ padding: '8px 5px', textAlign: 'left', fontSize: '9px', color: '#475569', borderRight: '1px solid #e2e8f0', wordBreak: 'break-all' }}>
+                                                R$ {(it.unitPrice || it.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </td>
+                                            <td style={{ padding: '8px 5px', textAlign: 'left', fontWeight: 700, fontSize: '9px', color: '#1c2d4f', wordBreak: 'break-all' }}>
+                                                R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            {/* ── TOTAL FOOTER (always visible inside desktop/print) ── */}
+                            <div className="flex flex-col md:flex-row print:flex-row bg-[#1c2d4f] text-white">
+                            <div className="flex-1 p-3 md:p-4 print:p-4 border-b md:border-b-0 print:border-b-0 md:border-r print:border-r border-white/20 flex flex-col justify-center">
+                                <span className="text-[9px] sm:text-xs font-bold text-white/70 uppercase mb-1">Notas sobre Condições Financeiras:</span>
+                                <span className="text-[9px] sm:text-xs font-medium text-white/90 uppercase tracking-tighter italic">Valores expressos em Reais (BRL). O aceite eletrônico via portal possui validade jurídica.</span>
+                            </div>
+                            <div className="w-full md:w-auto print:w-auto min-w-[200px] md:min-w-[250px] print:min-w-[250px] p-3 md:p-4 print:p-4 flex flex-col justify-center items-end bg-[#132039]">
+                                {dv > 0 && (
                                     <>
-                                        <span className="text-xs uppercase font-bold tracking-widest text-[#a8b8d8] mb-1">Investimento Total</span>
-                                        <span className="text-2xl font-bold tracking-tighter">
-                                            R$ {(quote.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        <span className="text-[9px] sm:text-xs uppercase font-bold tracking-widest text-[#a8b8d8]/70 mb-0.5">Subtotal</span>
+                                        <span className="text-xs sm:text-sm font-bold tracking-tighter text-white/60 line-through">
+                                            R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                        <span className="text-[9px] sm:text-xs uppercase font-bold tracking-widest text-rose-300 mt-1">
+                                            Desconto {type === 'percent' ? `(${disc}%)` : ''}
+                                        </span>
+                                        <span className="text-xs sm:text-sm font-bold text-rose-300">- R$ {dv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        <div className="w-full border-t border-white/20 mt-2 pt-2 text-right">
+                                            <span className="text-[8px] uppercase font-bold tracking-widest text-[#a8b8d8] mb-1 block">Investimento Total</span>
+                                            <span className="text-sm font-bold tracking-tighter">
+                                                R$ {totalFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+                                {dv <= 0 && (
+                                    <>
+                                        <span className="text-[8px] uppercase font-bold tracking-widest text-[#a8b8d8] mb-1">Investimento Total</span>
+                                        <span className="text-sm font-black tracking-tighter">
+                                            R$ {totalFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </span>
                                     </>
-                                );
-                            })()}
+                                )}
+                                </div>
                         </div>
                     </div>
-                </div>
-            )}
+                    </div>
+                );
+            })()}
 
             {/* Approval / Signature Area */}
             {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO') ? (
@@ -578,7 +658,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
             <div className="mt-12 pt-4 border-t-2 border-[#1c2d4f] flex justify-between items-start opacity-70">
                 <div className="flex flex-col gap-1">
                     <NexusBranding size="lg" className="scale-75 origin-left -translate-y-2" />
-                    <p className="text-xs font-bold text-slate-500 uppercase leading-none">Intelligence for Service Flow Systems</p>
+                    <p className="text-xs font-bold text-slate-500 uppercase leading-none">Uma solução Duno.</p>
                 </div>
                 <div className="text-right">
                     <p className="text-xs font-bold uppercase tracking-widest text-[#1c2d4f] mb-0.5">Documento digital Duno</p>
@@ -588,6 +668,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                 </div>
             </div>
         </div>
+        </>
     );
 
     return (
@@ -937,7 +1018,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                             </div>
 
                             <div className="flex gap-4 pt-6 mt-6 border-t border-slate-200">
-                                <button disabled={isSubmitting} onClick={() => setIsRejectMode(false)} className="flex-1 py-4 text-xs font-bold uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
+                                <button disabled={isSubmitting} onClick={() => exitSignatureMode('reject')} className="flex-1 py-4 text-xs font-bold uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
                                 <button
                                     disabled={isSubmitting}
                                     onClick={handleConfirmReject}
@@ -992,7 +1073,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                             </div>
 
                             <div className="flex gap-4 pt-6 mt-6 border-t border-slate-200">
-                                <button disabled={isSubmitting} onClick={() => setIsApproveMode(false)} className="flex-1 py-4 text-xs font-bold uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
+                                <button disabled={isSubmitting} onClick={() => exitSignatureMode('approve')} className="flex-1 py-4 text-xs font-bold uppercase text-slate-400 hover:text-slate-600 transition-all tracking-widest bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100">Cancelar</button>
                                 <button
                                     disabled={isSubmitting}
                                     onClick={handleApprove}
@@ -1008,13 +1089,13 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                     {(quote.status === 'ABERTO' || quote.status === 'PENDENTE') && !isApproveMode && !isRejectMode && (
                         <div className="flex flex-col sm:flex-row gap-4 print:hidden">
                             <button
-                                onClick={() => setIsApproveMode(true)}
+                                onClick={() => enterSignatureMode('approve')}
                                 className="flex-[2] py-5 bg-emerald-600 text-white rounded-2xl text-xs font-bold uppercase shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-3 order-1 sm:order-2"
                             >
                                 Aprovar Proposta Comercial <ArrowRight size={16} />
                             </button>
                             <button
-                                onClick={() => setIsRejectMode(true)}
+                                onClick={() => enterSignatureMode('reject')}
                                 className="flex-1 py-5 bg-white border border-slate-200 text-slate-500 rounded-2xl text-xs font-bold uppercase hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all order-2 sm:order-1"
                             >
                                 Avaliar Recusa

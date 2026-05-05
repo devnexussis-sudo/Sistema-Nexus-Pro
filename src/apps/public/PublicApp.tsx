@@ -12,7 +12,7 @@ interface PublicAppProps {
 
 export const PublicApp: React.FC<PublicAppProps> = ({ publicOrderId, publicQuoteId }) => {
     const [fetchedPublicOrder, setFetchedPublicOrder] = useState<ServiceOrder | null>(null);
-    const [isFetchingPublicOrder, setIsFetchingPublicOrder] = useState(false);
+    const [isFetchingPublicOrder, setIsFetchingPublicOrder] = useState(true);
     const [techs, setTechs] = useState<User[]>([]);
     const [tenant, setTenant] = useState<any>(null);
 

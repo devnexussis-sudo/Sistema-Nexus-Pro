@@ -62,6 +62,75 @@ const InfoPill: React.FC<{ label: string; value: string; mono?: boolean }> = ({ 
     </div>
   </div>
 );
+// ─────────────────────────────────────────────────────────────────────────────
+// Utilities de formatação segura de datas (BigTech timezone-safe)
+//
+// REGRA DE OURO:
+//   • Datas puras (YYYY-MM-DD, ou T00:00:00) → extrair direto da string
+//     para evitar que new Date('2026-05-04T00:00:00Z') vire 03/05 no UTC-3.
+//   • Timestamps reais (com hora ≠ 00:00:00) → usar new Date() +
+//     timeZone:'America/Sao_Paulo' para converter UTC → horário local correto.
+// ─────────────────────────────────────────────────────────────────────────────
+const BR_TZ = 'America/Sao_Paulo';
+
+/** Detecta se a string é uma data sem hora significativa (date-only). */
+const isDateOnly = (d: string): boolean => {
+  // "2026-05-04" — sem T nem espaço
+  if (!/[T\s]/.test(d)) return true;
+  // "2026-05-04T00:00:00", "2026-05-04T00:00:00.000Z", "2026-05-04 00:00:00+00"
+  return /[T\s]00:00:00/.test(d);
+};
+
+/**
+ * Formata só a data (DD/MM/YYYY).
+ * Date-only → extrai direto da string.
+ * Timestamp real → converte com timezone de São Paulo.
+ */
+export const safeFormatDate = (d?: string) => {
+  if (!d) return '—';
+  if (isDateOnly(d)) {
+    const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+  const obj = new Date(d);
+  if (!isNaN(obj.getTime())) return obj.toLocaleDateString('pt-BR', { timeZone: BR_TZ });
+  return d;
+};
+
+/**
+ * Formata data + hora (DD/MM/YYYY HH:mm).
+ * Date-only → retorna só a data extraída da string.
+ * Timestamp real → converte com timezone de São Paulo.
+ */
+const safeFmtDT = (d?: string) => {
+  if (!d) return '—';
+  if (isDateOnly(d)) {
+    const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+  const obj = new Date(d);
+  if (!isNaN(obj.getTime())) {
+    return obj.toLocaleString('pt-BR', {
+      timeZone: BR_TZ,
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
+  return d;
+};
+
+/**
+ * Formata só a hora (HH:mm).
+ * Sempre converte com timezone de São Paulo (timestamps de check-in/out são reais).
+ */
+const safeFmtTime = (d?: string) => {
+  if (!d) return '—';
+  const obj = new Date(d);
+  if (!isNaN(obj.getTime())) {
+    return obj.toLocaleTimeString('pt-BR', { timeZone: BR_TZ, hour: '2-digit', minute: '2-digit' });
+  }
+  return '—';
+};
 
 const VisitCard: React.FC<{
   visit: any;
@@ -102,7 +171,7 @@ const VisitCard: React.FC<{
           <div className="text-left">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Visita #{idx + 1}</p>
             <p className="text-sm font-bold text-slate-900 uppercase">
-              {new Date(visit.scheduled_date || visit.created_at).toLocaleDateString('pt-BR')}
+              {safeFormatDate(visit.scheduled_date || visit.created_at)}
               {visit.scheduled_time && ` às ${visit.scheduled_time.slice(0, 5)}`}
             </p>
           </div>
@@ -130,8 +199,8 @@ const VisitCard: React.FC<{
           {/* Dados do técnico e horários */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <InfoPill label="Técnico" value={visitorName} />
-            <InfoPill label="Check-in" value={visit.arrival_time ? new Date(visit.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'} />
-            <InfoPill label="Check-out" value={visit.departure_time ? new Date(visit.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'} />
+            <InfoPill label="Check-in" value={visit.arrival_time ? safeFmtTime(visit.arrival_time) : '—'} />
+            <InfoPill label="Check-out" value={visit.departure_time ? safeFmtTime(visit.departure_time) : '—'} />
             {visit.departure_time && visit.arrival_time && (
               <InfoPill 
                 label="Duração" 
@@ -283,16 +352,10 @@ const VisitCard: React.FC<{
 
 const formatPublicValue = (val: string) => {
   if (typeof val !== 'string') return val;
-  const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+  // Detecta timestamps ISO completos e formata com timezone seguro
+  const isoDateRegex = /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/;
   if (isoDateRegex.test(val)) {
-    try {
-      return new Date(val).toLocaleString('pt-BR', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit'
-      });
-    } catch {
-      return val;
-    }
+    return safeFmtDT(val);
   }
   return val;
 };
@@ -805,15 +868,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const companyDoc = tenant?.cnpj || tenant?.document || '';
   const companyWebsite = tenant?.website || '';
 
-  const fmt = (d?: string) => {
-    if (!d) return '—';
-    const date = d.includes('T') ? new Date(d) : new Date(d + 'T12:00:00');
-    return date.toLocaleDateString('pt-BR');
-  };
-  const fmtDT = (d?: string) => {
-    if (!d) return '—';
-    return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
+  const fmt = (d?: string) => safeFormatDate(d);
+  const fmtDT = (d?: string) => safeFmtDT(d);
 
   const totalItems = (order.items || []).reduce((acc, i) => acc + (i.total || 0), 0);
   // Endereço exibido: fresco do cadastro ou gravado na OS
@@ -1230,10 +1286,10 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               return (
                 <div key={v.id} className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
                   <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700 flex justify-between">
-                    <span>Visita #{i + 1} — {new Date(v.scheduled_date || v.created_at).toLocaleDateString('pt-BR')}</span>
+                    <span>Visita #{i + 1} — {safeFormatDate(v.scheduled_date || v.created_at)}</span>
                     <span className="text-[9px] text-slate-500 font-normal">
-                      {v.arrival_time ? `Entrada: ${new Date(v.arrival_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''} 
-                      {v.departure_time ? ` · Saída: ${new Date(v.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                      {v.arrival_time ? `Entrada: ${safeFmtTime(v.arrival_time)}` : ''} 
+                      {v.departure_time ? ` · Saída: ${safeFmtTime(v.departure_time)}` : ''}
                     </span>
                   </div>
                   

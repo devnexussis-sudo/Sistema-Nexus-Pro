@@ -350,6 +350,7 @@ export interface DbQuoteItem {
     quantity: number;
     unitPrice: number;
     total: number;
+    stockCode?: string; // Código do item no estoque
 }
 
 export interface DbQuote {
