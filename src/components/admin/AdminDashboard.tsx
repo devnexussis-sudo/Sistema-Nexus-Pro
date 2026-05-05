@@ -2747,12 +2747,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* Lightbox Viewer */}
       {
-        fullscreenImage && (
+        fullscreenImage && createPortal(
           <div
-            className="fixed inset-0 z-[1000] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-8 animate-in fade-in"
+            className="fixed inset-0 z-[9999] bg-white flex items-center justify-center p-8 animate-in fade-in"
             onClick={() => setFullscreenImage(null)}
           >
-            <div className="relative max-w-5xl w-full h-full flex items-center justify-center">
+            <div className="relative max-w-5xl w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
               {isVideoUrl(fullscreenImage) ? (
                 <video
                   src={fullscreenImage}
@@ -2763,15 +2763,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               ) : (
                 <img
                   src={fullscreenImage}
-                  className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95"
+                  className="max-w-full max-h-full object-contain rounded-lg animate-in zoom-in-95"
                   alt="Visualização"
                 />
               )}
-              <button className="absolute top-0 right-0 p-4 text-white hover:text-slate-300 transition-colors">
-                <X size={32} />
+              <button
+                onClick={() => setFullscreenImage(null)}
+                className="absolute top-0 right-0 p-3 text-slate-500 hover:text-slate-900 bg-white rounded-full shadow-md border border-slate-200 transition-all hover:scale-110"
+              >
+                <X size={22} />
               </button>
             </div>
-          </div>
+          </div>,
+          document.body
         )
       }
 
