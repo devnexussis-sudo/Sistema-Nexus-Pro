@@ -116,6 +116,8 @@ export const getQuotesPage = async (
         .from('quotes')
         .select('*', { count: 'exact' })
         .eq('tenant_id', tenantId)
+        // Excluir lançamentos PMOC (billing-only) — estes aparecem somente no Financeiro
+        .not('display_id', 'like', 'PMOC-%')
         .order('created_at', { ascending: false });
 
     if (filters.status && filters.status !== 'ALL') {

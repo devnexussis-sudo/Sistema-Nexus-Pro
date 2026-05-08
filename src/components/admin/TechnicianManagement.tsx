@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useI18n } from '../../i18n';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -14,6 +15,8 @@ import { User as UserType, UserRole, OrderStatus } from '../../types';
 import { StatusBadge } from '../ui/StatusBadge';
 
 export const TechnicianManagement: React.FC = () => {
+  const { t } = useI18n();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [technicians, setTechnicians] = useState<UserType[]>([]);
@@ -133,7 +136,7 @@ export const TechnicianManagement: React.FC = () => {
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
               >
-                <option value="ALL">Status</option>
+                <option value="ALL">{t.common.status}</option>
                 <option value="ACTIVE">Liberados</option>
                 <option value="INACTIVE">Suspensos</option>
               </select>
@@ -158,7 +161,7 @@ export const TechnicianManagement: React.FC = () => {
                 <th className="px-4 py-3 text-center">Código</th>
                 <th className="px-4 py-3">Credencial (E-mail)</th>
                 <th className="px-4 py-3 text-center">Status App</th>
-                <th className="px-4 py-3 text-right pr-6">Ações</th>
+                <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -244,47 +247,70 @@ export const TechnicianManagement: React.FC = () => {
                     <div className="px-6 py-4 border-b border-slate-100">
                       <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">identificação do técnico</h3>
                     </div>
-                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="md:col-span-2">
-                        <Input
-                          label="Nome Completo"
-                          required
-                          placeholder="Ex: Roberto Refrigeração"
-                          value={formData.name}
-                          onChange={e => setFormData({ ...formData, name: e.target.value })}
-                          className="rounded-xl py-3 font-medium border-slate-200"
-                        />
+                    
+                    <div className="p-6 flex flex-col sm:flex-row gap-8 items-start">
+                      {/* Quadro da Foto (Avatar) */}
+                      <div className="flex flex-col items-center gap-3 shrink-0 pt-2">
+                        <div className="relative group">
+                          <img
+                            src={formData.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(formData.name || 'Tech') + '&background=10b981&color=fff&size=256'}
+                            className="w-32 h-32 sm:w-40 sm:h-40 rounded-3xl object-cover border-4 border-white shadow-xl bg-slate-50 transition-transform duration-300 group-hover:scale-105"
+                            alt={formData.name}
+                          />
+                          <div className="absolute inset-0 rounded-3xl ring-1 ring-inset ring-slate-900/10" />
+                          {/* Indicador de Status na foto */}
+                          <div className={`absolute -bottom-2 -right-2 w-10 h-10 rounded-full border-4 border-white flex items-center justify-center shadow-md transition-colors ${formData.active ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                            <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
+                          </div>
+                        </div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center mt-2 w-32 sm:w-40 leading-relaxed">
+                          Foto do Perfil<br/>(Sincronizada do App)
+                        </p>
                       </div>
 
-                      <Input
-                        label="E-mail (Login do App)"
-                        required
-                        type="email"
-                        placeholder="tecnico@nexus.pro"
-                        value={formData.email}
-                        onChange={e => setFormData({ ...formData, email: e.target.value })}
-                        className="rounded-xl py-3 font-medium border-slate-200"
-                        icon={<AtSign size={16} />}
-                      />
+                      {/* Campos do Formulário */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 flex-1 w-full">
+                        <div className="md:col-span-2">
+                          <Input
+                            label="Nome Completo"
+                            required
+                            placeholder="Ex: Roberto Refrigeração"
+                            value={formData.name}
+                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                            className="rounded-xl py-3 font-medium border-slate-200 text-lg"
+                          />
+                        </div>
 
-                      <Input
-                        label="Telefone / WhatsApp"
-                        placeholder="(00) 00000-0000"
-                        value={formData.phone}
-                        onChange={handlePhoneChange}
-                        className="rounded-xl py-3 font-medium border-slate-200"
-                        icon={<Smartphone size={16} />}
-                      />
-
-                      <div className="md:col-span-2">
                         <Input
-                          label="Função / Cargo"
-                          placeholder="Ex: Técnico de Ar Condicionado"
-                          value={formData.jobTitle}
-                          onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
+                          label="E-mail (Login do App)"
+                          required
+                          type="email"
+                          placeholder="tecnico@nexus.pro"
+                          value={formData.email}
+                          onChange={e => setFormData({ ...formData, email: e.target.value })}
+                          className="rounded-xl py-3 font-medium border-slate-200"
+                          icon={<AtSign size={16} />}
+                        />
+
+                        <Input
+                          label="Telefone / WhatsApp"
+                          placeholder="(00) 00000-0000"
+                          value={formData.phone}
+                          onChange={handlePhoneChange}
                           className="rounded-xl py-3 font-medium border-slate-200"
                           icon={<Smartphone size={16} />}
                         />
+
+                        <div className="md:col-span-2">
+                          <Input
+                            label="Função / Cargo"
+                            placeholder="Ex: Técnico de Ar Condicionado"
+                            value={formData.jobTitle}
+                            onChange={e => setFormData({ ...formData, jobTitle: e.target.value })}
+                            className="rounded-xl py-3 font-medium border-slate-200"
+                            icon={<Smartphone size={16} />}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

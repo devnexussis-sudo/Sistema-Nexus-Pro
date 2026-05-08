@@ -42,6 +42,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../../i18n';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePagedOrders } from '../../hooks/nexusHooks';
@@ -109,11 +110,14 @@ const VisitCountCell = ({ orderId }: { orderId: string }) => {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   techs, customers, startDate, endDate, onDateChange, onUpdateOrders, onEditOrder, onCreateOrder
 }) => {
+    const { t } = useI18n();
+
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<ServiceOrder | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
   const [isBatchPrinting, setIsBatchPrinting] = useState(false);
   const [ordersToPrint, setOrdersToPrint] = useState<ServiceOrder[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'internal_notes' | 'equipments' | 'forms' | 'execution' | 'media' | 'audit' | 'costs' | 'visits' | 'history'>('overview');
@@ -202,6 +206,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const pagedOrders: ServiceOrder[] = pageResult?.data ?? [];
   const totalOrders = pageResult?.total ?? 0;
   const totalPages = pageResult?.lastPage ?? 1;
+
+  const handleManualRefresh = async () => {
+    setIsManualSyncing(true);
+    try {
+      await Promise.all([
+        ordersRefetch(),
+        onUpdateOrders && onUpdateOrders()
+      ]);
+      await new Promise(resolve => setTimeout(resolve, 600));
+    } catch (error) {
+      console.error('Erro ao sincronizar:', error);
+    } finally {
+      setIsManualSyncing(false);
+    }
+  };
 
 
   const requestSort = (key: string) => {
@@ -972,11 +991,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
 
             <button
-              onClick={() => ordersRefetch()}
+              onClick={handleManualRefresh}
               className="h-10 px-3 flex items-center justify-center bg-white hover:bg-slate-50 border border-[#1c2d4f]/20 rounded-xl text-[#1c2d4f] hover:text-primary-600 shadow-sm transition-all active:scale-95"
-              title="Atualizar lista"
+              title="Atualizar todos os dados"
             >
-              <RefreshCw size={16} className={ordersLoading ? "animate-spin" : ""} />
+              <RefreshCw size={16} className={ordersLoading || isManualSyncing ? "animate-spin" : ""} />
             </button>
             <Button
               variant="primary"
@@ -1012,7 +1031,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">{t.common.status}</label>
               <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
                 <Filter size={12} className="text-slate-400 mr-2" />
                 <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
@@ -1091,7 +1110,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <th className="px-3 py-2 text-center cursor-pointer group hover:text-primary-600 transition-colors" onClick={() => requestSort('status')}>
                   <div className="flex items-center justify-center gap-1">Status {getSortIcon('status')}</div>
                 </th>
-                <th className="px-3 py-2 text-center pr-4">Ações</th>
+                <th className="px-3 py-2 text-center pr-4">{t.common.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1416,18 +1435,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {isEditing && <span className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-widest ml-auto">🔒 Não editável</span>}
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Cliente / Razão Social</label>
-                          {/* Cliente é estruturalmente fixo — não pode ser alterado */}
-                          <div className="text-sm font-semibold text-slate-900">{selectedOrder.customerName}</div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Endereço de Atendimento</label>
-                          {isEditing
-                            ? <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
-                            : <div className="text-sm text-slate-600 font-medium leading-relaxed">{selectedOrder.customerAddress || 'Não informado'}</div>
+                        {(() => {
+                          const c = customers.find(cust => cust.id === selectedOrder.customerId || cust.name === selectedOrder.customerName);
+                          const doc = c?.document || selectedOrder.customerDoc;
+                          const phone = c?.phone || c?.whatsapp || '';
+                          const email = c?.email || '';
+                          
+                          let formattedDoc = doc || 'Não informado';
+                          if (doc) {
+                            const d = doc.replace(/\D/g, '');
+                            if (d.length === 11) formattedDoc = d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                            else if (d.length === 14) formattedDoc = d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
                           }
-                        </div>
+
+                          let formattedPhone = phone || 'Não informado';
+                          if (phone) {
+                            const p = phone.replace(/\D/g, '');
+                            if (p.length === 11) formattedPhone = p.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+                            else if (p.length === 10) formattedPhone = p.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+                          }
+                          
+                          let rawAddress = selectedOrder.customerAddress;
+                          if (c && (c.street || c.city || c.neighborhood)) {
+                            const p = [];
+                            if (c.street) p.push(c.street);
+                            if (c.number) p.push(c.number);
+                            if (c.complement) p.push(`- ${c.complement}`);
+                            if (c.neighborhood) p.push(`- ${c.neighborhood}`);
+                            if (c.city) p.push(c.city);
+                            if (c.state) p.push(c.state);
+                            if (c.zipCode) p.push(c.zipCode);
+                            rawAddress = p.join(', ').replace(', -,', ' -').replace(', - ,', ' - ');
+                          }
+
+                          return (
+                            <>
+                              <div className="space-y-1.5 md:col-span-2">
+                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Cliente / Razão Social</label>
+                                {/* Cliente é estruturalmente fixo — não pode ser alterado daqui */}
+                                <div className="text-sm font-semibold text-slate-900">{selectedOrder.customerName}</div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">CPF / CNPJ</label>
+                                <div className="text-sm font-semibold text-slate-900">{formattedDoc}</div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Telefone / WhatsApp</label>
+                                <div className="text-sm font-semibold text-slate-900">{formattedPhone}</div>
+                              </div>
+                              <div className="space-y-1.5 md:col-span-2">
+                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">{t.common.email}</label>
+                                <div className="text-sm font-semibold text-slate-900">{email || 'Não informado'}</div>
+                              </div>
+                              <div className="space-y-1.5 md:col-span-2">
+                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Endereço de Atendimento / Principal</label>
+                                {isEditing
+                                  ? <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
+                                  : <div className="text-sm text-slate-600 font-medium leading-relaxed">{rawAddress || 'Não informado'}</div>
+                                }
+                              </div>
+                            </>
+                          );
+                        })()}
                         <div className="space-y-1.5">
                           <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Agendamento (Visita)</label>
                           <div className="text-sm text-slate-400 font-medium italic flex items-center gap-2">
@@ -1748,8 +1817,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <th className="px-5 py-3 font-black">Família</th>
                                 <th className="px-5 py-3 font-black">Série / Patrimônio</th>
                                 <th className="px-5 py-3 font-black text-center">Formulário</th>
-                                <th className="px-5 py-3 font-black text-center">Status</th>
-                                {isEditing && <th className="px-5 py-3 font-black text-center">Ações</th>}
+                                <th className="px-5 py-3 font-black text-center">{t.common.status}</th>
+                                {isEditing && <th className="px-5 py-3 font-black text-center">{t.common.actions}</th>}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useI18n } from '../../i18n';
 import {
   UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus, Plus, Box,
   DollarSign, Trash2, Eye, EyeOff, Package, ShoppingCart, ChevronRight, Save, X, Search, CheckCircle2, Hash, RefreshCw, Clock, FileText, Link2, Unlink
@@ -28,6 +29,8 @@ export const OS_TYPES = [
 ];
 
 export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onSubmit, initialData }) => {
+    const { t } = useI18n();
+
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(initialData ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [schedulingVisit, setSchedulingVisit] = useState(false);
@@ -1152,7 +1155,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
                   >
                     Confirmar Agendamento
                   </Button>
-                  <Button type="button" onClick={() => setShowNewVisitModal(false)} className="flex-1 shadow-none bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl py-3 font-bold">Cancelar</Button>
+                  <Button type="button" onClick={() => setShowNewVisitModal(false)} className="flex-1 shadow-none bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl py-3 font-bold">{t.common.cancel}</Button>
                 </div>
               </div>
             </div>

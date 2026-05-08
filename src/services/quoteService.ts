@@ -122,7 +122,9 @@ export const QuoteService = {
 
             const dbPayload = {
                 // Não inclui `id` — deixa o Postgres gerar o UUID automaticamente
-                display_id: sovereignId,   // ← Identificador Soberano aqui
+                display_id: quote.displayId || sovereignId,   // ← Usa displayId customizado (ex: PMOC) ou gera automaticamente
+                // public_token: gerado aqui para garantir acesso anônimo via RLS
+                public_token: crypto.randomUUID(),
                 tenant_id: tid,
                 customer_name: quote.customerName,
                 customer_address: quote.customerAddress,
@@ -136,6 +138,9 @@ export const QuoteService = {
                 linked_order_id: quote.linkedOrderId,
                 discount: quote.discount || 0,
                 discount_type: quote.discountType || 'fixed',
+                // Campos de aprovação e faturamento (usados pelo auto-billing PMOC)
+                ...(quote.approvedAt ? { approved_at: quote.approvedAt } : {}),
+                ...(quote.billingStatus ? { billing_status: quote.billingStatus } : {}),
                 created_at: now.toISOString()
             };
 
@@ -203,47 +208,92 @@ export const QuoteService = {
     },
 
     getPublicQuoteById: async (id: string, signal?: AbortSignal): Promise<any> => {
-        if (isCloudEnabled) {
+        if (!isCloudEnabled) return null;
+
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        console.log(`[QuoteService] Buscando orçamento: "${id}" (isUuid=${isUuid})`);
+
+        // ── Tentativa 1: publicSupabase por public_token (anon — funciona p/ clientes externos) ──
+        try {
+            const { data, error } = await publicSupabase
+                .from('quotes')
+                .select('*')
+                .eq('public_token', id)
+                .maybeSingle();
+            if (error) console.warn('[QuoteService] T1 anon/public_token erro:', error.code, error.message);
+            if (data) { console.log('[QuoteService] ✅ Encontrado via T1 (anon + public_token)'); return QuoteService._mapQuoteFromDB(data); }
+        } catch (err: any) {
+            if (err?.name === 'AbortError') return null;
+        }
+
+        // ── Tentativa 2: publicSupabase por id (anon) ──────────────────────────────────────────
+        try {
+            const { data, error } = await publicSupabase
+                .from('quotes')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+            if (error) console.warn('[QuoteService] T2 anon/id erro:', error.code, error.message);
+            if (data) { console.log('[QuoteService] ✅ Encontrado via T2 (anon + id)'); return QuoteService._mapQuoteFromDB(data); }
+        } catch (err: any) {
+            if (err?.name === 'AbortError') return null;
+        }
+
+        // ── Tentativa 3: RPC get_public_document (SECURITY DEFINER — bypassa RLS) ────────────
+        if (isUuid) {
             try {
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ||
-                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-
-                let query = publicSupabase.from('quotes').select('*');
-
-                if (isUuid) {
-                    query = query.or(`public_token.eq.${id},id.eq.${id}`);
-                } else {
-                    query = query.or(`display_id.eq.${id},id.eq.${id}`);
-                }
-
-                if (signal) query = query.abortSignal(signal);
-
-                const { data, error } = await query.single();
-
-                if (!error && data) {
-                    return QuoteService._mapQuoteFromDB(data);
-                }
-            } catch (err: any) {
-                if (err?.name === 'AbortError') return null;
-                console.error("Erro silencioso buscar orcamento:", err);
-            }
-
-            // Fallback: RPC get_public_document
-            try {
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-                if (isUuid) {
-                    let rpcQuery = publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'quote' });
-                    if (signal) rpcQuery = rpcQuery.abortSignal(signal);
-
-                    const { data, error } = await rpcQuery;
-                    if (!error && data) {
-                        return QuoteService._mapQuoteFromDB(data);
-                    }
-                }
+                let rpcQuery = publicSupabase.rpc('get_public_document', { doc_token: id, doc_type: 'quote' });
+                if (signal) rpcQuery = rpcQuery.abortSignal(signal);
+                const { data, error } = await rpcQuery;
+                if (error) console.warn('[QuoteService] T3 RPC erro:', error.code, error.message);
+                if (data) { console.log('[QuoteService] ✅ Encontrado via T3 (RPC)'); return QuoteService._mapQuoteFromDB(data); }
             } catch (err: any) {
                 if (err?.name === 'AbortError') return null;
             }
         }
+
+        // ── Tentativa 4: supabase autenticado por public_token (admin em nova aba) ─────────────
+        try {
+            const { data, error } = await supabase
+                .from('quotes')
+                .select('*')
+                .eq('public_token', id)
+                .maybeSingle();
+            if (error) console.warn('[QuoteService] T4 auth/public_token erro:', error.code, error.message);
+            if (data) { console.log('[QuoteService] ✅ Encontrado via T4 (auth + public_token)'); return QuoteService._mapQuoteFromDB(data); }
+        } catch (err: any) {
+            if (err?.name === 'AbortError') return null;
+        }
+
+        // ── Tentativa 5: supabase autenticado por id (admin em nova aba) ─────────────────────
+        try {
+            const { data, error } = await supabase
+                .from('quotes')
+                .select('*')
+                .eq('id', id)
+                .maybeSingle();
+            if (error) console.warn('[QuoteService] T5 auth/id erro:', error.code, error.message);
+            if (data) { console.log('[QuoteService] ✅ Encontrado via T5 (auth + id)'); return QuoteService._mapQuoteFromDB(data); }
+        } catch (err: any) {
+            if (err?.name === 'AbortError') return null;
+        }
+
+        // ── Display ID fallback ────────────────────────────────────────────────────────────────
+        if (!isUuid) {
+            try {
+                const { data, error } = await publicSupabase
+                    .from('quotes')
+                    .select('*')
+                    .eq('display_id', id)
+                    .maybeSingle();
+                if (error) console.warn('[QuoteService] T6 display_id erro:', error.code, error.message);
+                if (data) { console.log('[QuoteService] ✅ Encontrado via T6 (display_id)'); return QuoteService._mapQuoteFromDB(data); }
+            } catch (err: any) {
+                if (err?.name === 'AbortError') return null;
+            }
+        }
+
+        console.error(`[QuoteService] ❌ Orçamento não encontrado após todas as tentativas. ID: "${id}"`);
         return null;
     },
 

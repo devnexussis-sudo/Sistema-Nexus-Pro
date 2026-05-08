@@ -99,6 +99,45 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         }
     }, [isApproveMode, isRejectMode]);
 
+    const [freshCustomerAddress, setFreshCustomerAddress] = useState<string | null>(null);
+    const [freshCustomerPhone, setFreshCustomerPhone] = useState<string | null>(null);
+    const [freshCustomerEmail, setFreshCustomerEmail] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchCustomerAddress = async () => {
+            if (!quote?.customerName) return;
+            try {
+                const tenantId = (quote as any).tenant_id || quote?.tenantId;
+                if (!tenantId) return;
+                const { data } = await import('../../lib/supabase').then(m => m.supabase
+                    .from('customers')
+                    .select('address, number, complement, neighborhood, city, state, phone, whatsapp, email')
+                    .eq('tenant_id', tenantId)
+                    .ilike('name', quote.customerName.trim())
+                    .limit(1)
+                    .single()
+                );
+                if (data) {
+                    const clean = (v: any) => v && String(v).toLowerCase() !== 'null' && String(v).trim() !== '';
+                    const street = [data.address, data.number].filter(clean).join(', ');
+                    const neighborhood = clean(data.neighborhood) ? data.neighborhood : '';
+                    const city = clean(data.city) ? data.city : '';
+                    const state = clean(data.state) ? data.state : '';
+                    const cityState = [city, state].filter(Boolean).join('/');
+                    const addr = [street, neighborhood, cityState].filter(Boolean).join(' - ');
+                    if (addr.trim()) setFreshCustomerAddress(addr);
+                    
+                    if (clean(data.whatsapp)) setFreshCustomerPhone(data.whatsapp);
+                    else if (clean(data.phone)) setFreshCustomerPhone(data.phone);
+                    
+                    if (clean(data.email)) setFreshCustomerEmail(data.email);
+                }
+            } catch {
+            }
+        };
+        fetchCustomerAddress();
+    }, [quote?.customerName, quote?.id]);
+
     useEffect(() => {
         let isMounted = true;
         const fetchQuote = async () => {
@@ -395,7 +434,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
         <style type="text/css" media="print">
             {`@page { size: A4 portrait; margin: 10mm; }`}
         </style>
-        <div className="bg-white text-xs leading-relaxed font-poppins p-4 sm:p-6 print:break-inside-avoid min-h-[297mm] w-full max-w-full mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', boxSizing: 'border-box' }}>
+        <div className="bg-white text-xs leading-relaxed font-poppins p-4 sm:p-6 min-h-[297mm] w-full max-w-full mx-auto border sm:border-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', boxSizing: 'border-box' }}>
             {/* Header: Company & Quote Info */}
             <div className="flex justify-between items-start pb-4 border-b-2 border-slate-800 mb-4">
                 <div className="flex gap-4 items-center">
@@ -443,8 +482,18 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                     </div>
                     <div>
                         <span className="block text-xs font-bold text-slate-400 uppercase tracking-widest">Local de Execução / Faturamento</span>
-                        <span className="font-medium text-slate-700 text-sm uppercase">{quote.customerAddress || 'Não Informado'}</span>
+                        <span className="font-medium text-slate-700 text-sm uppercase">{freshCustomerAddress || quote.customerAddress || 'Não Informado'}</span>
                     </div>
+                    {(freshCustomerPhone || freshCustomerEmail) && (
+                        <div className="col-span-2 pt-2 border-t border-slate-100 flex flex-col gap-0.5">
+                            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Contato</span>
+                            <span className="font-medium text-slate-700 text-xs uppercase">
+                                {freshCustomerPhone && <span>{freshCustomerPhone}</span>}
+                                {freshCustomerPhone && freshCustomerEmail && <span className="mx-2">•</span>}
+                                {freshCustomerEmail && <span className="lowercase">{freshCustomerEmail}</span>}
+                            </span>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -600,12 +649,11 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                             {quote.approvalSignature ? (
                                 <>
                                     <img src={quote.approvalSignature} className="max-h-16 max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
-                                    <p className="text-xs font-bold text-slate-900 uppercase mt-1">Assinado por {quote.approvedByName || 'Alex Cruz'}</p>
+                                    <p className="text-xs font-bold text-slate-900 uppercase mt-1">Assinado por {quote.approvedByName || 'Cliente'}</p>
                                 </>
                             ) : (
                                 <span className="text-slate-300 italic text-xs font-bold uppercase">Token de Assinatura Certificada</span>
                             )}
-                            <div className="absolute bottom-1 right-2 text-xs text-slate-400 uppercase tracking-widest">Duno Secure Approval</div>
                         </div>
                     </div>
                 </div>
@@ -629,7 +677,6 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                                 {quote.approvalSignature ? (
                                     <>
                                         <img src={quote.approvalSignature} className="max-h-16 max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
-                                        <p className="text-xs font-bold text-rose-900 uppercase mt-1">Recusado por {quote.approvedByName || 'Cliente'}</p>
                                     </>
                                 ) : (
                                     <span className="text-slate-300 italic text-xs font-bold uppercase">Registro de Recusa Auditado</span>
@@ -663,7 +710,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                 <div className="text-right">
                     <p className="text-xs font-bold uppercase tracking-widest text-[#1c2d4f] mb-0.5">Documento digital Duno</p>
                     <p className="text-xs uppercase tracking-tight font-medium text-slate-500 max-w-xs ml-auto leading-tight italic">
-                        Documento gerado eletronicamente através de provisionamento seguro em nuvem. A assinatura digital contida neste documento ou o registro de aceite no servidor central constituem prova formal de concordância comercial.
+                        A assinatura ou o aceite eletrônico constituem prova de concordância comercial.
                     </p>
                 </div>
             </div>
@@ -786,23 +833,55 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                 <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-12 flex flex-col gap-10 print:hidden">
 
                     {/* ── ROW 1: Cliente + Comercial ── */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10">
-                        <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
-                            <SectionHeader icon={<User size={15} />} title="Dados do Cliente" />
-                            <div className="space-y-3">
-                                <p className="text-lg font-bold text-slate-900 uppercase leading-tight">{quote.customerName}</p>
-                                {quote.customerAddress ? (
-                                    <div className="flex items-start gap-2 pt-2 border-t border-slate-200">
-                                        <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
-                                        <p className="text-sm text-slate-500 leading-snug">{quote.customerAddress}</p>
+                    <div className="flex flex-col gap-4 lg:gap-6">
+                        <div className="bg-slate-200/50 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/30 p-4 sm:p-5">
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-[#1c2d4f]/10 rounded-xl flex items-center justify-center shrink-0">
+                                        <User size={18} className="text-[#1c2d4f]" />
                                     </div>
-                                ) : (
-                                    <p className="text-xs text-slate-300 uppercase tracking-widest italic pt-2 border-t border-slate-200">Endereço não informado</p>
-                                )}
+                                    <div>
+                                        <p className="text-xl font-bold text-slate-900 uppercase tracking-tight leading-none">{quote.customerName}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">Identificação do Cliente</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+                                    {(freshCustomerPhone || freshCustomerEmail) && (
+                                        <div className="flex flex-col gap-1.5">
+                                            {freshCustomerPhone && (
+                                                <div className="flex items-center gap-2.5">
+                                                    <Phone size={14} className="text-[#1c2d4f] shrink-0" />
+                                                    <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">{freshCustomerPhone}</p>
+                                                </div>
+                                            )}
+                                            {freshCustomerEmail && (
+                                                <div className="flex items-center gap-2.5">
+                                                    <Mail size={14} className="text-[#1c2d4f] shrink-0" />
+                                                    <p className="text-xs font-medium text-slate-600 truncate max-w-[200px]">{freshCustomerEmail}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {(freshCustomerAddress || quote.customerAddress) && (
+                                        <div className="flex items-start gap-2.5 max-w-[300px]">
+                                            <MapPin size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                                            <p className="text-xs text-slate-500 leading-snug font-medium uppercase">{freshCustomerAddress || quote.customerAddress}</p>
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-6 border-l border-slate-300/50 pl-6">
+                                        <div className="flex flex-col">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-0.5 text-right">Validade</span>
+                                            <span className="text-xs font-bold text-slate-800">{quote.validUntil ? new Date(quote.validUntil).toLocaleDateString() : '—'}</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10 flex flex-col justify-center">
+                        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/30 p-3.5 sm:p-4 flex flex-col justify-center">
                             <SectionHeader icon={<FileText size={15} />} title="Resumo Comercial" />
                             <div className="grid grid-cols-2 gap-y-4 gap-x-6">
                                 <InfoPill
@@ -1122,7 +1201,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
 
                 {fullscreenImage && (
                     <div
-                        className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
+                        className="fixed inset-0 z-[9999] bg-white/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
                         onClick={() => setFullscreenImage(null)}
                     >
                         <img
@@ -1131,7 +1210,7 @@ export const PublicQuoteView: React.FC<PublicQuoteViewProps> = ({ id, tenantProp
                             alt="Visualização"
                         />
                         <button
-                            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+                            className="absolute top-6 right-6 p-3 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-800 transition-colors shadow-sm"
                             onClick={() => setFullscreenImage(null)}
                         >
                             <X size={22} />

@@ -1,6 +1,7 @@
 
 import { AlertTriangle, Barcode, Box, Camera, DollarSign, Edit3, Filter, History, Info, Layers, LayoutDashboard, List, Loader2, Package, Plus, RefreshCw, Save, Scale, Search, Tag, Trash2, TrendingDown, TrendingUp, Users, Wand2, X, Image as ImageIcon, Printer, QrCode, ClipboardCheck, CheckCircle, FileText } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { useI18n } from '../../i18n';
 import { useAuth } from '../../contexts/AuthContext';
 import { DataService } from '../../services/dataService';
 import { StorageService } from '../../services/storageService';
@@ -11,6 +12,8 @@ import { Input } from '../ui/Input';
 import { Pagination } from '../ui/Pagination';
 
 export const StockManagement: React.FC = () => {
+  const { t } = useI18n();
+
     const { isAuthLoading, session } = useAuth();
 
     // Application State
@@ -1830,7 +1833,7 @@ export const StockManagement: React.FC = () => {
                                                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data/Hora</th>
                                                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Itens</th>
                                                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável</th>
-                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.common.actions}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">

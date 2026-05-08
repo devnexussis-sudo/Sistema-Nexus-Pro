@@ -13,6 +13,7 @@ import SessionStorage from './lib/sessionStorage';
 import { DataService } from './services/dataService';
 import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
 import { NetworkStatusIndicator } from './components/common/NetworkStatusIndicator';
+import { I18nProvider } from './i18n';
 
 // Wrapper para rotas públicas
 const PublicAppWrapper: React.FC<{ type: 'order' | 'quote' }> = ({ type }) => {
@@ -64,6 +65,7 @@ const AppRoutes: React.FC = () => {
       {/* PUBLIC ROUTES */}
       <Route path="/order/view/:id" element={<PublicAppWrapper type="order" />} />
       <Route path="/view-quote/:id" element={<PublicAppWrapper type="quote" />} />
+      <Route path="/view/:id" element={<PublicAppWrapper type="quote" />} />
 
       {/* MASTER ADMIN — rota dinâmica via env (não exposta no código-fonte compilado visível) */}
       <Route path={`/${import.meta.env.VITE_MASTER_ROUTE_KEY || 'master'}`} element={
@@ -119,11 +121,13 @@ const App: React.FC = () => {
         v7_relativeSplatPath: true,
       }}
     >
-      <AuthProvider>
-        <AppRoutes />
-        <PwaInstallPrompt />
-        <NetworkStatusIndicator />
-      </AuthProvider>
+      <I18nProvider>
+        <AuthProvider>
+          <AppRoutes />
+          <PwaInstallPrompt />
+          <NetworkStatusIndicator />
+        </AuthProvider>
+      </I18nProvider>
     </HashRouter>
   );
 };

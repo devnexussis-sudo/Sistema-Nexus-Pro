@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useI18n } from '../../i18n';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -35,6 +36,8 @@ interface CustomerManagementProps {
 export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   customers, equipments, onUpdateCustomers, onSwitchView
 }) => {
+    const { t } = useI18n();
+
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<'dados' | 'ativos'>('dados');
@@ -42,7 +45,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   const [linkingAsset, setLinkingAsset] = useState(false);
   const [assetSearch, setAssetSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showFilters, setShowFilters] = useState(false);
@@ -334,9 +336,6 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     }
   };
 
-  const toggleSelectCustomer = (id: string) => {
-    setSelectedCustomerId(selectedCustomerId === id ? null : id);
-  };
 
   const filteredCustomers = customers.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.document.includes(searchTerm);
@@ -390,7 +389,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
         {showFilters && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">{t.common.status}</label>
               <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
                 <Filter size={12} className="text-slate-400 mr-2" />
                 <select
@@ -425,8 +424,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
           <table className="w-full border-separate border-spacing-y-1">
             <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
               <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-center lowercase">
-                <th className="px-3 py-2 w-8"></th>
-                <th className="px-4 py-2">cliente / documento</th>
+                <th className="px-4 py-2 text-left">cliente / documento</th>
                 <th className="px-4 py-2">contato principal</th>
                 <th className="px-4 py-2">localização</th>
                 <th className="px-4 py-2 text-center">status</th>
@@ -435,17 +433,12 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
             </thead>
             <tbody>
               {paginatedCustomers.map(c => {
-                const isSelected = selectedCustomerId === c.id;
                 return (
                   <React.Fragment key={c.id}>
                     <tr
-                      onClick={() => toggleSelectCustomer(c.id)}
-                      className={`bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md cursor-pointer ${!c.active ? 'opacity-50' : ''}`}
+                      className={`bg-white hover:bg-slate-50 transition-all group shadow-sm hover:shadow-md ${!c.active ? 'opacity-50' : ''}`}
                     >
-                      <td className="px-3 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0 text-slate-300">
-                        {isSelected ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </td>
-                      <td className="px-4 py-1.5 border-y border-slate-100">
+                      <td className="px-4 py-1.5 border-y border-slate-100 rounded-l-[1.5rem] border-l">
                         <div className="flex items-center gap-3">
                           <div className={`p-2.5 rounded-xl border-2 shrink-0 ${c.type === 'PJ' ? 'bg-primary-50 border-primary-100 text-primary-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
                             {c.type === 'PJ' ? <Building2 size={16} /> : <User size={16} />}
@@ -490,45 +483,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       </td>
                     </tr>
 
-                    {isSelected && (
-                      <tr className="animate-fade-in-up">
-                        <td colSpan={6} className="px-12 py-1.5 pb-8">
-                          <div className="bg-slate-50 border-2 border-primary-100 rounded-[3rem] p-8 shadow-inner">
 
-                            <div className="flex items-center justify-between mb-8 border-b border-primary-100 pb-5">
-                              <div className="flex items-center gap-4">
-                                <div className="p-3 bg-white rounded-2xl text-primary-600 shadow-sm"><Box size={20} /></div>
-                                <h3 className="text-xs font-bold text-primary-600   italic">Inventário de Ativos Vinculados</h3>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  // Atalho para adicionar ativo já vinculado a este cliente
-                                  if (onSwitchView) onSwitchView('equip', { customerId: c.id });
-                                }}
-                                className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-xl text-[9px] font-bold   hover:bg-primary-700 transition-all shadow-lg shadow-primary-600/20"
-                              >
-                                <Plus size={14} /> Novo Ativo
-                              </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                              {mockEquipments[c.id] && mockEquipments[c.id].map(eq => (
-                                <div key={eq.id} className="bg-white p-6 rounded-[2rem] border border-primary-100/50 shadow-lg shadow-slate-200/50 flex items-center gap-5 group/item transition-all hover:scale-[1.03]">
-                                  <div className="p-3 bg-primary-50 text-primary-400 rounded-xl group-hover/item:bg-primary-600 group-hover/item:text-white transition-colors"><Laptop size={18} /></div>
-                                  <div>
-                                    <p className="text-xs font-bold text-slate-800  tracking-tight">{eq.model}</p>
-                                    <p className="text-[9px] text-slate-400 font-bold  mt-1 italic ">SN: {eq.serialNumber}</p>
-                                  </div>
-                                </div>
-                              ))}
-                              {(!mockEquipments[c.id] || mockEquipments[c.id].length === 0) && (
-                                <div className="col-span-full py-10 text-center text-[10px] font-bold text-slate-300  italic ">Nenhum ativo registrado para esta unidade.</div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
                   </React.Fragment>
                 );
               })}
@@ -547,7 +502,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
       {
         isModalOpen && createPortal(
           <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
-            <div className="bg-white rounded-xl w-full max-w-3xl h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+            <div className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
 
               {/* HEADER */}
               <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
@@ -563,27 +518,34 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  {/* Abas */}
-                  <div className="hidden md:flex bg-slate-100 p-1 rounded-xl gap-1">
-                    <button type="button" onClick={() => setModalTab('dados')}
-                      className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                        modalTab === 'dados' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                      }`}>Dados do Cliente</button>
-                    {editingId && (
-                      <button type="button" onClick={() => setModalTab('ativos')}
-                        className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                          modalTab === 'ativos' ? 'bg-white text-[#1c2d4f] shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                        }`}>Ativos Vinculados</button>
-                    )}
-                  </div>
                   <button onClick={closeModal} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50">
                     <X size={20} />
                   </button>
                 </div>
               </div>
 
-              {/* BODY */}
-              <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
+              {/* BODY WITH SIDEBAR */}
+              <div className="flex-1 flex overflow-hidden">
+                {/* SIDEBAR MENU */}
+                <div className="w-64 bg-slate-50/50 border-r border-slate-200 p-6 flex flex-col gap-2 shrink-0">
+                  <button type="button" onClick={() => setModalTab('dados')}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                      modalTab === 'dados' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                    }`}>
+                    <User size={16} /> Dados do Cliente
+                  </button>
+                  {editingId && (
+                    <button type="button" onClick={() => setModalTab('ativos')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                        modalTab === 'ativos' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                      }`}>
+                      <Box size={16} /> Ativos Vinculados
+                    </button>
+                  )}
+                </div>
+
+                {/* CONTENT AREA */}
+                <div className="flex-1 overflow-y-auto p-8 bg-white custom-scrollbar">
 
                 {/* ABA: DADOS */}
                 {modalTab === 'dados' && (
@@ -729,7 +691,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                               <th className="px-5 py-3 text-left">Modelo / Nome</th>
                               <th className="px-5 py-3 text-left">Nº de Série</th>
                               <th className="px-5 py-3 text-left">Família</th>
-                              <th className="px-5 py-3 text-center">Status</th>
+                              <th className="px-5 py-3 text-center">{t.common.status}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
@@ -763,10 +725,11 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
                   </div>
                 )}
               </div>
-
+              </div>
+              
               {/* FOOTER */}
               <div className="px-8 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
-                <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Cancelar</button>
+                <button type="button" onClick={closeModal} className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">{t.common.cancel}</button>
                 {modalTab === 'dados' && (
                   <Button form="customer-form" onClick={handleSubmit} disabled={!!documentDuplicate}
                     className={`h-9 px-6 rounded-xl text-xs font-bold ${

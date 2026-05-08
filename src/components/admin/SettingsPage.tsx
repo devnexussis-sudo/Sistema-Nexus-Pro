@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { DataService } from '../../services/dataService';
 import { NexusQueryClient, useTenant } from '../../hooks/nexusHooks';
@@ -8,9 +7,11 @@ import {
   Building2, Save, Mail, Phone, MapPin, Globe, Camera,
   ShieldCheck, Briefcase, Hash, CreditCard, Settings,
   Navigation, Smartphone, Lock, Unlock, ListOrdered,
-  ShieldAlert, Terminal, X, UploadCloud, Languages,
-  BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle, PieChart, Target
+  ShieldAlert, X, UploadCloud, Languages,
+  BellRing, Database, History, HardDrive, Loader2, Loader, Share2, PlayCircle, PieChart, Target, ImagePlus,
+  Monitor
 } from 'lucide-react';
+import { useI18n, TIMEZONE_OPTIONS, type SupportedLocale, type SupportedTimezone } from '../../i18n';
 
 interface CompanyData {
   name: string;
@@ -38,6 +39,7 @@ interface SystemParams {
   osInitialNumber: number;
   isSequenceLocked: boolean;
   language: 'pt-BR' | 'en-US' | 'es-ES';
+  timezone: string;
   notifyClient: boolean;
   sessionTimeout: string;
   backupFrequency: 'daily' | 'weekly' | 'monthly';
@@ -55,6 +57,7 @@ interface SystemParams {
 }
 
 export const SettingsPage: React.FC = () => {
+  const { t, locale, timezone, setLocale, setTimezone } = useI18n();
   const [activeTab, setActiveTab] = useState<'company' | 'system' | 'app' | 'dashboard'>('company');
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -87,7 +90,8 @@ export const SettingsPage: React.FC = () => {
     osPrefix: 'OS-',
     osInitialNumber: 1001,
     isSequenceLocked: true,
-    language: 'pt-BR',
+    language: locale as any,
+    timezone: timezone,
     notifyClient: true,
     sessionTimeout: '2h',
     backupFrequency: 'daily',
@@ -139,6 +143,8 @@ export const SettingsPage: React.FC = () => {
         ...prev,
         osPrefix: osPref,
         osInitialNumber: osStart,
+        language: data.metadata?.language || prev.language,
+        timezone: data.metadata?.timezone || prev.timezone,
         showItemPricesInApp: data.metadata?.showItemPricesInApp ?? false,
         showItemPricesInPublicView: data.metadata?.showItemPricesInPublicView ?? true,
         allowOsSharing: data.metadata?.allowOsSharing ?? true,
@@ -150,6 +156,14 @@ export const SettingsPage: React.FC = () => {
         slaTargetPercentage: data.metadata?.slaTargetPercentage ?? 85,
         sla48hTargetPercentage: data.metadata?.sla48hTargetPercentage ?? 90,
       }));
+
+      // Sincronizar I18nContext com dados do banco
+      if (data.metadata?.language) {
+        setLocale(data.metadata.language as SupportedLocale);
+      }
+      if (data.metadata?.timezone) {
+        setTimezone(data.metadata.timezone as SupportedTimezone);
+      }
 
       setDbInfo({ slug: data.slug || '', id: data.id });
     } else if (!tenantLoading && !data) {
@@ -289,6 +303,8 @@ export const SettingsPage: React.FC = () => {
           showStockHistory: params.showStockHistory,
           allowImpediment: params.allowImpediment,
           showVisitHistory: params.showVisitHistory,
+          language: params.language,
+          timezone: params.timezone,
           slaTargetPercentage: params.slaTargetPercentage,
           sla48hTargetPercentage: params.sla48hTargetPercentage,
         }
@@ -323,6 +339,10 @@ export const SettingsPage: React.FC = () => {
           logoUrl: result.logo_url || company.logoUrl
         }));
       }
+
+      // Sincronizar idioma e timezone com I18nContext
+      setLocale(params.language as SupportedLocale);
+      setTimezone(params.timezone as SupportedTimezone);
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -367,7 +387,7 @@ export const SettingsPage: React.FC = () => {
             <ShieldAlert size={40} />
           </div>
           <div className="space-y-2">
-            <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Erro de Sincronização</h2>
+            <h2 className="text-xl font-medium text-slate-800 uppercase tracking-tighter">Erro de Sincronização</h2>
             <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
               Não conseguimos identificar os dados da sua organização. Isso pode ser uma falha momentânea de conexão ou permissão.
             </p>
@@ -380,13 +400,13 @@ export const SettingsPage: React.FC = () => {
           <div className="flex flex-col gap-3">
             <Button
               onClick={() => refetchTenant()}
-              className="w-full bg-[#1c2d4f] text-white rounded-2xl py-4 font-black uppercase tracking-widest text-[10px]"
+              className="w-full bg-[#1c2d4f] text-white rounded-2xl py-4 font-medium uppercase tracking-widest text-[10px]"
             >
               Tentar Novamente
             </Button>
             <button
               onClick={() => { localStorage.clear(); window.location.reload(); }}
-              className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 underline"
+              className="text-[9px] font-medium text-slate-400 uppercase tracking-widest hover:text-slate-600 underline"
             >
               Limpar Cache e Reiniciar
             </button>
@@ -401,7 +421,7 @@ export const SettingsPage: React.FC = () => {
       <div className="flex h-full items-center justify-center bg-slate-50/20">
         <div className="flex flex-col items-center gap-4 animate-pulse">
           <Loader2 className="animate-spin text-primary-500" size={40} strokeWidth={1.5} />
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">Sincronizando DUNO...</span>
+          <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-400 italic">Sincronizando DUNO...</span>
         </div>
       </div>
     );
@@ -416,30 +436,30 @@ export const SettingsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('company')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'company' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'company' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <Building2 size={14} /> Organização
+            <Building2 size={14} /> {t.settings.tabs.company}
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('system')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'system' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'system' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <Terminal size={14} /> Sistema
+            <Monitor size={14} /> {t.settings.tabs.system}
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('app')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'app' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'app' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <Smartphone size={14} /> APP do Técnico
+            <Smartphone size={14} /> {t.settings.tabs.app}
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'dashboard' ? 'bg-primary-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-medium transition-all ${activeTab === 'dashboard' ? 'bg-[#1c2d4f] text-white shadow-lg' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            <PieChart size={14} /> Parâmetros de Dashboard
+            <PieChart size={14} /> {t.settings.tabs.dashboard}
           </button>
         </div>
 
@@ -447,7 +467,7 @@ export const SettingsPage: React.FC = () => {
         <div className="flex-1 w-full flex items-center justify-end md:justify-center gap-4">
 
           {saved && (
-            <div className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl border border-emerald-100 font-black text-[9px] uppercase tracking-widest animate-bounce">
+            <div className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl border border-emerald-100 font-medium text-[9px] uppercase tracking-widest animate-bounce">
               Salvo!
             </div>
           )}
@@ -459,9 +479,9 @@ export const SettingsPage: React.FC = () => {
             form="settings-form"
             type="submit"
             isLoading={loading}
-            className="rounded-xl px-6 h-[42px] font-black italic uppercase text-[10px] tracking-widest shadow-lg shadow-primary-600/20 text-white whitespace-nowrap bg-primary-600 hover:bg-primary-700"
+            className="rounded-xl px-6 h-[42px] font-medium italic uppercase text-[10px] tracking-widest shadow-lg shadow-primary-600/20 text-white whitespace-nowrap bg-primary-600 hover:bg-primary-700"
           >
-            <Save size={16} className="mr-2" /> Salvar
+            <Save size={16} className="mr-2" /> {t.common.save}
           </Button>
         </div>
       </div>
@@ -474,217 +494,196 @@ export const SettingsPage: React.FC = () => {
               <div className="space-y-3 animate-fade-in">
                 {/* SEÇÃO PRINCIPAL - DENSIDADE BIG TECH */}
                 <section className="bg-white p-3 rounded-xl border border-gray-100 shadow-xl space-y-3">
-                  <div className="flex items-center gap-3 border-b border-gray-50 pb-2">
-                    <div className="p-2 bg-primary-600 text-white rounded-lg shadow-lg shadow-primary-600/10">
-                      <Building2 size={16} />
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-50 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-[#1c2d4f]/10 text-[#1c2d4f] rounded-xl">
+                        <Building2 size={20} />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-900 tracking-tight leading-none">{t.settings.company.title}</h2>
+                        <p className="text-[10px] font-medium text-gray-400 mt-1">{t.settings.company.subtitle}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-base font-semibold text-gray-900 tracking-tighter leading-none">Dados Corporativos</h2>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Identidade e registros da organização.</p>
+                    
+                    <div className="flex items-center gap-4 bg-gray-50/50 p-2.5 rounded-2xl border border-gray-100 shrink-0">
+                      <div className="space-y-1 text-right pr-2">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <h4 className="text-[11px] font-semibold text-gray-900 uppercase tracking-tight">{t.settings.company.logo}</h4>
+                          <UploadCloud size={14} className="text-primary-500" />
+                        </div>
+                        <p className="text-[9px] font-medium text-gray-400 uppercase leading-tight italic">{t.settings.company.logoFormat}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`w-20 h-20 rounded-[1.25rem] border border-slate-200 flex items-center justify-center transition-all relative overflow-hidden group shadow-sm cursor-pointer ${company.logoUrl ? 'bg-white' : 'bg-white hover:bg-slate-50'}`}
+                        >
+                          {company.logoUrl ? (
+                            <>
+                              <img src={company.logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
+                              <div className="absolute inset-0 bg-[#1c2d4f]/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Camera size={24} className="text-white" />
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-slate-300 group-hover:text-[#1c2d4f] transition-colors">
+                              <ImagePlus size={28} strokeWidth={1.5} />
+                            </div>
+                          )}
+                        </div>
+                        {company.logoUrl && (
+                          <button type="button" onClick={removeLogo} className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors shrink-0">
+                            <X size={16} />
+                          </button>
+                        )}
+                        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 flex items-start gap-3">
+                    <ShieldAlert size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-amber-700 leading-relaxed font-medium">
+                      <strong className="font-bold uppercase tracking-tight">{t.settings.company.lgpdTitle}</strong> {t.settings.company.lgpdNotice}
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div className="lg:col-span-3">
-                      <label className="text-[11px] font-medium text-gray-400 mb-1 block px-1">Razão Social</label>
+                      <label className="text-[11px] font-medium text-gray-400 mb-1 block px-1">{t.settings.company.businessName}</label>
                       <Input
+                        disabled
                         value={company.name}
-                        onChange={e => setCompany({ ...company, name: e.target.value })}
-                        className="rounded-xl py-1.5 font-medium text-[13px] border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-medium text-[13px] border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                     <div className="lg:col-span-1">
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">ID (Slug)</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.slug}</label>
                       <Input
                         disabled
                         value={dbInfo?.slug || ''}
                         icon={<Lock size={12} />}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 bg-gray-100 opacity-60 italic cursor-not-allowed"
+                        className="rounded-xl py-1.5 font-normal text-xs border-gray-100 bg-gray-50 opacity-80 italic cursor-not-allowed"
                       />
                     </div>
 
                     <div className="lg:col-span-2">
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Nome Fantasia</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.tradeName}</label>
                       <Input
+                        disabled
                         value={company.tradingName}
-                        onChange={e => setCompany({ ...company, tradingName: e.target.value })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">CNPJ</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.cnpj}</label>
                       <Input
+                        disabled
                         icon={<CreditCard size={12} />}
                         value={company.cnpj}
-                        onChange={e => setCompany({ ...company, cnpj: formatCNPJ(e.target.value) })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">I.E.</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.stateRegistration}</label>
                       <Input
+                        disabled
                         icon={<Hash size={12} />}
                         value={company.stateRegistration}
-                        onChange={e => setCompany({ ...company, stateRegistration: e.target.value })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
 
                     <div>
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">E-mail</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.common.email}</label>
                       <Input
+                        disabled
                         icon={<Mail size={12} />}
                         value={company.email}
-                        onChange={e => setCompany({ ...company, email: e.target.value })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Telefone</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.common.phone}</label>
                       <Input
+                        disabled
                         icon={<Phone size={12} />}
                         value={company.phone}
-                        onChange={e => setCompany({ ...company, phone: formatPhone(e.target.value) })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                     <div className="lg:col-span-2">
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Site</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.site}</label>
                       <Input
+                        disabled
                         icon={<Globe size={12} />}
                         value={company.website}
-                        onChange={e => setCompany({ ...company, website: e.target.value })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
 
                     <div>
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">CEP</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.cep}</label>
                       <Input
+                        disabled
                         value={company.zip || ''}
-                        onChange={e => { const v = formatCEP(e.target.value); setCompany({ ...company, zip: v }); handleCepSearch(v); }}
                         icon={<MapPin size={12} />}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                     <div className="lg:col-span-2">
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Logradouro</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.street}</label>
                       <Input
+                        disabled
                         value={company.street || company.address || ''}
-                        onChange={e => setCompany({ ...company, street: e.target.value, address: e.target.value })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Número</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.number}</label>
                       <Input
+                        disabled
                         value={company.number || ''}
-                        onChange={e => setCompany({ ...company, number: e.target.value })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
 
                     <div>
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Bairro</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.neighborhood}</label>
                       <Input
+                        disabled
                         value={company.neighborhood || ''}
-                        onChange={e => setCompany({ ...company, neighborhood: e.target.value })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Cidade</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.city}</label>
                       <Input
+                        disabled
                         value={company.city || ''}
-                        onChange={e => setCompany({ ...company, city: e.target.value })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Estado</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.state}</label>
                       <Input
+                        disabled
                         value={company.state || ''}
-                        onChange={e => setCompany({ ...company, state: e.target.value })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Complemento</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block px-1">{t.settings.company.complement}</label>
                       <Input
+                        disabled
                         value={company.complement || ''}
-                        onChange={e => setCompany({ ...company, complement: e.target.value })}
-                        className="rounded-xl py-1.5 font-bold text-xs border-gray-100 focus:bg-white bg-gray-50/50 shadow-inner"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-gray-50 flex items-center gap-4">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-[9px] font-black text-gray-900 uppercase">Logo Oficial</h4>
-                        <UploadCloud size={10} className="text-primary-500" />
-                      </div>
-                      <p className="text-[8px] font-bold text-gray-400 uppercase leading-tight italic">WebP/PNG (300kb)</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`w-12 h-12 rounded-lg border-2 border-dashed flex items-center justify-center transition-all relative overflow-hidden group shadow-inner cursor-pointer ${company.logoUrl ? 'border-primary-100 bg-primary-50/30' : 'border-gray-200 bg-gray-50'}`}
-                      >
-                        {company.logoUrl ? (
-                          <>
-                            <img src={company.logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
-                            <div className="absolute inset-0 bg-primary-600/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Camera size={14} className="text-white" />
-                            </div>
-                          </>
-                        ) : (
-                          <UploadCloud size={16} className="text-gray-300 group-hover:text-primary-500" />
-                        )}
-                      </div>
-                      {company.logoUrl && (
-                        <button type="button" onClick={removeLogo} className="p-1.5 bg-red-50 text-red-500 rounded-md hover:bg-red-100">
-                          <X size={12} />
-                        </button>
-                      )}
-                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
-                    </div>
-                  </div>
-                </section>
-
-                {/* SEÇÃO DE OS */}
-                <section className="bg-[#0f172a] p-3 rounded-xl border border-white/5 shadow-2xl space-y-3 text-white relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-primary-600/10 blur-[60px] -translate-y-1/2 translate-x-1/2"></div>
-                  <div className="flex items-center gap-3 border-b border-white/5 pb-2 relative z-10">
-                    <div className="p-2 bg-primary-500 text-white rounded-lg shadow-xl shadow-primary-500/10">
-                      <ListOrdered size={16} />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-black uppercase italic tracking-tighter leading-none">Regras O.S.</h2>
-                      <p className="text-[8px] font-black text-primary-400 uppercase tracking-widest mt-0.5">Identificação e sequencial.</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 relative z-10">
-                    <div className="space-y-1">
-                      <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">Prefixo <Lock size={8} /></label>
-                      <Input
-                        value={params.osPrefix}
-                        onChange={e => setParams({ ...params, osPrefix: e.target.value })}
-                        className="rounded-xl py-1 font-black border-gray-100 bg-gray-50/10 text-gray-300 text-sm shadow-inner"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest px-1 flex items-center gap-2">Próximo N° <Lock size={8} /></label>
-                      <Input
-                        type="number"
-                        value={params.osInitialNumber}
-                        onChange={e => setParams({ ...params, osInitialNumber: Number(e.target.value) })}
-                        className="rounded-xl py-1 font-black border-gray-100 bg-gray-50/10 text-gray-300 text-sm shadow-inner"
+                        className="rounded-xl py-1.5 font-normal text-xs text-gray-700 border-gray-100 bg-gray-50 opacity-80 cursor-not-allowed"
                       />
                     </div>
                   </div>
                 </section>
+
+
               </div>
             )}
 
@@ -692,20 +691,20 @@ export const SettingsPage: React.FC = () => {
               <div className="space-y-4 animate-fade-in">
                 <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
                   <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                    <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
+                    <div className="p-2.5 bg-[#1c2d4f]/10 text-[#1c2d4f] rounded-xl">
                       <Languages size={20} />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Localização</h2>
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Idioma e fuso horário.</p>
+                      <h2 className="text-lg font-medium text-gray-900 uppercase tracking-tight leading-none">{t.settings.system.title}</h2>
+                      <p className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mt-1">{t.settings.system.subtitle}</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="w-full">
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Idioma</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block">{t.settings.system.language}</label>
                       <select
-                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-black text-gray-900 focus:ring-2 focus:ring-primary-100 appearance-none shadow-sm"
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-primary-100 appearance-none shadow-sm"
                         value={params.language}
                         onChange={e => setParams({ ...params, language: e.target.value as any })}
                       >
@@ -715,74 +714,21 @@ export const SettingsPage: React.FC = () => {
                       </select>
                     </div>
                     <div className="w-full">
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Fuso Horário</label>
+                      <label className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mb-1 block">{t.settings.system.timezone}</label>
                       <select
-                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-black text-gray-900 focus:ring-2 focus:ring-primary-100 appearance-none shadow-sm"
-                        defaultValue="UTC-3"
+                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs font-medium text-gray-900 focus:ring-2 focus:ring-primary-100 appearance-none shadow-sm"
+                        value={params.timezone}
+                        onChange={e => setParams({ ...params, timezone: e.target.value as any })}
                       >
-                        <option value="UTC-3">(UTC-03:00) Brasília</option>
-                        <option value="UTC-5">(UTC-05:00) Eastern</option>
-                        <option value="UTC+1">(UTC+01:00) Madrid</option>
+                        {TIMEZONE_OPTIONS.map(tz => (
+                          <option key={tz.value} value={tz.value}>({tz.offset}) {tz.label}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
                 </section>
 
-                <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
-                  <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                    <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
-                      <Smartphone size={20} />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Segurança e Automação</h2>
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Conformidade e notificações inteligentes.</p>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.useGps ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                        <Navigation size={20} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">GPS em Tempo Real</h4>
-                          <button
-                            type="button"
-                            onClick={() => setParams({ ...params, useGps: !params.useGps })}
-                            className={`w-10 h-5 rounded-full relative transition-colors ${params.useGps ? 'bg-primary-600' : 'bg-gray-300'}`}
-                          >
-                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.useGps ? '22px' : '2px' }}></div>
-                          </button>
-                        </div>
-                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Geolocalização exata no check-in/out.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
-                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.notifyClient ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                        <BellRing size={20} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Notificar Clientes</h4>
-                          <button
-                            type="button"
-                            onClick={() => setParams({ ...params, notifyClient: !params.notifyClient })}
-                            className={`w-10 h-5 rounded-full relative transition-colors ${params.notifyClient ? 'bg-primary-600' : 'bg-gray-300'}`}
-                          >
-                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.notifyClient ? '22px' : '2px' }}></div>
-                          </button>
-                        </div>
-                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          WhatsApp automático ao iniciar deslocamento.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </section>
               </div>
             )}
 
@@ -790,12 +736,12 @@ export const SettingsPage: React.FC = () => {
               <div className="space-y-4 animate-fade-in">
                 <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
                   <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                    <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
+                    <div className="p-2.5 bg-[#1c2d4f]/10 text-[#1c2d4f] rounded-xl">
                       <PieChart size={20} />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Parâmetros Analíticos</h2>
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Defina as metas e indicadores para o funcionamento do painel.</p>
+                      <h2 className="text-lg font-medium text-gray-900 uppercase tracking-tight leading-none">{t.settings.dashboard.title}</h2>
+                      <p className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mt-1">{t.settings.dashboard.subtitle}</p>
                     </div>
                   </div>
 
@@ -806,10 +752,10 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Meta de Eficiência SLA (24h)</h4>
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{t.settings.dashboard.sla24h}</h4>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed mb-3">
-                          Porcentagem alvo para o fechamento de ordens em até 24h.
+                          {t.settings.dashboard.sla24hDescription}
                         </p>
                         <div className="flex items-center gap-2">
                            <Input
@@ -818,7 +764,7 @@ export const SettingsPage: React.FC = () => {
                              max={100}
                              value={params.slaTargetPercentage}
                              onChange={e => setParams({ ...params, slaTargetPercentage: Number(e.target.value) })}
-                             className="rounded-xl py-1 font-black border-gray-100 bg-white text-gray-900 text-sm shadow-inner w-24 text-center"
+                             className="rounded-xl py-1 font-medium border-gray-100 bg-white text-gray-900 text-sm shadow-inner w-24 text-center"
                            />
                            <span className="text-[10px] font-bold text-gray-500">%</span>
                         </div>
@@ -831,10 +777,10 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Meta de Eficiência SLA (48h)</h4>
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{t.settings.dashboard.sla48h}</h4>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed mb-3">
-                          Porcentagem alvo para o fechamento de ordens em até 48h.
+                          {t.settings.dashboard.sla48hDescription}
                         </p>
                         <div className="flex items-center gap-2">
                            <Input
@@ -843,7 +789,7 @@ export const SettingsPage: React.FC = () => {
                              max={100}
                              value={params.sla48hTargetPercentage}
                              onChange={e => setParams({ ...params, sla48hTargetPercentage: Number(e.target.value) })}
-                             className="rounded-xl py-1 font-black border-gray-100 bg-white text-gray-900 text-sm shadow-inner w-24 text-center"
+                             className="rounded-xl py-1 font-medium border-gray-100 bg-white text-gray-900 text-sm shadow-inner w-24 text-center"
                            />
                            <span className="text-[10px] font-bold text-gray-500">%</span>
                         </div>
@@ -858,12 +804,12 @@ export const SettingsPage: React.FC = () => {
               <div className="space-y-4 animate-fade-in">
                 <section className="bg-white p-4 rounded-xl border border-gray-100 shadow-xl space-y-4">
                   <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
-                    <div className="p-2.5 bg-primary-50 text-primary-600 rounded-xl">
+                    <div className="p-2.5 bg-[#1c2d4f]/10 text-[#1c2d4f] rounded-xl">
                       <Smartphone size={20} />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-none">Configurações do Aplicativo Nexus Mobile</h2>
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Regras e visibilidade de dados para técnicos em campo.</p>
+                      <h2 className="text-lg font-medium text-gray-900 uppercase tracking-tight leading-none">{t.settings.app.title}</h2>
+                      <p className="text-[9px] font-medium text-gray-400 uppercase tracking-widest mt-1">{t.settings.app.subtitle}</p>
                     </div>
                   </div>
 
@@ -874,7 +820,7 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Exibir Preço de Peças</h4>
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{t.settings.app.showPrices}</h4>
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, showItemPricesInApp: !params.showItemPricesInApp })}
@@ -884,7 +830,7 @@ export const SettingsPage: React.FC = () => {
                           </button>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Se ativado, o técnico conseguirá ver o valor financeiro dos itens no estoque em seu app.
+                          {t.settings.app.showPricesDescription}
                         </p>
                       </div>
                     </div>
@@ -895,7 +841,7 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Compartilhamento de OS</h4>
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{t.settings.app.sharing}</h4>
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, allowOsSharing: !params.allowOsSharing })}
@@ -905,7 +851,7 @@ export const SettingsPage: React.FC = () => {
                           </button>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Se ativado, o técnico poderá compartilhar o link público de uma OS concluída via WhatsApp ou e-mail.
+                          {t.settings.app.sharingDescription}
                         </p>
                       </div>
                     </div>
@@ -916,7 +862,7 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Exibir Preço Público</h4>
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{t.settings.app.publicPrices}</h4>
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, showItemPricesInPublicView: !params.showItemPricesInPublicView })}
@@ -926,7 +872,7 @@ export const SettingsPage: React.FC = () => {
                           </button>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Se desativado, os valores financeiros de peças e serviços NÃO aparecerão no link público nem na impressão.
+                          {t.settings.app.publicPricesDescription}
                         </p>
                       </div>
                     </div>
@@ -937,7 +883,7 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">OS Simultâneas</h4>
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{t.settings.app.simultaneousOs}</h4>
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, allowMultipleInProgress: !params.allowMultipleInProgress })}
@@ -947,7 +893,7 @@ export const SettingsPage: React.FC = () => {
                           </button>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Se ativado, o técnico poderá iniciar uma nova OS sem finalizar outra que esteja em andamento. Se desativado, será obrigatório concluir a OS atual antes de iniciar outra.
+                          {t.settings.app.simultaneousOsDescription}
                         </p>
                       </div>
                     </div>
@@ -960,7 +906,7 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Contato do Cliente</h4>
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{t.settings.app.clientContact}</h4>
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, showClientContact: !params.showClientContact })}
@@ -970,7 +916,7 @@ export const SettingsPage: React.FC = () => {
                           </button>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Se ativado, o técnico terá acesso ao WhatsApp e telefone do cliente no card da OS e na descrição detalhada.
+                          {t.settings.app.clientContactDescription}
                         </p>
                       </div>
                     </div>
@@ -981,7 +927,7 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Histórico de Peças</h4>
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{t.settings.app.stockHistory}</h4>
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, showStockHistory: !params.showStockHistory })}
@@ -991,7 +937,7 @@ export const SettingsPage: React.FC = () => {
                           </button>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Se ativado, o técnico poderá visualizar o histórico de peças retiradas do estoque. Se desativado, ele não verá esta seção.
+                          {t.settings.app.stockHistoryDescription}
                         </p>
                       </div>
                     </div>
@@ -1002,7 +948,7 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Impedimento de OS</h4>
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{t.settings.app.impediment}</h4>
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, allowImpediment: !params.allowImpediment })}
@@ -1012,7 +958,7 @@ export const SettingsPage: React.FC = () => {
                           </button>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Se ativado, o técnico poderá registrar impedimentos na OS (início ou fim). Se desativado, a opção será removida do app.
+                          {t.settings.app.impedimentDescription}
                         </p>
                       </div>
                     </div>
@@ -1023,7 +969,7 @@ export const SettingsPage: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Histórico de Visitas</h4>
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">{t.settings.app.visitHistory}</h4>
                           <button
                             type="button"
                             onClick={() => setParams({ ...params, showVisitHistory: !params.showVisitHistory })}
@@ -1033,7 +979,7 @@ export const SettingsPage: React.FC = () => {
                           </button>
                         </div>
                         <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
-                          Se ativado, o técnico consegue ver o histórico completo de todas as visitas anteriores da OS. Se desativado, verá apenas a visita final que ele finalizou.
+                          {t.settings.app.visitHistoryDescription}
                         </p>
                       </div>
                     </div>

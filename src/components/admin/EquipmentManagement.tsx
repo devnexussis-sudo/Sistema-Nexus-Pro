@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useI18n } from '../../i18n';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
@@ -30,6 +31,8 @@ interface EquipmentManagementProps {
 export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
   equipments, customers, onUpdateEquipments, initialParams
 }) => {
+    const { t } = useI18n();
+
   const [activeTab, setActiveTab] = useState<'list' | 'families'>('list');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -294,7 +297,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                   <th className="px-4 py-2 text-center whitespace-nowrap">nº de série</th>
                   <th className="px-4 py-2">proprietário</th>
                   <th className="px-4 py-2 text-center">status</th>
-                  <th className="px-4 py-3 text-right pr-6">Ações</th>
+                  <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -388,8 +391,8 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
       {
         isModalOpen && createPortal(
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 lg:p-4 animate-in fade-in">
-            <div className="bg-white rounded-none lg:rounded-2xl w-full max-w-4xl h-full lg:h-auto lg:max-h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-8 animate-in fade-in">
+            <div className="bg-white rounded-none lg:rounded-2xl w-full max-w-[96vw] h-full lg:h-[92vh] shadow-2xl flex flex-col overflow-hidden border-0 lg:border border-slate-200">
 
               {/* HEADER — padrão OS */}
               <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
@@ -416,39 +419,36 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                 </button>
               </div>
 
-              {/* ABAS INTERNAS — apenas ao editar ativo */}
-              {activeTab === 'list' && editingId && (
-                <div className="flex border-b border-slate-200 px-8 bg-white shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setModalTab('dados')}
-                    className={`px-5 py-3.5 text-xs font-bold border-b-2 transition-colors ${
-                      modalTab === 'dados' ? 'border-[#1c2d4f] text-[#1c2d4f]' : 'border-transparent text-slate-400 hover:text-slate-600'
-                    }`}
-                  >
-                    Dados do Ativo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModalTab('historico')}
-                    className={`px-5 py-3.5 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 ${
-                      modalTab === 'historico' ? 'border-[#1c2d4f] text-[#1c2d4f]' : 'border-transparent text-slate-400 hover:text-slate-600'
-                    }`}
-                  >
-                    Histórico de OS
-                    {equipmentOrders.length > 0 && (
-                      <span className="bg-[#1c2d4f] text-white text-[9px] px-1.5 py-0.5 rounded-full leading-none">{equipmentOrders.length}</span>
+              {/* BODY WITH SIDEBAR */}
+              <div className="flex-1 flex overflow-hidden">
+                {activeTab === 'list' && (
+                  <div className="w-64 bg-slate-50/50 border-r border-slate-200 p-6 flex flex-col gap-2 shrink-0">
+                    <button type="button" onClick={() => setModalTab('dados')}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                        modalTab === 'dados' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                      }`}>
+                      <Box size={16} /> Dados do Ativo
+                    </button>
+                    {editingId && (
+                      <button type="button" onClick={() => setModalTab('historico')}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                          modalTab === 'historico' ? 'bg-white text-[#1c2d4f] shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                        }`}>
+                        <Calendar size={16} /> Histórico de OS
+                        {equipmentOrders.length > 0 && (
+                          <span className="ml-auto bg-[#1c2d4f] text-white text-[9px] px-1.5 py-0.5 rounded-full leading-none">{equipmentOrders.length}</span>
+                        )}
+                      </button>
                     )}
-                  </button>
-                </div>
-              )}
+                  </div>
+                )}
 
-              {/* BODY */}
-              <form
-                onSubmit={activeTab === 'list' && modalTab === 'dados' ? handleSaveEquipment : handleSaveFamily}
-                className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/30"
-              >
-                <div className="p-8 space-y-6">
+                {/* CONTENT AREA */}
+                <form
+                  onSubmit={activeTab === 'list' && modalTab === 'dados' ? handleSaveEquipment : handleSaveFamily}
+                  className="flex-1 overflow-y-auto custom-scrollbar bg-white"
+                >
+                  <div className="p-8 space-y-6">
 
                   {/* ── ABA: DADOS ── */}
                   {(activeTab === 'list' && (modalTab === 'dados' || !editingId)) && (
@@ -537,7 +537,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
                             <tr className="bg-slate-50 border-b border-slate-100">
                               <th className="px-6 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Protocolo</th>
                               <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Título</th>
-                              <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center">Status</th>
+                              <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center">{t.common.status}</th>
                               <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
                               <th className="px-4 py-2.5"></th>
                             </tr>
@@ -586,6 +586,7 @@ export const EquipmentManagement: React.FC<EquipmentManagementProps> = ({
 
                 </div>
               </form>
+              </div>
 
               {/* FOOTER */}
               <div className="px-8 py-5 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">

@@ -166,7 +166,8 @@ export interface User {
   role: UserRole;
   avatar?: string;
   active?: boolean;
-  groupId?: string; // Vínculo com o grupo de permissões
+  groupId?: string; // Vínculo legado com um único grupo
+  groupIds?: string[]; // Vínculo com múltiplos grupos de permissões
   groupName?: string; // Nome do grupo para exibição
   permissions?: UserPermissions;
 }

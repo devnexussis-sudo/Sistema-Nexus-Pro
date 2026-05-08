@@ -4,7 +4,7 @@ import { useTenant } from '../../hooks/nexusHooks';
 import {
   ClipboardList, CheckCircle, Clock, AlertCircle, TrendingUp, BarChart3,
   Briefcase, Activity, ShieldAlert, Timer, ArrowRight, Calendar, Zap, Layers, Target, Boxes, PieChart, BarChart,
-  Search, Filter, UserCheck, Users, ChevronRight, Gauge, ZapOff, Settings
+  Search, Filter, UserCheck, Users, ChevronRight, Gauge, ZapOff, Settings, BellRing
 } from 'lucide-react';
 
 interface AdminOverviewProps {
@@ -178,14 +178,22 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
   const pmocAnalysis = useMemo(() => {
     const todayNum = new Date().getDate();
     const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-    const counts = { urgent: 0, critical: 0, planned: 0 };
+    const counts = { urgent: 0, critical: 0, planned: 0, activeMonitors: 0 };
     const visits = activeContracts.map(c => {
       const day = Number(c.maintenanceDay) || 1;
       let daysUntil = day >= todayNum ? day - todayNum : (daysInMonth - todayNum) + day;
-      if (daysUntil <= 3) counts.urgent++;
+      
+      const alertsEnabled = c.alertSettings?.enabled !== false;
+      const alertDays = c.alertSettings?.daysBefore || 5;
+
+      if (alertsEnabled) {
+          counts.activeMonitors++;
+      }
+
+      if (daysUntil <= alertDays && alertsEnabled) counts.urgent++;
       else if (daysUntil <= 7) counts.critical++;
       else counts.planned++;
-      return { ...c, daysUntil };
+      return { ...c, daysUntil, isTriggered: daysUntil <= alertDays && alertsEnabled };
     }).sort((a, b) => a.daysUntil - b.daysUntil);
     return { counts, visits };
   }, [activeContracts]);
@@ -637,15 +645,15 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
                 <div className="p-2 bg-white/10 text-white rounded-lg border border-white/5"><Activity size={14} /></div>
                 <div>
                   <h3 className="text-[11px] font-bold   text-[#60a5fa] leading-tight">Módulo PMOC</h3>
-                  <p className="text-[9px] text-white/40 font-bold ">Gestão de Ativos</p>
+                  <p className="text-[9px] text-[#60a5fa]/60 font-bold flex items-center gap-1 mt-0.5"><BellRing size={8} /> {pmocAnalysis.counts.activeMonitors} monitorados ativamente</p>
                 </div>
               </div>
               <span className="px-2.5 py-1 bg-white/10 rounded-full text-[9px] font-bold border border-white/10">{activeContracts.length} Contrat.</span>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="p-3 bg-white/5 rounded-lg border border-white/5 group-hover:bg-white/[0.08] transition-colors">
-                <p className="text-[8px] font-bold text-rose-400  mb-1">Urgência (3d)</p>
+              <div className="p-3 bg-rose-500/10 rounded-lg border border-rose-500/20 group-hover:bg-rose-500/20 transition-colors">
+                <p className="text-[8px] font-bold text-rose-400 mb-1 flex items-center gap-1"><AlertCircle size={10} /> Gatilho Ativado</p>
                 <p className="text-xl font-bold">{pmocAnalysis.counts.urgent}</p>
               </div>
               <div className="p-3 bg-white/5 rounded-lg border border-white/5 group-hover:bg-white/[0.08] transition-colors">
@@ -657,8 +665,11 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <div className="space-y-2 mb-6">
               {pmocAnalysis.visits.slice(0, 3).map((v, i) => (
                 <div key={i} className="flex justify-between items-center p-2.5 bg-white/5 rounded-lg border border-white/5 text-[10px] hover:bg-white/10 transition-colors cursor-default group/item">
-                  <span className="font-bold  truncate max-w-[140px] text-white/80 group-hover/item:text-white">{v.customerName}</span>
-                  <span className={`font-bold px-1.5 py-0.5 rounded text-[8px] ${v.daysUntil <= 3 ? 'bg-rose-500/20 text-rose-300' : 'bg-primary-500/20 text-primary-300'}`}>D-{v.daysUntil}</span>
+                  <span className="font-bold  truncate max-w-[140px] text-white/80 group-hover/item:text-white flex items-center gap-1.5">
+                      {v.isTriggered && <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></div>}
+                      {v.customerName}
+                  </span>
+                  <span className={`font-bold px-1.5 py-0.5 rounded text-[8px] ${v.isTriggered ? 'bg-rose-500/20 text-rose-300' : 'bg-primary-500/20 text-primary-300'}`}>D-{v.daysUntil}</span>
                 </div>
               ))}
             </div>

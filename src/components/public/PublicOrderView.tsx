@@ -10,6 +10,7 @@ import {
   Globe,
   Hexagon,
   MapPin,
+  Mail,
   Package,
   Phone,
   Play,
@@ -198,15 +199,23 @@ const VisitCard: React.FC<{
         <div className="p-6 sm:p-8 space-y-6 animate-in zoom-in-95 duration-200">
           {/* Dados do técnico e horários */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <InfoPill label="Técnico" value={visitorName} />
-            <InfoPill label="Check-in" value={visit.arrival_time ? safeFmtTime(visit.arrival_time) : '—'} />
-            <InfoPill label="Check-out" value={visit.departure_time ? safeFmtTime(visit.departure_time) : '—'} />
-            {visit.departure_time && visit.arrival_time && (
-              <InfoPill 
-                label="Duração" 
-                value={`${Math.floor((new Date(visit.departure_time).getTime() - new Date(visit.arrival_time).getTime()) / 60000)} min`} 
-              />
-            )}
+            {(() => {
+              const effArrival = visit.arrival_time || visitData?.checkinLocation?.timestamp || (idx === 0 ? order.startDate : null);
+              const effDeparture = visit.departure_time || visitData?.checkoutLocation?.timestamp || (idx === 0 ? order.endDate : null);
+              return (
+                <>
+                  <InfoPill label="Técnico" value={visitorName} />
+                  <InfoPill label="Check-in" value={effArrival ? safeFmtTime(effArrival) : '—'} />
+                  <InfoPill label="Check-out" value={effDeparture ? safeFmtTime(effDeparture) : '—'} />
+                  {effDeparture && effArrival && (
+                    <InfoPill 
+                      label="Duração" 
+                      value={`${Math.max(0, Math.floor((new Date(effDeparture).getTime() - new Date(effArrival).getTime()) / 60000))} min`} 
+                    />
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           {/* Relatório Técnico da Visita */}
@@ -361,7 +370,15 @@ const formatPublicValue = (val: string) => {
 };
 
 const resolvePublicLabel = (key: string) => {
-  const cleanKey = key.replace(/^\[.*?\]\s*-\s*/, '');
+  let cleanKey = key.replace(/^\[.*?\]\s*-\s*/, '');
+  
+  const prefixMatch = cleanKey.match(/^(\d{3})#(.*)/);
+  if (prefixMatch) {
+    const num = parseInt(prefixMatch[1], 10);
+    const newNumStr = String(num + 1).padStart(3, '0');
+    cleanKey = `${newNumStr}# ${prefixMatch[2].trim()}`;
+  }
+
   if (!isNaN(Number(cleanKey)) && cleanKey.trim() !== '') return `Pergunta nº ${cleanKey}`;
   
   const lowerKey = cleanKey.toLowerCase();
@@ -370,6 +387,7 @@ const resolvePublicLabel = (key: string) => {
   if (lowerKey === 'blockreason' || lowerKey === 'block_reason' || lowerKey === 'reason' || lowerKey === 'impediment_reason') return 'Motivo do Impedimento';
   if (lowerKey === 'impedimentresponsible' || lowerKey === 'impediment_responsible') return 'Cliente / responsável por acompanhar o atendimento';
   if (lowerKey === 'impedimentcategory' || lowerKey === 'impediment_category') return 'Categoria do Impedimento';
+  if (lowerKey === 'impediment_signature' || lowerKey === 'impedimentsignature' || lowerKey === 'signature' || lowerKey === 'client_signature' || lowerKey === 'signature_url') return 'Assinatura do cliente ou responsável';
   if (lowerKey === 'notes' || lowerKey === 'observacao') return 'Observações';
   if (lowerKey === 'photo' || lowerKey === 'photo_url' || lowerKey === 'photourl' || lowerKey === 'attachment' || lowerKey === 'attachments') return 'Anexos';
   
@@ -506,123 +524,173 @@ const CollapsibleFormSection: React.FC<{
               return match ? match[1] : 'Ficha Técnica';
             })));
 
-            return groupOrder.map(group => {
-              const items = groupedItems[group];
-              return (
-                <div key={group} className="space-y-4">
-                  {group !== 'Ficha Técnica' && Object.keys(groupedItems).length > 1 && (
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center border border-emerald-100">
-                        <CheckCircle2 size={12} className="text-emerald-600" />
-                      </div>
-                      <h4 className="text-xs font-bold uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
-                    </div>
-                  )}
-                  <div className="grid gap-4">
-                    {items.map(({ key, cleanKey, text, photos }) => (
-                      <div key={key} className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-                        {/* Pergunta + Resposta */}
-                        <div className="px-4 pt-4 pb-3">
-                          <div className="bg-slate-200/40 rounded px-2.5 py-1.5 mb-2.5 border border-slate-200/50 inline-block">
-                            <p className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                              {resolvePublicLabel(key)}
-                            </p>
-                          </div>
-                          {text !== null && (
-                            <p className={`text-sm font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
-                              ? 'text-emerald-600'
-                              : 'text-slate-800'
-                              }`}>
-                              {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
-                              {formatPublicValue(text)}
-                            </p>
-                          )}
-                          {text === null && photos.length > 0 && (
-                            <p className="text-xs font-bold text-slate-400 italic">Evidência fotográfica</p>
-                          )}
-                        </div>
+            const matchedParts = new Set<string>();
+            const groupPartsMap: Record<string, any[]> = {};
+            
+            groupOrder.forEach(group => {
+              groupPartsMap[group] = [];
+              if (group === 'Ficha Técnica') return;
+              const gLower = group.toLowerCase();
+              (parts || []).forEach(it => {
+                const itEqName = (it.equipmentName || '').toLowerCase();
+                if (!itEqName) return;
+                if (itEqName === gLower || gLower.includes(itEqName) || itEqName.includes(gLower)) {
+                  groupPartsMap[group].push(it);
+                  matchedParts.add(it.id || it.description);
+                }
+              });
+            });
 
-                        {/* Fotos da mesma pergunta */}
-                        {photos.length > 0 && (
-                          <div className="flex flex-wrap gap-3 px-3 pb-3 mt-2">
-                            {photos.map((url, i) => (
-                              <div
-                                key={i}
-                                className="w-[80px] h-[80px] sm:w-[96px] sm:h-[96px] rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
-                                onClick={() => onImageClick(url)}
-                              >
-                                {isVideoUrl(url) ? (
-                                  <div className="w-full h-full relative flex items-center justify-center bg-black">
-                                    <video src={url} className="w-full h-full object-cover opacity-60" />
-                                    <div className="absolute inset-0 flex items-center justify-center shadow-inner">
-                                      <div className="w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
-                                        <Play size={14} className="text-white fill-white ml-0.5" />
+            const unlinkedParts = (parts || []).filter(it => !matchedParts.has(it.id || it.description));
+
+            return (
+              <>
+                {groupOrder.map(group => {
+                  const items = groupedItems[group];
+                  const eqParts = groupPartsMap[group] || [];
+
+                  return (
+                    <div key={group} className="space-y-4">
+                      {group !== 'Ficha Técnica' && Object.keys(groupedItems).length > 1 && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                            <CheckCircle2 size={12} className="text-emerald-600" />
+                          </div>
+                          <h4 className="text-xs font-bold uppercase tracking-widest text-[#1c2d4f]">{group}</h4>
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-3">
+                        {items.map(({ key, cleanKey, text, photos }) => (
+                          <div key={key} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                            <div className="grid grid-cols-2 divide-x divide-slate-200">
+                              {/* Pergunta */}
+                              <div className="p-4 bg-slate-50/50 flex items-center">
+                                <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                                  {resolvePublicLabel(key)}
+                                </p>
+                              </div>
+                              {/* Resposta */}
+                              <div className="p-4 flex flex-col justify-center">
+                                {text !== null && (
+                                  <p className={`text-sm font-bold leading-snug flex items-center gap-1.5 ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok'
+                                    ? 'text-emerald-600'
+                                    : 'text-slate-800'
+                                    }`}>
+                                    {(text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok') && <CheckCircle2 size={13} />}
+                                    {formatPublicValue(text)}
+                                  </p>
+                                )}
+                                {text === null && photos.length > 0 && (
+                                  <p className="text-xs font-bold text-slate-400 italic">Evidência fotográfica anexada</p>
+                                )}
+                                {photos.length > 0 && (
+                                  <div className="flex flex-wrap gap-2 mt-3">
+                                    {photos.map((url, i) => (
+                                      <div
+                                        key={i}
+                                        className="w-[60px] h-[60px] sm:w-[80px] sm:h-[80px] rounded-lg overflow-hidden bg-slate-200 border border-slate-200 cursor-zoom-in group hover:shadow-md transition-all shrink-0"
+                                        onClick={() => onImageClick(url)}
+                                      >
+                                        {isVideoUrl(url) ? (
+                                          <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                            <video src={url} className="w-full h-full object-cover opacity-60" />
+                                            <div className="absolute inset-0 flex items-center justify-center shadow-inner">
+                                              <div className="w-6 h-6 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:bg-white/30 transition-all">
+                                                <Play size={10} className="text-white fill-white ml-0.5" />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <img
+                                            src={url}
+                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                            alt={key}
+                                          />
+                                        )}
                                       </div>
-                                    </div>
-                                </div>
-                              ) : (
-                                <img
-                                  src={url}
-                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                  alt={key}
-                                />
-                              )}
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          ))}
+                          </div>
+                        ))}
+                      </div>
+
+                      {eqParts.length > 0 && (
+                        <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                          <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center gap-2">
+                            <Package size={14} className="text-slate-500" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Peças Utilizadas neste Equipamento</span>
+                          </div>
+                          <table className="w-full text-left text-xs">
+                            <tbody className="divide-y divide-slate-100">
+                              {eqParts.map((pIt, pIdx) => (
+                                <tr key={pIdx} className="hover:bg-slate-50/50">
+                                  <td className="px-4 py-3 font-bold text-slate-700 uppercase">
+                                    <span className="text-blue-600 font-black mr-1">{pIt.quantity || 1}x</span> {pIt.description}
+                                  </td>
+                                  <td className="px-4 py-3 text-center font-bold text-slate-900 w-16">{pIt.quantity || 1}</td>
+                                  {showPrices && <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       )}
                     </div>
-                  ))}
-                </div>
-              </div>
-            );
-          });
-        })()}
+                  );
+                })}
 
-          {/* ── PEÇAS VINCULADAS AO EQUIPAMENTO ── */}
-          {parts && parts.length > 0 && (
-            <div className="mt-8 pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-top-4 duration-700">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <Package size={16} />
-                </div>
-                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-700">Peças & Insumos Utilizados</h4>
-              </div>
-              
-              <div className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/30">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-100/50 text-slate-500 font-bold uppercase tracking-tighter">
-                      <th className="px-4 py-3">Descrição do Item</th>
-                      <th className="px-4 py-3 text-center">Qtd</th>
-                      {showPrices && <th className="px-4 py-3 text-right">Unitário</th>}
-                      {showPrices && <th className="px-4 py-3 text-right">Total</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {parts.map((it, idx) => (
-                      <tr key={it.id || idx} className="hover:bg-white/50 transition-colors">
-                        <td className="px-4 py-3 font-bold text-slate-700 uppercase">{it.description}</td>
-                        <td className="px-4 py-3 text-center font-bold text-slate-900">{it.quantity}</td>
-                        {showPrices && <td className="px-4 py-3 text-right text-slate-500">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                        {showPrices && <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
-                      </tr>
-                    ))}
-                  </tbody>
-                  {showPrices && (
-                    <tfoot className="bg-slate-100/30 border-t border-slate-100">
-                      <tr>
-                        <td colSpan={3} className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subtotal Peças</td>
-                        <td className="px-4 py-3 text-right font-bold text-[#1c2d4f]">
-                          R$ {parts.reduce((acc, it) => acc + (it.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
-            </div>
-          )}
+                {/* ── PEÇAS VINCULADAS AO EQUIPAMENTO (GERAL / NÃO VINCULADAS) ── */}
+                {unlinkedParts.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-top-4 duration-700">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <Package size={16} />
+                      </div>
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-slate-700">Outras Peças & Insumos Utilizados</h4>
+                    </div>
+                    
+                    <div className="overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/30">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-100/50 text-slate-500 font-bold uppercase tracking-tighter">
+                            <th className="px-4 py-3">Descrição do Item</th>
+                            <th className="px-4 py-3 text-center">Qtd</th>
+                            {showPrices && <th className="px-4 py-3 text-right">Unitário</th>}
+                            {showPrices && <th className="px-4 py-3 text-right">Total</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {unlinkedParts.map((it, idx) => (
+                            <tr key={it.id || idx} className="hover:bg-white/50 transition-colors">
+                              <td className="px-4 py-3 font-bold text-slate-700 uppercase">
+                                <span className="text-blue-600 font-black mr-1">{it.quantity || 1}x</span> {it.description}
+                              </td>
+                              <td className="px-4 py-3 text-center font-bold text-slate-900">{it.quantity}</td>
+                              {showPrices && <td className="px-4 py-3 text-right text-slate-500">R$ {it.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                              {showPrices && <td className="px-4 py-3 text-right font-bold text-slate-900">R$ {it.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                            </tr>
+                          ))}
+                        </tbody>
+                        {showPrices && (
+                          <tfoot className="bg-slate-100/30 border-t border-slate-100">
+                            <tr>
+                              <td colSpan={3} className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subtotal Peças Diversas</td>
+                              <td className="px-4 py-3 text-right font-bold text-[#1c2d4f]">
+                                R$ {unlinkedParts.reduce((acc, it) => acc + (it.total || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
@@ -796,6 +864,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   }, []);
 
   // Busca endereço atualizado do cliente na tabela customers
+  const [freshCustomerPhone, setFreshCustomerPhone] = React.useState<string | null>(null);
+  const [freshCustomerEmail, setFreshCustomerEmail] = React.useState<string | null>(null);
+
   React.useEffect(() => {
     const fetchCustomerAddress = async () => {
       if (!order?.customerName) return;
@@ -804,7 +875,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         if (!tenantId) return;
         const { data } = await import('../../lib/supabase').then(m => m.supabase
           .from('customers')
-          .select('address, number, complement, neighborhood, city, state')
+          .select('address, number, complement, neighborhood, city, state, phone, whatsapp, email')
           .eq('tenant_id', tenantId)
           .ilike('name', order.customerName.trim())
           .limit(1)
@@ -820,6 +891,11 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           const cityState = [city, state].filter(Boolean).join('/');
           const addr = [street, neighborhood, cityState].filter(Boolean).join(' - ');
           if (addr.trim()) setFreshCustomerAddress(addr);
+          
+          if (clean(data.whatsapp)) setFreshCustomerPhone(data.whatsapp);
+          else if (clean(data.phone)) setFreshCustomerPhone(data.phone);
+          
+          if (clean(data.email)) setFreshCustomerEmail(data.email);
         }
       } catch {
         // Se não encontrar, usa o endereço da OS
@@ -871,7 +947,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const fmt = (d?: string) => safeFormatDate(d);
   const fmtDT = (d?: string) => safeFmtDT(d);
 
-  const totalItems = (order.items || []).reduce((acc, i) => acc + (i.total || 0), 0);
+  const enrichedItems = React.useMemo(() => {
+    if (!order?.items) return [];
+    return order.items.map((it: any) => {
+      let eqName = it.equipmentName;
+      if (!eqName && it.equipmentId) {
+        const eq = linkedEquipments.find(e => e.id === it.equipmentId || e.equipment_id === it.equipmentId);
+        if (eq) {
+          eqName = eq.equipment_name || eq.equipmentName;
+        }
+      }
+      return { ...it, equipmentName: eqName };
+    });
+  }, [order?.items, linkedEquipments]);
+
+  const totalItems = enrichedItems.reduce((acc: any, i: any) => acc + (i.total || 0), 0);
   // Endereço exibido: fresco do cadastro ou gravado na OS
   // Guard contra literal 'null' que pode vir do banco
   const sanitize = (v?: string | null) => v && String(v).toLowerCase() !== 'null' && v.trim() !== '' ? v.trim() : null;
@@ -922,7 +1012,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
-    <div className="bg-white text-[10px] leading-tight font-poppins p-4 print:p-2 print:break-inside-avoid" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div className="bg-white text-[10px] leading-tight font-poppins p-4 print:p-2" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
       {/* Print Header */}
       <div className="flex justify-between items-start pb-2 border-b-2 border-slate-800 mb-2">
         <div className="flex gap-3 items-center">
@@ -958,7 +1048,19 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             <div className="col-span-12 bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Atendimento e Cliente</div>
             <div className="col-span-7 p-2 grid grid-cols-2 gap-x-4 gap-y-2">
               <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-xs uppercase">{order.customerName}</div></div>
-              <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço de Execução</label><div className="font-medium text-slate-700 text-xs uppercase leading-tight">{displayAddress || 'N/A'}</div></div>
+              <div className="col-span-2 flex flex-col gap-1">
+                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase leading-tight">{displayAddress || 'N/A'}</div></div>
+                {(freshCustomerPhone || freshCustomerEmail) && (
+                  <div>
+                    <label className="block text-[8px] font-bold text-slate-400 uppercase">Contato</label>
+                    <div className="font-medium text-slate-700 text-[10px] uppercase leading-tight mt-0.5">
+                      {freshCustomerPhone && <span>{freshCustomerPhone}</span>}
+                      {freshCustomerPhone && freshCustomerEmail && <span className="mx-1.5">•</span>}
+                      {freshCustomerEmail && <span className="lowercase">{freshCustomerEmail}</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="col-span-5 p-2 grid grid-cols-2 gap-2 bg-slate-50/50">
               <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Abertura</label><div className="font-bold">{fmt(order.createdAt)}</div></div>
@@ -1098,6 +1200,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               grps[gName].forEach((item: any, idx: number) => item.originalIdx = idx);
               
               grps[gName].sort((a, b) => {
+                const matchA = a.key.replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
+                const matchB = b.key.replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
+                if (matchA && matchB) {
+                  return parseInt(matchA[1], 10) - parseInt(matchB[1], 10);
+                }
+
                 const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
                 const cleanB = normalizeForSort(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
                 
@@ -1126,44 +1234,48 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             });
 
             return (
-              <div key={gIdx} className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-2">
+              <div key={gIdx} className="border border-slate-300 rounded-lg overflow-hidden mt-2">
                 <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[10px] uppercase tracking-wider text-slate-700 flex justify-between items-center">
                   <span>Checklist — {eq ? (eq.equipment_name || eq.equipmentName) : gName}</span>
                   {eq && (eq.equipment_serial || eq.equipmentSerial) && (
                     <span className="text-[9px] text-slate-500">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                   )}
                 </div>
-                <div className="divide-y divide-slate-100 bg-white">
+                <div className="flex flex-col gap-2 bg-white p-2">
                   {items.map((item, iIdx) => (
-                    <div key={iIdx} className="p-2 break-inside-avoid">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex-1">
-                           <div className="bg-slate-50 rounded px-1.5 py-0.5 mb-1 inline-block border border-slate-200">
-                             <p className="text-[9px] font-bold uppercase tracking-tight text-slate-600">
-                               {resolvePublicLabel(item.key)}
-                             </p>
-                           </div>
+                    <div key={iIdx} className="break-inside-avoid border border-slate-200 rounded overflow-hidden">
+                      <div className="grid grid-cols-2 divide-x divide-slate-200">
+                        <div className="p-2 bg-slate-50/50 flex items-center">
+                           <p className="text-[9px] font-bold uppercase tracking-tight text-slate-600">
+                             {resolvePublicLabel(item.key)}
+                           </p>
+                        </div>
+                        <div className="p-2 flex flex-col justify-center">
                            {item.text && (
                              <p className={`text-[10px] font-bold uppercase ${item.text.toLowerCase() === 'sim' || item.text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-900'}`}>
                                {formatPublicValue(item.text)}
                              </p>
                            )}
+                           {item.photos.length > 0 && (
+                             <div className="flex flex-wrap gap-2 mt-2">
+                               {item.photos.map((p: string, pIdx: number) => (
+                                 <div key={pIdx} className="w-[140px] h-[140px] border border-slate-200 rounded-lg overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
+                                   {isVideoUrl(p) ? (
+                                     <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                       <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                       <div className="absolute inset-0 flex items-center justify-center">
+                                         <Play size={10} className="text-white opacity-80" />
+                                       </div>
+                                       <span className="absolute bottom-1 bg-black/60 text-white text-[6px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                     </div>
+                                   ) : (
+                                     <img src={p} className="w-full h-full object-contain" />
+                                   )}
+                                 </div>
+                               ))}
+                             </div>
+                           )}
                         </div>
-                        {item.photos.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {item.photos.map((p: string, pIdx: number) => (
-                              <div key={pIdx} className="w-[80px] h-[80px] border border-slate-200 rounded overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
-                                {isVideoUrl(p) ? (
-                                  <div className="w-full h-full bg-slate-200 flex items-center justify-center relative">
-                                    <span className="absolute bottom-1 bg-black/60 text-white text-[6px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                  </div>
-                                ) : (
-                                  <img src={p} className="w-full h-full object-contain" />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -1171,14 +1283,21 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
                 {/* Peças vinculadas ao TODO o checklist do equipamento (NO FINAL) */}
                 {(() => {
-                  const eqParts = (order.items || []).filter(it => {
-                    if (!eq) return false;
-                    const itEqId = it.equipmentId;
+                  const eqParts = enrichedItems.filter(it => {
                     const itEqName = (it.equipmentName || '').toLowerCase();
-                    const eName = (eq.equipment_name || eq.equipmentName || '').toLowerCase();
-                    const eId = eq.id || eq.equipmentId;
-                    return (itEqId && (itEqId === eId || itEqId === eq.equipment_id)) || 
-                           (itEqName && (itEqName === eName || eName.includes(itEqName)));
+                    const gLower = gName.toLowerCase();
+
+                    if (eq) {
+                      const itEqId = it.equipmentId;
+                      const eName = (eq.equipment_name || eq.equipmentName || '').toLowerCase();
+                      const eId = eq.id || eq.equipmentId;
+                      if ((itEqId && (itEqId === eId || itEqId === eq.equipment_id)) || 
+                          (itEqName && (itEqName === eName || eName.includes(itEqName) || itEqName.includes(eName)))) {
+                        return true;
+                      }
+                    }
+
+                    return itEqName && (itEqName === gLower || gLower.includes(itEqName) || itEqName.includes(gLower));
                   });
                   
                   if (eqParts.length === 0) return null;
@@ -1197,7 +1316,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                           <tbody className="divide-y divide-slate-200">
                             {eqParts.map((pIt, pIdx) => (
                               <tr key={pIdx}>
-                                <td className="px-3 py-1.5 text-[9px] font-bold text-slate-700 uppercase break-words whitespace-normal">{pIt.description}</td>
+                                <td className="px-3 py-1.5 text-[9px] font-bold text-slate-700 uppercase break-words whitespace-normal">
+                                  <span className="text-slate-900 font-black mr-1">{pIt.quantity || 1}x</span> {pIt.description}
+                                </td>
                                 <td className="px-3 py-1.5 text-[9px] text-center font-bold text-slate-900 whitespace-nowrap">{pIt.quantity || 1}</td>
                                 {showPrices && <td className="px-3 py-1.5 text-[9px] text-right font-bold text-slate-900 whitespace-nowrap">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                               </tr>
@@ -1232,18 +1353,20 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           if (!order.videoUrl && !formDataPrint.videoUrl && !formDataPrint.video_url && allValidExtrasPrint.length === 0) return null;
 
           return (
-            <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
+            <div className="border border-slate-300 rounded-lg overflow-hidden mt-4">
               <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Evidências Fotográficas e de Conclusão</div>
-              <div className="p-3 bg-white flex flex-wrap gap-2">
+              <div className="p-3 bg-white flex flex-wrap gap-3">
                 {(order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url) && (
-                  <div className="border border-slate-200 rounded p-1 w-[130px] h-[100px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid shadow-inner relative">
-                    <Video size={18} className="absolute text-slate-400 opacity-50 z-10" />
-                    <video src={order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url} className="w-full h-full object-cover opacity-60 mix-blend-multiply" />
+                  <div className="border border-slate-200 rounded-lg p-1.5 w-[220px] h-[160px] overflow-hidden flex items-center justify-center bg-black break-inside-avoid shadow-inner relative">
+                    <video src={`${order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Play size={16} className="text-white opacity-80" />
+                    </div>
                     <span className="absolute bottom-1 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase leading-none">Vídeo</span>
                   </div>
                 )}
                 {allValidExtrasPrint.map((url: string, i: number) => (
-                  <div key={i} className="border border-slate-200 rounded p-1 w-[130px] h-[100px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid shadow-sm">
+                  <div key={i} className="border border-slate-200 rounded-lg p-1.5 w-[220px] h-[160px] overflow-hidden flex items-center justify-center bg-slate-50 break-inside-avoid shadow-sm">
                     <img src={url} className="w-full h-full object-contain" alt={`Evidência Adicional ${i + 1}`} />
                   </div>
                 ))}
@@ -1284,12 +1407,20 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               const visitPhotos = photosArr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
 
               return (
-                <div key={v.id} className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+                <div key={v.id} className="border border-slate-300 rounded-lg overflow-hidden">
                   <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700 flex justify-between">
                     <span>Visita #{i + 1} — {safeFormatDate(v.scheduled_date || v.created_at)}</span>
                     <span className="text-[9px] text-slate-500 font-normal">
-                      {v.arrival_time ? `Entrada: ${safeFmtTime(v.arrival_time)}` : ''} 
-                      {v.departure_time ? ` · Saída: ${safeFmtTime(v.departure_time)}` : ''}
+                      {(() => {
+                        const effArr = v.arrival_time || vFd?.checkinLocation?.timestamp || (i === 0 ? order.startDate : null);
+                        const effDep = v.departure_time || vFd?.checkoutLocation?.timestamp || (i === 0 ? order.endDate : null);
+                        return (
+                          <>
+                            {effArr ? `Entrada: ${safeFmtTime(effArr)}` : ''} 
+                            {effDep ? ` · Saída: ${safeFmtTime(effDep)}` : ''}
+                          </>
+                        );
+                      })()}
                     </span>
                   </div>
                   
@@ -1319,7 +1450,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                             return gName.toLowerCase().includes(eN) || eN.includes(gName.toLowerCase());
                           });
                           return (
-                            <div key={gName} className="border border-slate-200 rounded break-inside-avoid">
+                            <div key={gName} className="border border-slate-200 rounded">
                               <div className="bg-slate-50 border-b border-slate-200 px-2 py-1 flex justify-between items-center">
                                 <span className="font-bold text-[9px] uppercase tracking-wider text-slate-600">
                                   {eq ? (eq.equipment_name || eq.equipmentName) : gName}
@@ -1328,8 +1459,13 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   <span className="text-[8px] text-slate-400">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
                                 )}
                               </div>
-                              <div className="p-2 grid grid-cols-2 gap-2">
-                                {Object.entries(gData).map(([key, val], idx) => {
+                              <div className="flex flex-col gap-1.5 p-2 bg-white">
+                                {Object.entries(gData).sort((a, b) => {
+                                  const matchA = a[0].replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
+                                  const matchB = b[0].replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
+                                  if (matchA && matchB) return parseInt(matchA[1], 10) - parseInt(matchB[1], 10);
+                                  return 0;
+                                }).map(([key, val], idx) => {
                                   let text: string | null = null;
                                   let photos: string[] = [];
                                   const isImg = (x: any) => typeof x === 'string' && (x.startsWith('data:image') || x.startsWith('http'));
@@ -1346,32 +1482,91 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   if (!text && photos.length === 0) return null;
                                   
                                   return (
-                                    <div key={idx} className={`p-1 border border-slate-100 rounded break-inside-avoid bg-slate-50/50 ${photos.length > 0 ? 'col-span-2' : 'col-span-1'}`}>
-                                      <div className="text-[8px] font-bold uppercase tracking-tight text-slate-400 mb-0.5">{resolvePublicLabel(key)}</div>
-                                      {text && (
-                                        <div className={`text-[9px] font-bold uppercase leading-tight ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-800'}`}>
-                                          {formatPublicValue(text)}
+                                    <div key={idx} className="border border-slate-200 rounded break-inside-avoid overflow-hidden bg-white">
+                                      <div className="grid grid-cols-2 divide-x divide-slate-200">
+                                        <div className="p-1.5 bg-slate-50/50 flex items-center">
+                                          <div className="text-[8px] font-bold uppercase tracking-tight text-slate-500">{resolvePublicLabel(key)}</div>
                                         </div>
-                                      )}
-                                      {photos.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                          {photos.map((p, pIdx) => (
-                                            <div key={pIdx} className="w-[80px] h-[80px] border border-slate-200 rounded overflow-hidden flex items-center justify-center bg-white shadow-sm">
-                                              {isVideoUrl(p) ? (
-                                                <div className="w-full h-full bg-slate-200 flex items-center justify-center relative">
-                                                  <span className="absolute bottom-1 bg-black/60 text-white text-[6px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
-                                                </div>
-                                              ) : (
-                                                <img src={p} className="w-full h-full object-contain" />
-                                              )}
+                                        <div className="p-1.5 flex flex-col justify-center">
+                                          {text && (
+                                            <div className={`text-[9px] font-bold uppercase leading-tight ${text.toLowerCase() === 'sim' || text.toLowerCase() === 'ok' ? 'text-emerald-700' : 'text-slate-800'}`}>
+                                              {formatPublicValue(text)}
                                             </div>
-                                          ))}
+                                          )}
+                                          {photos.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                              {photos.map((p, pIdx) => (
+                                                <div key={pIdx} className="w-[140px] h-[140px] border border-slate-200 rounded overflow-hidden flex items-center justify-center bg-white shadow-sm">
+                                                  {isVideoUrl(p) ? (
+                                                    <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                                      <video src={`${p}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                                      <div className="absolute inset-0 flex items-center justify-center">
+                                                        <Play size={10} className="text-white opacity-80" />
+                                                      </div>
+                                                      <span className="absolute bottom-1 bg-black/60 text-white text-[6px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
+                                                    </div>
+                                                  ) : (
+                                                    <img src={p} className="w-full h-full object-contain" />
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
                                         </div>
-                                      )}
+                                      </div>
                                     </div>
                                   );
                                 })}
                               </div>
+
+                              {(() => {
+                                const eqParts = enrichedItems.filter(it => {
+                                  const itEqName = (it.equipmentName || '').toLowerCase();
+                                  const gLower = gName.toLowerCase();
+
+                                  if (eq) {
+                                    const itEqId = it.equipmentId;
+                                    const eName = (eq.equipment_name || eq.equipmentName || '').toLowerCase();
+                                    const eId = eq.id || eq.equipmentId;
+                                    if ((itEqId && (itEqId === eId || itEqId === eq.equipment_id)) || 
+                                        (itEqName && (itEqName === eName || eName.includes(itEqName) || itEqName.includes(eName)))) {
+                                      return true;
+                                    }
+                                  }
+
+                                  return itEqName && (itEqName === gLower || gLower.includes(itEqName) || itEqName.includes(gLower));
+                                });
+                                
+                                if (eqParts.length === 0) return null;
+
+                                return (
+                                  <div className="p-2 border-t border-slate-200 bg-slate-50/50 break-inside-avoid">
+                                    <div className="bg-slate-50 rounded-md border border-slate-300 overflow-hidden">
+                                      <table className="w-full text-left break-words">
+                                        <thead>
+                                          <tr className="bg-slate-200/50 text-[8px] font-bold text-slate-600 uppercase border-b border-slate-300">
+                                            <th className="px-3 py-1">Peças Utilizadas neste Equipamento</th>
+                                            <th className="px-3 py-1 text-center whitespace-nowrap">Qtd</th>
+                                            {showPrices && <th className="px-3 py-1 text-right whitespace-nowrap">Total</th>}
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                          {eqParts.map((pIt, pIdx) => (
+                                            <tr key={pIdx}>
+                                              <td className="px-3 py-1 text-[8px] font-bold text-slate-700 uppercase break-words whitespace-normal">
+                                                <span className="text-slate-900 font-black mr-1">{pIt.quantity || 1}x</span> {pIt.description}
+                                              </td>
+                                              <td className="px-3 py-1 text-[8px] text-center font-bold text-slate-900 whitespace-nowrap">{pIt.quantity || 1}</td>
+                                              {showPrices && <td className="px-3 py-1 text-[8px] text-right font-bold text-slate-900 whitespace-nowrap">R$ {(pIt.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
                             </div>
                           );
                         })}
@@ -1380,18 +1575,26 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
                     {/* Fotos */}
                     {(visitPhotos.length > 0 || vFd.videoUrl || vFd.video_url) && (
-                      <div className="mt-2 break-inside-avoid">
+                      <div className="mt-2">
                         <span className="font-bold uppercase text-[9px] text-slate-400 block mb-1">Evidências e Anexos</span>
                         <div className="flex flex-wrap gap-2">
                           {(vFd.videoUrl || vFd.video_url) && (
-                            <div className="border border-slate-200 rounded p-0.5 w-[100px] h-[75px] overflow-hidden flex items-center justify-center bg-slate-50 relative">
+                            <div className="border border-slate-200 rounded-lg p-1 w-[180px] h-[135px] overflow-hidden flex items-center justify-center bg-black relative">
+                              <video src={`${vFd.videoUrl || vFd.video_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Play size={10} className="text-white opacity-80" />
+                              </div>
                               <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
                             </div>
                           )}
                           {visitPhotos.map((url: string, pIdx: number) => (
-                            <div key={pIdx} className="border border-slate-200 rounded p-0.5 w-[100px] h-[75px] overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
+                            <div key={pIdx} className="border border-slate-200 rounded-lg p-1 w-[180px] h-[135px] overflow-hidden flex items-center justify-center bg-slate-50 shadow-sm">
                               {isVideoUrl(url) ? (
-                                <div className="w-full h-full bg-slate-200 flex items-center justify-center relative">
+                                <div className="w-full h-full relative flex items-center justify-center bg-black">
+                                  <video src={`${url}#t=0.1`} preload="metadata" className="w-full h-full object-cover opacity-60" />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <Play size={10} className="text-white opacity-80" />
+                                  </div>
                                   <span className="absolute bottom-1 bg-black/60 text-white text-[7px] font-bold px-1 py-0.5 rounded uppercase leading-none z-10">Vídeo</span>
                                 </div>
                               ) : (
@@ -1436,7 +1639,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         )}
 
         {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}
-        {order.items && order.items.length > 0 && (
+        {enrichedItems.length > 0 && (
           <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
             <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">{showPrices ? 'Composição Financeira' : 'Peças e Materiais Aplicados'}</div>
             <div className="w-full"><table className="w-full text-left break-words">
@@ -1449,9 +1652,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {order.items.map((it: any, i: number) => (
+                {enrichedItems.map((it: any, i: number) => (
                   <tr key={i}>
-                    <td className="px-3 py-1 text-[9px] uppercase font-bold text-slate-800 break-words whitespace-normal">{it.description}</td>
+                    <td className="px-3 py-1 text-[9px] uppercase font-bold text-slate-800 break-words whitespace-normal">
+                      <span className="text-slate-900 font-black mr-1">{it.quantity || 1}x</span> {it.description}
+                      {it.equipmentName && <span className="block text-[7px] text-slate-400 font-normal mt-0.5">Ref: {it.equipmentName}</span>}
+                    </td>
                     <td className="px-3 py-1 text-[9px] text-center font-bold text-slate-900 whitespace-nowrap">{it.quantity || 1}</td>
                     {showPrices && <td className="px-3 py-1 text-[9px] text-right text-slate-600 whitespace-nowrap">R$ {(it.unitPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
                     {showPrices && <td className="px-3 py-1 text-[9px] text-right font-bold text-slate-900 whitespace-nowrap">R$ {(it.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>}
@@ -1654,40 +1860,61 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         <main className="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-12 flex flex-col gap-10 print:hidden">
 
           {/* ── ROW 1: Cliente + Localização ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10">
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
-              <SectionHeader icon={<UserIcon size={15} />} title="Dados do Cliente" />
-              <div className="space-y-3">
-                {/* Nome do cliente */}
-                <p className="text-lg font-bold text-slate-900 uppercase leading-tight">{order.customerName}</p>
-
-                {/* Endereço — abaixo do nome, atualizado do cadastro do cliente */}
-                {displayAddress ? (
-                  <div className="flex items-start gap-2">
-                    <MapPin size={12} className="text-slate-400 mt-0.5 shrink-0" />
-                    <p className="text-sm text-slate-500 leading-snug">{displayAddress}</p>
+          <div className="flex flex-col gap-4 lg:gap-6">
+            <div className="bg-slate-200/50 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/30 p-4 sm:p-5">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-[#3e5b99]/10 rounded-xl flex items-center justify-center shrink-0">
+                    <UserIcon size={18} className="text-[#3e5b99]" />
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-300 uppercase tracking-widest italic">Endereço não informado</p>
-                )}
-
-                {/* Tipo de atendimento */}
-                {order.operationType && (
-                  <div className="flex items-center gap-2">
-                    <Tag size={11} className="text-[#3e5b99]" />
-                    <span className="text-xs font-bold text-[#3e5b99] uppercase tracking-widest bg-[#3e5b99]/10 px-2 py-0.5 rounded-full">{order.operationType}</span>
+                  <div>
+                    <p className="text-xl font-bold text-slate-900 uppercase tracking-tight leading-none">{order.customerName}</p>
+                    {order.operationType && (
+                      <span className="text-[10px] font-bold text-[#3e5b99] uppercase tracking-widest bg-[#3e5b99]/10 px-2 py-0.5 rounded-full mt-1.5 inline-block">{order.operationType}</span>
+                    )}
                   </div>
-                )}
+                </div>
 
-                {/* Datas */}
-                <div className="pt-3 border-t border-slate-200 grid grid-cols-2 gap-4">
-                  <InfoPill label="Abertura" value={fmt(order.createdAt)} />
-                  <InfoPill label="Agendado" value={order.scheduledDate ? `${fmt(order.scheduledDate)}${order.scheduledTime ? ' · ' + order.scheduledTime : ''}` : '—'} />
+                <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+                  {(freshCustomerPhone || freshCustomerEmail) && (
+                    <div className="flex flex-col gap-1.5">
+                      {freshCustomerPhone && (
+                        <div className="flex items-center gap-2.5">
+                          <Phone size={14} className="text-[#3e5b99] shrink-0" />
+                          <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">{freshCustomerPhone}</p>
+                        </div>
+                      )}
+                      {freshCustomerEmail && (
+                        <div className="flex items-center gap-2.5">
+                          <Mail size={14} className="text-[#3e5b99] shrink-0" />
+                          <p className="text-xs font-medium text-slate-600 truncate max-w-[200px]">{freshCustomerEmail}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {displayAddress && (
+                    <div className="flex items-start gap-2.5 max-w-[300px]">
+                      <MapPin size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                      <p className="text-xs text-slate-500 leading-snug font-medium uppercase">{displayAddress}</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-6 border-l border-slate-300/50 pl-6">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-0.5">Abertura</span>
+                      <span className="text-xs font-bold text-slate-800">{fmt(order.createdAt)}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-0.5">Agendado</span>
+                      <span className="text-xs font-bold text-slate-800">{order.scheduledDate ? fmt(order.scheduledDate) : '—'}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 p-8 sm:p-10">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/30 p-3.5 sm:p-4">
               <SectionHeader icon={<Box size={15} />} title={`Equipamento${linkedEquipments.length > 1 ? 's' : ''} Vinculado${linkedEquipments.length > 1 ? 's' : ''}`} />
               {linkedEquipments.length > 0 ? (
                 <div className="rounded-xl border border-slate-100 overflow-hidden">
@@ -1874,6 +2101,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                  const normalizedOrder = combinedOrder.map(normalizeForSort);
                  
                  entries.sort((a, b) => {
+                   const matchA = a.key.replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
+                   const matchB = b.key.replace(/^\[.*?\]\s*-\s*/, '').match(/^(\d{3})#/);
+                   if (matchA && matchB) {
+                     return parseInt(matchA[1], 10) - parseInt(matchB[1], 10);
+                   }
+
                    const cleanA = normalizeForSort(a.key.replace(/^\[.*?\]\s*-\s*/, ''));
                    const cleanB = normalizeForSort(b.key.replace(/^\[.*?\]\s*-\s*/, ''));
                    
@@ -1917,7 +2150,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   const fam = eq ? (eq.equipment_family || eq.equipmentFamily) : null;
                   
                   // Busca peças vinculadas a este equipamento específico
-                  const eqParts = (order.items || []).filter(it => {
+                  const eqParts = enrichedItems.filter(it => {
                     if (!eq) return false;
                     const itEqId = it.equipmentId;
                     const itEqName = (it.equipmentName || '').toLowerCase();
@@ -1970,7 +2203,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
 
           {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}
-          {order.items && order.items.length > 0 && (
+          {enrichedItems.length > 0 && (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden">
               <div className="p-6 sm:p-8">
                 <SectionHeader icon={<Package size={15} />} title="Peças e Materiais Aplicados" />
@@ -1985,10 +2218,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {order.items.map((item, i) => (
+                      {enrichedItems.map((item, i) => (
                         <tr key={item.id || i} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-5 py-3.5">
-                            <span className="text-xs font-bold text-slate-800 uppercase">{item.description}</span>
+                            <span className="text-xs font-bold text-slate-800 uppercase">
+                              <span className="text-[#1c2d4f] font-black mr-1">{item.quantity || 1}x</span> {item.description}
+                            </span>
                             {item.equipmentName && (
                               <div className="flex items-center gap-1 text-xs text-slate-400 font-bold uppercase mt-1">
                                 <Box size={10} className="text-slate-300" /> {item.equipmentName}
@@ -2126,7 +2361,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         {/* ── LIGHTBOX ── */}
         {fullscreenImage && (
           <div
-            className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
+            className="fixed inset-0 z-[9999] bg-white/95 backdrop-blur-xl flex items-center justify-center p-4 sm:p-10 animate-fade-in cursor-zoom-out"
             onClick={() => setFullscreenImage(null)}
           >
             {isVideoUrl(fullscreenImage) ? (
@@ -2144,7 +2379,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               />
             )}
             <button
-              className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+              className="absolute top-6 right-6 p-3 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-800 transition-colors shadow-sm"
               onClick={() => setFullscreenImage(null)}
             >
               <XIcon size={22} />

@@ -1,0 +1,226 @@
+// ============================================================
+// src/i18n/translations/pt-BR.ts
+// 🌐 NEXUS I18N — Português (Brasil)
+// Tradução padrão do sistema.
+// ============================================================
+
+export const ptBR = {
+  // ── Sidebar / Navigation ──
+  nav: {
+    dashboard: 'Dashboard',
+    orders: 'Atividade',
+    calendar: 'Agenda',
+    map: 'Visão de campo',
+    financial: 'Financeiro',
+    quotes: 'Orçamentos',
+    stock: 'Estoque',
+    contracts: 'Contratos',
+    customers: 'Cliente',
+    equipments: 'Ativos',
+    forms: 'Formulários',
+    technicians: 'Técnicos',
+    users: 'Usuários',
+    settings: 'Configurações',
+    logout: 'Sair',
+  },
+
+  // ── Layout ──
+  layout: {
+    adminRole: 'administrador',
+    inbox: 'Caixa de Mensagens',
+    notices: 'avisos',
+    noMessages: 'Nenhuma mensagem.',
+    markAsRead: 'Marcar como lido',
+  },
+
+  // ── Common / Shared ──
+  common: {
+    save: 'Salvar',
+    cancel: 'Cancelar',
+    close: 'Fechar',
+    delete: 'Excluir',
+    edit: 'Editar',
+    create: 'Criar',
+    add: 'Adicionar',
+    search: 'Buscar',
+    filter: 'Filtrar',
+    loading: 'Carregando...',
+    noResults: 'Nenhum resultado encontrado.',
+    confirm: 'Confirmar',
+    back: 'Voltar',
+    next: 'Próximo',
+    yes: 'Sim',
+    no: 'Não',
+    actions: 'Ações',
+    status: 'Status',
+    date: 'Data',
+    name: 'Nome',
+    email: 'E-mail',
+    phone: 'Telefone',
+    address: 'Endereço',
+    description: 'Descrição',
+    notes: 'Observações',
+    total: 'Total',
+    quantity: 'Quantidade',
+    price: 'Preço',
+    value: 'Valor',
+    type: 'Tipo',
+    category: 'Categoria',
+    active: 'Ativo',
+    inactive: 'Inativo',
+    enabled: 'Habilitado',
+    disabled: 'Desabilitado',
+    all: 'Todos',
+    none: 'Nenhum',
+    of: 'de',
+    items: 'itens',
+    saved: 'Salvo!',
+    error: 'Erro',
+    success: 'Sucesso',
+    warning: 'Atenção',
+    required: 'Obrigatório',
+    optional: 'Opcional',
+    print: 'Imprimir',
+    export: 'Exportar',
+    import: 'Importar',
+    download: 'Baixar',
+    upload: 'Enviar',
+    retry: 'Tentar Novamente',
+    clearCache: 'Limpar Cache e Reiniciar',
+    syncError: 'Erro de Sincronização',
+    syncErrorDescription: 'Não conseguimos identificar os dados da sua organização. Isso pode ser uma falha momentânea de conexão ou permissão.',
+    syncing: 'Sincronizando DUNO...',
+  },
+
+  // ── Order Statuses ──
+  orderStatus: {
+    pending: 'Pendente',
+    scheduled: 'Agendada',
+    inProgress: 'Em Andamento',
+    completed: 'Concluída',
+    cancelled: 'Cancelada',
+    blocked: 'Impedida',
+    traveling: 'Em Deslocamento',
+  },
+
+  // ── Settings Page ──
+  settings: {
+    title: 'Configurações',
+    tabs: {
+      company: 'Organização',
+      system: 'Sistema',
+      app: 'APP do Técnico',
+      dashboard: 'Parâmetros de Dashboard',
+    },
+    company: {
+      title: 'Dados Corporativos',
+      subtitle: 'Identidade e registros da organização.',
+      lgpdNotice: 'Os dados abaixo formam a identidade legal da organização matriz. Por questões de rastreabilidade e LGPD, alterações nestes dados só podem ser realizadas através do Painel Master Admin.',
+      lgpdTitle: 'Bloqueio LGPD e Compliance:',
+      logo: 'Logo Oficial',
+      logoFormat: 'WebP/PNG (Max 300kb)',
+      businessName: 'Razão Social',
+      tradeName: 'Nome Fantasia',
+      cnpj: 'CNPJ',
+      stateRegistration: 'I.E.',
+      slug: 'ID (Slug)',
+      site: 'Site',
+      cep: 'CEP',
+      street: 'Logradouro',
+      number: 'Número',
+      neighborhood: 'Bairro',
+      city: 'Cidade',
+      state: 'Estado',
+      complement: 'Complemento',
+    },
+    system: {
+      title: 'Localização',
+      subtitle: 'Idioma e fuso horário.',
+      language: 'Idioma',
+      timezone: 'Fuso Horário',
+      securityTitle: 'Segurança e Automação',
+      securitySubtitle: 'Conformidade e notificações inteligentes.',
+      gps: 'GPS em Tempo Real',
+      gpsDescription: 'Geolocalização exata no check-in/out.',
+      notify: 'Notificar Clientes',
+      notifyDescription: 'WhatsApp automático ao iniciar deslocamento.',
+    },
+    app: {
+      title: 'Configurações do Aplicativo Nexus Mobile',
+      subtitle: 'Regras e visibilidade de dados para técnicos em campo.',
+      showPrices: 'Exibir Preço de Peças',
+      showPricesDescription: 'Se ativado, o técnico conseguirá ver o valor financeiro dos itens no estoque em seu app.',
+      sharing: 'Compartilhamento de OS',
+      sharingDescription: 'Se ativado, o técnico poderá compartilhar o link público de uma OS concluída via WhatsApp ou e-mail.',
+      publicPrices: 'Exibir Preço Público',
+      publicPricesDescription: 'Se desativado, os valores financeiros de peças e serviços NÃO aparecerão no link público nem na impressão.',
+      simultaneousOs: 'OS Simultâneas',
+      simultaneousOsDescription: 'Se ativado, o técnico poderá iniciar uma nova OS sem finalizar outra que esteja em andamento. Se desativado, será obrigatório concluir a OS atual antes de iniciar outra.',
+      clientContact: 'Contato do Cliente',
+      clientContactDescription: 'Se ativado, o técnico terá acesso ao WhatsApp e telefone do cliente no card da OS e na descrição detalhada.',
+      stockHistory: 'Histórico de Peças',
+      stockHistoryDescription: 'Se ativado, o técnico poderá visualizar o histórico de peças retiradas do estoque. Se desativado, ele não verá esta seção.',
+      impediment: 'Impedimento de OS',
+      impedimentDescription: 'Se ativado, o técnico poderá registrar impedimentos na OS (início ou fim). Se desativado, a opção será removida do app.',
+      visitHistory: 'Histórico de Visitas',
+      visitHistoryDescription: 'Se ativado, o técnico consegue ver o histórico completo de todas as visitas anteriores da OS. Se desativado, verá apenas a visita final que ele finalizou.',
+    },
+    dashboard: {
+      title: 'Parâmetros Analíticos',
+      subtitle: 'Defina as metas e indicadores para o funcionamento do painel.',
+      sla24h: 'Meta de Eficiência SLA (24h)',
+      sla24hDescription: 'Porcentagem alvo para o fechamento de ordens em até 24h.',
+      sla48h: 'Meta de Eficiência SLA (48h)',
+      sla48hDescription: 'Porcentagem alvo para o fechamento de ordens em até 48h.',
+    },
+  },
+
+  // ── User Management ──
+  users: {
+    title: 'Gerenciamento de Usuários',
+    createUser: 'Novo Usuário',
+    editUser: 'Editar Usuário',
+    groups: 'Grupos',
+    permissionGroups: 'Grupos de Permissões',
+    role: 'Perfil',
+    lastAccess: 'Último acesso',
+    passwordNotice: 'Por questões de segurança, no primeiro acesso o usuário deverá clicar em "Esqueci minha senha" para criar sua credencial de acesso exclusiva.',
+  },
+
+  // ── Financial ──
+  financial: {
+    title: 'Dashboard Financeiro',
+    revenue: 'Receita',
+    expenses: 'Despesas',
+    profit: 'Lucro',
+    pending: 'A Receber',
+    paid: 'Pago',
+    overdue: 'Vencido',
+  },
+
+  // ── Stock ──
+  stock: {
+    title: 'Gestão de Estoque',
+    inStock: 'Em Estoque',
+    lowStock: 'Estoque Baixo',
+    outOfStock: 'Sem Estoque',
+    addItem: 'Adicionar Item',
+  },
+
+  // ── Dates & Formats ──
+  dateFormats: {
+    short: 'dd/MM/yyyy',
+    long: "dd 'de' MMMM 'de' yyyy",
+    time: 'HH:mm',
+    dateTime: 'dd/MM/yyyy HH:mm',
+  },
+
+  // ── Currency ──
+  currency: {
+    code: 'BRL',
+    symbol: 'R$',
+    locale: 'pt-BR',
+  },
+} as const;
+
+export type TranslationKeys = typeof ptBR;

@@ -9,8 +9,8 @@ html,
 body {
     margin: 0;
     padding: 0;
-    min-height: 100%;
-    overflow-y: auto !important;
+    height: 100%;
+    overflow: hidden;
     -webkit-overflow-scrolling: touch;
 }
 
@@ -207,10 +207,8 @@ textarea::selection,
         scrollbar-width: none;
     }
 
-    /* Tabelas em mobile: scroll horizontal */
-    table {
-        min-width: 800px;
-    }
+    /* Tabelas em mobile: scroll horizontal controlado pelo container */
+    /* min-width é gerenciado individualmente por componente */
 
     /* Modal ajustes para mobile */
     .fixed.inset-0 > div {

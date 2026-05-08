@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useI18n } from '../../i18n';
 import { flushSync } from 'react-dom';
-import { ServiceOrder, OrderStatus, User, Quote } from '../../types';
+import { ServiceOrder, OrderStatus, User, Quote, Customer } from '../../types';
 import type { DbTenant } from '../../types/database';
 import {
     Search, X, DollarSign, Calendar, Users, Tag,
@@ -19,11 +20,14 @@ interface FinancialDashboardProps {
     orders: ServiceOrder[];
     quotes: Quote[];
     techs: User[];
+    customers?: Customer[];
     tenant?: DbTenant | null;
     onRefresh: () => Promise<void>;
 }
 
-export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, tenant, onRefresh }) => {
+export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, customers = [], tenant, onRefresh }) => {
+  const { t } = useI18n();
+
     const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -73,6 +77,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const [dateFilterType, setDateFilterType] = useState<'createdAt' | 'paidAt' | 'dueDate'>('dueDate');
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedItem, setSelectedItem] = useState<any | null>(null);
@@ -94,6 +99,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     const [billingDiscount, setBillingDiscount] = useState(0);
     const [billingDiscountType, setBillingDiscountType] = useState<'fixed' | 'percent'>('fixed');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [editingDueDate, setEditingDueDate] = useState<string>('');
 
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 12;
@@ -211,6 +217,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                 title: q.title,
                 description: q.description,
                 date: q.approvedAt || (q as any).updatedAt || q.createdAt,
+                dueDate: q.approvedAt || q.validUntil || (q as any).updatedAt || q.createdAt,
                 createdAt: q.createdAt,
                 updatedAt: (q as any).updatedAt || q.createdAt,
                 paidAt: q.paidAt || null,
@@ -251,6 +258,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
                     title: order.title,
                     description: order.description,
                     date: order.updatedAt,
+                    dueDate: order.scheduledDate || order.updatedAt,
                     createdAt: order.createdAt,
                     updatedAt: order.updatedAt,
                     paidAt: order.paidAt || null,
@@ -272,7 +280,15 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
     // 2. Aplicar Filtros
     const filteredItems = useMemo(() => {
         return allItems.filter(item => {
-            const itemDate = new Date(item.date).toISOString().split('T')[0];
+            let targetDate = item.dueDate || item.date;
+            if (dateFilterType === 'createdAt') targetDate = item.createdAt;
+            if (dateFilterType === 'paidAt') targetDate = item.paidAt;
+
+            let itemDate = '';
+            if (targetDate) {
+                itemDate = new Date(targetDate).toISOString().split('T')[0];
+            }
+
             const matchesSearch =
                 item.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -281,11 +297,11 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             const matchesTech = techFilter === 'ALL' || item.technician === techFilter;
             const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
             const matchesDate =
-                (!startDate || itemDate >= startDate) &&
-                (!endDate || itemDate <= endDate);
+                (!startDate && !endDate) || 
+                (targetDate && (!startDate || itemDate >= startDate) && (!endDate || itemDate <= endDate));
             return matchesSearch && matchesTech && matchesStatus && matchesDate;
         });
-    }, [allItems, searchTerm, startDate, endDate, techFilter, statusFilter]);
+    }, [allItems, searchTerm, startDate, endDate, techFilter, statusFilter, dateFilterType]);
 
     const sortedItems = useMemo(() => {
         let sortableItems = [...filteredItems];
@@ -818,12 +834,23 @@ ${container.innerHTML}
                 {showFilters && (
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 p-3 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
                         <div className="md:col-span-4 flex flex-col gap-1">
-                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Período de Referência</label>
-                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm px-2.5 items-center gap-2 h-8">
-                                <Calendar size={12} className="text-[#1c2d4f] shrink-0" />
-                                <input type="date" value={startDate} onChange={e => handleDateValidation(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
-                                <Slash size={10} className="text-slate-300 shrink-0" />
-                                <input type="date" value={endDate} onChange={e => handleDateValidation(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Filtro de Data</label>
+                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm items-center h-8 relative">
+                                <select 
+                                    value={dateFilterType}
+                                    onChange={e => setDateFilterType(e.target.value as any)}
+                                    className="bg-transparent border-none text-[9px] font-bold uppercase text-slate-500 outline-none cursor-pointer pl-2 pr-1 h-full max-w-[90px] min-w-[80px]"
+                                >
+                                    <option value="dueDate">Vencimento</option>
+                                    <option value="createdAt">Criação</option>
+                                    <option value="paidAt">Faturamento</option>
+                                </select>
+                                <div className="h-4 w-px bg-slate-200 shrink-0" />
+                                <div className="flex px-2 items-center w-full">
+                                    <input type="date" value={startDate} onChange={e => handleDateValidation(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
+                                    <Slash size={10} className="text-slate-300 shrink-0 mx-1" />
+                                    <input type="date" value={endDate} onChange={e => handleDateValidation(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
+                                </div>
                             </div>
                         </div>
                         <div className="md:col-span-4 flex flex-col gap-1">
@@ -962,7 +989,10 @@ ${container.innerHTML}
                                     <div className="flex items-center">Técnico {getSortIcon('technician')}</div>
                                 </th>
                                 <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('date')}>
-                                    <div className="flex items-center">Data {getSortIcon('date')}</div>
+                                    <div className="flex items-center">Data Ref. {getSortIcon('date')}</div>
+                                </th>
+                                <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('dueDate')}>
+                                    <div className="flex items-center">Vencimento {getSortIcon('dueDate')}</div>
                                 </th>
                                 <th className="px-4 py-3 cursor-pointer group select-none hover:bg-slate-50 transition-colors" onClick={() => requestSort('paidAt')}>
                                     <div className="flex items-center">Pgto {getSortIcon('paidAt')}</div>
@@ -978,7 +1008,7 @@ ${container.innerHTML}
                         <tbody className="divide-y divide-slate-50">
                             {paginatedItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="py-16 text-center">
+                                    <td colSpan={10} className="py-16 text-center">
                                         <DollarSign size={32} className="text-slate-200 mx-auto mb-3" />
                                         <p className="text-xs font-black text-slate-300 uppercase tracking-widest">Nenhum lançamento encontrado</p>
                                     </td>
@@ -987,7 +1017,7 @@ ${container.innerHTML}
                                 <tr
                                     key={item.id}
                                     className={`group hover:bg-[#1c2d4f]/5 transition-all cursor-pointer ${selectedIds.includes(item.id) ? 'bg-[#1c2d4f]/5' : 'bg-white'}`}
-                                    onClick={() => { setDetailTab('overview'); setSelectedItem(item); setIsSidebarOpen(true); }}
+                                    onClick={() => { setDetailTab('overview'); setSelectedItem(item); setEditingDueDate(''); setIsSidebarOpen(true); }}
                                 >
                                     <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
                                         <input type="checkbox" className="w-3.5 h-3.5 rounded border-slate-300 text-[#1c2d4f] cursor-pointer" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} />
@@ -1010,6 +1040,14 @@ ${container.innerHTML}
                                         <div className="flex flex-col gap-0.5">
                                             <span className="text-[12px] text-slate-600 whitespace-nowrap">{new Date(item.date).toLocaleDateString('pt-BR')}</span>
                                             <span className="text-[10px] text-slate-400 tracking-wider">{item.type === 'QUOTE' ? 'Criação' : 'Conclusão'}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[12px] font-bold text-rose-600 whitespace-nowrap">
+                                                {new Date(item.dueDate || item.date).toLocaleDateString('pt-BR')}
+                                            </span>
+                                            <span className="text-[10px] text-rose-400 tracking-wider">Prazo</span>
                                         </div>
                                     </td>
                                     <td className="px-4 py-2.5">
@@ -1052,7 +1090,7 @@ ${container.innerHTML}
 
 
 
-            {/* ── PAINEL DE DETALHES — Padrão idêntico à edição de OS ── */}
+            {/* ── PAINEL DE DETALHES — Idêntico à edição de OS ── */}
             {isSidebarOpen && selectedItem && (
                 <div
                     className="fixed inset-0 z-[1200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-0 lg:p-4 animate-in fade-in"
@@ -1086,7 +1124,7 @@ ${container.innerHTML}
                             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                                 <button
                                     onClick={() => {
-                                        const route = selectedItem.type === 'QUOTE' ? 'view-quote' : 'view';
+                                        const route = selectedItem.type === 'QUOTE' ? 'view-quote' : 'order/view';
                                         const token = selectedItem.original?.publicToken || selectedItem.id;
                                         window.open(`${window.location.origin}/#/${route}/${token}`, '_blank');
                                     }}
@@ -1176,12 +1214,41 @@ ${container.innerHTML}
                                                     <h3 className="text-xs font-black text-slate-800 tracking-wide">Dados do Cliente</h3>
                                                 </div>
                                                 <p className="text-sm font-bold text-slate-800">{selectedItem.customerName}</p>
-                                                {selectedItem.customerAddress && (
-                                                    <div className="flex items-start gap-1.5 mt-2">
-                                                        <MapPin size={11} className="text-slate-400 mt-0.5 shrink-0" />
-                                                        <p className="text-[11px] text-slate-500 font-medium">{selectedItem.customerAddress}</p>
-                                                    </div>
-                                                )}
+                                                {(() => {
+                                                    const fullCust = customers.find(c => c.name?.toLowerCase().trim() === selectedItem.customerName?.toLowerCase().trim());
+                                                    let address = selectedItem.customerAddress;
+                                                    if (!address || address.trim() === '') {
+                                                        if (fullCust && fullCust.street) {
+                                                            address = `${fullCust.street}, ${fullCust.number || 'S/N'} - ${fullCust.neighborhood || ''} - ${fullCust.city || ''}`;
+                                                        }
+                                                    }
+                                                    return (
+                                                        <>
+                                                            {address && address.length > 5 && (
+                                                                <div className="flex items-start gap-1.5 mt-2">
+                                                                    <MapPin size={11} className="text-slate-400 mt-0.5 shrink-0" />
+                                                                    <p className="text-[11px] text-slate-500 font-medium">{address}</p>
+                                                                </div>
+                                                            )}
+                                                            {fullCust && (
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-50">
+                                                                    {(fullCust.phone || fullCust.whatsapp) && (
+                                                                        <div>
+                                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Telefone / Whats</p>
+                                                                            <p className="text-[11px] font-bold text-slate-700">{fullCust.whatsapp || fullCust.phone}</p>
+                                                                        </div>
+                                                                    )}
+                                                                    {fullCust.email && (
+                                                                        <div>
+                                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t.common.email}</p>
+                                                                            <p className="text-[11px] font-bold text-slate-700 truncate" title={fullCust.email}>{fullCust.email}</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
                                             </div>
 
                                             {/* Técnico + Descrição */}
@@ -1266,6 +1333,81 @@ ${container.innerHTML}
                                                     </div>
                                                 </div>
                                                 )}
+                                            </div>
+
+                                            {/* ── Edição de Vencimento (somente para pendentes) ── */}
+                                            <div className="mt-3 pt-3 border-t border-slate-100">
+                                                <div className="flex items-start gap-2">
+                                                    <div className={`w-6 h-6 ${selectedItem.status !== 'PAID' ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'} border rounded-lg flex items-center justify-center shrink-0`}>
+                                                        <Clock size={12} className={selectedItem.status !== 'PAID' ? 'text-rose-500' : 'text-slate-400'} />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className={`text-[8px] font-bold uppercase tracking-widest leading-none mb-1 ${selectedItem.status !== 'PAID' ? 'text-rose-500' : 'text-slate-400'}`}>Vencimento</p>
+                                                        {selectedItem.status !== 'PAID' ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <input
+                                                                    type="date"
+                                                                    value={editingDueDate || (() => {
+                                                                        const raw = selectedItem.dueDate || selectedItem.date;
+                                                                        if (!raw) return '';
+                                                                        try { return new Date(raw).toISOString().split('T')[0]; } catch { return ''; }
+                                                                    })()}
+                                                                    onChange={(e) => setEditingDueDate(e.target.value)}
+                                                                    className="bg-white border border-rose-200 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-rose-200 transition-all cursor-pointer shadow-sm hover:border-rose-300"
+                                                                />
+                                                                {editingDueDate && (
+                                                                    <button
+                                                                        disabled={isProcessing}
+                                                                        onClick={async () => {
+                                                                            if (!editingDueDate) return;
+                                                                            const newDateISO = new Date(editingDueDate + 'T12:00:00').toISOString();
+                                                                            setIsProcessing(true);
+                                                                            try {
+                                                                                if (selectedItem.type === 'QUOTE') {
+                                                                                    await DataService.updateQuote({
+                                                                                        ...selectedItem.original,
+                                                                                        validUntil: newDateISO,
+                                                                                        approvedAt: newDateISO,
+                                                                                    });
+                                                                                } else {
+                                                                                    await DataService.updateOrder({
+                                                                                        ...selectedItem.original,
+                                                                                        scheduledDate: editingDueDate,
+                                                                                    });
+                                                                                }
+                                                                                setSelectedItem((prev: any) => prev ? ({
+                                                                                    ...prev,
+                                                                                    dueDate: newDateISO,
+                                                                                    date: selectedItem.type === 'QUOTE' ? newDateISO : prev.date,
+                                                                                    original: {
+                                                                                        ...prev.original,
+                                                                                        ...(selectedItem.type === 'QUOTE'
+                                                                                            ? { validUntil: newDateISO, approvedAt: newDateISO }
+                                                                                            : { scheduledDate: editingDueDate }
+                                                                                        ),
+                                                                                    }
+                                                                                }) : null);
+                                                                                setEditingDueDate('');
+                                                                                await onRefresh();
+                                                                            } catch (err: any) {
+                                                                                console.error('Erro ao atualizar vencimento:', err);
+                                                                                alert('Erro ao atualizar data de vencimento.');
+                                                                            } finally {
+                                                                                setIsProcessing(false);
+                                                                            }
+                                                                        }}
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg text-[10px] font-bold uppercase transition-all shadow-md shadow-[#1c2d4f]/20 active:scale-95 whitespace-nowrap disabled:opacity-50"
+                                                                    >
+                                                                        {isProcessing ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                                                                        Salvar
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-[10px] font-bold text-slate-600">{new Date(selectedItem.dueDate || selectedItem.date).toLocaleDateString('pt-BR')}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                             
                                             {selectedItem.original?.billingNotes && (
@@ -1795,19 +1937,39 @@ ${container.innerHTML}
                                         <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Cliente e Faturamento</div>
                                         <div className="grid grid-cols-12 divide-x divide-slate-200">
                                             <div className="col-span-7 p-2.5 space-y-2">
-                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente / Razão Social</label><div className="font-bold text-slate-900 text-sm uppercase">{printItem.customerName || 'Cliente Não Identificado'}</div></div>
-                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{printItem.customerAddress || 'Não informado'}</div></div>
-                                                <div className="grid grid-cols-2 gap-2 mt-2">
-                                                    {printItem.customerDocument && (
-                                                        <div><label className="block text-[8px] font-bold text-slate-400 uppercase">CPF / CNPJ</label><div className="font-medium text-slate-700 text-xs">{printItem.customerDocument}</div></div>
-                                                    )}
-                                                    {(printItem.original?.customerPhone || (printItem as any).customerPhone) && (
-                                                        <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Telefone</label><div className="font-medium text-slate-700 text-xs">{printItem.original?.customerPhone || (printItem as any).customerPhone}</div></div>
-                                                    )}
-                                                    {(printItem.original?.customerEmail || (printItem as any).customerEmail) && (
-                                                        <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">E-mail</label><div className="font-medium text-slate-700 text-xs">{printItem.original?.customerEmail || (printItem as any).customerEmail}</div></div>
-                                                    )}
-                                                </div>
+                                                {(() => {
+                                                    const fullCust = customers.find(c => c.name?.toLowerCase().trim() === printItem.customerName?.toLowerCase().trim());
+                                                    const doc = printItem.customerDocument || fullCust?.document || (fullCust as any)?.cpf || (fullCust as any)?.cnpj;
+                                                    const phone = printItem.original?.customerPhone || (printItem as any).customerPhone || fullCust?.whatsapp || fullCust?.phone;
+                                                    const email = printItem.original?.customerEmail || (printItem as any).customerEmail || fullCust?.email;
+                                                    
+                                                    let address = printItem.customerAddress;
+                                                    if (!address || address.trim() === '') {
+                                                        if (fullCust && fullCust.street) {
+                                                            address = `${fullCust.street}, ${fullCust.number || 'S/N'} - ${fullCust.neighborhood || ''} - ${fullCust.city || ''}`;
+                                                        } else {
+                                                            address = 'Não informado';
+                                                        }
+                                                    }
+
+                                                    return (
+                                                        <>
+                                                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente / Razão Social</label><div className="font-bold text-slate-900 text-sm uppercase">{printItem.customerName || 'Cliente Não Identificado'}</div></div>
+                                                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{address}</div></div>
+                                                            <div className="grid grid-cols-2 gap-2 mt-2">
+                                                                {doc && (
+                                                                    <div><label className="block text-[8px] font-bold text-slate-400 uppercase">CPF / CNPJ</label><div className="font-medium text-slate-700 text-xs">{doc}</div></div>
+                                                                )}
+                                                                {phone && (
+                                                                    <div><label className="block text-[8px] font-bold text-slate-400 uppercase">{t.common.phone}</label><div className="font-medium text-slate-700 text-xs">{phone}</div></div>
+                                                                )}
+                                                                {email && (
+                                                                    <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">{t.common.email}</label><div className="font-medium text-slate-700 text-xs truncate">{email}</div></div>
+                                                                )}
+                                                            </div>
+                                                        </>
+                                                    );
+                                                })()}
                                             </div>
                                             <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
                                                 <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Origem Ref.</label><div className="font-bold uppercase">{printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</div></div>
@@ -2042,7 +2204,9 @@ ${container.innerHTML}
                     to { transform: translateX(0); opacity: 1; }
                 }
                 .animate-slide-in-right { animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-                .print\\:hidden { visibility: hidden !important; display: none !important; }
+                @media print {
+                    .print\\:hidden { visibility: hidden !important; display: none !important; }
+                }
             `}</style>
         </div>
     );

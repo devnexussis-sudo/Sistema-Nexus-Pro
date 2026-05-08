@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useI18n } from '../../i18n';
 import {
   ShieldCheck, Globe, Plus, Building2, Users,
   Activity, Server, Database, Save, X, ExternalLink,
@@ -61,6 +62,8 @@ import { DataService } from '../../services/dataService';
 import SessionStorage from '../../lib/sessionStorage';
 
 export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
+  const { t } = useI18n();
+
   const [tenants, setTenants] = useState<Tenant[]>([]);
 
   console.log("SuperAdminPage Rendering");
@@ -457,7 +460,7 @@ export const SuperAdminPage: React.FC<{ onLogout?: () => void }> = ({ onLogout }
           <div className="bg-[#111113] p-4 rounded-xl border border-white/5 border-emerald-500/20 col-span-2 sm:col-span-1">
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg"><Server size={16} /></div>
-              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Status</p>
+              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">{t.common.status}</p>
             </div>
             <p className="text-sm font-black text-emerald-500 uppercase italic leading-none">ESTÁVEL</p>
           </div>

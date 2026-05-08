@@ -1,4 +1,5 @@
 import React from 'react';
+import { useI18n } from '../../i18n';
 import {
   AlertTriangle, Ban, CheckCircle2, Clock, ClipboardList,
   Loader2, Play, ShieldCheck, Video
@@ -67,6 +68,8 @@ interface VisitFormsTabProps {
 export const VisitFormsTab: React.FC<VisitFormsTabProps> = ({
   orderVisits, selectedOrder, techs, formsTabLoading, formTemplatesAll, onImageClick,
 }) => {
+    const { t } = useI18n();
+
 
   if (formsTabLoading) {
     return (
@@ -312,12 +315,31 @@ const VisitContainer: React.FC<{
         ) : (
           <>
             {/* Respostas do checklist */}
-            {entries.map(([key, val]) => (
-              <div key={key} className="px-5 py-3 flex justify-between gap-4 items-center hover:bg-slate-50/50 transition-colors">
-                <p className="text-[13px] font-medium text-slate-700 flex-1">{resolveLabel(key)}</p>
-                <FormValueDisplay value={val} onImageClick={onImageClick} />
-              </div>
-            ))}
+            {(() => {
+              const groups: Record<string, typeof entries> = {};
+              entries.forEach(([key, val]) => {
+                const match = key.match(/^\[(.*?)\]\s*(?:-|$)/);
+                const groupName = match ? match[1] : 'Relatório de Atendimento';
+                if (!groups[groupName]) groups[groupName] = [];
+                groups[groupName].push([key, val]);
+              });
+
+              return Object.entries(groups).map(([groupName, groupEntries]) => (
+                <div key={groupName} className="border-b border-slate-100 last:border-0 pb-4 last:pb-0 mb-4 last:mb-0 pt-4 first:pt-0">
+                  <div className="px-5 pb-2">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-md">{groupName}</span>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {groupEntries.map(([key, val]) => (
+                      <div key={key} className="px-5 py-2.5 flex justify-between gap-4 items-center hover:bg-slate-50/50 transition-colors">
+                        <p className="text-[12px] font-medium text-slate-700 flex-1">{resolveLabel(key)}</p>
+                        <FormValueDisplay value={val} onImageClick={onImageClick} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
 
             {/* Relatório Técnico */}
             {techReport && (
@@ -379,7 +401,7 @@ const VisitContainer: React.FC<{
                 <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Peça Solicitada</span>
                 <div className="bg-white p-3 rounded-md border border-rose-100 grid grid-cols-3 gap-3 mt-1">
                   <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">Nome</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">{t.common.name}</p>
                     <p className="text-sm font-bold text-slate-800">{impParts.nome}</p>
                   </div>
                   <div>

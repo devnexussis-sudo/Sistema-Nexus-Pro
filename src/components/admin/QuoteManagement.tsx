@@ -27,6 +27,7 @@ import {
     RefreshCw
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
+import { useI18n } from '../../i18n';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePagedQuotes, useTenant } from '../../hooks/nexusHooks';
 import { Customer, OrderPriority, OrderStatus, Quote, QuoteItem, ServiceOrder, StockItem } from '../../types';
@@ -48,6 +49,8 @@ interface QuoteManagementProps {
 export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     quotes, customers, orders, stockItems, onUpdateQuotes, onCreateOrder, onEditQuote, onCreateQuote, onDeleteQuote
 }) => {
+    const { t } = useI18n();
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isConverting, setIsConverting] = useState(false);
@@ -56,6 +59,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const [showFilters, setShowFilters] = useState(false);
     const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
     const [viewQuote, setViewQuote] = useState<Quote | null>(null);
+    const [isManualSyncing, setIsManualSyncing] = useState(false);
     const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
 
     // ── Filter States ─────────────────────────────────────────────
@@ -84,6 +88,21 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const pagedQuotes = pageResult?.data ?? [];
     const totalQuotes = pageResult?.total ?? 0;
     const totalPages = pageResult?.lastPage ?? 1;
+
+    const handleManualRefresh = async () => {
+        setIsManualSyncing(true);
+        try {
+            await Promise.all([
+                quotesRefetch(),
+                onUpdateQuotes && onUpdateQuotes()
+            ]);
+            await new Promise(resolve => setTimeout(resolve, 600));
+        } catch (error) {
+            console.error('Erro ao sincronizar:', error);
+        } finally {
+            setIsManualSyncing(false);
+        }
+    };
 
     // Form States
     const [customerName, setCustomerName] = useState('');
@@ -507,11 +526,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         </button>
 
                         <button
-                            onClick={() => quotesRefetch()}
+                            onClick={handleManualRefresh}
                             className="h-10 px-3 flex items-center justify-center bg-white hover:bg-slate-50 border border-[#1c2d4f]/20 rounded-xl text-[#1c2d4f] hover:text-primary-600 shadow-sm transition-all active:scale-95"
-                            title="Atualizar lista"
+                            title="Atualizar todos os dados"
                         >
-                            <RefreshCw size={16} className={quotesLoading ? "animate-spin" : ""} />
+                            <RefreshCw size={16} className={quotesLoading || isManualSyncing ? "animate-spin" : ""} />
                         </button>
                         <button
                             onClick={() => { resetForm(); setIsModalOpen(true); }}
@@ -550,7 +569,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                         {/* Status */}
                         <div className="flex flex-col gap-1">
-                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">{t.common.status}</label>
                             <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
                                 <Filter size={12} className="text-slate-400 mr-2 shrink-0" />
                                 <select
@@ -599,8 +618,8 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 <th className="px-4 py-3">Validade</th>
                                 <th className="px-4 py-3 text-right">Valor Total</th>
                                 <th className="px-4 py-3">Vínculo O.S.</th>
-                                <th className="px-4 py-3 text-center">Status</th>
-                                <th className="px-4 py-3 text-right pr-6">Ações</th>
+                                <th className="px-4 py-3 text-center">{t.common.status}</th>
+                                <th className="px-4 py-3 text-right pr-6">{t.common.actions}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -827,6 +846,25 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         </div>
                                     </div>
                                 </div>
+                                
+                                {customerName && (() => {
+                                    const c = customers.find(cust => cust.name === customerName);
+                                    if (!c) return null;
+                                    return (
+                                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                                            <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3 uppercase flex items-center gap-2">
+                                                <User size={16} className="text-emerald-500" /> Informações do Cliente
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">CPF / CNPJ</label><p className="text-xs font-semibold text-slate-700">{c.document || '—'}</p></div>
+                                                <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">{t.common.email}</label><p className="text-xs font-semibold text-slate-700">{c.email || '—'}</p></div>
+                                                <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">{t.common.phone}</label><p className="text-xs font-semibold text-slate-700">{c.phone || '—'}</p></div>
+                                                <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">WhatsApp</label><p className="text-xs font-semibold text-slate-700">{c.whatsapp || '—'}</p></div>
+                                                <div className="space-y-1 md:col-span-2"><label className="text-[10px] font-bold text-slate-400 uppercase">Endereço Completo</label><p className="text-xs font-semibold text-slate-700">{[c.address, c.number, c.complement, c.neighborhood, c.city, c.state ? `/${c.state}` : null, c.zip ? `CEP: ${c.zip}` : null].filter(Boolean).join(' - ').replace(' - /', '/')}</p></div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                                     <h3 className="text-sm font-bold text-slate-900 border-l-4 border-amber-500 pl-3 uppercase">detalhamento</h3>
                                     <div className="space-y-4">
@@ -991,7 +1029,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 </div>
                             </div>
                             <div className="flex gap-4">
-                                <button onClick={() => setIsModalOpen(false)} className="px-8 py-3 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-all">Cancelar</button>
+                                <button onClick={() => setIsModalOpen(false)} className="px-8 py-3 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-all">{t.common.cancel}</button>
                                 <button
                                     onClick={handleSaveQuote}
                                     disabled={!customerName || !title || items.length === 0 || loading}
@@ -1110,27 +1148,46 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
                                             <User size={18} className="text-slate-400" /> Informações do Cliente
                                         </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Cliente / Razão Social</label>
-                                                <div className="text-sm font-semibold text-slate-900">{viewQuote.customerName}</div>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Endereço</label>
-                                                <div className="text-sm text-slate-600 font-medium leading-relaxed">{viewQuote.customerAddress || 'Não informado'}</div>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">CPF / CNPJ</label>
-                                                <div className="text-sm text-slate-600 font-medium">{viewQuote.customerDocument || 'Não informado'}</div>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Validade da Proposta</label>
-                                                <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                                                    <Calendar size={14} className="text-slate-400" />
-                                                    {viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString('pt-BR') : 'Não definida'}
+                                        {(() => {
+                                            const c = customers.find(cust => cust.name === viewQuote.customerName);
+                                            return (
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-y-6 gap-x-8">
+                                                    <div className="space-y-1.5 md:col-span-2">
+                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Cliente / Razão Social</label>
+                                                        <div className="text-sm font-semibold text-slate-900">{viewQuote.customerName}</div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">CPF / CNPJ</label>
+                                                        <div className="text-sm text-slate-600 font-medium">{c?.document || viewQuote.customerDocument || 'Não informado'}</div>
+                                                    </div>
+                                                    <div className="space-y-1.5 md:col-span-2">
+                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Endereço Completo</label>
+                                                        <div className="text-sm text-slate-600 font-medium leading-relaxed">
+                                                            {c ? [c.address, c.number, c.complement, c.neighborhood, c.city, c.state ? `/${c.state}` : null, c.zip ? `CEP: ${c.zip}` : null].filter(Boolean).join(' - ').replace(' - /', '/') : (viewQuote.customerAddress || 'Não informado')}
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">{t.common.email}</label>
+                                                        <div className="text-sm text-slate-600 font-medium">{c?.email || 'Não informado'}</div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">{t.common.phone}</label>
+                                                        <div className="text-sm text-slate-600 font-medium">{c?.phone || 'Não informado'}</div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">WhatsApp</label>
+                                                        <div className="text-sm text-slate-600 font-medium">{c?.whatsapp || 'Não informado'}</div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Validade da Proposta</label>
+                                                        <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                            <Calendar size={14} className="text-slate-400" />
+                                                            {viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString('pt-BR') : 'Não definida'}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
+                                            );
+                                        })()}
                                     </div>
 
                                     {/* Description Card */}
@@ -1446,7 +1503,7 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                         <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
                             <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Criação</label><div className="font-bold">{fmt(quote.createdAt)}</div></div>
                             <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Validade</label><div className="font-bold">{quote.validUntil ? fmt(quote.validUntil) : '—'}</div></div>
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Status</label><div className="font-bold text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{quote.status}</div></div>
+                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">{t.common.status}</label><div className="font-bold text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{quote.status}</div></div>
                             {quote.linkedOrderId && (
                                 <div><label className="block text-[8px] font-bold text-slate-400 uppercase">O.S. Vinculada</label><div className="font-bold uppercase">{quote.linkedOrderId.slice(0, 8)}</div></div>
                             )}

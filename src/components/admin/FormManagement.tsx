@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useI18n } from '../../i18n';
 import { createPortal } from 'react-dom';
-import { Plus, FileText, Trash2, Edit2, X, Save, GripVertical, CheckCircle2, List, Settings, Settings2, Tag, Layers, ArrowRight, Info, Box, Cpu, Workflow, Search, Filter, Loader2, ChevronLeft, RefreshCw } from 'lucide-react';
+import { Plus, FileText, Trash2, Edit2, X, Save, GripVertical, CheckCircle2, List, Settings, Settings2, Tag, Layers, ArrowRight, Info, Box, Cpu, Workflow, Search, Filter, Loader2, ChevronLeft, RefreshCw, ChevronUp, ChevronDown } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -32,6 +33,8 @@ interface ActivationRule {
 }
 
 export const FormManagement: React.FC = () => {
+    const { t } = useI18n();
+
   const [activeTab, setActiveTab] = useState<'types' | 'templates' | 'rules'>('templates');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
@@ -124,6 +127,35 @@ export const FormManagement: React.FC = () => {
   const [editingType, setEditingType] = useState<Partial<ServiceType> | null>(null);
   const [editingForm, setEditingForm] = useState<Partial<FormTemplate> | null>(null);
   const [editingRule, setEditingRule] = useState<Partial<ActivationRule> | null>(null);
+
+  const [draggedFieldIndex, setDraggedFieldIndex] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedFieldIndex(index);
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedFieldIndex === null || draggedFieldIndex === dropIndex) return;
+    if (!editingForm?.fields) return;
+
+    const newFields = [...editingForm.fields];
+    const [draggedItem] = newFields.splice(draggedFieldIndex, 1);
+    newFields.splice(dropIndex, 0, draggedItem);
+
+    setEditingForm({ ...editingForm, fields: newFields });
+    setDraggedFieldIndex(null);
+  };
+
+  const moveField = (fromIndex: number, toIndex: number) => {
+    if (!editingForm?.fields) return;
+    if (toIndex < 0 || toIndex >= editingForm.fields.length) return;
+    const newFields = [...editingForm.fields];
+    const [moved] = newFields.splice(fromIndex, 1);
+    newFields.splice(toIndex, 0, moved);
+    setEditingForm({ ...editingForm, fields: newFields });
+  };
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -317,7 +349,7 @@ export const FormManagement: React.FC = () => {
         {showFilters && activeTab === 'templates' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Status</label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">{t.common.status}</label>
               <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
                 <Filter size={12} className="text-slate-400 mr-2" />
                 <select
@@ -518,7 +550,7 @@ export const FormManagement: React.FC = () => {
                 </p>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-6 rounded-b-2xl">
-                <Button variant="secondary" className="rounded-2xl px-8" onClick={() => setIsTypeModalOpen(false)}>Cancelar</Button>
+                <Button variant="secondary" className="rounded-2xl px-8" onClick={() => setIsTypeModalOpen(false)}>{t.common.cancel}</Button>
                 <Button onClick={handleSaveType} className="rounded-2xl px-12 shadow-xl shadow-primary-600/20 font-bold italic">
                   <Save size={20} className="mr-3" /> Salvar Tipo
                 </Button>
@@ -555,150 +587,156 @@ export const FormManagement: React.FC = () => {
               </div>
 
               {/* BODY */}
-              <div className="flex-1 overflow-y-auto bg-slate-50/30 custom-scrollbar">
-                {/* Nome do Modelo — barra fixa no topo do conteúdo */}
-                <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4">
-                  <label className="text-[10px] font-bold text-slate-500 whitespace-nowrap">Nome:</label>
-                  <input
-                    type="text"
-                    value={editingForm.title}
-                    onChange={e => setEditingForm({ ...editingForm, title: e.target.value })}
-                    placeholder="Ex: Checklist Preventiva AR Condicionado"
-                    className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-300 transition-all"
-                  />
-                  <Button onClick={addField} variant="secondary" className="rounded-lg border-primary-200 text-primary-600 px-4 py-2 text-[10px] font-bold whitespace-nowrap">
-                    <Plus size={16} className="mr-1.5" /> Pergunta
-                  </Button>
-                </div>
+              <div className="flex-1 overflow-y-auto bg-slate-50/50 custom-scrollbar py-8">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-6 pb-20">
+                  
+                  {/* Nome do Modelo */}
+                  <div className="bg-white border-t-8 border-t-[#1c2d4f] shadow-sm rounded-xl p-6 sm:p-8 relative">
+                    <input
+                      type="text"
+                      value={editingForm.title}
+                      onChange={e => setEditingForm({ ...editingForm, title: e.target.value })}
+                      placeholder="Título do Formulário"
+                      className="w-full bg-transparent border-b-2 border-transparent focus:border-slate-300 pb-2 text-2xl sm:text-3xl font-bold text-slate-900 outline-none transition-all placeholder:text-slate-300"
+                    />
+                    <p className="text-sm text-slate-500 mt-2 ml-1">Personalize os campos de coleta de dados abaixo.</p>
+                  </div>
 
-                {/* LISTA DE PERGUNTAS — Compacta */}
-                <div className="p-4 space-y-3">
-                  {(editingForm.fields || []).map((field, index) => (
-                    <div key={field.id} className="bg-white border border-slate-200 rounded-lg p-3 hover:border-primary-200 transition-all group shadow-lg shadow-slate-200/50">
-                      {/* ROW 1: Número + Label + Tipo + Controles */}
-                      <div className="flex items-center gap-3">
-                        {/* Badge Número */}
-                        <span className="text-[9px] font-bold text-primary-600 bg-primary-50 border border-primary-100 px-2 py-1 rounded-md whitespace-nowrap flex-shrink-0">
-                          #{index + 1}
-                        </span>
-
-                        {/* Label Input */}
-                        <input
-                          type="text"
-                          value={field.label}
-                          onChange={e => setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, label: e.target.value } : f) })}
-                          placeholder="O que deve ser perguntado?"
-                          className="flex-1 bg-slate-50 border border-transparent rounded-lg px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:bg-white focus:border-slate-200 focus:ring-2 focus:ring-primary-100 transition-all min-w-0"
-                        />
-
-                        {/* Select Tipo */}
-                        <select
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[10px] font-bold text-slate-600 outline-none focus:ring-2 focus:ring-primary-100 transition-all flex-shrink-0 w-[140px]"
-                          value={field.type}
-                          onChange={e => setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, type: e.target.value as FormFieldType } : f) })}
+                  {/* LISTA DE PERGUNTAS */}
+                  <div className="space-y-4">
+                    {(editingForm.fields || []).map((field, index) => (
+                      <div
+                        key={field.id}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                        onDrop={(e) => handleDrop(e, index)}
+                        className={`bg-white border-l-4 ${draggedFieldIndex === index ? 'opacity-50 border-l-slate-300' : 'border-l-transparent focus-within:border-l-primary-500'} border border-slate-200 rounded-xl p-5 sm:p-6 transition-all group shadow-sm hover:shadow-md relative`}
+                      >
+                        
+                        {/* Drag Handle Limitado (Não afeta os inputs) */}
+                        <div
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragEnd={() => setDraggedFieldIndex(null)}
+                          className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 flex justify-center items-center opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing hover:bg-slate-50 rounded-b-md transition-all z-10"
+                          title="Segure e arraste para reordenar"
                         >
-                          <option value={FormFieldType.TEXT}>Texto Curto</option>
-                          <option value={FormFieldType.LONG_TEXT}>Texto Longo</option>
-                          <option value={FormFieldType.SELECT}>Alternativas</option>
-                          <option value={FormFieldType.PHOTO}>Foto</option>
-                          <option value={FormFieldType.SIGNATURE}>Assinatura</option>
-                        </select>
+                          <GripVertical size={16} className="rotate-90 text-slate-400" />
+                        </div>
 
-                        {/* Toggle Obrigatório */}
-                        <button
-                          title="Obrigatória"
-                          onClick={() => {
-                            const fields = editingForm.fields?.map(f => f.id === field.id ? { ...f, required: !f.required } : f);
-                            setEditingForm({ ...editingForm, fields });
-                          }}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[10px] font-bold transition-all flex-shrink-0 ${field.required ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'}`}
-                        >
-                          <CheckCircle2 size={12} className={field.required ? 'text-indigo-600' : 'text-slate-300'} />
-                          {field.required ? 'Obrig.' : 'Opcional'}
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-4 mb-4 mt-2 items-start sm:items-center">
+                          {/* Number Badge */}
+                          <div className="flex-shrink-0 bg-primary-50 border border-primary-100 text-primary-700 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-sm">
+                            {index + 1}
+                          </div>
 
-                        {/* Toggle Lógica */}
-                        <button
-                          onClick={() => {
-                            const fields = editingForm.fields?.map(f => {
-                              if (f.id === field.id) return { ...f, showCondition: !(f as any).showCondition };
-                              return f;
-                            });
-                            setEditingForm({ ...editingForm, fields });
-                          }}
-                          title="Gatilho Inteligente"
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[10px] font-bold transition-all flex-shrink-0 ${field.condition?.fieldId ? 'bg-amber-500 text-white border-amber-500 ring-1 ring-amber-300' : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100'}`}
-                        >
-                          <Workflow size={12} />
-                          {field.condition?.fieldId ? 'Ativa' : 'Lógica'}
-                        </button>
-
-                        {/* Delete */}
-                        <button
-                          onClick={() => setEditingForm({ ...editingForm, fields: editingForm.fields?.filter(f => f.id !== field.id) })}
-                          className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all flex-shrink-0"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-
-                      {/* ROW 2: Opções (Apenas se SELECT) */}
-                      {field.type === FormFieldType.SELECT && (
-                        <div className="mt-2 pl-8 flex items-center gap-2">
-                          <List size={12} className="text-primary-400 flex-shrink-0" />
+                          {/* Label Input */}
                           <input
                             type="text"
-                            placeholder="Opções separadas por vírgula: Sim, Não, Bom, Ruim..."
-                            value={field.options?.join(', ') || ''}
-                            onChange={e => {
-                              const newOptions = e.target.value.split(',').map(s => s.trim());
-                              setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, options: newOptions } : f) });
-                            }}
-                            className="flex-1 bg-primary-50/50 border border-primary-100 rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all"
+                            value={field.label}
+                            onChange={e => setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, label: e.target.value } : f) })}
+                            placeholder="Sua pergunta..."
+                            className="flex-1 bg-slate-50 border-b-2 border-slate-200 px-4 py-3 text-base sm:text-lg font-semibold text-slate-800 outline-none focus:border-primary-500 focus:bg-slate-100/50 transition-colors rounded-t-md"
                           />
-                          <div className="flex gap-1 flex-wrap">
-                            {field.options?.filter(o => o.trim()).map((opt, idx) => (
-                              <span key={idx} className="bg-white text-primary-600 border border-primary-200 px-2 py-0.5 rounded text-[9px] font-bold">{opt}</span>
-                            ))}
+                          {/* Select Tipo */}
+                          <div className="w-full sm:w-56 shrink-0">
+                            <select
+                              className="w-full bg-white border border-slate-200 rounded-lg px-4 py-3 sm:py-4 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-primary-100 transition-all shadow-sm cursor-pointer"
+                              value={field.type}
+                              onChange={e => setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, type: e.target.value as FormFieldType } : f) })}
+                            >
+                              <option value={FormFieldType.TEXT}>Resposta Curta</option>
+                              <option value={FormFieldType.LONG_TEXT}>Parágrafo</option>
+                              <option value={FormFieldType.SELECT}>Múltipla Escolha</option>
+                              <option value={FormFieldType.PHOTO}>Upload de Foto</option>
+                              <option value={FormFieldType.SIGNATURE}>Assinatura Digital</option>
+                            </select>
                           </div>
                         </div>
-                      )}
 
-                      {/* ROW 3: Painel de Lógica (Apenas se ativado) */}
-                      {(field.condition?.fieldId || (field as any).showCondition) && (
-                        <div className="mt-2 pl-8 flex items-center gap-3 bg-amber-50/80 border border-amber-200 border-dashed rounded-lg p-2.5">
-                          <Workflow size={14} className="text-amber-600 flex-shrink-0" />
-                          <span className="text-[9px] font-bold text-amber-700 flex-shrink-0">Exibir se:</span>
-                          <select
-                            className="bg-white border border-amber-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-200 flex-1 min-w-0"
-                            value={field.condition?.fieldId || ''}
-                            onChange={e => {
-                              const val = e.target.value;
-                              const fields = editingForm.fields?.map(f => {
-                                if (f.id === field.id) {
-                                  if (!val) return { ...f, condition: undefined };
-                                  return { ...f, condition: { fieldId: val, value: '', operator: 'equals' as const } };
-                                }
-                                return f;
-                              });
-                              setEditingForm({ ...editingForm, fields });
-                            }}
-                          >
-                            <option value="">Sempre (Padrão)</option>
-                            {editingForm.fields?.filter(f => f.id !== field.id).map(f => (
-                              <option key={f.id} value={f.id}>{f.label || 'Sem título'}</option>
-                            ))}
-                          </select>
+                        {/* Opções (Apenas se SELECT) */}
+                        {field.type === FormFieldType.SELECT && (
+                          <div className="mb-4 pl-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <List size={16} className="text-slate-400 shrink-0" />
+                              <input
+                                type="text"
+                                placeholder="Digite as opções separadas por vírgula..."
+                                value={field.options?.join(', ') || ''}
+                                onChange={e => {
+                                  const newOptions = e.target.value.split(',').map(s => s.trim());
+                                  setEditingForm({ ...editingForm, fields: editingForm.fields?.map(f => f.id === field.id ? { ...f, options: newOptions } : f) });
+                                }}
+                                className="flex-1 bg-white border-b border-slate-200 px-2 py-2 text-sm font-medium text-slate-700 outline-none focus:border-primary-400 transition-all placeholder:text-slate-300"
+                              />
+                            </div>
+                            <div className="flex gap-2 flex-wrap pl-7">
+                              {field.options?.filter(o => o.trim()).map((opt, idx) => (
+                                <div key={idx} className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full">
+                                  <div className="w-3 h-3 rounded-full border border-slate-400 bg-white" />
+                                  <span className="text-xs font-medium text-slate-700">{opt}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                          {field.condition?.fieldId && (
-                            <>
-                              <span className="text-[9px] font-bold text-amber-700 flex-shrink-0">=</span>
-                              {(() => {
-                                const parentField = editingForm.fields?.find(f => f.id === field.condition?.fieldId);
-                                if (parentField?.type === FormFieldType.SELECT && parentField.options && parentField.options.length > 0) {
+                        {/* Painel de Lógica */}
+                        {(field.condition?.fieldId || (field as any).showCondition) && (
+                          <div className="mt-4 flex flex-wrap items-center gap-3 bg-amber-50 border border-amber-200 border-dashed rounded-lg p-4">
+                            <Workflow size={16} className="text-amber-600 shrink-0" />
+                            <span className="text-xs font-bold text-amber-800 shrink-0">Exibir pergunta se:</span>
+                            <select
+                              className="bg-white border border-amber-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-amber-200 flex-1 min-w-[150px]"
+                              value={field.condition?.fieldId || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                const fields = editingForm.fields?.map(f => {
+                                  if (f.id === field.id) {
+                                    if (!val) return { ...f, condition: undefined };
+                                    return { ...f, condition: { fieldId: val, value: '', operator: 'equals' as const } };
+                                  }
+                                  return f;
+                                });
+                                setEditingForm({ ...editingForm, fields });
+                              }}
+                            >
+                              <option value="">Sempre (Padrão)</option>
+                              {editingForm.fields?.filter(f => f.id !== field.id).map(f => (
+                                <option key={f.id} value={f.id}>{f.label || 'Sem título'}</option>
+                              ))}
+                            </select>
+
+                            {field.condition?.fieldId && (
+                              <div className="flex items-center gap-3 flex-1 min-w-[150px]">
+                                <span className="text-xs font-bold text-amber-800 shrink-0">for igual a</span>
+                                {(() => {
+                                  const parentField = editingForm.fields?.find(f => f.id === field.condition?.fieldId);
+                                  if (parentField?.type === FormFieldType.SELECT && parentField.options && parentField.options.length > 0) {
+                                    return (
+                                      <select
+                                        className="bg-white border border-amber-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-amber-200 w-full"
+                                        value={field.condition.value}
+                                        onChange={e => {
+                                          const val = e.target.value;
+                                          const fields = editingForm.fields?.map(f => {
+                                            if (f.id === field.id) return { ...f, condition: { ...f.condition!, value: val } };
+                                            return f;
+                                          });
+                                          setEditingForm({ ...editingForm, fields });
+                                        }}
+                                      >
+                                        <option value="">Selecione...</option>
+                                        {parentField.options.map((opt, idx) => (
+                                          <option key={idx} value={opt}>{opt}</option>
+                                        ))}
+                                      </select>
+                                    );
+                                  }
                                   return (
-                                    <select
-                                      className="bg-white border border-amber-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-200 flex-1 min-w-0"
+                                    <input
+                                      type="text"
+                                      placeholder="Valor..."
+                                      className="bg-white border border-amber-200 rounded-md px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-amber-200 w-full"
                                       value={field.condition.value}
                                       onChange={e => {
                                         const val = e.target.value;
@@ -708,48 +746,107 @@ export const FormManagement: React.FC = () => {
                                         });
                                         setEditingForm({ ...editingForm, fields });
                                       }}
-                                    >
-                                      <option value="">Selecione...</option>
-                                      {parentField.options.map((opt, idx) => (
-                                        <option key={idx} value={opt}>{opt}</option>
-                                      ))}
-                                    </select>
+                                    />
                                   );
-                                }
-                                return (
-                                  <input
-                                    type="text"
-                                    placeholder="Valor..."
-                                    className="bg-white border border-amber-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-200 flex-1 min-w-0"
-                                    value={field.condition.value}
-                                    onChange={e => {
-                                      const val = e.target.value;
-                                      const fields = editingForm.fields?.map(f => {
-                                        if (f.id === field.id) return { ...f, condition: { ...f.condition!, value: val } };
-                                        return f;
-                                      });
-                                      setEditingForm({ ...editingForm, fields });
-                                    }}
-                                  />
-                                );
-                              })()}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        )}
 
-                  {/* Botão Adicionar ao Final da Lista */}
-                  <button onClick={addField} className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-primary-200 text-primary-600 rounded-lg hover:bg-primary-50 transition-colors font-bold text-sm group">
-                    <Plus size={20} className="group-hover:scale-110 transition-transform" /> Adicionar Pergunta
-                  </button>
+                        {/* Divider */}
+                        <hr className="my-5 border-slate-100" />
+
+                        {/* Controles Inferiores */}
+                        <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6">
+                          
+                          {/* Botão de Lógica */}
+                          <button
+                            title="Gatilho Inteligente"
+                            onClick={() => {
+                              const fields = editingForm.fields?.map(f => {
+                                if (f.id === field.id) return { ...f, showCondition: !(f as any).showCondition };
+                                return f;
+                              });
+                              setEditingForm({ ...editingForm, fields });
+                            }}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${field.condition?.fieldId ? 'bg-amber-50 text-amber-600 border border-amber-200' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                          >
+                            <Workflow size={14} />
+                            {field.condition?.fieldId ? 'Lógica Ativa' : 'Adicionar Lógica'}
+                          </button>
+
+                          <div className="h-6 w-px bg-slate-200 hidden sm:block" />
+
+                          {/* Toggle Obrigatório */}
+                          <label className="flex items-center gap-2 cursor-pointer group">
+                            <span className="text-xs font-bold text-slate-500 group-hover:text-slate-700 transition-colors">Obrigatória</span>
+                            <div className={`relative w-10 h-5 rounded-full transition-colors duration-300 ${field.required ? 'bg-[#1c2d4f]' : 'bg-slate-300'}`}>
+                              <div className={`absolute top-0.5 left-0.5 bg-white w-4 h-4 rounded-full shadow-sm transition-transform duration-300 ${field.required ? 'translate-x-5' : ''}`} />
+                            </div>
+                            <input
+                              type="checkbox"
+                              className="hidden"
+                              checked={field.required}
+                              onChange={() => {
+                                const fields = editingForm.fields?.map(f => f.id === field.id ? { ...f, required: !f.required } : f);
+                                setEditingForm({ ...editingForm, fields });
+                              }}
+                            />
+                          </label>
+
+                          <div className="h-6 w-px bg-slate-200 hidden sm:block" />
+
+                          {/* Ordenação Manual (Cima / Baixo) */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => moveField(index, index - 1)}
+                              disabled={index === 0}
+                              className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-md disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-all"
+                              title="Mover para cima"
+                            >
+                              <ChevronUp size={18} />
+                            </button>
+                            <button
+                              onClick={() => moveField(index, index + 1)}
+                              disabled={index === (editingForm.fields?.length || 0) - 1}
+                              className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-md disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-all"
+                              title="Mover para baixo"
+                            >
+                              <ChevronDown size={18} />
+                            </button>
+                          </div>
+
+                          <div className="h-6 w-px bg-slate-200 hidden sm:block" />
+
+                          {/* Deletar */}
+                          <button
+                            onClick={() => setEditingForm({ ...editingForm, fields: editingForm.fields?.filter(f => f.id !== field.id) })}
+                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                            title="Excluir Pergunta"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add Field Button */}
+                  <div className="flex justify-center mt-8">
+                    <button onClick={addField} className="flex items-center gap-2 px-8 py-3.5 bg-white border border-slate-200 shadow-md text-slate-600 rounded-full hover:shadow-lg hover:text-[#1c2d4f] hover:border-slate-300 transition-all font-bold text-sm">
+                      <Plus size={20} /> Adicionar Pergunta
+                    </button>
+                  </div>
+
                 </div>
               </div>
 
               {/* FOOTER */}
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
-                <Button variant="secondary" className="h-9 px-5 rounded-xl text-xs" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                <Button variant="secondary" className="h-9 px-5 rounded-xl text-xs" onClick={() => setIsModalOpen(false)}>{t.common.cancel}</Button>
                 <Button onClick={handleSaveForm} className="h-9 px-6 rounded-xl text-xs font-bold shadow-md shadow-primary-600/20 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f]">
                   <Save size={14} className="mr-2" /> Gravar Modelo
                 </Button>
@@ -807,7 +904,7 @@ export const FormManagement: React.FC = () => {
                 </div>
               </div>
               <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-6 rounded-b-2xl">
-                <Button variant="secondary" className="rounded-2xl px-8" onClick={() => setIsRuleModalOpen(false)}>Cancelar</Button>
+                <Button variant="secondary" className="rounded-2xl px-8" onClick={() => setIsRuleModalOpen(false)}>{t.common.cancel}</Button>
                 <Button onClick={handleSaveRule} className="rounded-2xl px-12 shadow-xl shadow-primary-600/20 font-bold italic">
                   <Workflow size={20} className="mr-3" /> Aplicar Vínculo
                 </Button>

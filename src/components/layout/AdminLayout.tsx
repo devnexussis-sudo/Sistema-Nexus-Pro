@@ -14,6 +14,7 @@ import { supabase } from '../../lib/supabase';
 import { Button } from '../ui/Button';
 
 import { ResilienceIndicator } from '../ResilienceIndicator';
+import { useI18n } from '../../i18n';
 
 interface AdminLayoutProps {
     children: React.ReactNode;
@@ -68,21 +69,23 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         return user.enabledModules[moduleId] !== false;
     };
 
+    const { t } = useI18n();
+
     const menuItems = [
-        { path: '/admin', id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, visible: true, enabled: isModuleEnabled('dashboard') },
-        { path: '/admin/orders', id: 'orders', label: 'Atividade', icon: ClipboardList, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-        { path: '/admin/calendar', id: 'calendar', label: 'Agenda', icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
-        { path: '/admin/map', id: 'map', label: 'Visão de campo', icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
-        { path: '/admin/financial', id: 'financial', label: 'Financeiro', icon: DollarSign, visible: hasPermission('financial', 'read'), enabled: isModuleEnabled('financial') },
-        { path: '/admin/quotes', id: 'quotes', label: 'Orçamentos', icon: FileText, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
-        { path: '/admin/stock', id: 'stock', label: 'Estoque', icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
-        { path: '/admin/contracts', id: 'contracts', label: 'Contratos', icon: CalendarClock, visible: hasPermission('contracts', 'read'), enabled: isModuleEnabled('contracts') },
-        { path: '/admin/customers', id: 'clients', label: 'Cliente', icon: Users, visible: hasPermission('customers', 'read'), enabled: isModuleEnabled('clients') },
-        { path: '/admin/equipments', id: 'equip', label: 'Ativos', icon: Box, visible: hasPermission('equipments', 'read'), enabled: isModuleEnabled('equip') },
-        { path: '/admin/forms', id: 'forms', label: 'Formulários', icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
-        { path: '/admin/technicians', id: 'techs', label: 'Técnicos', icon: Wrench, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('techs') },
-        { path: '/admin/users', id: 'users', label: 'Usuários', icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
-        { path: '/admin/settings', id: 'settings', label: 'Configurações', icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
+        { path: '/admin', id: 'dashboard', label: t.nav.dashboard, icon: LayoutDashboard, visible: true, enabled: isModuleEnabled('dashboard') },
+        { path: '/admin/orders', id: 'orders', label: t.nav.orders, icon: ClipboardList, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
+        { path: '/admin/calendar', id: 'calendar', label: t.nav.calendar, icon: Calendar, visible: hasPermission('orders', 'read'), enabled: isModuleEnabled('orders') },
+        { path: '/admin/map', id: 'map', label: t.nav.map, icon: Navigation, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('map') },
+        { path: '/admin/financial', id: 'financial', label: t.nav.financial, icon: DollarSign, visible: hasPermission('financial', 'read'), enabled: isModuleEnabled('financial') },
+        { path: '/admin/quotes', id: 'quotes', label: t.nav.quotes, icon: FileText, visible: hasPermission('quotes', 'read'), enabled: isModuleEnabled('quotes') },
+        { path: '/admin/stock', id: 'stock', label: t.nav.stock, icon: Package, visible: hasPermission('stock', 'read'), enabled: isModuleEnabled('stock') },
+        { path: '/admin/contracts', id: 'contracts', label: t.nav.contracts, icon: CalendarClock, visible: hasPermission('contracts', 'read'), enabled: isModuleEnabled('contracts') },
+        { path: '/admin/customers', id: 'clients', label: t.nav.customers, icon: Users, visible: hasPermission('customers', 'read'), enabled: isModuleEnabled('clients') },
+        { path: '/admin/equipments', id: 'equip', label: t.nav.equipments, icon: Box, visible: hasPermission('equipments', 'read'), enabled: isModuleEnabled('equip') },
+        { path: '/admin/forms', id: 'forms', label: t.nav.forms, icon: Workflow, visible: hasPermission('forms', 'read'), enabled: isModuleEnabled('forms') },
+        { path: '/admin/technicians', id: 'techs', label: t.nav.technicians, icon: Wrench, visible: hasPermission('technicians', 'read'), enabled: isModuleEnabled('techs') },
+        { path: '/admin/users', id: 'users', label: t.nav.users, icon: ShieldAlert, visible: hasPermission('manageUsers'), enabled: isModuleEnabled('users') },
+        { path: '/admin/settings', id: 'settings', label: t.nav.settings, icon: Settings, visible: hasPermission('settings'), enabled: isModuleEnabled('settings') },
     ].filter(item => item.visible);
 
     const activeItem = menuItems.find(item =>
@@ -147,9 +150,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     );
 
     return (
-        <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-poppins">
+        <div className="flex flex-col h-screen bg-slate-50 overflow-hidden font-poppins print:h-auto print:overflow-visible print:block">
             {/* Header Global */}
-            <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm shrink-0 border-b border-slate-200">
+            <header className="h-12 bg-white text-slate-900 flex justify-between items-center z-[100] shadow-sm shrink-0 border-b border-slate-200 print:hidden">
                 <div className="flex items-center">
                     {/* Mobile: Hamburger button */}
                     <button
@@ -190,7 +193,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     {/* User info — hidden on very small screens */}
                     <div className="hidden sm:flex flex-col items-end border-r border-slate-100 pr-6">
                         <span className="text-sm font-semibold text-slate-900 tracking-tight">{user?.name}</span>
-                        <span className="text-[10px] font-medium text-slate-400  tracking-tighter">administrador</span>
+                        <span className="text-[10px] font-medium text-slate-400  tracking-tighter">{t.layout.adminRole}</span>
                     </div>
                     <div className="flex items-center gap-2 relative">
                         <button onClick={() => setShowInbox(!showInbox)} className="p-2 text-slate-400 hover:text-[#1c2d4f] hover:bg-slate-50 rounded-md transition-all relative">
@@ -202,12 +205,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         {showInbox && (
                             <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden z-[200] max-h-[400px] flex flex-col">
                                 <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-tight">Caixa de Mensagens</h3>
-                                    <span className="text-[10px] text-slate-400">{systemNotifications.length} avisos</span>
+                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-tight">{t.layout.inbox}</h3>
+                                    <span className="text-[10px] text-slate-400">{systemNotifications.length} {t.layout.notices}</span>
                                 </div>
                                 <div className="overflow-y-auto flex-1 p-2 space-y-2 custom-scrollbar">
                                     {systemNotifications.length === 0 ? (
-                                        <div className="p-4 text-center text-slate-400 text-xs">Nenhuma mensagem.</div>
+                                        <div className="p-4 text-center text-slate-400 text-xs">{t.layout.noMessages}</div>
                                     ) : (
                                         systemNotifications.map(notif => (
                                             <div key={notif.id} className={`p-3 rounded-lg border text-left ${notif.isRead ? 'bg-white border-slate-100 opacity-75' : 'bg-blue-50/50 border-blue-100'}`}>
@@ -223,7 +226,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                                                         onClick={() => onMarkNotificationRead && onMarkNotificationRead(notif.id)}
                                                         className="mt-2 text-[9px] font-bold text-blue-600 hover:text-blue-700 uppercase"
                                                     >
-                                                        Marcar como lido
+                                                        {t.layout.markAsRead}
                                                     </button>
                                                 )}
                                             </div>
@@ -238,7 +241,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
             {/* UNREAD NOTIFICATION POPUP (MODAL) */}
             {systemNotifications.filter(n => !n.isRead).slice(0, 1).map(activeNotif => (
-                <div key={activeNotif.id} className="fixed inset-0 z-[999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                <div key={activeNotif.id} className="fixed inset-0 z-[999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in print:hidden">
                     <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
                         <div className={`p-6 border-b ${
                             activeNotif.priority === 'urgent' ? 'bg-rose-50 border-rose-100' :
@@ -280,10 +283,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 </div>
             ))}
 
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 overflow-hidden print:overflow-visible print:block">
                 {/* ── Mobile Sidebar Overlay ─────────────────────────────── */}
                 {isMobileSidebarOpen && (
-                    <div className="fixed inset-0 z-[300] lg:hidden">
+                    <div className="fixed inset-0 z-[300] lg:hidden print:hidden">
                         {/* Backdrop */}
                         <div 
                             className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm animate-fade-in"
@@ -345,7 +348,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 )}
 
                 {/* ── Desktop Sidebar ───────────────────────────────────── */}
-                <aside className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16' : 'w-52'} bg-[#1c2d4f] h-full flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5`}>
+                <aside className={`hidden lg:flex ${isSidebarCollapsed ? 'w-16' : 'w-52'} bg-[#1c2d4f] h-full flex-col shadow-none z-50 transition-all duration-300 ease-in-out relative border-r border-white/5 print:hidden`}>
                     <button
                         onClick={onToggleSidebar}
                         className="absolute -right-3 top-6 w-6 h-6 bg-[#1c2d4f] text-white/50 border border-white/10 rounded-full flex items-center justify-center hover:text-white transition-all z-[60]"
@@ -375,14 +378,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     </div>
                 </aside>
 
-                <main className="flex-1 overflow-hidden flex flex-col relative bg-slate-50/50">
+                <main className="flex-1 min-w-0 overflow-hidden flex flex-col relative bg-slate-50/50 print:bg-transparent print:overflow-visible print:block print:h-auto">
                     {/* Mobile: Page title bar */}
-                    <div className="lg:hidden flex items-center h-10 px-4 bg-white border-b border-slate-100 shrink-0">
+                    <div className="lg:hidden flex items-center h-10 px-4 bg-white border-b border-slate-100 shrink-0 print:hidden">
                         <h2 className="text-xs font-semibold text-slate-700 lowercase tracking-tight">
                             {activeItem?.label || 'dashboard'}
                         </h2>
                     </div>
-                    <div className="flex-1 overflow-y-auto relative custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto relative custom-scrollbar print:overflow-visible print:block">
                         {children}
                     </div>
                 </main>

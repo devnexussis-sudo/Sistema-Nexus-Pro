@@ -83,7 +83,8 @@ class TenantContextManager {
             // Se chegamos aqui, não há sessão alguma. Verificamos URL apenas
             // para rotas públicas (ex: /view-quote/?tid=xxx) onde é legítimo.
             const isPublicRoute = window.location.hash.startsWith('#/order/view/') ||
-                window.location.hash.startsWith('#/view-quote/');
+                window.location.hash.startsWith('#/view-quote/') ||
+                window.location.hash.startsWith('#/view/');
             // 2. URL Parameter (v7 logic) - Suporta Search e Hash (Importante para HashRouter)
             const getParam = (name: string) => {
                 const searchParams = new URLSearchParams(window.location.search);
