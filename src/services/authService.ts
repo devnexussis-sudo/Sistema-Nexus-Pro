@@ -190,6 +190,7 @@ export const AuthService = {
             avatar: dbUser.avatar,
             active: dbUser.active,
             groupId: dbUser.group_id,
+            groupIds: dbUser.group_ids || (dbUser.group_id ? [dbUser.group_id] : []),
             groupName: groupName,
             permissions: permissions
         };

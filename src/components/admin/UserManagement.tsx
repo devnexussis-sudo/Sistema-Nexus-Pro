@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useI18n } from '../../i18n';
+import * as reactWindow from 'react-window';
+const List = reactWindow.FixedSizeList || (reactWindow as any).default?.FixedSizeList || (reactWindow as any).FixedSizeList;
+import { useGroupStore } from '../../store/groupStore';
+
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
@@ -16,30 +19,261 @@ import { AuthService } from '../../services/authService';
 import { TenantService } from '../../services/tenantService';
 import { useUsers, useUserGroups } from '../../hooks/nexusHooks';
 import { User, UserRole, UserPermissions, UserGroup, DEFAULT_PERMISSIONS, ADMIN_PERMISSIONS } from '../../types';
+import { useI18n } from '../../i18n/I18nContext';
 
+const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtitle, onBack, disabled = false, linkedUsers }: { perms: UserPermissions, onUpdate: (p: UserPermissions) => void, title: string, subtitle: string, onBack: () => void, disabled?: boolean, linkedUsers?: User[] }) => {
+  const [activeTab, setActiveTab] = React.useState<'permissions' | 'users'>('permissions');
+  const modules = [
+    { id: 'orders', label: 'Ordens de Serviço (O.S.)', icon: ClipboardList },
+    { id: 'customers', label: 'Cadastro de Clientes', icon: Building2 },
+    { id: 'equipments', label: 'Inventário de Ativos', icon: Box },
+    { id: 'technicians', label: 'Equipe Técnica', icon: UserCheck },
+    { id: 'quotes', label: 'Orçamentos e Vendas', icon: FileText },
+    { id: 'contracts', label: 'Contratos e PMOC', icon: CalendarClock },
+    { id: 'stock', label: 'Estoque de Peças', icon: Package },
+    { id: 'forms', label: 'Processos e Checklists', icon: Workflow },
+  ];
 
+  return (
+    <div className="p-8 space-y-8 animate-fade-in flex flex-col h-full bg-slate-50/30 overflow-hidden">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <button onClick={onBack} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-400 hover:text-[#1c2d4f] transition-all shadow-sm">
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-medium text-slate-900 tracking-tight leading-none">{title}</h1>
+            <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-[0.2em]">{subtitle}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          {linkedUsers && (
+            <div className="flex bg-white/60 p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm shrink-0">
+              <button
+                onClick={() => setActiveTab('permissions')}
+                className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'permissions' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
+              >
+                <ShieldCheck size={14} /> <span className="whitespace-nowrap">Permissões de Acesso</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
+              >
+                <Users size={14} /> <span className="whitespace-nowrap">Usuários Vinculados ({linkedUsers.length})</span>
+              </button>
+            </div>
+          )}
+          {disabled && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-600 px-4 py-2 rounded-xl flex items-center gap-2">
+              <ShieldCheck size={16} />
+              <span className="text-[10px] font-bold">Perfil Master Protegido</span>
+            </div>
+          )}
+        </div>
+      </div>
 
+      <div className="flex-1 overflow-auto custom-scrollbar pr-2">
+        {activeTab === 'permissions' ? (
+          <>
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-6">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead className="bg-slate-50">
+                <tr className="text-[9px] font-bold text-slate-400 tracking-[0.2em] uppercase text-center border-b border-slate-200">
+                  <th className="px-6 py-4 text-left">Módulo do Sistema</th>
+                  <th className="px-4 py-4 w-24">Consultar</th>
+                  <th className="px-4 py-4 w-24">Criar Novo</th>
+                  <th className="px-4 py-4 w-24">Editar</th>
+                  <th className="px-4 py-4 w-24">Excluir</th>
+                </tr>
+              </thead>
+              <tbody>
+                {modules.map((mod) => (
+                  <tr key={mod.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group">
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-slate-100 rounded-xl text-slate-500 group-hover:bg-[#1c2d4f] group-hover:text-white transition-colors">
+                          <mod.icon size={16} />
+                        </div>
+                        <span className="text-[12px] font-bold text-slate-700">{mod.label}</span>
+                      </div>
+                    </td>
+                    {[
+                      { key: 'read' },
+                      { key: 'create' },
+                      { key: 'update' },
+                      { key: 'delete' },
+                    ].map(action => {
+                      const isChecked = (perms as any)[mod.id]?.[action.key] || false;
+                      return (
+                        <td key={action.key} className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => {
+                              if (disabled) return;
+                              const newPerms = { ...perms };
+                              const modulePerms = (newPerms as any)[mod.id] || { create: false, read: false, update: false, delete: false };
+                              (newPerms as any)[mod.id] = { ...modulePerms, [action.key]: !modulePerms[action.key] };
+                              onUpdate(newPerms);
+                            }}
+                            className={`w-11 h-6 rounded-full relative transition-all mx-auto block focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#10b981] ${isChecked ? 'bg-[#10b981]' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+                          >
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
+            <div className="p-5 border-b border-slate-100 bg-emerald-50/50 flex items-center gap-4">
+              <div className="p-2.5 bg-emerald-100 rounded-xl text-emerald-600"><Building2 size={16} /></div>
+              <h3 className="font-bold text-slate-800 text-[13px]">Financeiro e Custos</h3>
+            </div>
+            <div className="p-3">
+              {[
+                { key: 'read', label: 'Visualizar Custos e Faturamento' },
+                { key: 'update', label: 'Alterar Tabelas de Preço' },
+              ].map((action) => {
+                const isChecked = perms.financial?.[action.key as keyof typeof perms.financial] || false;
+                return (
+                  <div key={action.key} className="flex items-center justify-between p-3 px-4 hover:bg-slate-50 rounded-2xl transition-colors">
+                    <span className="text-[12px] font-bold text-slate-600">{action.label}</span>
+                    <button
+                      onClick={() => {
+                        if (disabled) return;
+                        const newPerms = { ...perms };
+                        if (!newPerms.financial) newPerms.financial = { read: false, update: false };
+                        newPerms.financial = { ...newPerms.financial, [action.key]: !newPerms.financial[action.key as keyof typeof perms.financial] };
+                        onUpdate(newPerms);
+                      }}
+                      className={`w-11 h-6 rounded-full relative transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500 ${isChecked ? 'bg-emerald-500' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
+            <div className="p-5 border-b border-slate-100 bg-amber-50/50 flex items-center gap-4">
+              <div className="p-2.5 bg-amber-100 rounded-xl text-amber-600"><ShieldAlert size={16} /></div>
+              <h3 className="font-bold text-slate-800 text-[13px]">Privilégios de Sistema</h3>
+            </div>
+            <div className="p-3">
+              {[
+                { key: 'settings', label: 'Acesso a Configurações Globais', icon: Settings },
+                { key: 'manageUsers', label: 'Gestão de Usuários e Grupos', icon: ShieldCheck },
+              ].map((item) => {
+                const isChecked = (perms as any)[item.key] || false;
+                return (
+                  <div key={item.key} className="flex items-center justify-between p-3 px-4 hover:bg-slate-50 rounded-2xl transition-colors">
+                    <div className="flex items-center gap-3">
+                      <item.icon size={16} className="text-slate-400" />
+                      <span className="text-[12px] font-bold text-slate-600">{item.label}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (disabled) return;
+                        const newPerms = { ...perms, [item.key]: !isChecked };
+                        onUpdate(newPerms);
+                      }}
+                      className={`w-11 h-6 rounded-full relative transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-amber-500 ${isChecked ? 'bg-amber-500' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        </>
+        ) : (
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden h-full">
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 bg-slate-50 z-10">
+                <tr className="text-[9px] font-bold text-slate-400 tracking-[0.3em] uppercase text-center border-b border-slate-200">
+                  <th className="px-6 py-4 text-left">Administrador / Identidade</th>
+                  <th className="px-4 py-4 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {linkedUsers && linkedUsers.length > 0 ? linkedUsers.map(user => (
+                  <tr key={user.id} className={`hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group ${!user.active ? 'opacity-60' : ''}`}>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="shrink-0">
+                          <div className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center transition-all group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20 group-hover:shadow-sm">
+                            <Users size={18} />
+                          </div>
+                        </div>
+                        <div className="truncate">
+                          <p className="text-slate-900 tracking-tighter text-[13px] font-bold truncate max-w-[250px]">{user.name}</p>
+                          <p className="text-[11px] font-bold text-slate-400 mt-0.5 truncate max-w-[250px]">{user.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-center whitespace-nowrap">
+                      <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold border transition-all ${user.active ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                        {user.active ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={2} className="py-24 text-center">
+                      <Users size={48} className="mx-auto text-slate-200 mb-4 opacity-50" />
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Nenhum usuário vinculado</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const UserManagement: React.FC = () => {
   const { t } = useI18n();
 
   const isMasterMode = window.location.pathname === '/master';
+  const {
+    users,
+    groups,
+    setUsers,
+    setGroups,
+    isGroupModalOpen,
+    setIsGroupModalOpen,
+    editingGroup,
+    setEditingGroup,
+    selectedGroup,
+    setSelectedGroup,
+    activeSubView,
+    setActiveSubView,
+    isSaving,
+    setIsSaving,
+    groupToDelete,
+    setGroupToDelete,
+    selectedUser,
+    setSelectedUser,
+  } = useGroupStore();
   const [activeTab, setActiveTab] = useState<'users' | 'groups'>('users');
-  const [activeSubView, setActiveSubView] = useState<'list' | 'permissions'>('list');
-  const [users, setUsers] = useState<User[]>([]);
-  const [groups, setGroups] = useState<UserGroup[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editingGroup, setEditingGroup] = useState<UserGroup | null>(null);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState<UserGroup | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showFilters, setShowFilters] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [groupToDelete, setGroupToDelete] = useState<UserGroup | null>(null);
-
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<Partial<User>>({
     name: '',
     email: '',
@@ -212,143 +446,7 @@ export const UserManagement: React.FC = () => {
   const paginatedUsers = users.length > 0 ? filteredUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE) : [];
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
 
-  const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtitle }: { perms: UserPermissions, onUpdate: (p: UserPermissions) => void, title: string, subtitle: string }) => {
-    const modules = [
-      { id: 'orders', label: 'Ordens de Serviço (O.S.)', icon: ClipboardList },
-      { id: 'customers', label: 'Cadastro de Clientes', icon: Building2 },
-      { id: 'equipments', label: 'Inventário de Ativos', icon: Box },
-      { id: 'technicians', label: 'Equipe Técnica', icon: UserCheck },
-      { id: 'quotes', label: 'Orçamentos e Vendas', icon: FileText },
-      { id: 'contracts', label: 'Contratos e PMOC', icon: CalendarClock },
-      { id: 'stock', label: 'Estoque de Peças', icon: Package },
-      { id: 'forms', label: 'Processos e Checklists', icon: Workflow },
-    ];
 
-    return (
-      <div className="p-8 space-y-8 animate-fade-in flex flex-col h-full bg-slate-50/30 overflow-hidden">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <button onClick={() => { setActiveSubView('list'); setSelectedUser(null); setSelectedGroup(null); }} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-400 hover:text-primary-600 transition-all shadow-sm">
-              <ArrowLeft size={24} />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900  italic tracking-tighter leading-none">{title}</h1>
-              <p className="text-[10px] font-bold text-primary-500   mt-2 italic shadow-sm">{subtitle}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-auto custom-scrollbar space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
-            {modules.map((mod) => (
-              <div key={mod.id} className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
-                <div className="p-8 border-b border-slate-200 bg-slate-50/30 flex items-center gap-4">
-                  <div className="p-3 bg-primary-600 rounded-2xl text-white shadow-lg"><mod.icon size={20} /></div>
-                  <h3 className="font-bold text-slate-900  italic tracking-tight text-sm">{mod.label}</h3>
-                </div>
-                <div className="p-8 grid grid-cols-2 gap-4">
-                  {[
-                    { key: 'read', label: 'Consultar' },
-                    { key: 'create', label: 'Criar Novo' },
-                    { key: 'update', label: 'Editar' },
-                    { key: 'delete', label: 'Excluir' },
-                  ].map((action) => {
-                    const isChecked = (perms as any)[mod.id]?.[action.key] || false;
-                    return (
-                      <button
-                        key={action.key}
-                        onClick={() => {
-                          const newPerms = { ...perms };
-                          const modulePerms = (newPerms as any)[mod.id] || { create: false, read: false, update: false, delete: false };
-                          (newPerms as any)[mod.id] = {
-                            ...modulePerms,
-                            [action.key]: !modulePerms[action.key]
-                          };
-                          onUpdate(newPerms);
-                        }}
-                        className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${isChecked
-                          ? 'bg-primary-50 border-primary-100 text-primary-700'
-                          : 'bg-white border-slate-100 text-slate-400 opacity-60'
-                          }`}
-                      >
-                        <span className="text-[10px] font-bold  italic ">{action.label}</span>
-                        <div className={`w-8 h-4 rounded-full relative transition-all ${isChecked ? 'bg-primary-600' : 'bg-slate-200'}`}>
-                          <div className={`absolute top-1 w-2 h-2 rounded-full bg-white transition-all ${isChecked ? 'left-5' : 'left-1'}`} />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-
-            <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 p-8 space-y-6 lg:col-span-2">
-              <div className="flex items-center gap-4 border-b border-slate-200 pb-6 mb-2">
-                <div className="p-3 bg-emerald-500 rounded-2xl text-white shadow-lg"><Building2 size={20} /></div>
-                <h3 className="font-bold text-slate-900  italic tracking-tight text-sm">Financeiro e Custos</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {[
-                  { key: 'read', label: 'Visualizar Custos/Faturamento' },
-                  { key: 'update', label: 'Alterar Tabelas de Preço' },
-                ].map((action) => {
-                  const isChecked = perms.financial?.[action.key as keyof typeof perms.financial] || false;
-                  return (
-                    <button
-                      key={action.key}
-                      onClick={() => {
-                        const newPerms = { ...perms };
-                        if (!newPerms.financial) newPerms.financial = { read: false, update: false };
-                        newPerms.financial = { ...newPerms.financial, [action.key]: !newPerms.financial[action.key as keyof typeof perms.financial] };
-                        onUpdate(newPerms);
-                      }}
-                      className={`flex items-center justify-between p-5 rounded-3xl border transition-all ${isChecked
-                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                        : 'bg-slate-50 border-slate-100 text-slate-400 opacity-60'
-                        }`}
-                    >
-                      <span className="text-[10px] font-bold  italic  leading-tight text-left">{action.label}</span>
-                      <div className={`w-8 h-4 rounded-full relative transition-all ${isChecked ? 'bg-emerald-600' : 'bg-slate-200'}`}>
-                        <div className={`absolute top-1 w-2 h-2 rounded-full bg-white transition-all ${isChecked ? 'left-5' : 'left-1'}`} />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/40 p-8 space-y-6 lg:col-span-2">
-              <div className="flex items-center gap-4 border-b border-slate-200 pb-6 mb-2">
-                <div className="p-3 bg-amber-500 rounded-2xl text-white shadow-lg"><ShieldAlert size={20} /></div>
-                <h3 className="font-bold text-slate-900  italic tracking-tight text-sm">Privilégios de Sistema e Governança</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[
-                  { key: 'settings', label: 'Acesso a Configurações', icon: Settings },
-                  { key: 'manageUsers', label: 'Gestão de Usuários', icon: ShieldCheck },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={() => {
-                      const newPerms = { ...perms, [item.key]: !(perms as any)[item.key] };
-                      onUpdate(newPerms);
-                    }}
-                    className={`flex items-center gap-4 p-6 rounded-3xl border transition-all ${(perms as any)[item.key]
-                      ? 'bg-primary-50 border-primary-200 text-primary-700 ring-2 ring-primary-100'
-                      : 'bg-slate-50 border-slate-100 text-slate-400'
-                      }`}
-                  >
-                    <item.icon size={20} />
-                    <span className="text-[10px] font-bold  italic tracking-tighter text-left leading-tight">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   if (activeSubView === 'permissions') {
     if (selectedUser) {
@@ -358,21 +456,28 @@ export const UserManagement: React.FC = () => {
           onUpdate={(p) => handleUpdatePermissions(selectedUser.id, p)}
           title="Privilégios do Usuário"
           subtitle={`Ajustando Perfil: ${selectedUser.name}`}
+          onBack={() => { setActiveSubView('list'); setSelectedUser(null); setSelectedGroup(null); }}
         />
       );
     }
     if (selectedGroup) {
+      const isMasterGroup = selectedGroup.name.toLowerCase() === 'administradores' || selectedGroup.isSystem;
+      const groupUsers = users.filter(u => (u.groupIds || []).includes(selectedGroup.id) || u.groupId === selectedGroup.id);
       return (
         <PermissionEditor
-          perms={selectedGroup.permissions || DEFAULT_PERMISSIONS}
+          perms={isMasterGroup ? ADMIN_PERMISSIONS : (selectedGroup.permissions || DEFAULT_PERMISSIONS)}
           onUpdate={async (p) => {
+            if (isMasterGroup) return; // Prevent saving if master
             const updated = { ...selectedGroup, permissions: p };
+            setSelectedGroup(updated); // Optimistic UI update without triggering a remount because PermissionEditor is now external!
             await TenantService.updateUserGroup(updated);
-            setSelectedGroup(updated);
             loadData();
           }}
           title="Permissões do Grupo"
           subtitle={`Configurando Grupo: ${selectedGroup.name}`}
+          onBack={() => { setActiveSubView('list'); setSelectedUser(null); setSelectedGroup(null); }}
+          disabled={isMasterGroup}
+          linkedUsers={groupUsers}
         />
       );
     }
@@ -455,19 +560,18 @@ export const UserManagement: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-[2rem] flex flex-col overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 min-h-0">
         <div className="flex-1 overflow-auto p-0 custom-scrollbar">
           {activeTab === 'users' ? (
-            <table className="w-full border-separate border-spacing-y-1">
+            <table className="w-full border-collapse">
               <thead className="sticky top-0 bg-white/80 backdrop-blur-md z-10">
                 <tr className="text-[10px] font-bold text-slate-400  tracking-[0.3em] text-center">
                   <th className="px-4 py-2">administrador / identidade</th>
-                  <th className="px-4 py-2">grupo de acesso</th>
                   <th className="px-4 py-2 text-center">status</th>
                   <th className="px-4 py-2 text-right pr-6">ações</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedUsers.length > 0 ? paginatedUsers.map(user => (
-                  <tr key={user.id} className={`bg-white hover:bg-primary-50/40 transition-all group shadow-sm hover:shadow-md ${!user.active ? 'opacity-60' : ''}`}>
-                    <td className="px-4 py-1.5 rounded-l-[1.5rem] border border-slate-100 border-r-0">
+                  <tr key={user.id} className={`bg-white hover:bg-slate-50 transition-all group ${!user.active ? 'opacity-60' : ''}`}>
+                    <td className="px-4 py-3 border-b border-slate-100">
                       <div className="flex items-center gap-4">
                         <div className="shrink-0">
                           <div className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center transition-all group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20 group-hover:shadow-sm">
@@ -480,36 +584,13 @@ export const UserManagement: React.FC = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-1.5 border-y border-slate-100">
-                      <div className="flex flex-wrap gap-1 max-w-[180px]">
-                        {(user.groupIds && user.groupIds.length > 0
-                          ? user.groupIds
-                          : user.groupId ? [user.groupId] : []
-                        ).slice(0, 2).map(gid => {
-                          const grp = groups.find(g => g.id === gid);
-                          return grp ? (
-                            <span key={gid} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-primary-50 text-primary-600 border border-primary-100">
-                              <ShieldCheck size={9} className="shrink-0" />
-                              <span className="truncate max-w-[80px]">{grp.name}</span>
-                            </span>
-                          ) : null;
-                        })}
-                        {((user.groupIds?.length || 0) > 2) && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-400 border border-slate-200">
-                            +{(user.groupIds?.length || 0) - 2}
-                          </span>
-                        )}
-                        {(!user.groupIds || user.groupIds.length === 0) && !user.groupId && (
-                          <span className="text-[10px] text-slate-300 font-medium">Sem grupo</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-1.5 border-y border-slate-100 text-center whitespace-nowrap">
+
+                    <td className="px-4 py-3 border-b border-slate-100 text-center whitespace-nowrap">
                       <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold   border transition-all ${user.active ? 'bg-primary-50 text-primary-700 border-primary-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
                         {user.active ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
-                    <td className="px-4 py-1.5 rounded-r-[1.5rem] border border-slate-100 border-l-0 text-right pr-4">
+                    <td className="px-4 py-3 border-b border-slate-100 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5 transition-all">
                         <button onClick={() => { setEditingUser(user); setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) }); setGroupSearch(''); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Usuário">
                           <Edit3 size={16} />
@@ -519,7 +600,7 @@ export const UserManagement: React.FC = () => {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={4} className="py-24 text-center">
+                    <td colSpan={3} className="py-24 text-center">
                       <Users size={48} className="mx-auto text-slate-200 mb-4" />
                       <p className="text-[10px] font-bold text-slate-300  italic tracking-[0.2em]">Nenhum usuário localizado</p>
                     </td>
@@ -528,49 +609,72 @@ export const UserManagement: React.FC = () => {
               </tbody>
             </table>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {groups.map(group => (
-                <div key={group.id} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:shadow-primary-500/10 transition-all group border-b-4 border-b-slate-50 hover:border-b-primary-500">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className={`p-4 rounded-2xl ${group.isSystem ? 'bg-amber-100 text-amber-600' : 'bg-primary-100 text-primary-600'}`}>
-                      <FolderTree size={24} />
+            <div className="w-full flex flex-col h-full">
+              <div className="flex sticky top-0 bg-white/80 backdrop-blur-md z-10 text-[10px] font-bold text-slate-400 tracking-[0.3em] px-4 py-2 border-b border-slate-200 uppercase">
+                <div className="flex-1 text-left">grupo / descrição</div>
+                <div className="w-48 text-center">tipo</div>
+                <div className="w-32 text-right pr-6">ações</div>
+              </div>
+              <div className="flex-1">
+                {(() => {
+                  const filteredGroups = groups.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()) || g.description?.toLowerCase().includes(searchTerm.toLowerCase()));
+                  
+                  return filteredGroups.length > 0 ? (
+                    <List
+                      height={500}
+                      itemCount={filteredGroups.length}
+                      itemSize={76}
+                      width="100%"
+                    >
+                      {({ index, style }) => {
+                        const group = filteredGroups[index];
+                        return (
+                          <div style={style} key={group.id} className="flex items-center px-4 py-3 bg-white hover:bg-slate-50 transition-all group border-b border-slate-100">
+                            <div className="flex-1 flex items-center gap-4">
+                              <div className="shrink-0">
+                                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${group.isSystem ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-400 group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20'}`}>
+                                  {group.isSystem ? <ShieldCheck size={18} /> : <FolderTree size={18} />}
+                                </div>
+                              </div>
+                              <div className="truncate">
+                                <p className="text-slate-900 tracking-tighter text-[13px] font-medium truncate max-w-[250px]">{group.name}</p>
+                                <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[300px]">{group.description}</p>
+                              </div>
+                            </div>
+                            <div className="w-48 text-center whitespace-nowrap">
+                              <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold border transition-all ${group.isSystem ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                                {group.isSystem ? 'Sistema Protegido' : 'Customizado'}
+                              </span>
+                            </div>
+                            <div className="w-32 text-right pr-4">
+                              <div className="flex items-center justify-end gap-1.5 transition-all">
+                                <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Configurar Regras de Acesso">
+                                  <Settings size={16} />
+                                </button>
+                                {!group.isSystem && (
+                                  <button
+                                    onClick={() => setGroupToDelete(group)}
+                                    disabled={isSaving}
+                                    className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90"
+                                    title="Excluir Grupo"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }}
+                    </List>
+                  ) : (
+                    <div className="py-24 text-center">
+                      <FolderTree size={48} className="mx-auto text-slate-200 mb-4" />
+                      <p className="text-[10px] font-bold text-slate-300 italic tracking-[0.2em]">Nenhum grupo localizado</p>
                     </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-3 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Configurar Regras de Acesso">
-                        <Settings size={18} />
-                      </button>
-                      {!group.isSystem && (
-                        <button
-                          onClick={() => setGroupToDelete(group)}
-                          disabled={isSaving}
-                          className="p-3 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <h3 className="font-bold text-slate-900  italic tracking-tighter text-lg mb-2">{group.name}</h3>
-                  <p className="text-[11px] text-slate-400 font-bold mb-6 line-clamp-2 h-8 leading-tight">{group.description}</p>
-                  <div className="flex items-center justify-between border-t border-slate-200 pt-6">
-                    <span className="text-[9px] font-bold text-slate-300  ">
-                      {group.isSystem ? 'Perfil Master Protegido' : 'Grupo Customizado'}
-                    </span>
-                    <div className="flex -space-x-2">
-                      {users.filter(u => u.groupId === group.id).slice(0, 3).map(u => (
-                        <div key={u.id} className="w-8 h-8 rounded-xl bg-slate-100 border-2 border-white text-slate-400 flex items-center justify-center shadow-sm">
-                          <Users size={13} />
-                        </div>
-                      ))}
-                      {users.filter(u => u.groupId === group.id).length > 3 && (
-                        <div className="w-8 h-8 rounded-xl bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-slate-400">
-                          +{users.filter(u => u.groupId === group.id).length - 3}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  )
+                })()}
+              </div>
             </div>
           )}
         </div>
@@ -589,7 +693,7 @@ export const UserManagement: React.FC = () => {
       {
         isModalOpen && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
-            <div className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
+            <form onSubmit={handleSaveUser} className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up" autoComplete="off">
 
               {/* HEADER — idêntico ao modal de OS */}
               <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white shrink-0">
@@ -606,17 +710,27 @@ export const UserManagement: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"
-                >
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="submit"
+                    className="rounded-xl px-6 bg-[#1c2d4f] hover:bg-[#1c2d4f]/90 shadow-md py-2.5 h-auto text-xs font-bold"
+                  >
+                    <Save size={16} className="mr-2" />
+                    {editingUser ? 'Atualizar' : 'Salvar'}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
 
               {/* BODY — idêntico ao modal de OS */}
               <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
-                <form onSubmit={handleSaveUser} className="space-y-8 max-w-4xl mx-auto" autoComplete="off">
+                <div className="space-y-8 max-w-4xl mx-auto">
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
 
@@ -816,28 +930,9 @@ export const UserManagement: React.FC = () => {
 
                   </div>
 
-                  {/* Ações */}
-                  <div className="flex justify-end gap-3">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="rounded-xl px-8"
-                      onClick={() => setIsModalOpen(false)}
-                    >
-                      {t.common.cancel}
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="rounded-xl px-12 bg-[#1c2d4f] hover:bg-[#1c2d4f]/90 shadow-md"
-                    >
-                      <Save size={16} className="mr-2" />
-                      {editingUser ? 'Atualizar' : 'Salvar'}
-                    </Button>
-                  </div>
-
-                </form>
+                </div>
               </div>
-            </div>
+            </form>
           </div>
         )
       }
@@ -846,7 +941,7 @@ export const UserManagement: React.FC = () => {
       {
         isGroupModalOpen && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
-            <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl border border-slate-200 flex flex-col animate-scale-up max-h-[92vh]">
+            <form onSubmit={handleSaveGroup} className="bg-white rounded-xl w-full max-w-2xl shadow-2xl border border-slate-200 flex flex-col animate-scale-up max-h-[92vh]">
               <div className="px-8 py-5 border-b border-slate-200 flex justify-between items-center bg-white rounded-t-xl shrink-0">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-[#1c2d4f] border border-slate-200">
@@ -857,11 +952,20 @@ export const UserManagement: React.FC = () => {
                     <p className="text-[10px] text-slate-400 font-bold mt-0.5">Nexus Operacional • categorização de regras</p>
                   </div>
                 </div>
-                <button onClick={() => setIsGroupModalOpen(false)} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"><X size={20} /></button>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="submit"
+                    className="rounded-xl px-6 bg-[#1c2d4f] hover:bg-[#1c2d4f]/90 shadow-md py-2.5 h-auto text-xs font-bold"
+                  >
+                    <Check size={16} className="mr-2" />
+                    {editingGroup ? 'Salvar' : 'Criar Grupo'}
+                  </Button>
+                  <button type="button" onClick={() => setIsGroupModalOpen(false)} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"><X size={20} /></button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
-                <form onSubmit={handleSaveGroup} className="space-y-8 max-w-xl mx-auto">
+                <div className="space-y-8 max-w-xl mx-auto">
                   <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 space-y-6">
                     <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3 mb-6">dados do grupo</h3>
 
@@ -881,15 +985,10 @@ export const UserManagement: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="pt-4 flex justify-end gap-4">
-                    <Button type="button" variant="secondary" className="rounded-xl px-8" onClick={() => setIsGroupModalOpen(false)}>Descartar</Button>
-                    <Button type="submit" className="rounded-xl px-12 bg-[#1c2d4f] hover:bg-[#1c2d4f]/90 shadow-md">
-                      <Check size={18} className="mr-2" /> {editingGroup ? 'Salvar' : 'Criar Grupo'}
-                    </Button>
-                  </div>
-                </form>
+
+                </div>
               </div>
-            </div>
+            </form>
           </div>
         )
       }

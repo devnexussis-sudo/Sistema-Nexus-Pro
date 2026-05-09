@@ -62,11 +62,31 @@ export class AppError extends Error {
     public readonly originalError?: Error;
     public readonly timestamp: string;
 
+    private static readonly USER_MESSAGES: Record<ErrorCode, string> = {
+        [ErrorCode.AUTH_FAILED]: 'Falha na autenticação. Verifique suas credenciais.',
+        [ErrorCode.AUTH_EXPIRED]: 'Sua sessão expirou. Faça login novamente.',
+        [ErrorCode.AUTH_INVALID]: 'Credenciais inválidas.',
+        [ErrorCode.FORBIDDEN]: 'Você não tem permissão para esta ação.',
+        [ErrorCode.INSUFFICIENT_PERMISSIONS]: 'Permissões insuficientes.',
+        [ErrorCode.VALIDATION_ERROR]: 'Dados inválidos. Verifique os campos.',
+        [ErrorCode.INVALID_INPUT]: 'Entrada inválida.',
+        [ErrorCode.DB_CONNECTION_ERROR]: 'Erro de conexão. Tente novamente.',
+        [ErrorCode.DB_QUERY_ERROR]: 'Erro ao processar dados.',
+        [ErrorCode.DB_CONSTRAINT_VIOLATION]: 'Operação violou regras de integridade.',
+        [ErrorCode.RESOURCE_NOT_FOUND]: 'Recurso não encontrado.',
+        [ErrorCode.DUPLICATE_RESOURCE]: 'Recurso já existe.',
+        [ErrorCode.OPERATION_FAILED]: 'Operação falhou. Tente novamente.',
+        [ErrorCode.NETWORK_ERROR]: 'Erro de rede. Verifique sua conexão.',
+        [ErrorCode.TIMEOUT_ERROR]: 'Operação demorou muito. Tente novamente.',
+        [ErrorCode.RATE_LIMIT_EXCEEDED]: 'Muitas requisições. Aguarde um momento.',
+        [ErrorCode.UNKNOWN_ERROR]: 'Ocorreu um erro. Tente novamente.',
+    };
+
     constructor(metadata: ErrorMetadata) {
         super(metadata.message);
         this.name = 'AppError';
         this.code = metadata.code;
-        this.userMessage = metadata.userMessage || 'Ocorreu um erro. Tente novamente.';
+        this.userMessage = metadata.userMessage || AppError.USER_MESSAGES[metadata.code] || 'Ocorreu um erro. Tente novamente.';
         this.retryable = metadata.retryable ?? false;
         this.statusCode = metadata.statusCode ?? 500;
         this.context = metadata.context || {};

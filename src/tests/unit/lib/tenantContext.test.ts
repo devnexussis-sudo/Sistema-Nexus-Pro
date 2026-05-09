@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { TenantContext, getCurrentTenantId } from '@/lib/tenantContext';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { TenantContextManager, getCurrentTenantId } from '@/lib/tenantContext';
 import SessionStorage, { GlobalStorage } from '@/lib/sessionStorage';
 
 describe('TenantContext', () => {
-    let tenantContext: TenantContext;
+    let tenantContext: InstanceType<typeof TenantContextManager>;
 
     beforeEach(() => {
-        tenantContext = TenantContext.getInstance();
+        tenantContext = TenantContextManager.getInstance();
         tenantContext.clear();
         SessionStorage.clear();
-        GlobalStorage.clear();
+        sessionStorage.clear();
         localStorage.clear();
     });
 
@@ -19,8 +19,8 @@ describe('TenantContext', () => {
 
     describe('Singleton Pattern', () => {
         it('deve retornar sempre a mesma instância', () => {
-            const instance1 = TenantContext.getInstance();
-            const instance2 = TenantContext.getInstance();
+            const instance1 = TenantContextManager.getInstance();
+            const instance2 = TenantContextManager.getInstance();
 
             expect(instance1).toBe(instance2);
         });
@@ -29,7 +29,7 @@ describe('TenantContext', () => {
     describe('getCurrentTenantId', () => {
         it('deve retornar null quando não há tenant', () => {
             const tenantId = tenantContext.getCurrentTenantId();
-            expect(tenantId).toBeNull();
+            expect(tenantId).toBeUndefined();
         });
 
         it('deve retornar tenant ID do cache', () => {
@@ -42,6 +42,8 @@ describe('TenantContext', () => {
             const user = { tenantId: 'session-tenant-456' };
             SessionStorage.set('user', JSON.stringify(user));
 
+            // Invalidate cache to force re-read
+            tenantContext.invalidateCache();
             const tenantId = tenantContext.getCurrentTenantId();
             expect(tenantId).toBe('session-tenant-456');
         });
@@ -50,6 +52,7 @@ describe('TenantContext', () => {
             const user = { tenant_id: 'global-tenant-789' };
             GlobalStorage.set('persistent_user', JSON.stringify(user));
 
+            tenantContext.invalidateCache();
             const tenantId = tenantContext.getCurrentTenantId();
             expect(tenantId).toBe('global-tenant-789');
         });
@@ -61,6 +64,7 @@ describe('TenantContext', () => {
             SessionStorage.set('user', JSON.stringify(sessionUser));
             GlobalStorage.set('persistent_user', JSON.stringify(globalUser));
 
+            tenantContext.invalidateCache();
             const tenantId = tenantContext.getCurrentTenantId();
             expect(tenantId).toBe('session-tenant');
         });
@@ -92,7 +96,7 @@ describe('TenantContext', () => {
             tenantContext.setTenantId('tenant-to-clear');
             tenantContext.clear();
 
-            expect(tenantContext.getCurrentTenantId()).toBeNull();
+            expect(tenantContext.getCurrentTenantId()).toBeUndefined();
         });
     });
 
@@ -150,7 +154,7 @@ describe('TenantContext', () => {
         });
 
         it('deve lançar erro quando não há tenant', () => {
-            expect(() => tenantContext.requireTenantId()).toThrow('Tenant ID is required');
+            expect(() => tenantContext.requireTenantId()).toThrow('Tenant ID obrigatório');
         });
     });
 

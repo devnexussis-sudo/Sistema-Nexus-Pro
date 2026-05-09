@@ -53,7 +53,7 @@ interface AdminAppProps {
 const getInitialDateRange = () => {
     const end = new Date();
     const start = new Date();
-    start.setMonth(start.getMonth() - 2);
+    start.setDate(start.getDate() - 30);
     return {
         start: start.toISOString().split('T')[0],
         end: end.toISOString().split('T')[0]

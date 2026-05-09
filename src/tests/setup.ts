@@ -36,20 +36,24 @@ global.IntersectionObserver = class IntersectionObserver {
     unobserve() { }
 } as any;
 
-// Mock localStorage
-const localStorageMock = {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
+const createStorageMock = () => {
+    let store: Record<string, string> = {};
+    return {
+        getItem: vi.fn((key: string) => store[key] || null),
+        setItem: vi.fn((key: string, value: string) => {
+            store[key] = value.toString();
+        }),
+        removeItem: vi.fn((key: string) => {
+            delete store[key];
+        }),
+        clear: vi.fn(() => {
+            store = {};
+        }),
+    };
 };
-global.localStorage = localStorageMock as any;
+
+// Mock localStorage
+global.localStorage = createStorageMock() as any;
 
 // Mock sessionStorage
-const sessionStorageMock = {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-};
-global.sessionStorage = sessionStorageMock as any;
+global.sessionStorage = createStorageMock() as any;

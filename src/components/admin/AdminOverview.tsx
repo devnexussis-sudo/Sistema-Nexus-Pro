@@ -4,7 +4,7 @@ import { useTenant } from '../../hooks/nexusHooks';
 import {
   ClipboardList, CheckCircle, Clock, AlertCircle, TrendingUp, BarChart3,
   Briefcase, Activity, ShieldAlert, Timer, ArrowRight, Calendar, Zap, Layers, Target, Boxes, PieChart, BarChart,
-  Search, Filter, UserCheck, Users, ChevronRight, Gauge, ZapOff, Settings, BellRing
+  Search, Filter, UserCheck, Users, ChevronRight, Gauge, ZapOff, Settings, BellRing, X
 } from 'lucide-react';
 
 interface AdminOverviewProps {
@@ -263,9 +263,9 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
             <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">Monitore o desempenho operacional e SLAs em tempo real</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-end gap-2 sm:gap-3 w-full lg:w-auto flex-1">
             {/* Search */}
-            <div className="relative flex-1 min-w-[200px] w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-none sm:min-w-[240px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input
                 type="text"
@@ -276,22 +276,39 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               />
             </div>
 
-            {/* Fast Filters & Toggle */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Fast Filters Group */}
+            <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/10 p-1 rounded-xl shadow-sm overflow-x-auto custom-scrollbar shrink-0">
               {['today', 'week', 'month'].map((type) => (
                 <button
                   key={type}
                   onClick={() => handleFastFilter(type as any)}
-                  className="h-10 px-2.5 sm:px-3 text-[9px] font-bold uppercase text-[#1c2d4f]/70 hover:text-[#1c2d4f] border border-[#1c2d4f]/20 rounded-xl hover:border-[#1c2d4f]/40 hover:bg-[#1c2d4f]/5 transition-all shadow-sm bg-white"
+                  className="h-8 px-3 text-[10px] font-bold uppercase text-slate-500 hover:text-[#1c2d4f] rounded-lg hover:bg-slate-50 transition-all whitespace-nowrap"
                 >
                   {type === 'today' ? 'Hoje' : type === 'week' ? '7 Dias' : '30 Dias'}
                 </button>
               ))}
+            </div>
+
+            {/* Actions Group */}
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
               >
                 <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Filtros'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
+                  const end = new Date();
+                  const start = new Date();
+                  start.setDate(start.getDate() - 30);
+                  onDateChange(start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
+                }}
+                className="flex items-center gap-1.5 px-3 h-10 rounded-xl border border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 shadow-sm transition-all text-[10px] font-bold bg-white"
+                title="Limpar Filtros e Restaurar Padrão (30 Dias)"
+              >
+                <X size={14} /> <span className="hidden sm:inline">Limpar</span>
               </button>
             </div>
           </div>

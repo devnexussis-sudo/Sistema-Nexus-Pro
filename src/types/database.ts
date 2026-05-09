@@ -85,6 +85,7 @@ export interface DbUser {
     avatar?: string;
     active: boolean;
     group_id?: string;
+    group_ids?: string[];
     permissions?: Partial<UserPermissions>;
     created_at?: string;
     updated_at?: string;

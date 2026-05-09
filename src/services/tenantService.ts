@@ -2,7 +2,7 @@
 import { CacheManager } from '../lib/cache';
 import { adminAuthProxy, supabase, publicSupabase } from '../lib/supabase';
 import { getCurrentTenantId } from '../lib/tenantContext';
-import { User, UserGroup, UserRole } from '../types';
+import { User, UserGroup, UserRole, ADMIN_PERMISSIONS } from '../types';
 import type { DbTenant, DbTenantInsert, DbTenantStats, DbUser, DbUserGroup } from '../types/database';
 import { StorageService } from './storageService';
 
@@ -390,6 +390,7 @@ export const TenantService = {
                 active: u.active,
                 avatar: u.avatar,
                 groupId: u.group_id as string,
+                groupIds: u.group_ids || (u.group_id ? [u.group_id] : []),
                 tenantId: u.tenant_id as string,
                 permissions: u.permissions as any
             }));
@@ -420,7 +421,7 @@ export const TenantService = {
                 id: g.id,
                 name: g.name,
                 description: g.description,
-                permissions: g.permissions,
+                permissions: g.name.toLowerCase() === 'administradores' ? ADMIN_PERMISSIONS : g.permissions,
                 isSystem: g.is_system,
                 active: true
             }));
@@ -449,7 +450,7 @@ export const TenantService = {
                 id: data.id,
                 name: data.name,
                 description: data.description,
-                permissions: data.permissions,
+                permissions: data.name.toLowerCase() === 'administradores' ? ADMIN_PERMISSIONS : data.permissions,
                 isSystem: data.is_system,
                 active: true
             };
@@ -458,6 +459,10 @@ export const TenantService = {
     },
 
     updateUserGroup: async (groupData: Pick<UserGroup, 'id' | 'name' | 'description' | 'permissions'>): Promise<UserGroup> => {
+        if (groupData.name.toLowerCase() === 'administradores') {
+            groupData.permissions = ADMIN_PERMISSIONS; // Força permissão máxima
+        }
+
         if (isCloudEnabled) {
             const dbGroup: any = {
                 name: groupData.name,
@@ -477,7 +482,7 @@ export const TenantService = {
                 id: data.id,
                 name: data.name,
                 description: data.description,
-                permissions: data.permissions,
+                permissions: data.name.toLowerCase() === 'administradores' ? ADMIN_PERMISSIONS : data.permissions,
                 isSystem: data.is_system,
                 active: true
             };
@@ -552,6 +557,7 @@ export const TenantService = {
                 active: userData.active,
                 tenant_id: userData.tenantId,
                 group_id: userData.groupId,
+                group_ids: userData.groupIds,
                 avatar: userData.avatar,
                 permissions: userData.permissions
             };
@@ -574,6 +580,7 @@ export const TenantService = {
                 name: userData.name,
                 active: userData.active,
                 group_id: userData.groupId,
+                group_ids: userData.groupIds,
                 avatar: userData.avatar,
                 permissions: userData.permissions
             };
