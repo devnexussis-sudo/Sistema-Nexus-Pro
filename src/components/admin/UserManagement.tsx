@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import * as reactWindow from 'react-window';
-const List = reactWindow.FixedSizeList || (reactWindow as any).default?.FixedSizeList || (reactWindow as any).FixedSizeList;
 import { useGroupStore } from '../../store/groupStore';
 
 import { Button } from '../ui/Button';
@@ -10,7 +8,7 @@ import {
   UserPlus, X, Save, Edit3, Trash2, Key,
   LayoutDashboard, ClipboardList, FileText,
   UserCheck, Box, Building2, Settings, ShieldAlert,
-  ArrowLeft, Filter, Calendar, FolderTree,
+  ArrowLeft, Filter, Calendar, FolderTree, Loader2,
   ChevronDown, Check, Package, Workflow, CalendarClock, ChevronLeft
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
@@ -282,6 +280,7 @@ export const UserManagement: React.FC = () => {
     permissions: { ...DEFAULT_PERMISSIONS }
   });
   const [groupSearch, setGroupSearch] = useState('');
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [groupFormData, setGroupFormData] = useState<Partial<UserGroup>>({
     name: '',
@@ -345,6 +344,8 @@ export const UserManagement: React.FC = () => {
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaveError(null);
+    setIsSaving(true);
     try {
       // Mescla permissões de todos os grupos selecionados
       const selectedGroupIds = formData.groupIds || [];
@@ -379,7 +380,13 @@ export const UserManagement: React.FC = () => {
       alert("✅ Administrador processado com sucesso!");
     } catch (error: any) {
       console.error("Failed to save user:", error);
-      alert("ERRO AO SALVAR USUÁRIO:\n" + error.message);
+      let msg = error.message || "Erro interno ao processar a requisição.";
+      if (msg.includes("already been registered")) {
+        msg = "Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.";
+      }
+      setSaveError(msg);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -447,6 +454,15 @@ export const UserManagement: React.FC = () => {
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
 
 
+
+  if (isUsersLoading || isGroupsLoading) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50/20 h-full">
+        <Loader2 size={40} className="animate-spin text-[#1c2d4f] mb-4" />
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Carregando dados da tela...</p>
+      </div>
+    );
+  }
 
   if (activeSubView === 'permissions') {
     if (selectedUser) {
@@ -536,6 +552,7 @@ export const UserManagement: React.FC = () => {
                         setEditingUser(null);
                         setFormData({ name: '', email: '', active: true, groupIds: [], permissions: { ...DEFAULT_PERMISSIONS } });
                         setGroupSearch('');
+                        setSaveError(null);
                         setIsModalOpen(true);
                         }}
                         className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] font-bold shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
@@ -592,7 +609,7 @@ export const UserManagement: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 border-b border-slate-100 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5 transition-all">
-                        <button onClick={() => { setEditingUser(user); setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) }); setGroupSearch(''); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Usuário">
+                        <button onClick={() => { setEditingUser(user); setFormData({ ...user, groupIds: user.groupIds || (user.groupId ? [user.groupId] : []) }); setGroupSearch(''); setSaveError(null); setIsModalOpen(true); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Editar Usuário">
                           <Edit3 size={16} />
                         </button>
                       </div>
@@ -620,16 +637,9 @@ export const UserManagement: React.FC = () => {
                   const filteredGroups = groups.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()) || g.description?.toLowerCase().includes(searchTerm.toLowerCase()));
                   
                   return filteredGroups.length > 0 ? (
-                    <List
-                      height={500}
-                      itemCount={filteredGroups.length}
-                      itemSize={76}
-                      width="100%"
-                    >
-                      {({ index, style }) => {
-                        const group = filteredGroups[index];
-                        return (
-                          <div style={style} key={group.id} className="flex items-center px-4 py-3 bg-white hover:bg-slate-50 transition-all group border-b border-slate-100">
+                    <div className="flex flex-col w-full pb-8">
+                      {filteredGroups.map((group) => (
+                          <div key={group.id} className="flex items-center px-4 py-3 bg-white hover:bg-slate-50 transition-all group border-b border-slate-100">
                             <div className="flex-1 flex items-center gap-4">
                               <div className="shrink-0">
                                 <div className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${group.isSystem ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-400 group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20'}`}>
@@ -664,9 +674,8 @@ export const UserManagement: React.FC = () => {
                               </div>
                             </div>
                           </div>
-                        );
-                      }}
-                    </List>
+                      ))}
+                    </div>
                   ) : (
                     <div className="py-24 text-center">
                       <FolderTree size={48} className="mx-auto text-slate-200 mb-4" />
@@ -713,10 +722,11 @@ export const UserManagement: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <Button
                     type="submit"
-                    className="rounded-xl px-6 bg-[#1c2d4f] hover:bg-[#1c2d4f]/90 shadow-md py-2.5 h-auto text-xs font-bold"
+                    disabled={isSaving}
+                    className="rounded-xl px-6 bg-[#1c2d4f] hover:bg-[#1c2d4f]/90 shadow-md py-2.5 h-auto text-xs font-bold disabled:opacity-70 disabled:cursor-not-allowed transition-all"
                   >
-                    <Save size={16} className="mr-2" />
-                    {editingUser ? 'Atualizar' : 'Salvar'}
+                    {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />}
+                    {isSaving ? 'Salvando...' : editingUser ? 'Atualizar' : 'Salvar'}
                   </Button>
                   <button
                     type="button"
@@ -731,6 +741,15 @@ export const UserManagement: React.FC = () => {
               {/* BODY — idêntico ao modal de OS */}
               <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
                 <div className="space-y-8 max-w-4xl mx-auto">
+                  {saveError && (
+                    <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex items-start gap-3 text-rose-600 animate-fade-in shadow-sm">
+                      <ShieldAlert size={20} className="shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-bold">Atenção!</h4>
+                        <p className="text-xs font-medium mt-1">{saveError}</p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
 

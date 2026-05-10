@@ -511,20 +511,10 @@ export const TenantService = {
                 existingAuthUser = (listData.users || []).find(u => u.email?.toLowerCase() === userData.email.toLowerCase());
 
                 if (existingAuthUser) {
-                    userId = existingAuthUser.id;
-                    console.log("📍 Identidade detectada no Auth. Promovendo usuário a Gestor:", userId);
-
-                    // Atualiza metadados para refletir o novo papel administrativo
-                    await adminAuthProxy.admin.updateUserById(userId, {
-                        user_metadata: {
-                            ...existingAuthUser.user_metadata,
-                            role: userData.role,
-                            tenantId: userData.tenantId,
-                            name: userData.name || existingAuthUser.user_metadata.name
-                        }
-                    });
+                    throw new Error("Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.");
                 }
-            } catch (e) {
+            } catch (e: any) {
+                if (e.message?.includes("já está em uso")) throw e;
                 console.warn("⚠️ Falha na busca prévia (Discovery):", e);
             }
 

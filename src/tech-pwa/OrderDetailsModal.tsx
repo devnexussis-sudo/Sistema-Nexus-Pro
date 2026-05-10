@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ServiceOrder, OrderStatus, FormTemplate, FormFieldType } from '../types';
-import { X, MapPin, CheckCircle, CheckCircle2, CalendarDays, Camera, FileText, Navigation2, Play, AlertCircle, Loader2, Ban, Box, DollarSign, Plus, Trash2, Search, ShoppingCart, Eye, EyeOff, Edit3 } from 'lucide-react';
+import { X, MapPin, Check, CheckCircle, CheckCircle2, CalendarDays, Camera, FileText, Navigation2, Play, AlertCircle, Loader2, Ban, Box, DollarSign, Plus, Trash2, Search, ShoppingCart, Eye, EyeOff, Edit3 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { TextArea, Input } from '../components/ui/Input';
 import { PriorityBadge, StatusBadge } from '../components/ui/StatusBadge';
@@ -694,6 +694,33 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ order, onC
                                   {opt}
                                 </button>
                               ));
+                            })()}
+                          </div>
+                        ) : field.type === FormFieldType.MULTI_SELECT ? (
+                          <div className="grid grid-cols-1 gap-2">
+                            {(() => {
+                              const val = answers[field.id] || answers[field.label];
+                              const selectedArr: string[] = Array.isArray(val) ? val : [];
+                              return field.options?.map(opt => {
+                                const isChecked = selectedArr.includes(opt);
+                                return (
+                                  <button
+                                    key={opt}
+                                    disabled={localStatus === OrderStatus.COMPLETED}
+                                    onClick={() => {
+                                      const newVal = isChecked ? selectedArr.filter(v => v !== opt) : [...selectedArr, opt];
+                                      setAnswers(prev => ({ ...prev, [field.id]: newVal }));
+                                    }}
+                                    className={`w-full py-5 px-6 rounded-2xl text-xs font-black text-left transition-all border-2 flex items-center gap-3 ${isChecked ? 'bg-primary-600 border-primary-700 text-white shadow-xl' : 'bg-gray-50 border-gray-100 text-gray-400'
+                                      }`}
+                                  >
+                                    <div className={`w-5 h-5 rounded-[4px] border-2 flex items-center justify-center shrink-0 transition-all ${isChecked ? 'bg-white/20 border-white/50' : 'border-gray-300 bg-white'}`}>
+                                      {isChecked && <Check size={14} className="text-white" />}
+                                    </div>
+                                    {opt}
+                                  </button>
+                                );
+                              });
                             })()}
                           </div>
                         ) : field.type === FormFieldType.PHOTO ? (

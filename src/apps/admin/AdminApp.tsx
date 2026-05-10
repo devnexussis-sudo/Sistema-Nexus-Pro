@@ -244,7 +244,6 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const { data: activationRules = [], isLoading: rulesLoading, refetch: rulesRefetch } = useActivationRules(!!auth.isAuthenticated && needsForms);
     const { data: tenantData } = useTenant(!!auth.isAuthenticated);
 
-    const isFetchingAny = summaryLoading || oLoading || cLoading || qLoading || tLoading || custLoading || eLoading || sLoading || statsLoading || usersLoading || groupsLoading || formsLoading || typesLoading || rulesLoading;
 
     // 🔄 Force Refresh
     const fetchGlobalData = async () => {
@@ -275,6 +274,19 @@ export const AdminApp: React.FC<AdminAppProps> = ({
         return <AdminLogin onLogin={onLogin} onToggleMaster={onToggleMaster} />;
     }
 
+    // 🛡️ Route Loading Guard — prevents empty-screen flash during data fetch
+    const RouteGuard: React.FC<{ isLoading: boolean; children: React.ReactNode }> = ({ isLoading, children }) => {
+        if (isLoading) {
+            return (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 h-full bg-slate-50/30">
+                    <img src="/duno-icon.png" alt="DUNO" className="h-16 w-auto object-contain animate-pulse mb-4 opacity-60" />
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">sincronizando módulo...</p>
+                </div>
+            );
+        }
+        return <>{children}</>;
+    };
+
     return (
         <AdminLayout
             user={auth.user}
@@ -286,35 +298,62 @@ export const AdminApp: React.FC<AdminAppProps> = ({
             onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             isSidebarCollapsed={isSidebarCollapsed}
         >
-            {isFetchingAny && (
-                <div className="absolute inset-0 z-[500] bg-white flex flex-col items-center justify-center">
-                    <img src="/duno-icon.png" alt="DUNO" className="h-24 w-auto object-contain animate-pulse" />
-                </div>
-            )}
             <Routes>
-                <Route path="/" element={<AdminOverview
-                    orders={dashSummary?.orders || statsOrders}
-                    contracts={dashSummary?.contracts || contracts}
-                    techs={dashSummary?.technicians || techs}
-                    customers={dashSummary?.customers || customers}
-                    startDate={overviewDateRange.start}
-                    endDate={overviewDateRange.end}
-                    onDateChange={(start, end) => handleDateValidation(start, end, setOverviewDateRange)}
-                    onSwitchView={(v) => { /* Legacy Switch: Use navigate if needed */ }}
-                />} />
-                <Route path="/orders" element={<AdminDashboard techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => handleDateValidation(start, end, setActivitiesDateRange)} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} onCreateOrder={async (o) => { const created = await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); return created; }} />} />
-                <Route path="/contracts" element={<PlannedMaintenance orders={contracts} techs={techs} customers={customers} equipments={equipments} user={auth.user} onUpdateOrders={fetchGlobalData} onEditOrder={async (c) => { await DataService.updateContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} onCreateOrder={async (c) => { await DataService.createContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} />} />
-                <Route path="/quotes" element={<QuoteManagement quotes={quotes} customers={customers} orders={fullOrders} stockItems={stockItems} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} />} />
-                <Route path="/customers" element={<CustomerManagement customers={customers} equipments={equipments} onUpdateCustomers={fetchGlobalData} onSwitchView={(v, p) => { /* Legacy Switch */ }} />} />
-                <Route path="/equipments" element={<EquipmentManagement equipments={equipments} customers={customers} onUpdateEquipments={fetchGlobalData} />} />
+                <Route path="/" element={
+                    <RouteGuard isLoading={isDashboard && summaryLoading && statsLoading && !dashSummary && statsOrders.length === 0}>
+                        <AdminOverview
+                            orders={dashSummary?.orders || statsOrders}
+                            contracts={dashSummary?.contracts || contracts}
+                            techs={dashSummary?.technicians || techs}
+                            customers={dashSummary?.customers || customers}
+                            startDate={overviewDateRange.start}
+                            endDate={overviewDateRange.end}
+                            onDateChange={(start, end) => handleDateValidation(start, end, setOverviewDateRange)}
+                            onSwitchView={(v) => { /* Legacy Switch: Use navigate if needed */ }}
+                        />
+                    </RouteGuard>
+                } />
+                <Route path="/orders" element={
+                    <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
+                        <AdminDashboard techs={techs} customers={customers} startDate={activitiesDateRange.start} endDate={activitiesDateRange.end} onDateChange={(start, end) => handleDateValidation(start, end, setActivitiesDateRange)} onUpdateOrders={fetchGlobalData} onEditOrder={async (o) => { await DataService.updateOrder(o); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} onCreateOrder={async (o) => { const created = await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); return created; }} />
+                    </RouteGuard>
+                } />
+                <Route path="/contracts" element={
+                    <RouteGuard isLoading={cLoading && contracts.length === 0}>
+                        <PlannedMaintenance orders={contracts} techs={techs} customers={customers} equipments={equipments} user={auth.user} onUpdateOrders={fetchGlobalData} onEditOrder={async (c) => { await DataService.updateContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} onCreateOrder={async (c) => { await DataService.createContract(c); await NexusQueryClient.invalidateContracts(); await cRefetch(); }} />
+                    </RouteGuard>
+                } />
+                <Route path="/quotes" element={
+                    <RouteGuard isLoading={(qLoading && quotes.length === 0) || (oLoading && fullOrders.length === 0)}>
+                        <QuoteManagement quotes={quotes} customers={customers} orders={fullOrders} stockItems={stockItems} onUpdateQuotes={fetchGlobalData} onEditQuote={async (q) => { await DataService.updateQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateQuote={async (q) => { await DataService.createQuote(q); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onDeleteQuote={async (id) => { await DataService.deleteQuote(id); await NexusQueryClient.invalidateQuotes(); await qRefetch(); }} onCreateOrder={async (o) => { await DataService.createOrder(o as any); await NexusQueryClient.invalidateOrders(); await oRefetch(); }} />
+                    </RouteGuard>
+                } />
+                <Route path="/customers" element={
+                    <RouteGuard isLoading={custLoading && customers.length === 0}>
+                        <CustomerManagement customers={customers} equipments={equipments} onUpdateCustomers={fetchGlobalData} onSwitchView={(v, p) => { /* Legacy Switch */ }} />
+                    </RouteGuard>
+                } />
+                <Route path="/equipments" element={
+                    <RouteGuard isLoading={eLoading && equipments.length === 0}>
+                        <EquipmentManagement equipments={equipments} customers={customers} onUpdateEquipments={fetchGlobalData} />
+                    </RouteGuard>
+                } />
                 <Route path="/stock" element={<StockManagement />} />
                 <Route path="/technicians" element={<TechnicianManagement />} />
                 <Route path="/map" element={<TechnicianMap />} />
                 <Route path="/forms" element={<FormManagement />} />
                 <Route path="/users" element={<UserManagement />} />
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/financial" element={<FinancialDashboard orders={fullOrders} quotes={quotes} techs={techs} customers={customers} tenant={tenantData} onRefresh={fetchGlobalData} />} />
-                <Route path="/calendar" element={<OrderCalendar orders={fullOrders} techs={techs} customers={customers} />} />
+                <Route path="/financial" element={
+                    <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
+                        <FinancialDashboard orders={fullOrders} quotes={quotes} techs={techs} customers={customers} tenant={tenantData} onRefresh={fetchGlobalData} />
+                    </RouteGuard>
+                } />
+                <Route path="/calendar" element={
+                    <RouteGuard isLoading={oLoading && fullOrders.length === 0}>
+                        <OrderCalendar orders={fullOrders} techs={techs} customers={customers} />
+                    </RouteGuard>
+                } />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/admin" replace />} />

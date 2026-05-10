@@ -208,10 +208,8 @@ export function useQuery<T>(
                 onError?.(err);
             }
         } finally {
-            // ⚠️ CRITICAL: Always release the mutex
-            if (isMounted.current) {
-                isFetchingRef.current = false;
-            }
+            // ⚠️ CRITICAL: Always release the mutex — even if unmounted
+            isFetchingRef.current = false;
         }
     };
 

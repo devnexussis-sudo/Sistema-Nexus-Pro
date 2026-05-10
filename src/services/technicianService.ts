@@ -171,18 +171,10 @@ export const TechnicianService = {
                 existingAuthUser = (listData.users || []).find(u => u.email?.toLowerCase() === tech.email.toLowerCase());
 
                 if (existingAuthUser) {
-                    userId = existingAuthUser.id;
-                    console.log("📍 Usuário já federado no Auth. Vinculando ID existente:", userId);
-
-                    // Se já existe, atualizamos apenas metadados para incluir o cargo técnico se necessário
-                    await adminAuthProxy.admin.updateUserById(userId, {
-                        user_metadata: {
-                            ...existingAuthUser.user_metadata,
-                            phone: tech.phone || existingAuthUser.user_metadata.phone
-                        }
-                    });
+                    throw new Error("Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.");
                 }
-            } catch (e) {
+            } catch (e: any) {
+                if (e.message?.includes("já está em uso")) throw e;
                 console.warn("⚠️ Falha na busca prévia de usuários (Discovery):", e);
             }
 

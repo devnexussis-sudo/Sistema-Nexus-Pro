@@ -89,6 +89,38 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
                             </div>
                         )}
 
+                        {/* MULTI_SELECT / CHECKLIST */}
+                        {field.type === FormFieldType.MULTI_SELECT && (
+                            <div className="space-y-2">
+                                {field.options?.map(opt => {
+                                    const selected: string[] = Array.isArray(answers[field.id]) ? answers[field.id] : [];
+                                    const isChecked = selected.includes(opt);
+                                    return (
+                                        <button
+                                            key={opt}
+                                            disabled={readOnly}
+                                            onClick={() => {
+                                                if (readOnly) return;
+                                                const newVal = isChecked
+                                                    ? selected.filter(v => v !== opt)
+                                                    : [...selected, opt];
+                                                onAnswerChange(field.id, newVal);
+                                            }}
+                                            className={`w-full py-3 px-4 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all flex items-center gap-3 text-left ${isChecked
+                                                ? 'bg-primary-500 border-primary-500 text-white shadow-none'
+                                                : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}
+                                                ${readOnly ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-[4px] border-2 flex items-center justify-center shrink-0 transition-all ${isChecked ? 'bg-white/20 border-white/50' : 'border-slate-300 bg-white'}`}>
+                                                {isChecked && <Check size={10} className="text-white" />}
+                                            </div>
+                                            {opt}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
                         {/* FOTO - Integrado diretamente no checklist */}
                         {field.type === FormFieldType.PHOTO && (
                             <div>

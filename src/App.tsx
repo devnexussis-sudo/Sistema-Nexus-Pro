@@ -13,6 +13,8 @@ import SessionStorage from './lib/sessionStorage';
 import { DataService } from './services/dataService';
 import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
 import { NetworkStatusIndicator } from './components/common/NetworkStatusIndicator';
+import { GlobalAlertProvider } from './components/common/GlobalAlert';
+import { GlobalSpinnerProvider } from './components/common/GlobalSpinner';
 import { I18nProvider } from './i18n';
 
 // Wrapper para rotas públicas
@@ -126,6 +128,8 @@ const App: React.FC = () => {
           <AppRoutes />
           <PwaInstallPrompt />
           <NetworkStatusIndicator />
+          <GlobalAlertProvider />
+          <GlobalSpinnerProvider />
         </AuthProvider>
       </I18nProvider>
     </HashRouter>

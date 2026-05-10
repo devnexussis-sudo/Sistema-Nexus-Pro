@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import {
-  Plus, Edit2, X, Save, Lock, AtSign,
+  Plus, Edit2, X, Save, Lock, AtSign, Loader2,
   Smartphone, Search, Filter, ChevronLeft, Hash
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
@@ -28,6 +28,7 @@ export const TechnicianManagement: React.FC = () => {
   const [formData, setFormData] = useState<any>({
     name: '', email: '', avatar: '', active: true, phone: '', jobTitle: ''
   });
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
@@ -81,6 +82,7 @@ export const TechnicianManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaveError(null);
 
     try {
       setLoading(true);
@@ -100,9 +102,11 @@ export const TechnicianManagement: React.FC = () => {
       alert("✅ Técnico registrado e vinculado com sucesso!");
     } catch (error: any) {
       console.error("❌ ERRO FATAL AO SALVAR TÉCNICO:", error);
-      const detail = error?.message || "Erro desconhecido no Supabase";
-      const hint = error?.details || "Verifique se a tabela 'technicians' tem o RLS desativado.";
-      window.alert(`[ERRO DE BANCO DE DADOS]\n\nMotivo: ${detail}\n\nDica: ${hint}`);
+      let msg = error?.message || "Erro desconhecido no sistema.";
+      if (msg.includes("already been registered")) {
+        msg = "Este e-mail já está em uso por outra empresa. Para evitar conflitos de acesso, é necessário usar um outro e-mail.";
+      }
+      setSaveError(msg);
     } finally {
       setLoading(false);
     }
@@ -112,8 +116,14 @@ export const TechnicianManagement: React.FC = () => {
 
   return (
     <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
-
-      {/* Toolbar */}
+      {loading && technicians.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 h-full">
+          <Loader2 size={40} className="animate-spin text-[#1c2d4f] mb-4" />
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Carregando dados da tela...</p>
+        </div>
+      ) : (
+        <>
+          {/* Toolbar */}
       <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
         <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
           
@@ -231,7 +241,7 @@ export const TechnicianManagement: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '' }); }}
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '' }); setSaveError(null); }}
                   className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50"
                 >
                   <X size={20} />
@@ -241,6 +251,18 @@ export const TechnicianManagement: React.FC = () => {
               {/* BODY — bg-slate-50/30 p-8 igual à OS */}
               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
                 <div className="space-y-8 max-w-4xl mx-auto">
+
+                  {saveError && (
+                    <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex items-start gap-3 text-rose-600 animate-fade-in shadow-sm">
+                      <div className="shrink-0 mt-0.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold">Atenção!</h4>
+                        <p className="text-xs font-medium mt-1">{saveError}</p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Card de Identificação */}
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -356,17 +378,18 @@ export const TechnicianManagement: React.FC = () => {
               <div className="px-8 py-4 border-t border-slate-200 bg-white flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
-                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '' }); }}
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); setFormData({ name: '', email: '', active: true, phone: '', jobTitle: '' }); setSaveError(null); }}
                   className="h-9 px-5 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
                 >
                   Cancelar
                 </button>
                 <Button
                   onClick={handleSubmit as any}
-                  className="h-9 px-6 rounded-xl text-xs font-bold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white"
+                  disabled={loading}
+                  className="h-9 px-6 rounded-xl text-xs font-bold bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white disabled:opacity-70 disabled:cursor-not-allowed transition-all"
                 >
-                  <Save size={14} className="mr-2" />
-                  {editingId ? 'Salvar Alterações' : 'Confirmar Cadastro'}
+                  {loading ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Save size={14} className="mr-2" />}
+                  {loading ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Confirmar Cadastro'}
                 </Button>
               </div>
 
@@ -374,6 +397,8 @@ export const TechnicianManagement: React.FC = () => {
           </div>, document.body
         )
       }
+      </>
+      )}
     </div>
   );
 };
