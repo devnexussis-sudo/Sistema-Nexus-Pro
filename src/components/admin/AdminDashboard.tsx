@@ -959,8 +959,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           </div>
 
-          {/* Middle: Filters Group */}
-          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
+          {/* Right Side: Filters, Actions & New OS */}
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full xl:w-auto justify-end flex-1">
             
             {/* Fast Filters Group */}
             <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/10 p-1 rounded-xl shadow-sm overflow-x-auto custom-scrollbar shrink-0">
@@ -975,8 +975,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               ))}
             </div>
 
-            {/* Actions Group */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            {/* Filter Actions */}
+            <div className="flex items-center gap-1.5 shrink-0 mr-auto sm:mr-0">
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
@@ -998,10 +998,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <X size={14} /> <span className="hidden sm:inline">Limpar</span>
               </button>
             </div>
-          </div>
-
-          {/* Right Side: Ações em Lote & Novo Atendimento */}
-          <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
             {/* Ações em Lote (Seleção) */}
             {selectedOrderIds.length > 0 && (
               <div className="flex items-center gap-1.5 px-2 py-1 h-10 bg-slate-900 rounded-xl shadow-lg animate-in fade-in slide-in-from-right-4">

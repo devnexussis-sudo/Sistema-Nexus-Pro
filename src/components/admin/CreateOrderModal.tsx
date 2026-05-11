@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '../../i18n';
 import {
   UserPlus, Info, ChevronLeft, AtSign, Building2, Edit3, Laptop, UserMinus, Plus, Box,
@@ -449,8 +450,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-8 overflow-hidden">
       <div className="bg-white rounded-xl w-full max-w-[96vw] h-[92vh] shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-scale-up">
 
         {/* HEADER */}
@@ -1162,7 +1163,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({ onClose, onS
           </div>
         )
       }
-    </div >
+    </div >,
+    document.body
   );
 };
 
