@@ -154,7 +154,7 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
         return (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <Loader2 className="animate-spin text-primary-400" size={28} />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                     Carregando Histórico...
                 </span>
             </div>
@@ -166,7 +166,7 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
         return (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
                 <AlertTriangle size={36} className="text-rose-300" />
-                <p className="text-[11px] font-bold text-slate-500">{error}</p>
+                <p className="text-[11px] font-medium text-slate-500">{error}</p>
             </div>
         );
     }
@@ -176,7 +176,7 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
         return (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
                 <History size={40} className="text-slate-200" />
-                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
                     Sem visitas registradas
                 </p>
                 <p className="text-[10px] text-slate-300 font-medium">
@@ -191,7 +191,7 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
         <div className="p-4 space-y-2">
             {/* Resumo */}
             <div className="flex items-center justify-between mb-4">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                     {visits.length} {visits.length === 1 ? 'visita registrada' : 'visitas registradas'}
                     {visits.length > 0 && (
                         <span className="text-primary-500 ml-1">
@@ -199,7 +199,7 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                         </span>
                     )}
                 </span>
-                <span className="text-[10px] font-bold text-slate-300">
+                <span className="text-[10px] font-medium text-slate-300">
                     Ordem cronológica
                 </span>
             </div>
@@ -226,7 +226,7 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                         : 'border-slate-200 bg-white text-slate-500'}
                 `}
                             >
-                                <span className="text-[11px] font-black">{visit.visitNumber}</span>
+                                <span className="text-[11px] font-semibold">{visit.visitNumber}</span>
                             </div>
 
                             {/* Card */}
@@ -243,7 +243,7 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                         {/* Badge de status */}
                                         <span className={`
                       inline-flex items-center gap-1 px-2 py-1 rounded-lg
-                      text-[9px] font-black uppercase tracking-wide shrink-0
+                      text-[9px] font-semibold uppercase tracking-wide shrink-0
                       ${cfg.colorClass} ${cfg.bgClass}
                     `}>
                                             {cfg.icon} {cfg.label}
@@ -251,13 +251,13 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
 
                                         {/* Infos */}
                                         <div className="min-w-0">
-                                            <p className="text-[11px] font-black text-slate-700 truncate">
+                                            <p className="text-[11px] font-semibold text-slate-700 truncate">
                                                 Visita {visit.visitNumber}
                                                 {visit.technicianName && (
                                                     <span className="font-normal text-slate-400"> · {visit.technicianName}</span>
                                                 )}
                                             </p>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase">
+                                            <p className="text-[9px] font-medium text-slate-400 uppercase">
                                                 {formatDate(visit.scheduledDate || visit.createdAt)}
                                             </p>
                                         </div>
@@ -286,8 +286,8 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                             <div className="flex items-center gap-2 p-2.5 bg-white/70 rounded-xl border border-white">
                                                 <User size={14} className="text-slate-400 shrink-0" />
                                                 <div className="min-w-0">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Técnico</p>
-                                                    <p className="text-[11px] font-bold text-slate-700 truncate">{visit.technicianName}</p>
+                                                    <p className="text-[9px] font-semibold text-slate-400 uppercase">Técnico</p>
+                                                    <p className="text-[11px] font-medium text-slate-700 truncate">{visit.technicianName}</p>
                                                 </div>
                                             </div>
                                         )}
@@ -298,12 +298,12 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                                 ? 'bg-rose-50 border-rose-100'
                                                 : 'bg-amber-50 border-amber-100'
                                                 }`}>
-                                                <p className={`text-[9px] font-black uppercase mb-1 ${visit.status === VisitStatusEnum.BLOCKED ? 'text-rose-500' : 'text-amber-500'
+                                                <p className={`text-[9px] font-semibold uppercase mb-1 ${visit.status === VisitStatusEnum.BLOCKED ? 'text-rose-500' : 'text-amber-500'
                                                     }`}>
                                                     {visit.status === VisitStatusEnum.BLOCKED ? 'Motivo do Impedimento' : 'Motivo da Pausa'}
                                                 </p>
                                                 {visit.impedimentCategory && (
-                                                    <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-md mb-1.5 ${visit.status === VisitStatusEnum.BLOCKED
+                                                    <span className={`inline-block text-[9px] font-semibold px-2 py-0.5 rounded-md mb-1.5 ${visit.status === VisitStatusEnum.BLOCKED
                                                         ? 'bg-rose-100 text-rose-600'
                                                         : 'bg-amber-100 text-amber-600'
                                                         }`}>
@@ -319,7 +319,7 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                         {/* Observações */}
                                         {visit.notes && (
                                             <div className="p-2.5 bg-white/70 rounded-xl border border-white">
-                                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Observações</p>
+                                                <p className="text-[9px] font-semibold text-slate-400 uppercase mb-1">Observações</p>
                                                 <p className="text-[11px] text-slate-600 leading-relaxed">{visit.notes}</p>
                                             </div>
                                         )}
@@ -328,7 +328,7 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
                                         {visit.scheduledDate && (
                                             <div className="flex items-center gap-2 text-slate-400">
                                                 <Navigation size={12} />
-                                                <span className="text-[9px] font-bold uppercase">
+                                                <span className="text-[9px] font-medium uppercase">
                                                     Agendado: {formatDate(visit.scheduledDate)}
                                                     {visit.scheduledTime && ` às ${visit.scheduledTime}`}
                                                 </span>
@@ -349,7 +349,7 @@ export const VisitHistoryTab: React.FC<VisitHistoryTabProps> = ({
 
 const InfoCell: React.FC<{ label: string; value: string }> = ({ label, value }) => (
     <div className="text-center bg-white/70 rounded-xl p-2 border border-white">
-        <p className="text-[8px] font-black text-slate-400 uppercase mb-0.5">{label}</p>
-        <p className="text-[12px] font-black text-slate-700">{value}</p>
+        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{label}</p>
+        <p className="text-[12px] font-semibold text-slate-700">{value}</p>
     </div>
 );

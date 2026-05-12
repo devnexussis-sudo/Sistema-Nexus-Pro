@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../i18n';
+import { useDialog } from '../../contexts/DialogContext';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePagedOrders } from '../../hooks/nexusHooks';
@@ -111,7 +112,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   techs, customers, startDate, endDate, onDateChange, onUpdateOrders, onEditOrder, onCreateOrder
 }) => {
     const { t } = useI18n();
-
+  const { showAlert, showConfirm } = useDialog();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<ServiceOrder | null>(null);
@@ -179,6 +180,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [dateTypeFilter, setDateTypeFilter] = useState<'scheduled' | 'created' | 'completed'>('scheduled');
   // techFilter armazena o techId (UUID), não o nome — enviado direto para o servidor
   const [techFilter, setTechFilter] = useState<string>('ALL');
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const [isTechDropdownOpen, setIsTechDropdownOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
 
@@ -200,6 +203,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const {
     data: pageResult,
     isLoading: ordersLoading,
+    isFetching: ordersFetching,
     refetch: ordersRefetch,
   } = usePagedOrders(currentPage, serverFilters, auth.isAuthenticated);
 
@@ -586,16 +590,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleCancelEdit = () => {
-    const confirmExit = window.confirm('Você tem edições em andamento. Deseja DESCARTAR as alterações e sair do modo de edição? (Clique em "Cancelar" para permanecer)');
-    if (!confirmExit) return;
-    setIsEditing(false);
-    setEditDraft({});
+    showConfirm('Você tem edições em andamento. Deseja DESCARTAR as alterações e sair do modo de edição?', () => {
+      setIsEditing(false);
+      setEditDraft({});
+    }, 'Atenção', 'Descartar Alterações', true);
   };
 
   const handleCloseModal = () => {
     if (isEditing) {
-      const confirmExit = window.confirm('Você tem edições em andamento. Deseja DESCARTAR as alterações e fechar a OS? (Clique em "Cancelar" para permanecer e salvar)');
-      if (!confirmExit) return;
+      showConfirm('Você tem edições em andamento. Deseja DESCARTAR as alterações e fechar a OS?', () => {
+        setSelectedOrder(null);
+        setIsEditing(false);
+        setEditDraft({});
+      }, 'Atenção', 'Descartar e Fechar', true);
+      return;
     }
     setSelectedOrder(null);
     setIsEditing(false);
@@ -650,7 +658,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setOsEquipments(newList);
       ordersRefetch();
     } catch (e: any) {
-      alert("Erro ao vincular equipamento: " + e.message);
+      showAlert("Erro ao vincular equipamento: " + e.message);
     } finally {
       setEquipmentsLoading(false);
     }
@@ -658,23 +666,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleRemoveEquipment = async (eqEntryId: string, isLast: boolean) => {
     if (isLast) {
-      alert("Não é possível remover todos os ativos. Deixe ao menos um ativo ou cancele a OS.");
+      showAlert("Não é possível remover todos os ativos. Deixe ao menos um ativo ou cancele a OS.");
       return;
     }
-    if (!confirm("Tem certeza que deseja remover este equipamento desta OS? Formulários e checklists atrelados podem ser afetados.")) return;
-
-    setEquipmentsLoading(true);
-    try {
-      await VisitService.removeEquipmentFromOrder(eqEntryId);
-      const newList = equipments.filter(e => e.id !== eqEntryId);
-      setEquipments(newList);
-      setOsEquipments(newList);
-      ordersRefetch();
-    } catch (e: any) {
-      alert("Erro ao remover equipamento: " + e.message);
-    } finally {
-      setEquipmentsLoading(false);
-    }
+    showConfirm("Tem certeza que deseja remover este equipamento desta OS? Formulários e checklists atrelados podem ser afetados.", async () => {
+      setEquipmentsLoading(true);
+      try {
+        await VisitService.removeEquipmentFromOrder(eqEntryId);
+        const newList = equipments.filter(e => e.id !== eqEntryId);
+        setEquipments(newList);
+        setOsEquipments(newList);
+        ordersRefetch();
+      } catch (e: any) {
+        showAlert("Erro ao remover equipamento: " + e.message, 'error');
+      } finally {
+        setEquipmentsLoading(false);
+      }
+    }, "Remover Equipamento", "Remover", true);
   };
 
   const handleSaveEdit = async () => {
@@ -756,7 +764,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setEditDraft({});
       ordersRefetch();
     } catch (e: any) {
-      alert(`Erro ao salvar: ${e.message}`);
+      showAlert(`Erro ao salvar: ${e.message}`);
     } finally {
       setEditLoading(false);
     }
@@ -764,11 +772,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleCreateVisit = async () => {
     if (!selectedOrder || !newVisitDraft.technicianId || !newVisitDraft.scheduledDate) {
-      alert('Selecione o técnico e a data.');
+      showAlert('Selecione o técnico e a data.');
       return;
     }
     if (!newVisitDraft.notes || !newVisitDraft.notes.trim()) {
-      alert('O campo "Observações para o técnico" é obrigatório. Descreva o motivo ou instruções da visita.');
+      showAlert('O campo "Observações para o técnico" é obrigatório. Descreva o motivo ou instruções da visita.');
       return;
     }
     setSavingVisit(true);
@@ -814,7 +822,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       await ordersRefetch();
     } catch (e: any) {
       const msg = (e.message || '').startsWith('INVALID_') ? e.message.split(': ')[1] : e.message;
-      alert(msg || 'Erro ao criar visita.');
+      showAlert(msg || 'Erro ao criar visita.');
     } finally {
       setSavingVisit(false);
     }
@@ -822,7 +830,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleSaveVisitSchedule = async (visit: ServiceVisit) => {
     if (!visitScheduleDraft.scheduledDate) {
-      alert('Informe a data do agendamento.');
+      showAlert('Informe a data do agendamento.');
       return;
     }
     if (!selectedOrder) return;
@@ -854,7 +862,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       ordersRefetch();
     } catch (e: any) {
       const msg = (e.message || '').replace(/^[A-Z_]+: /, '');
-      alert(msg || 'Erro ao salvar reagendamento.');
+      showAlert(msg || 'Erro ao salvar reagendamento.');
     } finally {
       setSavingSchedule(false);
     }
@@ -882,9 +890,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleCancelOrder = async (order: ServiceOrder, e: React.MouseEvent) => {
     e.stopPropagation();
     if (order.status === OrderStatus.CANCELED) return;
-    if (!confirm('Tem certeza que deseja cancelar esta Ordem de Serviço? Esta ação bloqueará edições futuras.')) return;
-
-    await onEditOrder({ ...order, status: OrderStatus.CANCELED });
+    showConfirm('Tem certeza que deseja cancelar esta Ordem de Serviço? Esta ação bloqueará edições futuras.', async () => {
+      await onEditOrder({ ...order, status: OrderStatus.CANCELED });
+    }, "Cancelar OS", "Cancelar OS", true);
   };
 
   const formatDateDisplay = (dateStr: string) => {
@@ -942,20 +950,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   return (
     <div className="p-2 sm:p-4 animate-fade-in flex flex-col h-full bg-slate-50 overflow-hidden">
       {/* Search & Filter Toolbar */}
-      <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
+      <div className="relative z-30 mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
         {/* Top Row: Search, Fast Filters, Toggle, Actions */}
         <div className="flex flex-col xl:flex-row flex-wrap items-stretch xl:items-center justify-between gap-3">
           
           {/* Left Side: Search */}
-          {/* Left Side: Search */}
-          <div className="relative flex-1 sm:flex-none sm:min-w-[240px]">
+          <div className="relative flex-1 min-w-[240px] xl:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
               placeholder="Buscar OS..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
             />
           </div>
 
@@ -968,7 +975,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   key={type}
                   onClick={() => handleFastFilter(type as any)}
-                  className="h-8 px-3 text-[10px] font-bold uppercase text-slate-500 hover:text-[#1c2d4f] rounded-lg hover:bg-slate-50 transition-all whitespace-nowrap"
+                  className="h-8 px-3 text-[10px] uppercase text-slate-500 hover:text-[#1c2d4f] rounded-lg hover:bg-slate-50 transition-all whitespace-nowrap"
                 >
                   {type === 'today' ? 'Hoje' : type === 'week' ? '7 Dias' : '30 Dias'}
                 </button>
@@ -979,21 +986,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex items-center gap-1.5 shrink-0 mr-auto sm:mr-0">
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
+                className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-medium ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
               >
                 <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Avançado'}</span>
               </button>
               <button
                 onClick={() => {
                   setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
-                  const end = new Date();
-                  const start = new Date();
-                  start.setDate(start.getDate() - 30);
-                  onDateChange(start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
+                  onDateChange('', '');
                   setSelectedOrderIds([]);
+                  setCurrentPage(1);
                 }}
-                className="flex items-center gap-1.5 px-3 h-10 rounded-xl border border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 shadow-sm transition-all text-[10px] font-bold bg-white"
-                title="Limpar Filtros e Restaurar Padrão (30 Dias)"
+                className="flex items-center gap-1.5 px-3 h-10 rounded-xl border border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 shadow-sm transition-all text-[10px] bg-white"
+                title="Limpar Todos os Filtros"
               >
                 <X size={14} /> <span className="hidden sm:inline">Limpar</span>
               </button>
@@ -1001,7 +1006,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {/* Ações em Lote (Seleção) */}
             {selectedOrderIds.length > 0 && (
               <div className="flex items-center gap-1.5 px-2 py-1 h-10 bg-slate-900 rounded-xl shadow-lg animate-in fade-in slide-in-from-right-4">
-                <div className="flex items-center justify-center w-6 h-6 rounded bg-slate-800 text-white text-[10px] font-black">{selectedOrderIds.length}</div>
+                <div className="flex items-center justify-center w-6 h-6 rounded bg-slate-800 text-white text-[10px] font-semibold">{selectedOrderIds.length}</div>
                 <button onClick={handleExportExcel} className="p-1.5 text-white hover:text-emerald-400 transition-colors" title="Excel"><FileSpreadsheet size={16} /></button>
                 <button onClick={handleBatchPrint} className="p-1.5 text-white hover:text-blue-400 transition-colors" title="PDF"><FileText size={16} /></button>
                 <div className="w-px h-4 bg-slate-700 mx-0.5" />
@@ -1011,14 +1016,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <button
               onClick={handleManualRefresh}
-              className="h-10 px-3 flex items-center justify-center bg-white hover:bg-slate-50 border border-[#1c2d4f]/20 rounded-xl text-[#1c2d4f] hover:text-primary-600 shadow-sm transition-all active:scale-95"
+              disabled={ordersLoading || isManualSyncing}
+              className={`group h-10 px-4 flex items-center gap-2 rounded-xl border transition-all duration-300 shadow-sm active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed ${
+                ordersLoading || isManualSyncing 
+                  ? 'bg-primary-50 border-primary-200 text-primary-600' 
+                  : 'bg-white hover:bg-slate-50 border-[#1c2d4f]/20 text-[#1c2d4f] hover:text-primary-600 hover:border-primary-300 hover:shadow-md'
+              }`}
               title="Atualizar todos os dados"
             >
-              <RefreshCw size={16} className={ordersLoading || isManualSyncing ? "animate-spin" : ""} />
+              <div className="relative flex items-center justify-center">
+                <RefreshCw 
+                  size={16} 
+                  className={`${ordersLoading || isManualSyncing ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} 
+                />
+                {(ordersLoading || isManualSyncing) && (
+                  <span className="absolute inset-0 rounded-full bg-primary-400/20 animate-ping"></span>
+                )}
+              </div>
             </button>
             <Button
               variant="primary"
-              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap"
+              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap"
               onClick={() => { setOrderToEdit(null); setIsCreateModalOpen(true); }}
             >
               <Plus size={16} /> Nova OS
@@ -1028,60 +1046,107 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {/* Collapsible Filters Row */}
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex flex-col gap-1 lg:col-span-2">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Período</label>
-              <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-lg shadow-sm h-9">
+          <div className="relative z-20 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex flex-col gap-1 md:col-span-2 xl:col-span-6">
+              <label className="text-xs font-medium text-slate-500 px-1">Período</label>
+              <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-xl shadow-sm h-10 hover:border-[#1c2d4f]/40 transition-colors focus-within:ring-2 focus-within:ring-primary-500/20">
                 <select
                   value={dateTypeFilter}
-                  onChange={(e) => setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed')}
-                  className="bg-transparent text-[10px] font-bold text-slate-600 outline-none cursor-pointer border-r border-slate-100 pr-2 pl-1"
+                  onChange={(e) => { setDateTypeFilter(e.target.value as 'scheduled' | 'created' | 'completed'); setCurrentPage(1); }}
+                  className="bg-transparent text-xs text-slate-700 outline-none cursor-pointer border-r border-slate-100 pr-2 pl-2 hover:text-primary-600 transition-colors"
                 >
                   <option value="scheduled">Agendamento</option>
                   <option value="created">Abertura</option>
                   <option value="completed">Conclusão</option>
                 </select>
-                <div className="flex items-center gap-1 px-1 flex-1 justify-between">
-                  <input type="date" value={startDate} onChange={e => onDateChange(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none focus:text-slate-900 w-full" />
-                  <span className="text-[9px] text-slate-300 font-bold uppercase mx-1">até</span>
-                  <input type="date" value={endDate} onChange={e => onDateChange(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none focus:text-slate-900 w-full" />
+                <div className="flex items-center gap-1 px-1 flex-1 min-w-0 justify-between h-full">
+                  <input type="date" value={startDate} onChange={e => { onDateChange(e.target.value, endDate); setCurrentPage(1); }} className="bg-transparent border-none text-[11px] text-slate-700 outline-none hover:text-primary-600 focus:text-primary-600 cursor-pointer flex-1 min-w-[90px] h-full [&::-webkit-calendar-picker-indicator]:w-5 [&::-webkit-calendar-picker-indicator]:h-5 [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 transition-opacity" />
+                  <span className="text-[10px] text-slate-400 shrink-0">até</span>
+                  <input type="date" value={endDate} onChange={e => { onDateChange(startDate, e.target.value); setCurrentPage(1); }} className="bg-transparent border-none text-[11px] text-slate-700 outline-none hover:text-primary-600 focus:text-primary-600 cursor-pointer flex-1 min-w-[90px] h-full [&::-webkit-calendar-picker-indicator]:w-5 [&::-webkit-calendar-picker-indicator]:h-5 [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 transition-opacity" />
                 </div>
               </div>
             </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">{t.common.status}</label>
-              <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
-                <Filter size={12} className="text-slate-400 mr-2" />
-                <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-                  <option value="ALL">Todos Status</option>
-                  {Object.values(OrderStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+            <div className="flex flex-col gap-1 xl:col-span-2">
+              <label className="text-xs font-medium text-slate-500 px-1">{t.common.status}</label>
+              <div className="relative">
+                <button 
+                  onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsTechDropdownOpen(false); }}
+                  onBlur={() => setTimeout(() => setIsStatusDropdownOpen(false), 200)}
+                  className="flex items-center justify-between w-full bg-white border border-[#1c2d4f]/20 rounded-xl px-3 h-10 text-xs text-slate-700 hover:border-[#1c2d4f]/40 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter size={14} className="text-slate-400" />
+                    <span>{statusFilter === 'ALL' ? 'Todos Status' : statusFilter}</span>
+                  </div>
+                  <ChevronDown size={14} className="text-slate-400" />
+                </button>
+                {isStatusDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2">
+                    <button 
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${statusFilter === 'ALL' ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
+                      onClick={() => { setStatusFilter('ALL'); setIsStatusDropdownOpen(false); setCurrentPage(1); }}
+                    >
+                      Todos Status
+                    </button>
+                    {Object.values(OrderStatus).map(s => (
+                      <button 
+                        key={s} 
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${statusFilter === s ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
+                        onClick={() => { setStatusFilter(s); setIsStatusDropdownOpen(false); setCurrentPage(1); }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Responsável</label>
-              <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
-                <UserCheck size={12} className="text-slate-400 mr-2" />
-                <select className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full" value={techFilter} onChange={e => setTechFilter(e.target.value)}>
-                  <option value="ALL">Todos Técnicos</option>
-                  {techs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+            <div className="flex flex-col gap-1 xl:col-span-2">
+              <label className="text-xs font-medium text-slate-500 px-1">Responsável</label>
+              <div className="relative">
+                <button 
+                  onClick={() => { setIsTechDropdownOpen(!isTechDropdownOpen); setIsStatusDropdownOpen(false); }}
+                  onBlur={() => setTimeout(() => setIsTechDropdownOpen(false), 200)}
+                  className="flex items-center justify-between w-full bg-white border border-[#1c2d4f]/20 rounded-xl px-3 h-10 text-xs text-slate-700 hover:border-[#1c2d4f]/40 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                >
+                  <div className="flex items-center gap-2 truncate pr-2">
+                    <UserCheck size={14} className="text-slate-400 shrink-0" />
+                    <span className="truncate">{techFilter === 'ALL' ? 'Técnicos' : (techs.find(t => t.id === techFilter)?.name || 'Técnicos')}</span>
+                  </div>
+                  <ChevronDown size={14} className="text-slate-400 shrink-0" />
+                </button>
+                {isTechDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2">
+                    <button 
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
+                      onClick={() => { setTechFilter('ALL'); setIsTechDropdownOpen(false); setCurrentPage(1); }}
+                    >
+                      Técnicos
+                    </button>
+                    {techs.map(t => (
+                      <button 
+                        key={t.id} 
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${techFilter === t.id ? 'font-medium text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
+                        onClick={() => { setTechFilter(t.id); setIsTechDropdownOpen(false); setCurrentPage(1); }}
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex items-end pb-0.5">
+            <div className="flex items-end pb-0.5 xl:col-span-2">
               <button
                 onClick={() => {
                   setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');
-                  const end = new Date();
-                  const start = new Date();
-                  start.setDate(start.getDate() - 30);
-                  onDateChange(start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
+                  onDateChange('', '');
                   setSelectedOrderIds([]);
+                  setCurrentPage(1);
                 }}
-                className="h-9 w-full px-4 text-[10px] font-bold bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 rounded-lg transition-colors uppercase tracking-widest border border-rose-100"
+                className="h-10 w-full px-4 text-xs bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 rounded-xl transition-colors border border-rose-100 shadow-sm"
               >
                 Limpar Todos os Filtros
               </button>
@@ -1091,7 +1156,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       {/* Main Table Container - Premium Look */}
-      <div className="bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
+      <div className="relative bg-white border border-slate-300/80 rounded-xl shadow-lg shadow-slate-200/50 flex flex-col overflow-hidden flex-1 ring-1 ring-slate-200/80">
+        {/* 🔄 Page Transition Overlay — Big Tech Standard */}
+        {(ordersFetching || isManualSyncing) && !ordersLoading && pagedOrders.length > 0 && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] z-20 flex items-center justify-center transition-opacity duration-200 animate-fade-in">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin" />
+              <p className="text-sm text-slate-500 uppercase tracking-widest">atualizando...</p>
+            </div>
+          </div>
+        )}
         <div className="flex-1 overflow-auto custom-scrollbar">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 z-10 shadow-sm font-poppins">
@@ -1141,7 +1215,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <td colSpan={10} className="py-24 text-center">
                     <div className="flex flex-col items-center gap-3 text-slate-400">
                       <Loader2 size={28} className="animate-spin text-primary-400" />
-                      <p className="text-xs font-bold uppercase tracking-widest">Carregando ordens...</p>
+                      <p className="text-sm text-slate-500 uppercase tracking-widest">Carregando ordens...</p>
                     </div>
                   </td>
                 </tr>
@@ -1197,36 +1271,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="px-3 py-2 text-right pr-4">
                       <div className="flex items-center justify-end gap-1.5 transition-opacity opacity-90 group-hover:opacity-100">
                         <button
-                          onClick={(e) => handleOpenPublicView(order, e)}
-                          className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 hover:border-primary-600 transition-all shadow-sm"
-                          title="Compartilhar Link Público"
-                        >
-                          <Share2 size={16} />
-                        </button>
-                        <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            const customer = customers.find(c => c.name === order.customerName);
-                            if (customer?.whatsapp) {
-                              const phone = customer.whatsapp.replace(/\D/g, '');
-                              const fullPhone = phone.startsWith('55') ? phone : `55${phone}`;
-                              window.open(`https://wa.me/${fullPhone}`, '_blank');
-                            } else {
-                              alert('WhatsApp do cliente não cadastrado no sistema.');
-                            }
+                            setSelectedOrder(order);
                           }}
-                          className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-lg border border-emerald-200 hover:border-emerald-600 transition-all shadow-sm"
-                          title="WhatsApp do Cliente"
+                          className="p-2 text-primary-600 bg-primary-50 hover:bg-primary-600 hover:text-white rounded-lg border border-primary-200 hover:border-primary-600 transition-all shadow-sm"
+                          title="Visualizar OS"
                         >
-                          <MessageCircle size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => handleCancelOrder(order, e)}
-                          disabled={order.status === OrderStatus.CANCELED || order.status === OrderStatus.COMPLETED}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition-all disabled:opacity-0"
-                          title="Cancelar"
-                        >
-                          <Ban size={16} />
+                          <Eye size={16} />
                         </button>
                       </div>
                     </td>
@@ -1238,8 +1290,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-lg shadow-slate-200/50">
                       <Search size={24} className="text-slate-300" />
                     </div>
-                    <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Nenhuma atividade localizada</p>
-                    <p className="text-xs text-slate-400 font-medium mt-1">Ajuste os filtros para encontrar o que procura</p>
+                    <p className="text-sm text-slate-500 uppercase tracking-widest">Nenhuma atividade localizada</p>
+                    <p className="text-xs text-slate-400 mt-1">Ajuste os filtros para encontrar o que procura</p>
                   </td>
                 </tr>
               )}
@@ -1286,13 +1338,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins truncate">OS #{selectedOrder.displayId || selectedOrder.id}</h2>
                     <StatusBadge status={selectedOrder.status} />
                     {isEditing && (
-                      <span className="text-[9px] sm:text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
+                      <span className="text-[9px] sm:text-[10px] font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
                         Editando
                       </span>
                     )}
                   </div>
                   <p className="text-[10px] sm:text-xs text-slate-500 font-medium mt-0.5 truncate">
-                    {isEditing ? (editDraft.customerName || selectedOrder.customerName) : selectedOrder.customerName} • {isEditing ? (editDraft.customerAddress || selectedOrder.customerAddress) : selectedOrder.customerAddress}
+                    {isEditing ? (editDraft.customerName || selectedOrder.customerName) : selectedOrder.customerName}
                   </p>
                 </div>
               </div>
@@ -1356,7 +1408,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           const fullPhone = phone.startsWith('55') ? phone : `55${phone}`;
                           window.open(`https://wa.me/${fullPhone}`, '_blank');
                         } else {
-                          alert('WhatsApp do cliente não cadastrado no sistema.');
+                          showAlert('WhatsApp do cliente não cadastrado no sistema.');
                         }
                       }}
                       className="h-9 px-2 sm:px-4 gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
@@ -1371,6 +1423,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     >
                       <Printer size={14} /> <span className="hidden md:inline">Imprimir PDF</span>
                     </Button>
+                    {selectedOrder.status !== OrderStatus.COMPLETED && selectedOrder.status !== OrderStatus.CANCELED && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => handleCancelOrder(selectedOrder, e)}
+                        className="h-9 px-2 sm:px-4 gap-1.5 border-rose-200 text-rose-700 hover:bg-rose-50"
+                      >
+                        <Ban size={14} /> <span className="hidden sm:inline">Cancelar OS</span>
+                      </Button>
+                    )}
                   </>
                 )}
                 <div className="h-6 w-px bg-slate-200 mx-0.5 sm:mx-2"></div>
@@ -1385,7 +1447,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               
               {/* DESKTOP SIDEBAR TABS */}
               <div className="hidden md:flex flex-col w-48 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
+                <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
                 {[
                   { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
                   { id: 'internal_notes', label: 'Obs Internas', icon: FileText },
@@ -1401,8 +1463,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 ].map(tab => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
+                    onClick={() => {
+                      if (tab.id === 'forms' && (formTemplatesAll.length === 0 || osEquipments.length === 0)) {
+                        setFormsTabLoading(true);
+                      }
+                      setActiveTab(tab.id as any);
+                    }}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all w-full text-left font-poppins
                       ${activeTab === tab.id 
                         ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]' 
                         : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
@@ -1430,8 +1497,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 ].map(tab => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
+                    onClick={() => {
+                      if (tab.id === 'forms' && (formTemplatesAll.length === 0 || osEquipments.length === 0)) {
+                        setFormsTabLoading(true);
+                      }
+                      setActiveTab(tab.id as any);
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap font-poppins
                       ${activeTab === tab.id 
                         ? 'bg-[#1c2d4f] text-white shadow-md' 
                         : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
@@ -1452,9 +1524,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="col-span-12 lg:col-span-8 space-y-6">
                     {/* Info Card Grid */}
                     <div className={`bg-white p-6 rounded-lg border shadow-sm transition-all ${isEditing ? 'border-blue-200 ring-2 ring-blue-100' : 'border-slate-200'}`}>
-                      <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                      <h3 className="text-sm font-medium text-slate-900 mb-6 flex items-center gap-2">
                         <UserIcon size={18} className="text-slate-400" /> Informações do Cliente
-                        {isEditing && <span className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-widest ml-auto">🔒 Não editável</span>}
+                        {isEditing && <span className="text-[9px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-widest ml-auto">🔒 Não editável</span>}
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
                         {(() => {
@@ -1486,9 +1558,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             if (c.neighborhood) p.push(`- ${c.neighborhood}`);
                             if (c.city) p.push(c.city);
                             if (c.state) p.push(c.state);
-                            if (c.zipCode) p.push(c.zipCode);
                             rawAddress = p.join(', ').replace(', -,', ' -').replace(', - ,', ' - ');
                           }
+                          const cepDisplay = c?.zip ? `CEP: ${c.zip}` : '';
 
                           return (
                             <>
@@ -1513,21 +1585,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Endereço de Atendimento / Principal</label>
                                 {isEditing
                                   ? <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.customerAddress ?? ''} onChange={e => setEditDraft(d => ({ ...d, customerAddress: e.target.value }))} />
-                                  : <div className="text-sm text-slate-600 font-medium leading-relaxed">{rawAddress || 'Não informado'}</div>
+                                  : (
+                                    <div className="text-sm text-slate-600 font-medium leading-relaxed">
+                                      {rawAddress || 'Não informado'}
+                                      {cepDisplay && <span className="block mt-0.5">{cepDisplay}</span>}
+                                    </div>
+                                  )
                                 }
                               </div>
                             </>
                           );
                         })()}
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Agendamento (Visita)</label>
-                          <div className="text-sm text-slate-400 font-medium italic flex items-center gap-2">
-                            <Clock size={14} /> Gerenciado na aba Visitas
-                          </div>
+                        
+                        <div className="md:col-span-2 border-t border-slate-200/60 my-2"></div>
+                        
+                        <div className="space-y-1.5 md:col-span-2">
+                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Título do Atendimento</label>
+                          {isEditing ? (
+                            <input className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all" value={editDraft.title ?? ''} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))} />
+                          ) : (
+                            <div className="text-sm text-slate-900 font-medium leading-relaxed">{selectedOrder.title || 'Não informado'}</div>
+                          )}
                         </div>
-                        <div className="space-y-1.5 opacity-50">
-                          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cronograma Atual</label>
-                          <div className="text-sm text-slate-600 font-bold">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</div>
+                        <div className="space-y-1.5 md:col-span-2">
+                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Descrição Técnico-Operacional</label>
+                          {isEditing ? (
+                            <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
+                          ) : (
+                            <div className="text-sm text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">{selectedOrder.description || 'Não informado'}</div>
+                          )}
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Modalidade do Atendimento</label>
@@ -1566,7 +1652,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </select>
                             )
                             : (
-                              <div className="text-[11px] font-bold uppercase tracking-wider leading-relaxed">
+                              <div className="text-[11px] font-medium uppercase tracking-wider leading-relaxed">
                                 {selectedOrder.priority === 'CRÍTICA' ? <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded">🔴 Crítica</span> :
                                  selectedOrder.priority === 'ALTA' ? <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded">🟡 Alta</span> :
                                  selectedOrder.priority === 'BAIXA' ? <span className="text-slate-500 bg-slate-50 px-2 py-0.5 rounded">Baixa</span> :
@@ -1579,24 +1665,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     <div className={`bg-white p-6 rounded-lg border shadow-sm transition-all ${isEditing ? 'border-blue-200 ring-2 ring-blue-100' : 'border-slate-200'}`}>
-                      <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                      <h3 className="text-sm font-medium text-slate-900 mb-6 flex items-center gap-2">
                         <FileText size={18} className="text-slate-400" /> Relatório de Atendimento
                       </h3>
                       <div className="space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Descrição das Atividades</label>
-                          {isEditing
-                            ? <textarea rows={5} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" value={editDraft.description ?? ''} onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))} />
-                            : <div className="p-4 bg-slate-50/50 rounded-md border border-slate-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap min-h-[120px] font-medium">{selectedOrder.description || "Nenhuma observação técnica registrada."}</div>
-                          }
-                        </div>
+
                         <div className="space-y-2">
                           <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Notas Internas</label>
                           {isEditing
                             ? <textarea rows={3} className="w-full border border-blue-200 bg-blue-50/50 rounded-md px-3 py-2.5 text-sm text-slate-700 font-medium outline-none focus:ring-2 focus:ring-blue-300 transition-all resize-none" placeholder="Notas opcionais..." value={editDraft.notes ?? ''} onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))} />
                             : selectedOrder.notes && (
                               <div className="p-4 bg-primary-50 border border-primary-100 rounded-md">
-                                <label className="text-[11px] font-bold text-[#1c2d4f] uppercase tracking-wider flex items-center gap-2 mb-2">
+                                <label className="text-[11px] font-medium text-[#1c2d4f] uppercase tracking-wider flex items-center gap-2 mb-2">
                                   <ShieldCheck size={14} /> Notas de Encerramento
                                 </label>
                                 <p className="text-sm font-medium text-slate-700 leading-relaxed">{selectedOrder.notes}</p>
@@ -1612,19 +1692,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="col-span-12 lg:col-span-4 space-y-6">
                     {/* Dates Card */}
                     <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
-                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><Clock size={16} className="text-slate-400" /> Cronograma</h3>
+                      <h3 className="text-xs font-medium text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><Clock size={16} className="text-slate-400" /> Cronograma</h3>
                       <div className="space-y-4">
                         <div className="flex justify-between items-center pb-3 border-b border-slate-200">
                           <span className="text-xs font-semibold text-slate-400">Abertura</span>
-                          <span className="text-xs font-bold text-slate-700">{new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
+                          <span className="text-xs font-medium text-slate-700">{new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
                         </div>
                         <div className="flex justify-between items-center pb-3 border-b border-slate-200">
                           <span className="text-xs font-semibold text-slate-400">Agendamento</span>
-                          <span className="text-xs font-bold text-[#1c2d4f]">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</span>
+                          <span className="text-xs font-medium text-[#1c2d4f]">{formatDateDisplay(selectedOrder.scheduledDate)} - {selectedOrder.scheduledTime || '--:--'}</span>
                         </div>
                         <div className="p-3 bg-emerald-50 rounded-md border border-emerald-100">
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-[10px] font-bold text-emerald-600 uppercase">Execução</span>
+                            <span className="text-[10px] font-medium text-emerald-600 uppercase">Execução</span>
                           </div>
                           <div className="space-y-1">
                             <div className="flex justify-between text-[11px] font-medium text-emerald-800">
@@ -1648,14 +1728,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                     {/* Tech Card */}
                     <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
-                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><UserCheck size={16} className="text-slate-400" /> Recursos</h3>
+                      <h3 className="text-xs font-medium text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2"><UserCheck size={16} className="text-slate-400" /> Responsável</h3>
                       {(() => {
                         const tech = techs.find(t => t.id === selectedOrder.assignedTo);
                         return tech ? (
                           <div className="flex items-center gap-4">
                             <img src={tech.avatar} className="w-12 h-12 rounded-full border border-slate-100 object-cover" />
                             <div>
-                              <div className="text-sm font-bold text-slate-900">{tech.name}</div>
+                              <div className="text-sm font-medium text-slate-900">{tech.name}</div>
                               <div className="text-xs font-medium text-slate-500">Técnico de Campo</div>
                             </div>
                           </div>
@@ -1672,7 +1752,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {activeTab === 'internal_notes' && (
                 <div className="max-w-4xl mx-auto space-y-6">
                   <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight flex items-center gap-2 mb-4">
+                    <h3 className="text-sm font-medium text-slate-900 uppercase tracking-tight flex items-center gap-2 mb-4">
                       <FileText size={18} className="text-primary-500" /> Observações Internas
                     </h3>
                     <p className="text-[11px] text-slate-500 font-medium mb-6">
@@ -1704,7 +1784,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               }));
                               setNewInternalNote('');
                             }}
-                            className="bg-[#1c2d4f] text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#2a457a] disabled:opacity-50 transition-colors"
+                            className="bg-[#1c2d4f] text-white px-4 py-2 rounded-lg text-xs font-medium uppercase tracking-widest hover:bg-[#2a457a] disabled:opacity-50 transition-colors"
                           >
                             Adicionar Observação
                           </button>
@@ -1712,7 +1792,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                     ) : (
                       <div className="bg-slate-50 rounded-lg p-4 text-center border border-slate-200">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Ative a edição para adicionar uma nova observação</p>
+                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest">Ative a edição para adicionar uma nova observação</p>
                       </div>
                     )}
                   </div>
@@ -1727,7 +1807,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         return (
                           <div className="text-center py-12 bg-white rounded-lg border border-dashed border-slate-200">
                             <FileText size={32} className="mx-auto text-slate-200 mb-3" />
-                            <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhuma observação registrada</p>
+                            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Nenhuma observação registrada</p>
                           </div>
                         );
                       }
@@ -1736,11 +1816,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div key={idx} className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm relative group">
                           <div className="flex justify-between items-start mb-3">
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs uppercase">
+                              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-medium text-xs uppercase">
                                 {note.user.slice(0, 2)}
                               </div>
                               <div>
-                                <p className="text-xs font-bold text-slate-900">{note.user}</p>
+                                <p className="text-xs font-medium text-slate-900">{note.user}</p>
                                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                                   {new Date(note.date).toLocaleString('pt-BR')}
                                 </p>
@@ -1785,7 +1865,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="max-w-4xl mx-auto space-y-4">
                     <div className="flex items-center justify-between mb-2">
                       <div>
-                        <h3 className="text-sm font-bold text-slate-900">
+                        <h3 className="text-sm font-medium text-slate-900">
                           {equipmentsLoading
                             ? 'Carregando...'
                             : hasAny
@@ -1821,12 +1901,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {equipmentsLoading ? (
                       <div className="flex items-center justify-center py-16 gap-3">
                         <Loader2 size={22} className="animate-spin text-primary-400" />
-                        <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Buscando equipamentos...</span>
+                        <span className="text-xs font-medium uppercase tracking-widest text-slate-400">Buscando equipamentos...</span>
                       </div>
                     ) : !hasAny ? (
                       <div className="bg-white border border-dashed border-slate-200 rounded-xl py-16 text-center">
                         <Box size={40} className="mx-auto text-slate-200 mb-4" />
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum equipamento cadastrado nesta OS</p>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Nenhum equipamento cadastrado nesta OS</p>
                         <p className="text-[11px] text-slate-300 font-medium mt-1">O equipamento é vinculado durante a criação da OS</p>
                       </div>
                     ) : (
@@ -1835,12 +1915,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <table className="w-full text-left border-collapse whitespace-nowrap">
                             <thead className="bg-[#f8fafc] text-[10px] uppercase tracking-widest text-slate-500 border-b border-slate-200">
                               <tr>
-                                <th className="px-5 py-3 font-black text-center">Ativo / Equipamento</th>
-                                <th className="px-5 py-3 font-black">Família</th>
-                                <th className="px-5 py-3 font-black">Série / Patrimônio</th>
-                                <th className="px-5 py-3 font-black text-center">Formulário</th>
-                                <th className="px-5 py-3 font-black text-center">{t.common.status}</th>
-                                {isEditing && <th className="px-5 py-3 font-black text-center">{t.common.actions}</th>}
+                                <th className="px-5 py-3 font-semibold text-center">Ativo / Equipamento</th>
+                                <th className="px-5 py-3 font-semibold">Família</th>
+                                <th className="px-5 py-3 font-semibold">Série / Patrimônio</th>
+                                <th className="px-5 py-3 font-semibold text-center">Formulário</th>
+                                <th className="px-5 py-3 font-semibold text-center">{t.common.status}</th>
+                                {isEditing && <th className="px-5 py-3 font-semibold text-center">{t.common.actions}</th>}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
@@ -1857,7 +1937,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                           <Box size={14} className="text-primary-500" />
                                         </div>
                                         <div className="text-left min-w-[120px]">
-                                          <p className="text-xs font-bold text-slate-900 truncate max-w-[200px]">{eq.equipmentName}</p>
+                                          <p className="text-xs font-medium text-slate-900 truncate max-w-[200px]">{eq.equipmentName}</p>
                                           {eq.equipmentModel && eq.equipmentModel !== eq.equipmentName && (
                                             <p className="text-[10px] text-slate-400 font-medium truncate max-w-[200px]">{eq.equipmentModel}</p>
                                           )}
@@ -1868,15 +1948,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       <span className="text-xs font-semibold text-slate-600">{eq.equipmentFamily || '—'}</span>
                                     </td>
                                     <td className="px-5 py-3.5">
-                                      <span className="text-xs font-bold text-slate-700 font-mono">{eq.equipmentSerial && eq.equipmentSerial !== '-' ? eq.equipmentSerial : '—'}</span>
+                                      <span className="text-xs font-medium text-slate-700 font-mono">{eq.equipmentSerial && eq.equipmentSerial !== '-' ? eq.equipmentSerial : '—'}</span>
                                     </td>
                                     <td className="px-5 py-3.5 text-center">
-                                      <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${hasFormData ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-500 border-amber-100'}`}>
+                                      <span className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md border ${hasFormData ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-500 border-amber-100'}`}>
                                         {hasFormData ? '✓ Sim' : '○ Pendente'}
                                       </span>
                                     </td>
                                     <td className="px-5 py-3.5 text-center">
-                                      <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${isActive ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                      <span className={`inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md border ${isActive ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                                         {isActive ? 'Ativo' : 'Concluído'}
                                       </span>
                                     </td>
@@ -1966,25 +2046,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <div key={idx} className="bg-rose-50 border border-rose-100 rounded-lg p-5 flex items-start gap-4 shadow-sm">
                             <div className="w-10 h-10 bg-white rounded-md flex items-center justify-center border border-rose-200 text-rose-600 shrink-0"><AlertTriangle size={20} /></div>
                             <div className="flex-1">
-                              <h4 className="text-sm font-bold text-rose-900">{imp.title}</h4>
+                              <h4 className="text-sm font-medium text-rose-900">{imp.title}</h4>
                               {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
                               <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
                               {imp.photo && (
                                 <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
                                   <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{ maxHeight: 200 }} />
-                                  <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
+                                  <span className="text-[10px] text-rose-500 font-medium uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
                                 </a>
                               )}
                               {(imp.signature || imp.responsible) && (
                                 <div className="mt-4 pt-4 border-t border-rose-200/50">
-                                  <p className="text-[10px] text-rose-500 font-bold uppercase tracking-widest mb-2">Assinatura do Autorizador:</p>
+                                  <p className="text-[10px] text-rose-500 font-medium uppercase tracking-widest mb-2">Assinatura do Autorizador:</p>
                                   {imp.signature && (
                                     <div className="bg-white p-2 rounded-lg border border-rose-200 inline-block">
                                       <img src={imp.signature} alt="Assinatura" className="h-20 object-contain mix-blend-multiply" />
                                     </div>
                                   )}
                                   {imp.responsible && (
-                                    <p className="text-xs font-bold text-rose-900 mt-2">Responsável: {imp.responsible}</p>
+                                    <p className="text-xs font-medium text-rose-900 mt-2">Responsável: {imp.responsible}</p>
                                   )}
                                 </div>
                               )}
@@ -2007,7 +2087,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       return (
                         <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden mb-6">
                           <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Aguardando preenchimento do checklist</p>
+                          <p className="text-xs text-slate-400 font-medium uppercase tracking-widest">Aguardando preenchimento do checklist</p>
                         </div>
                       );
                     }
@@ -2021,12 +2101,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <div key={visit.id || index} className="bg-white border border-slate-200 rounded-lg shadow-lg shadow-slate-200/50 overflow-hidden">
                               <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                                 <div>
-                                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                  <h3 className="text-xs font-medium text-slate-700 uppercase tracking-wider">
                                     Visita concluída em {new Date(visit.updatedAt || visit.createdAt).toLocaleString()}
                                   </h3>
                                   <p className="text-[10px] text-slate-500 font-medium">Status da Visita: {visit.status}</p>
                                 </div>
-                                <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
+                                <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-medium text-slate-500 rounded uppercase">
                                   {Object.keys(vFormData).length} Itens
                                 </span>
                               </div>
@@ -2040,7 +2120,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 }).map(([key, val]) => (
                                   <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
                                     <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
-                                    <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                    <div className={`text-[11px] font-medium uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                                       {String(val)}
                                     </div>
                                   </div>
@@ -2054,8 +2134,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {osFormData && (
                           <div className="bg-white border border-slate-200 rounded-lg shadow-lg shadow-slate-200/50 overflow-hidden">
                             <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-                              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Dados Globais do Formulário (OS)</h3>
-                              <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-bold text-slate-500 rounded uppercase">
+                              <h3 className="text-xs font-medium text-slate-700 uppercase tracking-wider">Dados Globais do Formulário (OS)</h3>
+                              <span className="px-2 py-0.5 bg-white border border-slate-200 text-[10px] font-medium text-slate-500 rounded uppercase">
                                 {Object.keys(osFormData).length} Itens
                               </span>
                             </div>
@@ -2069,7 +2149,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               }).map(([key, val]) => (
                                 <div key={key} className="px-6 py-4 flex justify-between gap-6 hover:bg-slate-50/50 transition-colors items-center">
                                   <div className="text-[13px] font-medium text-slate-600">{mapIdToLabel(key)}</div>
-                                  <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                  <div className={`text-[11px] font-medium uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${String(val).toLowerCase() === 'ok' || String(val).toLowerCase() === 'sim' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                                     {String(val)}
                                   </div>
                                 </div>
@@ -2138,14 +2218,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       return (
                         <div className="py-20 text-center bg-white border border-slate-200 rounded-lg">
                           <Camera className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Nenhuma evidência registrada</p>
+                          <p className="text-xs text-slate-400 font-medium uppercase tracking-widest">Nenhuma evidência registrada</p>
                         </div>
                       );
                     }
 
                     return groupKeys.map(key => (
                       <div key={key} className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
-                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-200 flex items-center gap-2">
+                        <h4 className="text-xs font-medium text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-200 flex items-center gap-2">
                           <Camera size={16} className="text-slate-400" /> {key}
                         </h4>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -2163,7 +2243,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <Play size={16} className="text-white fill-white ml-0.5" />
                                       </div>
                                     </div>
-                                    <div className="absolute bottom-2 right-2 bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded text-[8px] text-white font-bold uppercase tracking-wider flex items-center gap-1">
+                                    <div className="absolute bottom-2 right-2 bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded text-[8px] text-white font-medium uppercase tracking-wider flex items-center gap-1">
                                       <Video size={10} /> VÍDEO
                                     </div>
                                   </div>
@@ -2173,8 +2253,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/10 transition-colors" />
                               </div>
                               <div className="p-3 bg-slate-50/50 border-t border-slate-200 flex-1 flex flex-col justify-between">
-                                <p className="text-[10px] leading-snug font-bold text-slate-700 uppercase tracking-tight line-clamp-2" title={key}>{key}</p>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2 bg-slate-100 self-start px-2 py-0.5 rounded">{p.type === 'video' ? `Vídeo #${i + 1}` : `Foto #${i + 1}`}</p>
+                                <p className="text-[10px] leading-snug font-medium text-slate-700 uppercase tracking-tight line-clamp-2" title={key}>{key}</p>
+                                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mt-2 bg-slate-100 self-start px-2 py-0.5 rounded">{p.type === 'video' ? `Vídeo #${i + 1}` : `Foto #${i + 1}`}</p>
                               </div>
                             </div>
                           ))}
@@ -2190,7 +2270,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="max-w-5xl mx-auto space-y-6">
                   <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800">Gestão de Peças e Custos</h3>
+                      <h3 className="text-sm font-medium text-slate-800">Gestão de Peças e Custos</h3>
                       <p className="text-[11px] text-slate-500 font-medium mt-0.5">Peças sempre aparecem no link público. O botão abaixo controla somente a exibição dos valores (R$).</p>
                     </div>
 
@@ -2199,7 +2279,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => setEditDraft({ ...editDraft, showValueToClient: !(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false) })}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-sm border ${(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false)
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all shadow-sm border ${(editDraft.showValueToClient ?? selectedOrder.showValueToClient ?? false)
                             ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
                             : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'
                             }`}
@@ -2210,12 +2290,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <button
                           type="button"
                           onClick={async () => {
-                            if (window.confirm(`Deseja ${selectedOrder.showValueToClient ? 'ocultar' : 'mostrar'} os valores (R$) das peças no link público e na impressão? As peças continuarão visíveis.`)) {
+                            showConfirm(`Deseja ${selectedOrder.showValueToClient ? 'ocultar' : 'mostrar'} os valores (R$) das peças no link público e na impressão? As peças continuarão visíveis.`, async () => {
                               await onEditOrder({ ...selectedOrder, showValueToClient: !selectedOrder.showValueToClient });
                               setSelectedOrder({ ...selectedOrder, showValueToClient: !selectedOrder.showValueToClient });
-                            }
+                            }, "Visibilidade de Valores", "Confirmar", false);
                           }}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-sm border ${selectedOrder.showValueToClient ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'}`}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all shadow-sm border ${selectedOrder.showValueToClient ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'}`}
                         >
                           {selectedOrder.showValueToClient ? <><Eye size={14} /> Valores Visíveis</> : <><EyeOff size={14} /> Valores Ocultos</>}
                         </button>
@@ -2228,9 +2308,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/5">
                         <DollarSign size={16} className="text-blue-300" />
                       </div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Total Consolidado</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-white/70">Total Consolidado</span>
                     </div>
-                    <div className="text-2xl font-bold font-mono text-white">
+                    <div className="text-2xl font-medium font-mono text-white">
                       R$ {(selectedOrder.items?.reduce((acc, i) => acc + i.total, 0) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
@@ -2252,7 +2332,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <td className="px-6 py-2">
                               {isEditing ? (
                                 <input
-                                  className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-bold text-slate-800"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-medium text-slate-800"
                                   value={item.description}
                                   onChange={e => handleUpdateItem(item.id, 'description', e.target.value)}
                                   placeholder="Descrição do item..."
@@ -2261,7 +2341,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <div>
                                   <span className="font-semibold text-slate-800">{item.description}</span>
                                   {item.equipmentName && (
-                                    <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase mt-1">
+                                    <div className="flex items-center gap-1 text-[9px] text-slate-400 font-medium uppercase mt-1">
                                       <Box size={10} /> {item.equipmentName}
                                     </div>
                                   )}
@@ -2272,7 +2352,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               {isEditing ? (
                                 <input
                                   type="number"
-                                  className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs font-bold text-center"
+                                  className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-xs font-medium text-center"
                                   value={item.quantity}
                                   onChange={e => handleUpdateItem(item.id, 'quantity', Number(e.target.value))}
                                 />
@@ -2281,18 +2361,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <td className="px-4 py-2 text-right">
                               {isEditing ? (
                                 <div className="flex items-center justify-end gap-1">
-                                  <span className="text-[10px] text-slate-400 font-bold">R$</span>
+                                  <span className="text-[10px] text-slate-400 font-medium">R$</span>
                                   <input
                                     type="number"
                                     step="0.01"
-                                    className="w-24 bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-bold text-right"
+                                    className="w-24 bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs font-medium text-right"
                                     value={item.unitPrice}
                                     onChange={e => handleUpdateItem(item.id, 'unitPrice', Number(e.target.value))}
                                   />
                                 </div>
                               ) : <span className="font-mono text-slate-500 text-xs">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
                             </td>
-                            <td className="px-6 py-2 text-right font-mono font-bold text-slate-900">
+                            <td className="px-6 py-2 text-right font-mono font-medium text-slate-900">
                               R$ {(item.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </td>
                             {isEditing && (
@@ -2314,7 +2394,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setIsStockPickerOpen(true)}
-                                className="flex items-center gap-2 text-[10px] font-black text-primary-600 hover:text-primary-700 uppercase tracking-widest transition-all"
+                                className="flex items-center gap-2 text-[10px] font-semibold text-primary-600 hover:text-primary-700 uppercase tracking-widest transition-all"
                               >
                                 <PlusCircle size={14} /> Adicionar Item / Peça (Estoque)
                               </button>
@@ -2322,7 +2402,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </tr>
                         )}
                         {(!editDraft.items && (!selectedOrder.items || selectedOrder.items.length === 0)) && (
-                          <tr><td colSpan={5} className="py-20 text-center text-slate-300 font-bold uppercase tracking-widest text-xs">Nenhum custo registrado para esta O.S.</td></tr>
+                          <tr><td colSpan={5} className="py-20 text-center text-slate-300 font-medium uppercase tracking-widest text-xs">Nenhum custo registrado para esta O.S.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -2338,7 +2418,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <FileText size={18} className="text-emerald-500" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900 tracking-tight">Orçamentos Vinculados</h3>
+                      <h3 className="text-sm font-medium text-slate-900 tracking-tight">Orçamentos Vinculados</h3>
                       <p className="text-[11px] text-slate-500 font-medium">Orçamentos aprovados ou relacionados a esta ordem de serviço</p>
                     </div>
                   </div>
@@ -2359,7 +2439,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {/* Lista de Vinculados */}
                     {((isEditing ? editDraft.linkedQuotes : selectedOrder.linkedQuotes) || []).length > 0 && (
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Atualmente Vinculados</label>
+                        <label className="text-[10px] font-medium text-slate-400 uppercase px-1">Atualmente Vinculados</label>
                         <div className="space-y-2">
                           {((isEditing ? editDraft.linkedQuotes : selectedOrder.linkedQuotes) || []).map(qid => {
                             const q = quotes.find(qt => qt.id === qid);
@@ -2371,7 +2451,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   </div>
                                   <div>
                                     <p
-                                      className="text-[12px] font-bold text-slate-800 hover:text-primary-600 cursor-pointer flex items-center gap-1 transition-colors"
+                                      className="text-[12px] font-medium text-slate-800 hover:text-primary-600 cursor-pointer flex items-center gap-1 transition-colors"
                                       onClick={() => window.open(`/#/view-quote/${q?.publicToken || qid}`, '_blank')}
                                       title="Abrir orçamento no portal do cliente"
                                     >
@@ -2382,7 +2462,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${q?.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : q?.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                  <span className={`text-[10px] font-medium px-2 py-1 rounded-md border ${q?.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : q?.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
                                     {q?.status || '—'}
                                   </span>
                                   {isEditing && (
@@ -2405,7 +2485,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {/* Lista para Vincular (apenas na edição e se houver busca) */}
                     {isEditing && quoteSearch && (
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Resultados da Busca</label>
+                        <label className="text-[10px] font-medium text-slate-400 uppercase px-1">Resultados da Busca</label>
                         <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden max-h-[300px] overflow-y-auto custom-scrollbar">
                           {quotes.filter(q => !(editDraft.linkedQuotes || []).includes(q.id) && (
                             q.title?.toLowerCase().includes(quoteSearch.toLowerCase()) ||
@@ -2422,12 +2502,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <FileText size={14} className="text-slate-400 group-hover:text-primary-500" />
                                 </div>
                                 <div>
-                                  <p className="text-[12px] font-bold text-slate-700 group-hover:text-primary-700">{q.displayId || q.title}</p>
+                                  <p className="text-[12px] font-medium text-slate-700 group-hover:text-primary-700">{q.displayId || q.title}</p>
                                   <p className="text-[11px] text-slate-500 mt-0.5">{q.customerName} • R$ {(q.totalValue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
-                                <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${q.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : q.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                <span className={`text-[10px] font-medium px-2 py-1 rounded-md border ${q.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : q.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
                                   {q.status}
                                 </span>
                                 <Plus size={16} className="text-slate-300 group-hover:text-primary-600" />
@@ -2448,7 +2528,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {!isEditing && (selectedOrder.linkedQuotes || []).length === 0 && (
                       <div className="bg-white border border-dashed border-slate-200 rounded-xl py-12 text-center">
                         <Link2 size={32} className="mx-auto text-slate-200 mb-3" />
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum orçamento vinculado</p>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Nenhum orçamento vinculado</p>
                       </div>
                     )}
                   </div>
@@ -2462,10 +2542,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100 mb-6 group hover:border-[#1c2d4f] transition-all">
                       <ShieldCheck size={32} className="text-slate-300 group-hover:text-[#1c2d4f]" />
                     </div>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Validação Técnica</h3>
+                    <h3 className="text-sm font-medium text-slate-900 uppercase tracking-tight">Validação Técnica</h3>
                     <p className="text-xs text-slate-500 mt-2 mb-8 font-medium">Revisado e assinado eletronicamente pelo responsável de campo</p>
                     <div className="w-full pt-8 border-t border-slate-200">
-                      <div className="text-base font-bold text-slate-800">{techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Técnico Não Identificado'}</div>
+                      <div className="text-base font-medium text-slate-800">{techs.find(t => t.id === selectedOrder.assignedTo)?.name || 'Técnico Não Identificado'}</div>
                       <div className="text-[10px] text-slate-400 font-mono mt-2 break-all bg-slate-50 p-2 rounded border border-slate-100 select-all">
                         {selectedOrder.displayId || selectedOrder.id}-VALID-{new Date(selectedOrder.createdAt).getTime()}
                       </div>
@@ -2476,7 +2556,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100 mb-6">
                       <UserCheck size={32} className="text-slate-300" />
                     </div>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Aceite do Cliente</h3>
+                    <h3 className="text-sm font-medium text-slate-900 uppercase tracking-tight">Aceite do Cliente</h3>
                     <p className="text-xs text-slate-500 mt-2 mb-8 font-medium">Protocolo de recebimento e satisfação de serviço</p>
 
                     {(() => {
@@ -2512,16 +2592,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="w-full">
                           <img src={signatureUrl} className="h-28 mx-auto object-contain mix-blend-multiply mb-6" alt="Assinatura" />
                           <div className="pt-6 border-t border-slate-200">
-                            <div className="text-base font-bold text-slate-900 uppercase text-center">{name}</div>
+                            <div className="text-base font-medium text-slate-900 uppercase text-center">{name}</div>
                             {signatureDoc && <div className="text-xs font-semibold text-slate-500 font-mono text-center mt-1">CPF/Doc: {signatureDoc}</div>}
                             <div className="text-center">
-                              <div className="text-[10px] text-emerald-600 font-bold uppercase mt-2 inline-block px-2 py-1 bg-emerald-50 rounded-md">✓ Assinado Digitalmente no App</div>
+                              <div className="text-[10px] text-emerald-600 font-medium uppercase mt-2 inline-block px-2 py-1 bg-emerald-50 rounded-md">✓ Assinado Digitalmente no App</div>
                             </div>
                           </div>
                         </div>
                       ) : (
                         <div className="py-8 w-full border-t border-slate-200 text-center">
-                          <p className="text-xs text-slate-400 font-bold uppercase bg-slate-50 py-4 rounded-md border border-dashed border-slate-200 tracking-widest">Assinatura Pendente</p>
+                          <p className="text-xs text-slate-400 font-medium uppercase bg-slate-50 py-4 rounded-md border border-dashed border-slate-200 tracking-widest">Assinatura Pendente</p>
                         </div>
                       );
                     })()}
@@ -2536,7 +2616,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Cabeçalho da aba */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                         {visits.length} {visits.length === 1 ? 'visita registrada' : 'visitas registradas'}
                         {visits.length > 0 && visits[0].scheduledDate && (
                           <span className="text-primary-500 ml-1">
@@ -2573,7 +2653,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Formulário de nova visita (inline) */}
                   {showNewVisitForm && (
                     <div className="bg-white border border-primary-200 rounded-xl shadow-lg shadow-slate-200/50 p-6 space-y-4 animate-in fade-in slide-in-from-top-2">
-                      <h4 className="text-xs font-black uppercase tracking-widest text-primary-700">Agendar Nova Visita</h4>
+                      <h4 className="text-xs font-semibold uppercase tracking-widest text-primary-700">Agendar Nova Visita</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <label className="text-[11px] font-semibold text-slate-500 uppercase">Técnico Responsável *</label>
@@ -2606,7 +2686,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="space-y-1.5 md:col-span-2">
                           <label className="text-[11px] font-semibold text-slate-500 uppercase flex items-center gap-1">
                             Observações para o técnico
-                            <span className="text-rose-500 font-black">*</span>
+                            <span className="text-rose-500 font-semibold">*</span>
                           </label>
                           <textarea
                             rows={3}
@@ -2640,12 +2720,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {visitsLoading ? (
                     <div className="flex items-center justify-center py-16 gap-3">
                       <Loader2 size={22} className="animate-spin text-primary-400" />
-                      <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando visitas...</span>
+                      <span className="text-xs font-medium uppercase tracking-widest text-slate-400">Carregando visitas...</span>
                     </div>
                   ) : visits.length === 0 ? (
                     <div className="bg-white border border-dashed border-slate-200 rounded-xl py-16 text-center">
                       <CalendarPlus size={40} className="mx-auto text-slate-200 mb-4" />
-                      <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhuma visita agendada</p>
+                      <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Nenhuma visita agendada</p>
                       <p className="text-[11px] text-slate-300 font-medium mt-1">Clique em "Nova Visita" para agendar a primeira.</p>
                     </div>
                   ) : (
@@ -2693,20 +2773,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           >
                             {/* Card header */}
                             <div className="p-3.5 flex items-center gap-4">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 border-2 ${isLast ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-slate-200 bg-white text-slate-500'
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 border-2 ${isLast ? 'border-primary-400 bg-primary-50 text-primary-700' : 'border-slate-200 bg-white text-slate-500'
                                 }`}>
                                 {visit.visitNumber ?? idx + 1}
                               </div>
 
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${statusColors[effectiveStatus] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md border ${statusColors[effectiveStatus] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
                                     {statusLabel[effectiveStatus] || effectiveStatus}
                                   </span>
-                                  {isLast && <span className="text-[9px] font-black text-primary-500 bg-primary-50 px-2 py-0.5 rounded-full uppercase">Atual</span>}
-                                  {visit.isLocked && <span className="text-[9px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase">🔒 Concluída</span>}
+                                  {isLast && <span className="text-[9px] font-semibold text-primary-500 bg-primary-50 px-2 py-0.5 rounded-full uppercase">Atual</span>}
+                                  {visit.isLocked && <span className="text-[9px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase">🔒 Concluída</span>}
                                 </div>
-                                <p className="text-sm font-bold text-slate-800 mt-1 truncate">{techName}</p>
+                                <p className="text-sm font-medium text-slate-800 mt-1 truncate">{techName}</p>
                                 <p className="text-[11px] text-slate-400 font-medium">
                                   {visit.scheduledDate ? formatDateDisplay(visit.scheduledDate) : '—'}
                                   {visit.scheduledTime ? ` às ${visit.scheduledTime}` : ''}
@@ -2732,8 +2812,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                               {visit.arrivalTime && !isEditingThis && (
                                 <div className="text-right shrink-0">
-                                  <p className="text-[10px] font-black text-slate-400 uppercase">Chegada</p>
-                                  <p className="text-xs font-bold text-slate-700">
+                                  <p className="text-[10px] font-semibold text-slate-400 uppercase">Chegada</p>
+                                  <p className="text-xs font-medium text-slate-700">
                                     {new Date(visit.arrivalTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                   </p>
                                 </div>
@@ -2743,7 +2823,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {/* Formulário de edição de agendamento — expandido inline */}
                             {isEditingThis && (
                               <div className="border-t border-amber-100 bg-blue-50/40 px-5 py-4 space-y-3">
-                                <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Editar Agendamento</p>
+                                <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-widest">Editar Agendamento</p>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                   <div className="space-y-1">
                                     <label className="text-[10px] font-semibold text-slate-500 uppercase">Data</label>
@@ -2771,13 +2851,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   </div>
                                 </div>
                                 <div className="flex justify-end gap-2 pt-1">
-                                  <button onClick={() => setEditingVisitId(null)} className="px-3 py-1.5 text-[11px] font-bold text-slate-500 hover:text-slate-700 transition-colors">
+                                  <button onClick={() => setEditingVisitId(null)} className="px-3 py-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-700 transition-colors">
                                     Cancelar
                                   </button>
                                   <button
                                     onClick={() => handleSaveVisitSchedule(visit)}
                                     disabled={savingSchedule}
-                                    className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-black rounded-lg transition-all shadow-md disabled:opacity-50"
+                                    className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold rounded-lg transition-all shadow-md disabled:opacity-50"
                                   >
                                     {savingSchedule ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
                                     Salvar
@@ -2802,7 +2882,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {/* Histórico detalhado de visitas */}
                   <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-200">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Histórico de Visitas</h3>
+                      <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-500">Histórico de Visitas</h3>
                     </div>
                     <VisitHistoryTab orderId={selectedOrder.id} isActive={activeTab === 'history'} />
                   </div>
@@ -2879,7 +2959,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center text-primary-600">
                   <PackageSearch size={18} />
                 </div>
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Selecionar Item do Estoque</h3>
+                <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-tight">Selecionar Item do Estoque</h3>
               </div>
               <button onClick={() => setIsStockPickerOpen(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-all">
                 <X size={20} />
@@ -2892,7 +2972,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <input
                   type="text"
                   placeholder="Pesquisar por descrição ou código..."
-                  className="w-full bg-slate-100 border-none rounded-xl pl-12 pr-4 py-3 text-sm font-bold text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                  className="w-full bg-slate-100 border-none rounded-xl pl-12 pr-4 py-3 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary-500 transition-all"
                   value={stockSearch}
                   onChange={e => setStockSearch(e.target.value)}
                   autoFocus
@@ -2903,7 +2983,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {stockLoading ? (
                   <div className="py-20 text-center flex flex-col items-center gap-3">
                     <Loader2 size={32} className="animate-spin text-primary-400" />
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carregando estoque...</p>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Carregando estoque...</p>
                   </div>
                 ) : allStockItems.filter(i =>
                   i.description.toLowerCase().includes(stockSearch.toLowerCase()) ||
@@ -2921,38 +3001,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         className="w-full p-4 rounded-xl border border-slate-100 bg-white hover:bg-slate-50 hover:border-primary-200 hover:shadow-sm transition-all text-left flex items-center justify-between group"
                       >
                         <div>
-                          <p className="font-bold text-slate-800 text-sm group-hover:text-primary-700 transition-colors uppercase">{item.description}</p>
+                          <p className="font-medium text-slate-800 text-sm group-hover:text-primary-700 transition-colors uppercase">{item.description}</p>
                           <div className="flex items-center gap-3 mt-1">
-                            <p className="text-[10px] font-black text-slate-400 uppercase">Cód: {item.code}</p>
-                            <p className="text-[10px] font-black text-slate-400 uppercase">Salvo em: {item.location || 'Geral'}</p>
-                            <p className={`text-[10px] font-black uppercase ${item.quantity > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            <p className="text-[10px] font-semibold text-slate-400 uppercase">Cód: {item.code}</p>
+                            <p className="text-[10px] font-semibold text-slate-400 uppercase">Salvo em: {item.location || 'Geral'}</p>
+                            <p className={`text-[10px] font-semibold uppercase ${item.quantity > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                               Estoque: {item.quantity} {item.unit}
                             </p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs font-black text-slate-900 font-mono">R$ {Number(item.sellPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">Unitário</p>
+                          <p className="text-xs font-semibold text-slate-900 font-mono">R$ {Number(item.sellPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          <p className="text-[10px] font-medium text-slate-400 uppercase">Unitário</p>
                         </div>
                       </button>
                     ))
                 ) : (
                   <div className="py-20 text-center flex flex-col items-center gap-3">
                     <PackageSearch size={32} className="text-slate-200" />
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nenhum item encontrado</p>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Nenhum item encontrado</p>
                   </div>
                 )}
               </div>
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0">
-              <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2">
+              <p className="text-[10px] font-medium text-slate-400 uppercase flex items-center gap-2">
                 <Box size={12} /> {allStockItems.length} Itens no catálogo
               </p>
               <button
                 type="button"
                 onClick={handleManualAdd}
-                className="flex items-center gap-2 px-4 py-2 text-[10px] font-black text-slate-500 hover:text-slate-900 uppercase tracking-widest transition-all"
+                className="flex items-center gap-2 px-4 py-2 text-[10px] font-semibold text-slate-500 hover:text-slate-900 uppercase tracking-widest transition-all"
               >
                 <Plus size={14} /> Item fora do catálogo (Manual)
               </button>

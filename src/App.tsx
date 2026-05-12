@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { DialogProvider } from './contexts/DialogContext';
 import { PublicApp } from './apps/public/PublicApp';
 import { AdminApp } from './apps/admin/AdminApp';
 import { AdminLogin } from './components/admin/AdminLogin';
@@ -125,11 +126,13 @@ const App: React.FC = () => {
     >
       <I18nProvider>
         <AuthProvider>
-          <AppRoutes />
-          <PwaInstallPrompt />
-          <NetworkStatusIndicator />
-          <GlobalAlertProvider />
-          <GlobalSpinnerProvider />
+          <DialogProvider>
+            <AppRoutes />
+            <PwaInstallPrompt />
+            <NetworkStatusIndicator />
+            <GlobalAlertProvider />
+            <GlobalSpinnerProvider />
+          </DialogProvider>
         </AuthProvider>
       </I18nProvider>
     </HashRouter>

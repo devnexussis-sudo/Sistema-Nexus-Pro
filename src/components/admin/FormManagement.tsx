@@ -284,9 +284,9 @@ export const FormManagement: React.FC = () => {
   return (
     <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
       {loading && forms.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 h-full">
-          <Loader2 size={40} className="animate-spin text-[#1c2d4f] mb-4" />
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Carregando dados da tela...</p>
+        <div className="flex-1 flex flex-col items-center justify-center p-8 h-full animate-fade-in">
+          <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin mb-4" />
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">carregando dados...</p>
         </div>
       ) : (
         <>

@@ -75,7 +75,7 @@ export const VisitFormsTab: React.FC<VisitFormsTabProps> = ({
     return (
       <div className="flex items-center justify-center py-16 gap-3">
         <Loader2 size={22} className="animate-spin text-primary-400" />
-        <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Carregando formulários...</span>
+        <span className="text-xs font-medium uppercase tracking-widest text-slate-400">Carregando formulários...</span>
       </div>
     );
   }
@@ -99,7 +99,7 @@ export const VisitFormsTab: React.FC<VisitFormsTabProps> = ({
       return (
         <div className="p-20 text-center bg-white border border-slate-200 rounded-lg shadow-sm">
           <ClipboardList className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Nenhum formulário preenchido</p>
+          <p className="text-xs text-slate-400 font-medium uppercase tracking-widest">Nenhum formulário preenchido</p>
           <p className="text-[11px] text-slate-300 mt-1 font-medium">Aguardando execução das visitas pelo técnico</p>
         </div>
       );
@@ -126,7 +126,7 @@ export const VisitFormsTab: React.FC<VisitFormsTabProps> = ({
       {/* Linha do tempo visual */}
       <div className="flex items-center gap-2 px-1 mb-2">
         <ClipboardList size={14} className="text-slate-400" />
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
           {activeVisits.length} visita{activeVisits.length !== 1 ? 's' : ''} com formulário
         </span>
         <div className="flex-1 h-px bg-slate-200" />
@@ -262,14 +262,14 @@ const VisitContainer: React.FC<{
       {/* ── Header da Visita ── */}
       <div className={`flex items-center gap-3 px-5 py-3.5 border-b ${cfg.border} ${cfg.bg}`}>
         {/* Número da visita */}
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-black text-sm border ${cfg.border} bg-white ${cfg.color}`}>
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-sm border ${cfg.border} bg-white ${cfg.color}`}>
           {visitNumber}
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-xs font-black text-slate-800 uppercase tracking-wider">Visita nº {visitNumber}</p>
-            <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-md border ${cfg.bg} ${cfg.color} ${cfg.border} flex items-center gap-1`}>
+            <p className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Visita nº {visitNumber}</p>
+            <span className={`text-[9px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md border ${cfg.bg} ${cfg.color} ${cfg.border} flex items-center gap-1`}>
               <StatusIcon size={10} />
               {cfg.label}
             </span>
@@ -284,16 +284,16 @@ const VisitContainer: React.FC<{
         <div className="flex gap-4 shrink-0">
           {arrivalTime && (
             <div className="text-right">
-              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Check-in</p>
-              <p className="text-[11px] font-bold text-slate-700">{fmtDT(arrivalTime)}</p>
+              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-widest">Check-in</p>
+              <p className="text-[11px] font-medium text-slate-700">{fmtDT(arrivalTime)}</p>
             </div>
           )}
           {departureTime && (
             <div className="text-right">
-              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+              <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-widest">
                 {status === 'blocked' ? 'Bloqueio' : 'Conclusão'}
               </p>
-              <p className="text-[11px] font-bold text-slate-700">{fmtDT(departureTime)}</p>
+              <p className="text-[11px] font-medium text-slate-700">{fmtDT(departureTime)}</p>
             </div>
           )}
         </div>
@@ -325,14 +325,14 @@ const VisitContainer: React.FC<{
               });
 
               return Object.entries(groups).map(([groupName, groupEntries]) => (
-                <div key={groupName} className="border-b border-slate-100 last:border-0 pb-4 last:pb-0 mb-4 last:mb-0 pt-4 first:pt-0">
-                  <div className="px-5 pb-2">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-md">{groupName}</span>
+                <div key={groupName} className="border-b border-slate-100 last:border-0 pb-4 last:pb-0 mb-4 last:mb-0 pt-6 first:pt-2">
+                  <div className="px-5 pb-3">
+                    <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider bg-slate-100 px-3 py-1.5 rounded-md">{groupName}</span>
                   </div>
-                  <div className="divide-y divide-slate-50">
+                  <div className="divide-y divide-slate-200/60">
                     {groupEntries.map(([key, val]) => (
-                      <div key={key} className="px-5 py-2.5 flex justify-between gap-4 items-center hover:bg-slate-50/50 transition-colors">
-                        <p className="text-[12px] font-medium text-slate-700 flex-1">{resolveLabel(key)}</p>
+                      <div key={key} className="px-5 py-3.5 flex justify-between gap-4 items-center hover:bg-slate-50/50 transition-colors">
+                        <p className="text-[12px] font-medium text-slate-700 flex-1 leading-relaxed">{resolveLabel(key)}</p>
                         <FormValueDisplay value={val} onImageClick={onImageClick} />
                       </div>
                     ))}
@@ -344,7 +344,7 @@ const VisitContainer: React.FC<{
             {/* Relatório Técnico */}
             {techReport && (
               <div className="px-5 py-4">
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Relatório Técnico</p>
+                <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-widest mb-2">Relatório Técnico</p>
                 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-3 rounded-md border border-indigo-100">{techReport}</p>
               </div>
             )}
@@ -352,7 +352,7 @@ const VisitContainer: React.FC<{
             {/* Peças Utilizadas */}
             {partsUsed && (
               <div className="px-5 py-4">
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Peças Utilizadas</p>
+                <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-widest mb-2">Peças Utilizadas</p>
                 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-indigo-50/50 p-3 rounded-md border border-indigo-100">{partsUsed}</p>
               </div>
             )}
@@ -360,7 +360,7 @@ const VisitContainer: React.FC<{
             {/* Observações */}
             {notes && (
               <div className="px-5 py-4">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Observações do Técnico</p>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Observações do Técnico</p>
                 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-slate-50 p-3 rounded-md border border-slate-100">{notes}</p>
               </div>
             )}
@@ -373,9 +373,9 @@ const VisitContainer: React.FC<{
         <div className="border-t border-rose-200 bg-gradient-to-r from-rose-50 to-orange-50">
           <div className="px-5 py-3 flex items-center gap-2 border-b border-rose-100">
             <AlertTriangle size={13} className="text-rose-500" />
-            <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest">Dados do Impedimento</span>
+            <span className="text-[10px] font-semibold text-rose-700 uppercase tracking-widest">Dados do Impedimento</span>
             {impDate && (
-              <span className="ml-auto text-[9px] font-bold text-rose-500 bg-white border border-rose-200 rounded-md px-2 py-0.5">
+              <span className="ml-auto text-[9px] font-medium text-rose-500 bg-white border border-rose-200 rounded-md px-2 py-0.5">
                 {fmtDT(impDate)}
               </span>
             )}
@@ -383,13 +383,13 @@ const VisitContainer: React.FC<{
           <div className="px-5 py-4 space-y-3">
             {impType && (
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest min-w-[100px]">Tipo de Impedimento</span>
-                <span className="text-sm font-bold text-slate-800">{impType}</span>
+                <span className="text-[10px] font-semibold text-rose-400 uppercase tracking-widest min-w-[100px]">Tipo de Impedimento</span>
+                <span className="text-sm font-medium text-slate-800">{impType}</span>
               </div>
             )}
             {impReason && (
               <div>
-                <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Motivo</span>
+                <span className="text-[10px] font-semibold text-rose-400 uppercase tracking-widest">Motivo</span>
                 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-white p-3 rounded-md border border-rose-100 mt-1">{impReason}</p>
               </div>
             )}
@@ -398,26 +398,26 @@ const VisitContainer: React.FC<{
             )}
             {impParts && (
               <div>
-                <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Peça Solicitada</span>
+                <span className="text-[10px] font-semibold text-rose-400 uppercase tracking-widest">Peça Solicitada</span>
                 <div className="bg-white p-3 rounded-md border border-rose-100 grid grid-cols-3 gap-3 mt-1">
                   <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">{t.common.name}</p>
-                    <p className="text-sm font-bold text-slate-800">{impParts.nome}</p>
+                    <p className="text-[9px] font-medium text-slate-400 uppercase">{t.common.name}</p>
+                    <p className="text-sm font-medium text-slate-800">{impParts.nome}</p>
                   </div>
                   <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">Modelo</p>
-                    <p className="text-sm font-bold text-slate-800">{impParts.modelo || '—'}</p>
+                    <p className="text-[9px] font-medium text-slate-400 uppercase">Modelo</p>
+                    <p className="text-sm font-medium text-slate-800">{impParts.modelo || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">Código</p>
-                    <p className="text-sm font-bold text-slate-800">{impParts.codigo || '—'}</p>
+                    <p className="text-[9px] font-medium text-slate-400 uppercase">Código</p>
+                    <p className="text-sm font-medium text-slate-800">{impParts.codigo || '—'}</p>
                   </div>
                 </div>
               </div>
             )}
             {impPhotos.length > 0 && (
               <div>
-                <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Evidências Fotográficas</span>
+                <span className="text-[10px] font-semibold text-rose-400 uppercase tracking-widest">Evidências Fotográficas</span>
                 <div className="flex flex-wrap gap-3 mt-2">
                   {impPhotos.map((url: string, i: number) => (
                     <div key={i} className="w-20 h-20 rounded-lg overflow-hidden border border-rose-100 cursor-zoom-in hover:shadow-md transition-all" onClick={() => onImageClick(url)}>
@@ -436,7 +436,7 @@ const VisitContainer: React.FC<{
         <div className="border-t border-indigo-100 bg-gradient-to-r from-indigo-50/50 to-violet-50/50">
           <div className="px-5 py-3 flex items-center gap-2 border-b border-indigo-100">
             <ShieldCheck size={13} className="text-indigo-500" />
-            <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Dados de Conclusão</span>
+            <span className="text-[10px] font-semibold text-indigo-700 uppercase tracking-widest">Dados de Conclusão</span>
           </div>
           <div className="px-5 py-4 space-y-4">
             {/* Nome e Documento do cliente */}
@@ -444,14 +444,14 @@ const VisitContainer: React.FC<{
               <div className="flex gap-8">
                 {clientName && (
                   <div>
-                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Responsável</p>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5">{clientName}</p>
+                    <p className="text-[9px] font-semibold text-indigo-400 uppercase tracking-widest">Responsável</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5">{clientName}</p>
                   </div>
                 )}
                 {clientDoc && (
                   <div>
-                    <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Documento</p>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5 font-mono">{clientDoc}</p>
+                    <p className="text-[9px] font-semibold text-indigo-400 uppercase tracking-widest">Documento</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5 font-mono">{clientDoc}</p>
                   </div>
                 )}
               </div>
@@ -460,7 +460,7 @@ const VisitContainer: React.FC<{
             {/* Assinatura */}
             {signatureUrl && (
               <div>
-                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Assinatura Coletada</p>
+                <p className="text-[9px] font-semibold text-indigo-400 uppercase tracking-widest mb-1">Assinatura Coletada</p>
                 <div
                   className="h-14 w-36 bg-white border border-indigo-100 rounded-lg flex items-center justify-center p-1.5 cursor-zoom-in hover:shadow-lg transition-all"
                   onClick={() => onImageClick(signatureUrl)}
@@ -473,7 +473,7 @@ const VisitContainer: React.FC<{
             {/* Vídeo */}
             {videoUrl && (
               <div>
-                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Video size={10} /> Vídeo de Evidência</p>
+                <p className="text-[9px] font-semibold text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Video size={10} /> Vídeo de Evidência</p>
                 <div
                   className="w-24 h-24 rounded-lg overflow-hidden border border-indigo-100 bg-black cursor-zoom-in hover:shadow-md transition-all relative"
                   onClick={() => onImageClick(videoUrl)}
@@ -487,7 +487,7 @@ const VisitContainer: React.FC<{
             {/* Fotos extras */}
             {extraPhotos.length > 0 && (
               <div>
-                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2">Anexos de Conclusão</p>
+                <p className="text-[9px] font-semibold text-indigo-400 uppercase tracking-widest mb-2">Anexos de Conclusão</p>
                 <div className="flex flex-wrap gap-3">
                   {extraPhotos.map((url: string, i: number) => (
                     <div key={i} className="w-20 h-20 rounded-lg overflow-hidden border border-indigo-100 bg-white cursor-zoom-in hover:shadow-md transition-all" onClick={() => onImageClick(url)}>
@@ -515,7 +515,7 @@ const FormValueDisplay: React.FC<{ value: any; onImageClick: (url: string) => vo
           <div className="w-12 h-12 rounded-md bg-black flex items-center justify-center border border-slate-200 overflow-hidden relative">
             <video src={value} className="w-full h-full object-cover opacity-50" />
             <Play size={10} className="text-white fill-white absolute" />
-            <div className="absolute bottom-0 right-0 bg-black/60 px-0.5 rounded-tl text-[6px] text-white font-bold">MP4</div>
+            <div className="absolute bottom-0 right-0 bg-black/60 px-0.5 rounded-tl text-[6px] text-white font-medium">MP4</div>
           </div>
         ) : (
           <img src={value} className="w-12 h-12 rounded-md object-cover border border-slate-200" alt="foto" />
@@ -546,7 +546,7 @@ const FormValueDisplay: React.FC<{ value: any; onImageClick: (url: string) => vo
   // Valor de texto
   const displayValue = Array.isArray(value) ? String(value).replace(/,/g, ', ') : String(value);
   return (
-    <div className={`text-[11px] font-bold uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+    <div className={`text-[11px] font-medium uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
       {displayValue}
     </div>
   );

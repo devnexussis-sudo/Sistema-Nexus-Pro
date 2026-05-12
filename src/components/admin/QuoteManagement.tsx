@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../i18n';
+import { useDialog } from '../../contexts/DialogContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePagedQuotes, useTenant } from '../../hooks/nexusHooks';
 import { Customer, OrderPriority, OrderStatus, Quote, QuoteItem, ServiceOrder, StockItem } from '../../types';
@@ -50,6 +51,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     quotes, customers, orders, stockItems, onUpdateQuotes, onCreateOrder, onEditQuote, onCreateQuote, onDeleteQuote
 }) => {
     const { t } = useI18n();
+    const { showAlert, showConfirm } = useDialog();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -82,6 +84,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     const {
         data: pageResult,
         isLoading: quotesLoading,
+        isFetching: quotesFetching,
         refetch: quotesRefetch,
     } = usePagedQuotes(currentPage, serverFilters, auth.isAuthenticated);
 
@@ -151,7 +154,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
         const printWindow = window.open('', '_blank', 'width=900,height=700');
         if (!printWindow) {
-            alert('Por favor, permita pop-ups neste site para imprimir.');
+            showAlert('Por favor, permita pop-ups neste site para imprimir.', 'warning');
             return;
         }
 
@@ -297,7 +300,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
             resetForm();
         } catch (error: any) {
             console.error('[QuoteManagement] Erro ao salvar orçamento:', error);
-            alert(`Falha ao salvar orçamento: ${error.message || 'Erro desconhecido'}`);
+            showAlert(`Falha ao salvar orçamento: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             setLoading(false);
         }
@@ -318,8 +321,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
     };
 
     const handleConvertToOrder = async (quote: Quote) => {
-        if (!window.confirm('Deseja converter este orçamento em uma Ordem de Serviço ativa?')) return;
-
+        showConfirm('Deseja converter este orçamento em uma Ordem de Serviço ativa?', async () => {
         try {
             setIsConverting(true);
             const orderPayload = {
@@ -341,13 +343,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
             await onCreateOrder(orderPayload);
             await onEditQuote({ ...quote, status: 'CONVERTIDO' });
-            alert('Conversão realizada com sucesso!');
+            showAlert('Conversão realizada com sucesso!', 'success');
         } catch (e) {
             console.error(e);
-            alert('Falha na conversão.');
+            showAlert('Falha na conversão.', 'error');
         } finally {
             setIsConverting(false);
         }
+        }, 'Converter Orçamento', 'Converter', false);
     };
 
     useEffect(() => {
@@ -498,7 +501,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                             placeholder="Buscar por código ou cliente..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+                            className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
                         />
                     </div>
 
@@ -506,10 +509,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         {selectedQuoteIds.length > 0 && (
                             <div className="hidden sm:flex items-center gap-2 px-3 h-10 bg-slate-900 rounded-xl shadow-lg border border-slate-700">
                                 <div className="flex flex-col pr-2 border-r border-slate-700">
-                                    <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
-                                    <span className="text-[11px] font-bold text-white leading-none">{selectedQuoteIds.length}</span>
+                                    <span className="text-[8px] font-medium text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
+                                    <span className="text-[11px] font-medium text-white leading-none">{selectedQuoteIds.length}</span>
                                 </div>
-                                <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-[9px] font-bold uppercase transition-all shadow-sm">
+                                <button onClick={handleExportExcel} className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-[9px] uppercase transition-all shadow-sm">
                                     <FileSpreadsheet size={12} /> Excel
                                 </button>
                                 <button onClick={() => setSelectedQuoteIds([])} className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
@@ -520,21 +523,34 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                         <button
                             onClick={() => setShowFilters(!showFilters)}
-                            className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] font-bold ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
+                            className={`flex items-center gap-1.5 px-3 h-10 rounded-xl border transition-all text-[10px] ${showFilters ? 'bg-primary-50 border-primary-200 text-primary-600 shadow-inner' : 'bg-white border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-[#1c2d4f]/5 shadow-sm'}`}
                         >
                             <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Filtros'}</span>
                         </button>
 
                         <button
                             onClick={handleManualRefresh}
-                            className="h-10 px-3 flex items-center justify-center bg-white hover:bg-slate-50 border border-[#1c2d4f]/20 rounded-xl text-[#1c2d4f] hover:text-primary-600 shadow-sm transition-all active:scale-95"
+                            disabled={quotesLoading || isManualSyncing}
+                            className={`group h-10 px-4 flex items-center gap-2 rounded-xl border transition-all duration-300 shadow-sm active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed ${
+                                quotesLoading || isManualSyncing 
+                                    ? 'bg-primary-50 border-primary-200 text-primary-600' 
+                                    : 'bg-white hover:bg-slate-50 border-[#1c2d4f]/20 text-[#1c2d4f] hover:text-primary-600 hover:border-primary-300 hover:shadow-md'
+                            }`}
                             title="Atualizar todos os dados"
                         >
-                            <RefreshCw size={16} className={quotesLoading || isManualSyncing ? "animate-spin" : ""} />
+                            <div className="relative flex items-center justify-center">
+                                <RefreshCw 
+                                    size={16} 
+                                    className={`${quotesLoading || isManualSyncing ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} 
+                                />
+                                {(quotesLoading || isManualSyncing) && (
+                                    <span className="absolute inset-0 rounded-full bg-primary-400/20 animate-ping"></span>
+                                )}
+                            </div>
                         </button>
                         <button
                             onClick={() => { resetForm(); setIsModalOpen(true); }}
-                            className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] font-bold shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
+                            className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
                         >
                             <Plus size={14} /> Novo Orçamento
                         </button>
@@ -546,7 +562,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-white/60 rounded-xl border border-[#1c2d4f]/10 animate-in fade-in slide-in-from-top-2 duration-200">
                         {/* Date Range */}
                         <div className="flex flex-col gap-1 lg:col-span-2">
-                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">Período (criação)</label>
+                            <label className="text-[9px] text-slate-400 uppercase tracking-wider px-1">Período (criação)</label>
                             <div className="flex items-center gap-1 bg-white border border-[#1c2d4f]/20 p-1 rounded-lg shadow-sm h-9">
                                 <Calendar size={13} className="text-slate-400 ml-1 shrink-0" />
                                 <div className="flex items-center gap-1 px-1 flex-1 justify-between">
@@ -554,14 +570,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         type="date"
                                         value={startDate}
                                         onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }}
-                                        className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none focus:text-slate-900 w-full"
+                                        className="bg-transparent border-none text-[10px] text-slate-600 outline-none focus:text-slate-900 w-full"
                                     />
-                                    <span className="text-[9px] text-slate-300 font-bold uppercase mx-1">até</span>
+                                    <span className="text-[9px] text-slate-300 uppercase mx-1">até</span>
                                     <input
                                         type="date"
                                         value={endDate}
                                         onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }}
-                                        className="bg-transparent border-none text-[10px] font-bold text-slate-600 outline-none focus:text-slate-900 w-full"
+                                        className="bg-transparent border-none text-[10px] text-slate-600 outline-none focus:text-slate-900 w-full"
                                     />
                                 </div>
                             </div>
@@ -569,20 +585,35 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                         {/* Status */}
                         <div className="flex flex-col gap-1">
-                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-1">{t.common.status}</label>
-                            <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-lg pl-2 pr-1 h-9 shadow-sm">
-                                <Filter size={12} className="text-slate-400 mr-2 shrink-0" />
-                                <select
-                                    className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full"
-                                    value={statusFilter}
-                                    onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                                >
-                                    <option value="ALL">Todos Status</option>
-                                    <option value="ABERTO">Aberto</option>
-                                    <option value="APROVADO">Aprovado</option>
-                                    <option value="CONVERTIDO">Convertido</option>
-                                    <option value="REJEITADO">Rejeitado</option>
-                                </select>
+                            <label className="text-[9px] text-slate-400 uppercase tracking-wider px-1">{t.common.status}</label>
+                            <div className="flex bg-white border border-[#1c2d4f]/20 rounded-lg h-9 p-0.5 gap-0.5 shadow-sm">
+                                {[
+                                    { value: 'ALL', label: 'Todos' },
+                                    { value: 'ABERTO', label: 'Aberto' },
+                                    { value: 'APROVADO', label: 'Aprovado' },
+                                    { value: 'CONVERTIDO', label: 'Convertido' },
+                                    { value: 'REJEITADO', label: 'Rejeitado' },
+                                ].map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => { setStatusFilter(opt.value); setCurrentPage(1); }}
+                                        className={`flex-1 rounded-md text-[8px] font-medium uppercase tracking-wide transition-all whitespace-nowrap px-1 ${
+                                            statusFilter === opt.value
+                                                ? opt.value === 'ABERTO'
+                                                    ? 'bg-sky-500 text-white shadow-sm'
+                                                    : opt.value === 'APROVADO'
+                                                        ? 'bg-emerald-500 text-white shadow-sm'
+                                                        : opt.value === 'CONVERTIDO'
+                                                            ? 'bg-indigo-500 text-white shadow-sm'
+                                                            : opt.value === 'REJEITADO'
+                                                                ? 'bg-rose-500 text-white shadow-sm'
+                                                                : 'bg-slate-800 text-white shadow-sm'
+                                                : 'text-slate-500 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
@@ -590,7 +621,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         <div className="flex items-end pb-0.5">
                             <button
                                 onClick={() => { setSearchTerm(''); setStatusFilter('ALL'); setStartDate(''); setEndDate(''); setCurrentPage(1); }}
-                                className="w-full h-9 text-[10px] font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all border border-[#1c2d4f]/10 hover:border-rose-200 shadow-sm bg-white"
+                                className="w-full h-9 text-[10px] font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all border border-[#1c2d4f]/10 hover:border-rose-200 shadow-sm bg-white"
                             >
                                 Limpar Filtros
                             </button>
@@ -599,7 +630,16 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                 )}
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
+            <div className="relative bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-200/40 flex-1 flex flex-col min-h-0">
+                {/* 🔄 Page Transition Overlay — Big Tech Standard */}
+                {(quotesFetching || isManualSyncing) && !quotesLoading && pagedQuotes.length > 0 && (
+                    <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] z-20 flex items-center justify-center transition-opacity duration-200 animate-fade-in">
+                        <div className="flex flex-col items-center gap-3">
+                            <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin" />
+                            <p className="text-sm text-slate-500 uppercase tracking-widest">atualizando...</p>
+                        </div>
+                    </div>
+                )}
                 <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full border-separate border-spacing-y-0 text-left">
                         <thead className="sticky top-0 bg-slate-200/60 backdrop-blur-md z-10 text-[11px] font-semibold text-slate-600 border-b border-slate-300 font-poppins">
@@ -628,7 +668,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <td colSpan={9} className="py-16 text-center">
                                         <div className="flex flex-col items-center gap-3 text-slate-400">
                                             <Loader2 size={28} className="animate-spin text-primary-400" />
-                                            <p className="text-[10px] font-black uppercase tracking-widest">Carregando orçamentos...</p>
+                                            <p className="text-[10px] font-semibold uppercase tracking-widest">Carregando orçamentos...</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -737,10 +777,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <Calculator size={18} />
                                 </div>
                                 <div>
-                                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                                    <h2 className="text-lg font-medium text-slate-900 tracking-tight">
                                         {selectedQuote ? 'Ajustar Proposta Comercial' : 'Nova Proposta Comercial'}
                                     </h2>
-                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase">NEXUS VENDAS • GESTÃO DE PROPOSTAS</p>
+                                    <p className="text-[10px] font-medium text-slate-400 mt-0.5 uppercase">NEXUS VENDAS • GESTÃO DE PROPOSTAS</p>
                                 </div>
                             </div>
                             <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-rose-600 transition-all rounded-lg hover:bg-rose-50">
@@ -751,14 +791,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden bg-slate-50/30">
                             <div className="w-full lg:w-[38%] border-b lg:border-b-0 lg:border-r border-slate-200 p-8 space-y-8 overflow-y-auto custom-scrollbar">
                                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-                                    <h3 className="text-sm font-bold text-slate-900 border-l-4 border-[#1c2d4f] pl-3 uppercase">dados básicos</h3>
+                                    <h3 className="text-sm font-medium text-slate-900 border-l-4 border-[#1c2d4f] pl-3 uppercase">dados básicos</h3>
                                     <div className="space-y-4">
                                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Identificador da Proposta</label>
-                                            <p className="text-lg font-bold text-[#1c2d4f] tracking-tight">{previewId}</p>
+                                            <label className="text-[10px] font-medium text-slate-400 uppercase block mb-1">Identificador da Proposta</label>
+                                            <p className="text-lg font-medium text-[#1c2d4f] tracking-tight">{previewId}</p>
                                         </div>
                                         <div className="space-y-2 relative">
-                                            <label className="text-[10px] font-bold text-slate-400 ml-1 uppercase">selecionar cliente</label>
+                                            <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">selecionar cliente</label>
                                             <div className="relative">
                                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                                 <input
@@ -792,7 +832,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                 }}
                                                                 className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors group"
                                                             >
-                                                                <p className="text-xs font-bold text-slate-800 group-hover:text-[#1c2d4f]">{c.name}</p>
+                                                                <p className="text-xs font-medium text-slate-800 group-hover:text-[#1c2d4f]">{c.name}</p>
                                                                 <p className="text-[10px] text-slate-400 font-medium">{c.document || c.cnpj || c.cpf || 'Sem documento'}</p>
                                                             </button>
                                                         ))
@@ -803,7 +843,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                             )}
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-bold text-slate-400 ml-1 uppercase">título da proposta</label>
+                                            <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">título da proposta</label>
                                             <input
                                                 type="text"
                                                 value={title}
@@ -814,7 +854,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-bold text-slate-400 ml-1 uppercase">validade</label>
+                                                <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">validade</label>
                                                 <div className="relative">
                                                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                                     <input
@@ -826,7 +866,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 </div>
                                             </div>
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-bold text-slate-400 ml-1 uppercase">vincular O.S.</label>
+                                                <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">vincular O.S.</label>
                                                 <div className="relative">
                                                     <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                                                     <select
@@ -852,24 +892,24 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     if (!c) return null;
                                     return (
                                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-                                            <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3 uppercase flex items-center gap-2">
+                                            <h3 className="text-sm font-medium text-slate-900 border-l-4 border-emerald-500 pl-3 uppercase flex items-center gap-2">
                                                 <User size={16} className="text-emerald-500" /> Informações do Cliente
                                             </h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">CPF / CNPJ</label><p className="text-xs font-semibold text-slate-700">{c.document || '—'}</p></div>
-                                                <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">{t.common.email}</label><p className="text-xs font-semibold text-slate-700">{c.email || '—'}</p></div>
-                                                <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">{t.common.phone}</label><p className="text-xs font-semibold text-slate-700">{c.phone || '—'}</p></div>
-                                                <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">WhatsApp</label><p className="text-xs font-semibold text-slate-700">{c.whatsapp || '—'}</p></div>
-                                                <div className="space-y-1 md:col-span-2"><label className="text-[10px] font-bold text-slate-400 uppercase">Endereço Completo</label><p className="text-xs font-semibold text-slate-700">{[c.address, c.number, c.complement, c.neighborhood, c.city, c.state ? `/${c.state}` : null, c.zip ? `CEP: ${c.zip}` : null].filter(Boolean).join(' - ').replace(' - /', '/')}</p></div>
+                                                <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">CPF / CNPJ</label><p className="text-xs font-semibold text-slate-700">{c.document || '—'}</p></div>
+                                                <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">{t.common.email}</label><p className="text-xs font-semibold text-slate-700">{c.email || '—'}</p></div>
+                                                <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">{t.common.phone}</label><p className="text-xs font-semibold text-slate-700">{c.phone || '—'}</p></div>
+                                                <div className="space-y-1"><label className="text-[10px] font-medium text-slate-400 uppercase">WhatsApp</label><p className="text-xs font-semibold text-slate-700">{c.whatsapp || '—'}</p></div>
+                                                <div className="space-y-1 md:col-span-2"><label className="text-[10px] font-medium text-slate-400 uppercase">Endereço Completo</label><p className="text-xs font-semibold text-slate-700">{[c.address, c.number, c.complement, c.neighborhood, c.city, c.state ? `/${c.state}` : null, c.zip ? `CEP: ${c.zip}` : null].filter(Boolean).join(' - ').replace(' - /', '/')}</p></div>
                                             </div>
                                         </div>
                                     );
                                 })()}
                                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                                    <h3 className="text-sm font-bold text-slate-900 border-l-4 border-amber-500 pl-3 uppercase">detalhamento</h3>
+                                    <h3 className="text-sm font-medium text-slate-900 border-l-4 border-amber-500 pl-3 uppercase">detalhamento</h3>
                                     <div className="space-y-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-bold text-slate-400 ml-1 uppercase">escopo técnico</label>
+                                            <label className="text-[10px] font-medium text-slate-400 ml-1 uppercase">escopo técnico</label>
                                             <textarea
                                                 value={description}
                                                 onChange={(e) => setDescription(e.target.value)}
@@ -884,10 +924,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                             <div className="w-full lg:w-[62%] flex flex-col bg-white">
                                 <div className="px-8 py-5 border-b border-slate-200 flex items-center justify-between bg-white z-10">
-                                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                    <h3 className="text-sm font-medium text-slate-900 flex items-center gap-2">
                                         <ListPlus size={16} className="text-emerald-500" /> Itens e Composição
                                     </h3>
-                                    <button onClick={handleAddItem} className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-xs font-bold hover:bg-[#253a66] transition-all shadow-md active:scale-95">
+                                    <button onClick={handleAddItem} className="flex items-center gap-2 px-4 py-2 bg-[#1c2d4f] text-white rounded-xl text-xs font-medium hover:bg-[#253a66] transition-all shadow-md active:scale-95">
                                         <Plus size={16} /> Adicionar Item
                                     </button>
                                 </div>
@@ -895,7 +935,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
                                         <table className="w-full text-left table-fixed lg:table-auto overflow-visible">
                                             <thead className="bg-slate-50 border-b border-slate-200">
-                                                <tr className="text-[10px] font-bold text-slate-400 uppercase">
+                                                <tr className="text-[10px] font-medium text-slate-400 uppercase">
                                                     <th className="px-6 py-3 w-28">Código</th>
                                                     <th className="px-4 py-3">Descrição / Item</th>
                                                     <th className="px-4 py-3 w-20 text-center">Qtd</th>
@@ -912,7 +952,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                 placeholder="Opcional"
                                                                 value={item.stockCode || ''}
                                                                 onChange={e => updateItem(index, { stockCode: e.target.value })}
-                                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold py-1.5 px-3 font-mono tracking-wider text-[#3e5b99] uppercase"
+                                                                className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium py-1.5 px-3 font-mono tracking-wider text-[#3e5b99] uppercase"
                                                             />
                                                         </td>
                                                         <td className="px-4 py-4">
@@ -931,7 +971,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                     <div className="absolute z-[1300] top-full left-0 w-[450px] mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-scale-up">
                                                                         <button
                                                                             onClick={() => setIsStockListOpen(prev => ({ ...prev, [index]: false }))}
-                                                                            className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-100 bg-primary-50/50 text-[#1c2d4f] font-bold text-[11px] uppercase transition-colors flex items-center justify-between"
+                                                                            className="w-full text-left px-5 py-3 hover:bg-slate-50 border-b border-slate-100 bg-primary-50/50 text-[#1c2d4f] font-medium text-[11px] uppercase transition-colors flex items-center justify-between"
                                                                         >
                                                                             <span>Usar como item avulso: "{item.description.slice(0, 25)}..."</span>
                                                                             <Plus size={14} />
@@ -952,10 +992,10 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                                 >
                                                                                     <div className="flex justify-between items-start">
                                                                                         <div>
-                                                                                            <p className="text-xs font-bold text-slate-800 group-hover/item:text-[#1c2d4f]">{s.description}</p>
+                                                                                            <p className="text-xs font-medium text-slate-800 group-hover/item:text-[#1c2d4f]">{s.description}</p>
                                                                                             <p className="text-[10px] text-slate-400 font-medium mt-0.5">SKU: {s.code}</p>
                                                                                         </div>
-                                                                                        <p className="text-xs font-bold text-emerald-600">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                                        <p className="text-xs font-medium text-emerald-600">R$ {s.sellPrice?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                                                                     </div>
                                                                                 </button>
                                                                             ))
@@ -964,9 +1004,9 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                                 )}
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-4"><input type="number" value={item.quantity} onChange={e => updateItem(index, { quantity: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 rounded-lg text-center text-xs font-bold py-1.5" /></td>
-                                                        <td className="px-4 py-4"><input type="number" value={item.unitPrice} onChange={e => updateItem(index, { unitPrice: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold py-1.5 px-2" /></td>
-                                                        <td className="px-4 py-4 text-right text-sm font-bold text-[#1c2d4f]">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                        <td className="px-4 py-4"><input type="number" value={item.quantity} onChange={e => updateItem(index, { quantity: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 rounded-lg text-center text-xs font-medium py-1.5" /></td>
+                                                        <td className="px-4 py-4"><input type="number" value={item.unitPrice} onChange={e => updateItem(index, { unitPrice: Number(e.target.value) })} className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium py-1.5 px-2" /></td>
+                                                        <td className="px-4 py-4 text-right text-sm font-medium text-[#1c2d4f]">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                                         <td className="px-6 py-4"><button onClick={() => setItems(items.filter((_, i) => i !== index))} className="text-slate-300 hover:text-rose-600 transition-colors"><Trash2 size={16} /></button></td>
                                                     </tr>
                                                 ))}
@@ -975,7 +1015,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         {items.length === 0 && (
                                             <div className="py-20 text-center flex flex-col items-center gap-4">
                                                 <ShoppingCart size={48} className="text-slate-200" />
-                                                <p className="text-sm font-bold text-slate-400">Nenhum item na proposta</p>
+                                                <p className="text-sm font-medium text-slate-400">Nenhum item na proposta</p>
                                             </div>
                                         )}
                                     </div>
@@ -988,14 +1028,14 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 {/* Resumo financeiro */}
                                 <div className="space-y-1 min-w-[220px]">
                                     <div className="flex justify-between items-center gap-8">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Subtotal</p>
-                                        <p className="text-sm font-bold text-slate-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        <p className="text-[10px] font-medium text-slate-400 uppercase">Subtotal</p>
+                                        <p className="text-sm font-medium text-slate-600">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     </div>
                                     <div className="flex justify-between items-center gap-4">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Desconto</p>
+                                        <p className="text-[10px] font-medium text-slate-400 uppercase">Desconto</p>
                                         <div className="flex items-center gap-1.5">
                                             {/* Toggle R$ / % */}
-                                            <div className="flex border border-rose-200 rounded-lg overflow-hidden text-[9px] font-black">
+                                            <div className="flex border border-rose-200 rounded-lg overflow-hidden text-[9px] font-semibold">
                                                 <button
                                                     onClick={() => setDiscountType('fixed')}
                                                     className={`px-2 py-1 transition-all ${discountType === 'fixed' ? 'bg-rose-500 text-white' : 'bg-white text-slate-400 hover:bg-rose-50'}`}
@@ -1013,27 +1053,27 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 value={discount || ''}
                                                 onChange={e => setDiscount(parseFloat(e.target.value) || 0)}
                                                 placeholder="0"
-                                                className="w-20 text-right text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-rose-300 transition-all"
+                                                className="w-20 text-right text-sm font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-rose-300 transition-all"
                                             />
                                         </div>
                                     </div>
                                     {discountAmount > 0 && (
-                                        <p className="text-[9px] text-rose-400 font-bold text-right">
+                                        <p className="text-[9px] text-rose-400 font-medium text-right">
                                             - R$ {discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </p>
                                     )}
                                     <div className="flex justify-between items-center gap-8 pt-1 border-t border-slate-200">
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase">Total</p>
-                                        <p className="text-base font-black text-[#1c2d4f]">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        <p className="text-[10px] font-medium text-slate-500 uppercase">Total</p>
+                                        <p className="text-base font-semibold text-[#1c2d4f]">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     </div>
                                 </div>
                             </div>
                             <div className="flex gap-4">
-                                <button onClick={() => setIsModalOpen(false)} className="px-8 py-3 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-all">{t.common.cancel}</button>
+                                <button onClick={() => setIsModalOpen(false)} className="px-8 py-3 text-sm font-medium text-slate-500 hover:bg-slate-100 rounded-xl transition-all">{t.common.cancel}</button>
                                 <button
                                     onClick={handleSaveQuote}
                                     disabled={!customerName || !title || items.length === 0 || loading}
-                                    className="px-12 py-3 bg-[#1c2d4f] text-white rounded-xl text-sm font-bold shadow-lg hover:bg-[#253a66] disabled:opacity-50 transition-all active:scale-95 flex items-center gap-2"
+                                    className="px-12 py-3 bg-[#1c2d4f] text-white rounded-xl text-sm font-medium shadow-lg hover:bg-[#253a66] disabled:opacity-50 transition-all active:scale-95 flex items-center gap-2"
                                 >
                                     {loading ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar e Salvar'}
                                 </button>
@@ -1057,7 +1097,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                 <div>
                                     <div className="flex items-center gap-3">
                                         <h2 className="text-base font-semibold text-slate-900 font-poppins">Orçamento #{getQuoteDisplayId(viewQuote)}</h2>
-                                        <div className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${viewQuote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                                        <div className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider ${viewQuote.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
                                                 viewQuote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
                                                     viewQuote.status === 'CONVERTIDO' ? 'bg-slate-900 text-emerald-400 border border-slate-700' :
                                                         'bg-primary-50 text-primary-600 border border-primary-100'
@@ -1092,7 +1132,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 setIsModalOpen(true);
                                             }}
                                             disabled={isLocked}
-                                            className={`h-9 px-4 gap-2 border rounded-lg text-xs font-bold transition-all flex items-center ${isLocked
+                                            className={`h-9 px-4 gap-2 border rounded-lg text-xs font-medium transition-all flex items-center ${isLocked
                                                     ? 'bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed opacity-60'
                                                     : 'border-blue-200 text-blue-700 hover:bg-blue-50 active:scale-95 shadow-sm'
                                                 }`}
@@ -1108,24 +1148,24 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                         const url = `${window.location.origin}/#/view-quote/${viewQuote.publicToken || viewQuote.id}`;
                                         window.open(url, '_blank');
                                     }}
-                                    className="h-9 px-4 gap-2 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-bold transition-all flex items-center"
+                                    className="h-9 px-4 gap-2 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-medium transition-all flex items-center"
                                 >
                                     <Eye size={14} /> Visualizar
                                 </button>
                                 <button
                                     onClick={handlePrintQuote}
-                                    className="h-9 px-4 gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-bold transition-all flex items-center"
+                                    className="h-9 px-4 gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-medium transition-all flex items-center"
                                 >
                                     <Printer size={14} /> Imprimir PDF
                                 </button>
                                 <button
                                     onClick={() => {
-                                        if (window.confirm('Tem certeza que deseja excluir esta proposta?')) {
-                                            onDeleteQuote(viewQuote.id);
+                                        showConfirm('Tem certeza que deseja excluir esta proposta?', async () => {
+                                            await onDeleteQuote(viewQuote.id);
                                             setIsViewModalOpen(false);
-                                        }
+                                        }, 'Excluir Proposta', 'Excluir', true);
                                     }}
-                                    className="h-9 px-4 gap-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition-all flex items-center"
+                                    className="h-9 px-4 gap-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-medium transition-all flex items-center"
                                 >
                                     <Trash2 size={14} /> Excluir
                                 </button>
@@ -1145,7 +1185,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                                     {/* Client Info Card */}
                                     <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-                                        <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                        <h3 className="text-sm font-medium text-slate-900 mb-6 flex items-center gap-2">
                                             <User size={18} className="text-slate-400" /> Informações do Cliente
                                         </h3>
                                         {(() => {
@@ -1180,7 +1220,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     </div>
                                                     <div className="space-y-1.5">
                                                         <label className="text-[11px] font-medium text-slate-400 mb-1 block px-1">Validade da Proposta</label>
-                                                        <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                                        <div className="text-sm font-medium text-slate-700 flex items-center gap-2">
                                                             <Calendar size={14} className="text-slate-400" />
                                                             {viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString('pt-BR') : 'Não definida'}
                                                         </div>
@@ -1192,7 +1232,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                                     {/* Description Card */}
                                     <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-                                        <h3 className="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                        <h3 className="text-sm font-medium text-slate-900 mb-6 flex items-center gap-2">
                                             <FileText size={18} className="text-slate-400" /> Objeto da Proposta
                                         </h3>
                                         <div className="space-y-4">
@@ -1218,15 +1258,15 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     {/* Items Table Card */}
                                     <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
                                         <div className="flex items-center justify-between mb-6">
-                                            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                            <h3 className="text-sm font-medium text-slate-900 flex items-center gap-2">
                                                 <ListPlus size={18} className="text-slate-400" /> Itens e Serviços
                                             </h3>
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{viewQuote.items.length} {viewQuote.items.length === 1 ? 'Item' : 'Itens'}</span>
+                                            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">{viewQuote.items.length} {viewQuote.items.length === 1 ? 'Item' : 'Itens'}</span>
                                         </div>
                                         <div className="border border-slate-100 rounded-lg overflow-hidden">
                                             <table className="w-full text-left">
                                                 <thead className="bg-slate-50 border-b border-slate-200">
-                                                    <tr className="text-[10px] font-bold text-slate-400 uppercase">
+                                                    <tr className="text-[10px] font-medium text-slate-400 uppercase">
                                                         <th className="px-4 py-3 w-12">#</th>
                                                         <th className="px-4 py-3">Descrição</th>
                                                         <th className="px-4 py-3 text-center w-20">Qtd</th>
@@ -1237,11 +1277,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                 <tbody className="divide-y divide-slate-100">
                                                     {viewQuote.items.map((item, idx) => (
                                                         <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                                            <td className="px-4 py-4 text-xs font-bold text-slate-300">{String(idx + 1).padStart(2, '0')}</td>
+                                                            <td className="px-4 py-4 text-xs font-medium text-slate-300">{String(idx + 1).padStart(2, '0')}</td>
                                                             <td className="px-4 py-4 text-sm font-semibold text-slate-700">{item.description}</td>
-                                                            <td className="px-4 py-4 text-center text-xs font-bold text-slate-600">{item.quantity}</td>
-                                                            <td className="px-4 py-4 text-xs font-bold text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                                            <td className="px-4 py-4 text-right text-sm font-bold text-slate-900">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                            <td className="px-4 py-4 text-center text-xs font-medium text-slate-600">{item.quantity}</td>
+                                                            <td className="px-4 py-4 text-xs font-medium text-slate-500">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                            <td className="px-4 py-4 text-right text-sm font-medium text-slate-900">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -1262,19 +1302,19 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     <>
                                                         <div className="bg-slate-50 border border-slate-100 px-6 py-3 rounded-lg flex flex-col gap-2 min-w-[300px]">
                                                             <div className="flex justify-between items-center w-full">
-                                                                <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Subtotal</span>
-                                                                <span className="text-sm font-bold text-slate-600 font-mono">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                <span className="text-[10px] uppercase font-medium tracking-widest text-slate-400">Subtotal</span>
+                                                                <span className="text-sm font-medium text-slate-600 font-mono">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                             </div>
                                                             {discountValue > 0 && (
                                                                 <div className="flex justify-between items-center w-full pt-2 border-t border-slate-200/50">
-                                                                    <span className="text-[10px] uppercase font-bold tracking-widest text-rose-400">Desconto {viewQuote.discountType === 'percent' ? `(${viewQuote.discount}%)` : ''}</span>
-                                                                    <span className="text-sm font-bold text-rose-500 font-mono">- R$ {discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                    <span className="text-[10px] uppercase font-medium tracking-widest text-rose-400">Desconto {viewQuote.discountType === 'percent' ? `(${viewQuote.discount}%)` : ''}</span>
+                                                                    <span className="text-sm font-medium text-rose-500 font-mono">- R$ {discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                                 </div>
                                                             )}
                                                         </div>
                                                         <div className="bg-slate-900 text-white px-6 py-4 rounded-lg flex items-center justify-between gap-6 min-w-[300px] shadow-lg shadow-slate-900/10 mt-1">
-                                                            <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Total Líquido</span>
-                                                            <span className="text-2xl font-black tracking-tighter">R$ {viewQuote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                            <span className="text-[10px] font-medium uppercase tracking-widest opacity-60">Total Líquido</span>
+                                                            <span className="text-2xl font-semibold tracking-tighter">R$ {viewQuote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                         </div>
                                                     </>
                                                 );
@@ -1288,22 +1328,22 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
 
                                     {/* Timeline Card */}
                                     <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
-                                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
+                                        <h3 className="text-xs font-medium text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
                                             <Clock size={16} className="text-slate-400" /> Cronograma
                                         </h3>
                                         <div className="space-y-4">
                                             <div className="flex justify-between items-center pb-3 border-b border-slate-200">
                                                 <span className="text-xs font-semibold text-slate-400">Criação</span>
-                                                <span className="text-xs font-bold text-slate-700">{new Date(viewQuote.createdAt).toLocaleDateString('pt-BR')}</span>
+                                                <span className="text-xs font-medium text-slate-700">{new Date(viewQuote.createdAt).toLocaleDateString('pt-BR')}</span>
                                             </div>
                                             <div className="flex justify-between items-center pb-3 border-b border-slate-200">
                                                 <span className="text-xs font-semibold text-slate-400">Validade</span>
-                                                <span className="text-xs font-bold text-[#1c2d4f]">{viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString('pt-BR') : 'N/D'}</span>
+                                                <span className="text-xs font-medium text-[#1c2d4f]">{viewQuote.validUntil ? new Date(viewQuote.validUntil).toLocaleDateString('pt-BR') : 'N/D'}</span>
                                             </div>
                                             {viewQuote.status === 'APROVADO' && (
                                                 <div className="p-3 bg-emerald-50 rounded-md border border-emerald-100">
                                                     <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-[10px] font-bold text-emerald-600 uppercase">Aprovação</span>
+                                                        <span className="text-[10px] font-medium text-emerald-600 uppercase">Aprovação</span>
                                                     </div>
                                                     <div className="text-[11px] font-medium text-emerald-800">
                                                         {viewQuote.approvedAt ? new Date(viewQuote.approvedAt).toLocaleString('pt-BR') : 'Data não registrada'}
@@ -1316,7 +1356,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     {/* Link Card */}
                                     {viewQuote.linkedOrderId && (
                                         <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
-                                            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
+                                            <h3 className="text-xs font-medium text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
                                                 <Link2 size={16} className="text-slate-400" /> Vínculo
                                             </h3>
                                             <div className="flex items-center gap-3">
@@ -1324,7 +1364,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     <Briefcase size={18} className="text-primary-400" />
                                                 </div>
                                                 <div>
-                                                    <div className="text-sm font-bold text-slate-900">O.S. Vinculada</div>
+                                                    <div className="text-sm font-medium text-slate-900">O.S. Vinculada</div>
                                                     <div className="text-xs font-medium text-slate-500">{viewQuote.linkedOrderId}</div>
                                                 </div>
                                             </div>
@@ -1334,7 +1374,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                     {/* Approval Card */}
                                     {viewQuote.status === 'APROVADO' && (
                                         <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-lg shadow-slate-200/50">
-                                            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
+                                            <h3 className="text-xs font-medium text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
                                                 <ShieldCheck size={16} className="text-emerald-500" /> Aprovação
                                             </h3>
                                             <div className="space-y-4">
@@ -1349,7 +1389,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                         <a
                                                             href={`https://www.google.com/maps?q=${viewQuote.approvalLatitude},${viewQuote.approvalLongitude}`}
                                                             target="_blank"
-                                                            className="text-xs font-bold text-primary-600 hover:underline flex items-center gap-1.5"
+                                                            className="text-xs font-medium text-primary-600 hover:underline flex items-center gap-1.5"
                                                         >
                                                             <MapPin size={12} /> Ver no Mapa
                                                         </a>
@@ -1366,7 +1406,7 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                     ) : (
                                                         <div className="bg-slate-50 border border-dashed border-slate-200 rounded-lg p-6 flex flex-col items-center gap-2 opacity-30">
                                                             <SignatureIcon size={24} />
-                                                            <p className="text-[10px] font-bold uppercase">Indisponível</p>
+                                                            <p className="text-[10px] font-medium uppercase">Indisponível</p>
                                                         </div>
                                                     )}
                                                 </div>
@@ -1378,11 +1418,11 @@ export const QuoteManagement: React.FC<QuoteManagementProps> = ({
                                                         <div className="space-y-2">
                                                             <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-md border border-slate-100">
                                                                 <span className="text-[10px] font-semibold text-slate-400">Plataforma</span>
-                                                                <span className="text-[10px] font-bold text-slate-700">{viewQuote.approvalMetadata.platform}</span>
+                                                                <span className="text-[10px] font-medium text-slate-700">{viewQuote.approvalMetadata.platform}</span>
                                                             </div>
                                                             <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-md border border-slate-100">
                                                                 <span className="text-[10px] font-semibold text-slate-400">IP</span>
-                                                                <span className="text-[10px] font-bold text-slate-700">{viewQuote.approvalMetadata.ip || '---'}</span>
+                                                                <span className="text-[10px] font-medium text-slate-700">{viewQuote.approvalMetadata.ip || '---'}</span>
                                                             </div>
                                                             <div className="bg-slate-50 px-3 py-2 rounded-md border border-slate-100">
                                                                 <p className="text-[9px] font-semibold text-slate-400 mb-0.5">User Agent</p>
@@ -1466,7 +1506,7 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                         : <div className="bg-slate-900 p-2 rounded-lg flex items-center justify-center min-w-[60px] min-h-[60px] text-white"><Hexagon size={32} className="text-white fill-white/10" /></div>
                     }
                     <div className="space-y-1">
-                        <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{companyName}</h1>
+                        <h1 className="text-xl font-medium text-slate-900 uppercase tracking-tight">{companyName}</h1>
                         <div className="text-[9px] text-slate-600 max-w-[400px]">
                             {companyAddress && <div>{companyAddress}</div>}
                             <div className="flex gap-3 mt-0.5">
@@ -1479,10 +1519,10 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                 </div>
                 <div className="text-right shrink-0">
                     <div className="border-2 border-slate-800 px-5 py-2 rounded-lg bg-slate-50 min-w-[160px]">
-                        <div className="text-[8px] font-bold text-slate-500 uppercase tracking-wider mb-1">Proposta Comercial</div>
-                        <div className="text-base font-black text-slate-900 tracking-tight whitespace-nowrap">{quote.displayId || quote.id.slice(0, 8).toUpperCase()}</div>
+                        <div className="text-[8px] font-medium text-slate-500 uppercase tracking-wider mb-1">Proposta Comercial</div>
+                        <div className="text-base font-semibold text-slate-900 tracking-tight whitespace-nowrap">{quote.displayId || quote.id.slice(0, 8).toUpperCase()}</div>
                     </div>
-                    <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
+                    <div className="text-[8px] font-medium text-slate-400 mt-2 uppercase tracking-wide">
                         Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                 </div>
@@ -1491,21 +1531,21 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
             <div className="space-y-3">
                 {/* Dados do Cliente */}
                 <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Cliente e Proposta</div>
+                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Dados do Cliente e Proposta</div>
                     <div className="grid grid-cols-12 divide-x divide-slate-200">
                         <div className="col-span-7 p-2.5 space-y-2">
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente</label><div className="font-bold text-slate-900 text-sm uppercase">{quote.customerName}</div></div>
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{quote.customerAddress || 'N/A'}</div></div>
+                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Cliente</label><div className="font-medium text-slate-900 text-sm uppercase">{quote.customerName}</div></div>
+                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{quote.customerAddress || 'N/A'}</div></div>
                             {quote.customerDocument && (
-                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">CPF / CNPJ</label><div className="font-medium text-slate-700 text-xs">{quote.customerDocument}</div></div>
+                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase">CPF / CNPJ</label><div className="font-medium text-slate-700 text-xs">{quote.customerDocument}</div></div>
                             )}
                         </div>
                         <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Criação</label><div className="font-bold">{fmt(quote.createdAt)}</div></div>
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Validade</label><div className="font-bold">{quote.validUntil ? fmt(quote.validUntil) : '—'}</div></div>
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">{t.common.status}</label><div className="font-bold text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{quote.status}</div></div>
+                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Criação</label><div className="font-medium">{fmt(quote.createdAt)}</div></div>
+                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Validade</label><div className="font-medium">{quote.validUntil ? fmt(quote.validUntil) : '—'}</div></div>
+                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">{t.common.status}</label><div className="font-medium text-[9px] border border-slate-200 px-1.5 py-0.5 rounded inline-block bg-white uppercase">{quote.status}</div></div>
                             {quote.linkedOrderId && (
-                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">O.S. Vinculada</label><div className="font-bold uppercase">{quote.linkedOrderId.slice(0, 8)}</div></div>
+                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase">O.S. Vinculada</label><div className="font-medium uppercase">{quote.linkedOrderId.slice(0, 8)}</div></div>
                             )}
                         </div>
                     </div>
@@ -1513,18 +1553,18 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
 
                 {/* Objeto / Descrição */}
                 <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Objeto da Proposta</div>
+                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Objeto da Proposta</div>
                     <div className="p-3 bg-white space-y-2">
-                        <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Título</label><div className="font-bold text-slate-900 text-xs uppercase">{quote.title}</div></div>
+                        <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Título</label><div className="font-medium text-slate-900 text-xs uppercase">{quote.title}</div></div>
                         {quote.description && (
-                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase mt-2">Descrição</label><div className="text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{quote.description}</div></div>
+                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase mt-2">Descrição</label><div className="text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{quote.description}</div></div>
                         )}
                     </div>
                 </div>
 
                 {/* Itens / Composição */}
                 <div className="border border-slate-300 rounded-lg" style={{ overflow: 'hidden', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Composição da Proposta (Itens e Serviços)</div>
+                    <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Composição da Proposta (Itens e Serviços)</div>
                     <table style={{ width: '100%', maxWidth: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', boxSizing: 'border-box' }}>
                         <colgroup>
                             <col style={{ width: '5%' }} />
@@ -1535,7 +1575,7 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                             <col style={{ width: '18%' }} />
                         </colgroup>
                         <thead>
-                            <tr className="bg-slate-50 text-[8px] font-black text-slate-500 uppercase border-b border-slate-200">
+                            <tr className="bg-slate-50 text-[8px] font-semibold text-slate-500 uppercase border-b border-slate-200">
                                 <th className="px-2 py-2">#</th>
                                 <th className="px-2 py-2 text-left">Código</th>
                                 <th className="px-2 py-2 text-left">Descrição do Item</th>
@@ -1547,14 +1587,14 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                         <tbody className="divide-y divide-slate-200 bg-white">
                             {quote.items.map((item, idx) => (
                                 <tr key={idx} className="break-inside-avoid">
-                                    <td className="px-2 py-2 text-[10px] font-bold text-slate-400 align-top">{String(idx + 1).padStart(2, '0')}</td>
-                                    <td className="px-2 py-2 text-[9px] font-bold text-[#3e5b99] align-top font-mono tracking-wider uppercase" style={{ wordBreak: 'break-all', overflow: 'hidden' }}>
+                                    <td className="px-2 py-2 text-[10px] font-medium text-slate-400 align-top">{String(idx + 1).padStart(2, '0')}</td>
+                                    <td className="px-2 py-2 text-[9px] font-medium text-[#3e5b99] align-top font-mono tracking-wider uppercase" style={{ wordBreak: 'break-all', overflow: 'hidden' }}>
                                         {item.stockCode || <span style={{ color: '#cbd5e1', fontStyle: 'italic', fontWeight: 400 }}>—</span>}
                                     </td>
-                                    <td className="px-2 py-2 text-[10px] uppercase font-bold text-slate-800 align-top" style={{ wordWrap: 'break-word', overflowWrap: 'break-word', overflow: 'hidden' }}>{item.description}</td>
-                                    <td className="px-2 py-2 text-[10px] text-center font-bold text-slate-600 align-top">{item.quantity}</td>
+                                    <td className="px-2 py-2 text-[10px] uppercase font-medium text-slate-800 align-top" style={{ wordWrap: 'break-word', overflowWrap: 'break-word', overflow: 'hidden' }}>{item.description}</td>
+                                    <td className="px-2 py-2 text-[10px] text-center font-medium text-slate-600 align-top">{item.quantity}</td>
                                     <td className="px-2 py-2 text-[10px] text-right text-slate-600 font-mono" style={{ overflow: 'hidden' }}>R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                    <td className="px-2 py-2 text-[10px] text-right font-black text-slate-900 font-mono" style={{ overflow: 'hidden' }}>R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-2 py-2 text-[10px] text-right font-semibold text-slate-900 font-mono" style={{ overflow: 'hidden' }}>R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1573,18 +1613,18 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                             return (
                                 <>
                                     <div className="px-6 py-2 flex justify-end gap-12 items-center">
-                                        <span className="text-[8px] uppercase font-bold tracking-widest text-slate-400">Subtotal Bruto</span>
-                                        <span className="text-[10px] font-bold text-slate-600 font-mono">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-[8px] uppercase font-medium tracking-widest text-slate-400">Subtotal Bruto</span>
+                                        <span className="text-[10px] font-medium text-slate-600 font-mono">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                     </div>
                                     {discountValue > 0 && (
                                         <div className="px-6 py-2 flex justify-end gap-12 items-center">
-                                            <span className="text-[8px] uppercase font-bold tracking-widest text-rose-400 italic">Desconto Aplicado ({quote.discountType === 'percent' ? `${quote.discount}%` : 'Fixo'})</span>
-                                            <span className="text-[10px] font-bold text-rose-500 font-mono italic">- R$ {discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                            <span className="text-[8px] uppercase font-medium tracking-widest text-rose-400 italic">Desconto Aplicado ({quote.discountType === 'percent' ? `${quote.discount}%` : 'Fixo'})</span>
+                                            <span className="text-[10px] font-medium text-rose-500 font-mono italic">- R$ {discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                         </div>
                                     )}
                                     <div className="bg-slate-800 text-white px-6 py-3 flex justify-end gap-12 items-center">
-                                        <span className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-300">Total Líquido</span>
-                                        <span className="text-xl font-black tracking-tighter">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-[10px] uppercase font-semibold tracking-[0.2em] text-slate-300">Total Líquido</span>
+                                        <span className="text-xl font-semibold tracking-tighter">R$ {quote.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                     </div>
                                 </>
                             );
@@ -1595,7 +1635,7 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                 {/* Observações */}
                 {quote.notes && (
                     <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Observações e Condições</div>
+                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Observações e Condições</div>
                         <div className="p-3 bg-white text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">
                             {quote.notes}
                         </div>
@@ -1605,39 +1645,39 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                 {/* Aprovação / Recusa (Auditoria Digital) */}
                 {(quote.status === 'APROVADO' || quote.status === 'CONVERTIDO' || quote.status === 'REJEITADO') ? (
                     <div className={`border rounded-lg overflow-hidden break-inside-avoid mt-4 ${quote.status === 'REJEITADO' ? 'border-rose-300' : 'border-emerald-300'}`}>
-                        <div className={`${quote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'} px-3 py-1.5 border-b font-bold text-[9px] uppercase tracking-wider`}>
+                        <div className={`${quote.status === 'REJEITADO' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'} px-3 py-1.5 border-b font-medium text-[9px] uppercase tracking-wider`}>
                             {quote.status === 'REJEITADO' ? 'Formalização de Recusa — Auditoria Digital' : 'Validação e Assinaturas — Auditoria Digital'}
                         </div>
                         <div className="bg-white">
                             {quote.status === 'REJEITADO' && (
-                                <div className="p-3 bg-rose-50/50 border-b border-rose-100 italic text-[11px] text-rose-900 font-bold uppercase">
+                                <div className="p-3 bg-rose-50/50 border-b border-rose-100 italic text-[11px] text-rose-900 font-medium uppercase">
                                     Motivo da Recusa: {quote.rejectionReason || 'Recusa efetuada via link público pelo cliente.'}
                                 </div>
                             )}
                             <div className="grid grid-cols-2 divide-x divide-slate-300 text-center">
                                 <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Emitente / Comercial</p>
-                                    <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-[10px] font-bold uppercase">
+                                    <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">Emitente / Comercial</p>
+                                    <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-[10px] font-medium uppercase">
                                         Visto Eletrônico Nexus
                                     </div>
                                     <div className="w-full border-t border-slate-300 pt-2">
-                                        <p className="text-[12px] font-black text-slate-900 uppercase">{companyName}</p>
+                                        <p className="text-[12px] font-semibold text-slate-900 uppercase">{companyName}</p>
                                     </div>
                                 </div>
                                 <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                    <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">
                                         {quote.status === 'REJEITADO' ? 'Recusado pelo Cliente' : 'Aprovação do Cliente'}
                                     </p>
                                     <div className="h-[80px] flex items-center justify-center">
                                         {quote.approvalSignature ? (
                                             <img src={quote.approvalSignature} className="max-h-full max-w-full object-contain mix-blend-multiply" alt="Assinatura" />
                                         ) : (
-                                            <span className="text-slate-300 italic text-[10px] font-bold uppercase">Registro digital certificado</span>
+                                            <span className="text-slate-300 italic text-[10px] font-medium uppercase">Registro digital certificado</span>
                                         )}
                                     </div>
                                     <div className="w-full border-t border-slate-300 pt-2">
-                                        <p className="text-[12px] font-black text-slate-900 uppercase">{quote.approvedByName || 'Cliente'}</p>
-                                        {quote.approvedAt && <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{new Date(quote.approvedAt).toLocaleString('pt-BR')}</p>}
+                                        <p className="text-[12px] font-semibold text-slate-900 uppercase">{quote.approvedByName || 'Cliente'}</p>
+                                        {quote.approvedAt && <p className="text-[9px] font-medium text-slate-500 uppercase tracking-widest">{new Date(quote.approvedAt).toLocaleString('pt-BR')}</p>}
                                     </div>
                                 </div>
                             </div>
@@ -1645,20 +1685,20 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                     </div>
                 ) : (
                     <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
-                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Aceite e Conformidade</div>
+                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Aceite e Conformidade</div>
                         <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
                             <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Emitente</p>
+                                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">Emitente</p>
                                 <div className="h-[60px] flex items-center justify-center" />
                                 <div className="w-full border-t border-slate-300 pt-2">
-                                    <p className="text-[12px] font-black text-slate-900 uppercase">{companyName}</p>
+                                    <p className="text-[12px] font-semibold text-slate-900 uppercase">{companyName}</p>
                                 </div>
                             </div>
                             <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">De Acordo — Assinatura do Cliente</p>
+                                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">De Acordo — Assinatura do Cliente</p>
                                 <div className="h-[80px] flex items-center justify-center" />
                                 <div className="w-full border-t border-slate-300 pt-2">
-                                    <p className="text-[12px] font-black text-slate-300 uppercase">Nome:</p>
+                                    <p className="text-[12px] font-semibold text-slate-300 uppercase">Nome:</p>
                                 </div>
                             </div>
                         </div>
@@ -1672,7 +1712,7 @@ const QuotePrintLayout: React.FC<{ quote: Quote; tenant: any }> = ({ quote, tena
                     <NexusBranding size="lg" className="opacity-80 origin-left scale-75" />
                 </div>
                 <div className="text-right">
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-[#1c2d4f]">Uma solução DUNO</p>
+                    <p className="text-[8px] font-medium uppercase tracking-widest text-[#1c2d4f]">Uma solução DUNO</p>
                     <p className="text-[7px] uppercase tracking-tight mt-0.5">Documento emitido eletronicamente. Auditável na plataforma central.</p>
                 </div>
             </div>

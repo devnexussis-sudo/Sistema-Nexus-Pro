@@ -1009,19 +1009,19 @@ export const StockManagement: React.FC = () => {
                 <div className="w-full overflow-x-auto custom-scrollbar pb-1 mb-1">
                     <div className="flex items-center gap-1 w-max">
                         <div className="flex bg-white/60 p-0.5 sm:p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm">
-                            <button onClick={() => setActiveTab('items')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                            <button onClick={() => setActiveTab('items')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1 ${activeTab === 'items' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
                                 <List size={14} /> <span className="whitespace-nowrap">Estoque</span>
                             </button>
-                            <button onClick={() => setActiveTab('categories')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 ${activeTab === 'categories' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                            <button onClick={() => setActiveTab('categories')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1 ${activeTab === 'categories' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
                                 <Tag size={14} /> <span className="whitespace-nowrap">Categorias</span>
                             </button>
-                            <button onClick={() => setActiveTab('techs')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 ${activeTab === 'techs' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                            <button onClick={() => setActiveTab('techs')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1 ${activeTab === 'techs' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
                                 <Box size={14} /> <span className="whitespace-nowrap">Técnicos</span>
                             </button>
-                            <button onClick={() => setActiveTab('movements')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 ${activeTab === 'movements' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                            <button onClick={() => setActiveTab('movements')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1 ${activeTab === 'movements' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
                                 <Scale size={14} /> <span className="whitespace-nowrap">Auditoria</span>
                             </button>
-                            <button onClick={() => setActiveTab('balance')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1 ${activeTab === 'balance' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
+                            <button onClick={() => setActiveTab('balance')} className={`px-2 sm:px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1 ${activeTab === 'balance' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}>
                                 <ClipboardCheck size={14} /> <span className="whitespace-nowrap">Balanço</span>
                             </button>
                         </div>
@@ -1038,7 +1038,7 @@ export const StockManagement: React.FC = () => {
                                 placeholder={activeTab === 'balance' ? "Digite ou bipe o cód. da peça / nome..." : "Localizar no estoque..."}
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+                                className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
                             />
                         </div>
                     )}
@@ -1050,7 +1050,7 @@ export const StockManagement: React.FC = () => {
                                 <select 
                                     value={categoryFilter} 
                                     onChange={e => setCategoryFilter(e.target.value)} 
-                                    className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full truncate"
+                                    className="bg-transparent text-[10px] text-slate-600 outline-none w-full cursor-pointer h-full truncate"
                                 >
                                     <option value="ALL">Todas Categorias</option>
                                     {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -1061,7 +1061,7 @@ export const StockManagement: React.FC = () => {
                         {activeTab === 'items' && (
                             <Button
                                 onClick={() => setIsRestockModalOpen(true)}
-                                className="h-10 px-3 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white text-[10px] font-bold shadow-lg shadow-[#1c2d4f]/20 flex items-center gap-1.5 transition-all rounded-xl"
+                                className="h-10 px-3 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] text-white text-[10px] shadow-lg shadow-[#1c2d4f]/20 flex items-center gap-1.5 transition-all rounded-xl"
                             >
                                 <Scale size={14} /> Entrada
                             </Button>
@@ -1070,7 +1070,7 @@ export const StockManagement: React.FC = () => {
                         {(activeTab === 'items' || activeTab === 'categories') && (
                             <Button
                                 onClick={() => activeTab === 'items' ? handleOpenModal() : handleOpenCategoryModal()}
-                                className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] font-bold shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
+                                className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
                             >
                                 <Plus size={14} /> {activeTab === 'items' ? 'Novo Cadastro' : 'Nova Categoria'}
                             </Button>
@@ -1081,7 +1081,7 @@ export const StockManagement: React.FC = () => {
                                 <button
                                     onClick={handleExportExcelStock}
                                     title="Exportar para Excel / CSV"
-                                    className="h-10 px-3 bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-50 text-[10px] font-bold flex items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
+                                    className="h-10 px-3 bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-50 text-[10px] flex items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
                                 >
                                     <FileText size={14} /> Excel
                                     {selectedItems.size > 0 && <span className="ml-1 bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">{selectedItems.size}</span>}
@@ -1089,7 +1089,7 @@ export const StockManagement: React.FC = () => {
                                 <button
                                     onClick={handlePrintStock}
                                     title="Imprimir relatório PDF paisagem"
-                                    className="h-10 px-3 bg-white border border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-slate-50 text-[10px] font-bold flex items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
+                                    className="h-10 px-3 bg-white border border-[#1c2d4f]/20 text-[#1c2d4f] hover:bg-slate-50 text-[10px] flex items-center gap-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
                                 >
                                     <Printer size={14} /> PDF
                                     {selectedItems.size > 0 && <span className="ml-1 bg-[#1c2d4f]/10 text-[#1c2d4f] text-[9px] font-black px-1.5 py-0.5 rounded-full">{selectedItems.size}</span>}

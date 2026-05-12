@@ -25,7 +25,8 @@ import {
 export const useOrders = (enabled = true) => {
     return useQuery('orders', (signal) => OrderService.getOrders(undefined, signal), {
         enabled,
-        staleTime: 1000 * 30 // 30 seconds
+        staleTime: 1000 * 30, // 30 seconds
+        keepPreviousData: true
     });
 };
 
@@ -34,14 +35,16 @@ export const useOrdersStats = (enabled = true, startDate?: string, endDate?: str
     const key = ['orders_stats', startDate || 'all', endDate || 'all'];
     return useQuery(key, (signal) => OrderService.getOrdersForStats(startDate, endDate, signal), {
         enabled,
-        staleTime: 1000 * 60 * 5 // 5 minutes
+        staleTime: 1000 * 60 * 5, // 5 minutes
+        keepPreviousData: true
     });
 };
 
 export const useOrder = (id: string, enabled = true) => {
     return useQuery(['order', id], (signal) => OrderService.getPublicOrderById(id, signal), {
         enabled: enabled && !!id,
-        staleTime: 1000 * 60 * 5
+        staleTime: 1000 * 60 * 5,
+        keepPreviousData: true
     });
 };
 
@@ -60,7 +63,7 @@ export const usePagedOrders = (page: number, filters: OrderFilters = {}, enabled
     return useQuery(
         key,
         (signal) => getOrdersPage(page, filters, signal),
-        { enabled, staleTime: 1000 * 30 }
+        { enabled, staleTime: 1000 * 30, keepPreviousData: true }
     );
 };
 
@@ -73,7 +76,7 @@ export const usePagedQuotes = (page: number, filters: QuoteFilters = {}, enabled
     return useQuery(
         key,
         (signal) => getQuotesPage(page, filters, signal),
-        { enabled, staleTime: 1000 * 30 }
+        { enabled, staleTime: 1000 * 30, keepPreviousData: true }
     );
 };
 
@@ -86,7 +89,7 @@ export const usePagedContracts = (page: number, filters: ContractFilters = {}, e
     return useQuery(
         key,
         (signal) => getContractsPage(page, filters, signal),
-        { enabled, staleTime: 1000 * 30 }
+        { enabled, staleTime: 1000 * 30, keepPreviousData: true }
     );
 };
 
@@ -94,6 +97,7 @@ export const usePaginatedOrders = (page: number, limit: number, filters?: any) =
     const key = ['orders', 'page', page.toString(), JSON.stringify(filters)];
     return useQuery(key, (signal) => OrderService.getOrdersPaginated(page, limit, undefined, filters, signal), {
         staleTime: 1000 * 60 * 5,
+        keepPreviousData: true
     });
 };
 
@@ -111,7 +115,8 @@ export const useUsers = (enabled = true) => {
         return TenantService.getTenantUsers(tid, signal);
     }, {
         enabled,
-        staleTime: 1000 * 60 * 5
+        staleTime: 1000 * 60 * 5,
+        keepPreviousData: true
     });
 };
 
@@ -125,7 +130,8 @@ export const useUserGroups = (enabled = true) => {
         return TenantService.getUserGroups(tid, signal);
     }, {
         enabled,
-        staleTime: 1000 * 60 * 30
+        staleTime: 1000 * 60 * 30,
+        keepPreviousData: true
     });
 };
 
@@ -136,7 +142,8 @@ export const useUserGroups = (enabled = true) => {
 export const useTechnicians = (enabled = true) => {
     return useQuery('technicians', (signal) => TechnicianService.getAllTechnicians(undefined, signal), {
         enabled,
-        staleTime: 1000 * 30 // 30 seconds
+        staleTime: 1000 * 30, // 30 seconds
+        keepPreviousData: true
     });
 };
 
@@ -147,7 +154,8 @@ export const useTechnicians = (enabled = true) => {
 export const useCustomers = (enabled = true) => {
     return useQuery('customers', (signal) => CustomerService.getCustomers(signal), {
         enabled,
-        staleTime: 1000 * 30 // 30 seconds
+        staleTime: 1000 * 30, // 30 seconds
+        keepPreviousData: true
     });
 };
 
@@ -158,14 +166,16 @@ export const useCustomers = (enabled = true) => {
 export const useStock = (enabled = true) => {
     return useQuery('stock', (signal) => StockService.getStockItems(signal), {
         enabled,
-        staleTime: 1000 * 60 * 5
+        staleTime: 1000 * 60 * 5,
+        keepPreviousData: true
     });
 };
 
 export const useStockCategories = (enabled = true) => {
     return useQuery('stock_categories', (signal) => StockService.getCategories(signal), {
         enabled,
-        staleTime: 1000 * 60 * 60 // 1 hour
+        staleTime: 1000 * 60 * 60, // 1 hour
+        keepPreviousData: true
     });
 };
 
@@ -174,10 +184,10 @@ export const useStockCategories = (enabled = true) => {
 // ------------------------------------------------------------------
 
 export const useCombinedFinancials = (enabled = true) => {
-    // This is a complex hook that might aggregate data. 
     return useQuery('cash_flow', (signal) => FinancialService.getCashFlow(signal as any), {
         enabled,
-        staleTime: 1000 * 60 * 5
+        staleTime: 1000 * 60 * 5,
+        keepPreviousData: true
     });
 };
 
@@ -188,14 +198,16 @@ export const useCombinedFinancials = (enabled = true) => {
 export const useContracts = (enabled = true) => {
     return useQuery('contracts', (signal) => ContractService.getContracts(signal), {
         enabled,
-        staleTime: 1000 * 60 * 5
+        staleTime: 1000 * 60 * 5,
+        keepPreviousData: true
     });
 };
 
 export const useQuotes = (enabled = true) => {
     return useQuery('quotes', (signal) => QuoteService.getQuotes(signal), {
         enabled,
-        staleTime: 1000 * 30 // 30 segundos
+        staleTime: 1000 * 30, // 30 segundos
+        keepPreviousData: true
     });
 };
 
@@ -206,7 +218,8 @@ export const useQuotes = (enabled = true) => {
 export const useEquipments = (enabled = true) => {
     return useQuery('equipments', (signal) => EquipmentService.getEquipments(signal), {
         enabled,
-        staleTime: 1000 * 60 * 10
+        staleTime: 1000 * 60 * 10,
+        keepPreviousData: true
     });
 };
 

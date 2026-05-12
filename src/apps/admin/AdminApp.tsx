@@ -60,6 +60,46 @@ const getInitialDateRange = () => {
     };
 };
 
+/**
+ * 🛡️ RouteGuard — Big Tech Standard Loading Guard
+ * 
+ * CRITICAL: This MUST be defined OUTSIDE of AdminApp.
+ * Defining a component inside a render function creates a new component type
+ * on every render, causing React to unmount/remount the entire subtree.
+ * That's the #1 cause of UI flickering in React SPAs.
+ * 
+ * RULE: Children ALWAYS render. Loading is a gentle overlay, never a replacement.
+ */
+const RouteGuard: React.FC<{ isLoading: boolean; children: React.ReactNode }> = ({ isLoading, children }) => {
+    const [showOverlay, setShowOverlay] = React.useState(false);
+
+    React.useEffect(() => {
+        let timer: ReturnType<typeof setTimeout>;
+        if (isLoading) {
+            timer = setTimeout(() => setShowOverlay(true), 800);
+        } else {
+            setShowOverlay(false);
+        }
+        return () => clearTimeout(timer);
+    }, [isLoading]);
+
+    return (
+        <div className="relative flex-1 flex flex-col h-full min-h-0">
+            <div className="flex-1 flex flex-col h-full min-h-0">
+                {children}
+            </div>
+            {isLoading && showOverlay && (
+                <div className="absolute inset-0 bg-slate-50/60 backdrop-blur-[1px] flex items-center justify-center z-10 animate-fade-in">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin" />
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">carregando...</p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 export const AdminApp: React.FC<AdminAppProps> = ({
     auth, onLogin, onLogout, isImpersonating, onToggleMaster,
     systemNotifications, onMarkNotificationRead
@@ -67,7 +107,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     const location = useLocation();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [overviewDateRange, setOverviewDateRange] = useState(getInitialDateRange());
-    const [activitiesDateRange, setActivitiesDateRange] = useState(getInitialDateRange());
+    const [activitiesDateRange, setActivitiesDateRange] = useState({ start: '', end: '' });
 
     const handleDateValidation = (start: string, end: string, setter: (val: {start: string, end: string}) => void) => {
         if (start && end) {
@@ -273,19 +313,6 @@ export const AdminApp: React.FC<AdminAppProps> = ({
     if (!auth.isAuthenticated) {
         return <AdminLogin onLogin={onLogin} onToggleMaster={onToggleMaster} />;
     }
-
-    // 🛡️ Route Loading Guard — prevents empty-screen flash during data fetch
-    const RouteGuard: React.FC<{ isLoading: boolean; children: React.ReactNode }> = ({ isLoading, children }) => {
-        if (isLoading) {
-            return (
-                <div className="flex-1 flex flex-col items-center justify-center p-8 h-full bg-slate-50/30">
-                    <img src="/duno-icon.png" alt="DUNO" className="h-16 w-auto object-contain animate-pulse mb-4 opacity-60" />
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">sincronizando módulo...</p>
-                </div>
-            );
-        }
-        return <>{children}</>;
-    };
 
     return (
         <AdminLayout

@@ -1,23 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGroupStore } from '../../store/groupStore';
 
+import {
+  ArrowLeft,
+  Box, Building2,
+  CalendarClock,
+  Check,
+  ClipboardList,
+  Edit3,
+  FileText,
+  Filter,
+  FolderTree,
+  Key,
+  Loader2,
+  Mail,
+  Package,
+  Save,
+  Search,
+  Settings, ShieldAlert,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  UserPlus,
+  Users,
+  Workflow,
+  X
+} from 'lucide-react';
+import { useUserGroups, useUsers } from '../../hooks/nexusHooks';
+import { useI18n } from '../../i18n/I18nContext';
+import { DataService } from '../../services/dataService';
+import { TenantService } from '../../services/tenantService';
+import { ADMIN_PERMISSIONS, DEFAULT_PERMISSIONS, User, UserGroup, UserPermissions, UserRole } from '../../types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import {
-  Users, Search, ShieldCheck, Mail, Lock,
-  UserPlus, X, Save, Edit3, Trash2, Key,
-  LayoutDashboard, ClipboardList, FileText,
-  UserCheck, Box, Building2, Settings, ShieldAlert,
-  ArrowLeft, Filter, Calendar, FolderTree, Loader2,
-  ChevronDown, Check, Package, Workflow, CalendarClock, ChevronLeft
-} from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
-import { DataService } from '../../services/dataService';
-import { AuthService } from '../../services/authService';
-import { TenantService } from '../../services/tenantService';
-import { useUsers, useUserGroups } from '../../hooks/nexusHooks';
-import { User, UserRole, UserPermissions, UserGroup, DEFAULT_PERMISSIONS, ADMIN_PERMISSIONS } from '../../types';
-import { useI18n } from '../../i18n/I18nContext';
 
 const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtitle, onBack, disabled = false, linkedUsers }: { perms: UserPermissions, onUpdate: (p: UserPermissions) => void, title: string, subtitle: string, onBack: () => void, disabled?: boolean, linkedUsers?: User[] }) => {
   const [activeTab, setActiveTab] = React.useState<'permissions' | 'users'>('permissions');
@@ -74,126 +90,126 @@ const PermissionEditor = ({ perms = DEFAULT_PERMISSIONS, onUpdate, title, subtit
         {activeTab === 'permissions' ? (
           <>
             <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden mb-6">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead className="bg-slate-50">
-                <tr className="text-[9px] font-bold text-slate-400 tracking-[0.2em] uppercase text-center border-b border-slate-200">
-                  <th className="px-6 py-4 text-left">Módulo do Sistema</th>
-                  <th className="px-4 py-4 w-24">Consultar</th>
-                  <th className="px-4 py-4 w-24">Criar Novo</th>
-                  <th className="px-4 py-4 w-24">Editar</th>
-                  <th className="px-4 py-4 w-24">Excluir</th>
-                </tr>
-              </thead>
-              <tbody>
-                {modules.map((mod) => (
-                  <tr key={mod.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group">
-                    <td className="px-6 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-slate-100 rounded-xl text-slate-500 group-hover:bg-[#1c2d4f] group-hover:text-white transition-colors">
-                          <mod.icon size={16} />
-                        </div>
-                        <span className="text-[12px] font-bold text-slate-700">{mod.label}</span>
-                      </div>
-                    </td>
-                    {[
-                      { key: 'read' },
-                      { key: 'create' },
-                      { key: 'update' },
-                      { key: 'delete' },
-                    ].map(action => {
-                      const isChecked = (perms as any)[mod.id]?.[action.key] || false;
-                      return (
-                        <td key={action.key} className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => {
-                              if (disabled) return;
-                              const newPerms = { ...perms };
-                              const modulePerms = (newPerms as any)[mod.id] || { create: false, read: false, update: false, delete: false };
-                              (newPerms as any)[mod.id] = { ...modulePerms, [action.key]: !modulePerms[action.key] };
-                              onUpdate(newPerms);
-                            }}
-                            className={`w-11 h-6 rounded-full relative transition-all mx-auto block focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#10b981] ${isChecked ? 'bg-[#10b981]' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
-                          >
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
-                          </button>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead className="bg-slate-50">
+                    <tr className="text-[9px] font-bold text-slate-400 tracking-[0.2em] uppercase text-center border-b border-slate-200">
+                      <th className="px-6 py-4 text-left">Módulo do Sistema</th>
+                      <th className="px-4 py-4 w-24">Consultar</th>
+                      <th className="px-4 py-4 w-24">Criar Novo</th>
+                      <th className="px-4 py-4 w-24">Editar</th>
+                      <th className="px-4 py-4 w-24">Excluir</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modules.map((mod) => (
+                      <tr key={mod.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group">
+                        <td className="px-6 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-slate-100 rounded-xl text-slate-500 group-hover:bg-[#1c2d4f] group-hover:text-white transition-colors">
+                              <mod.icon size={16} />
+                            </div>
+                            <span className="text-[12px] font-bold text-slate-700">{mod.label}</span>
+                          </div>
                         </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                        {[
+                          { key: 'read' },
+                          { key: 'create' },
+                          { key: 'update' },
+                          { key: 'delete' },
+                        ].map(action => {
+                          const isChecked = (perms as any)[mod.id]?.[action.key] || false;
+                          return (
+                            <td key={action.key} className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => {
+                                  if (disabled) return;
+                                  const newPerms = { ...perms };
+                                  const modulePerms = (newPerms as any)[mod.id] || { create: false, read: false, update: false, delete: false };
+                                  (newPerms as any)[mod.id] = { ...modulePerms, [action.key]: !modulePerms[action.key] };
+                                  onUpdate(newPerms);
+                                }}
+                                className={`w-11 h-6 rounded-full relative transition-all mx-auto block focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#10b981] ${isChecked ? 'bg-[#10b981]' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+                              >
+                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
-            <div className="p-5 border-b border-slate-100 bg-emerald-50/50 flex items-center gap-4">
-              <div className="p-2.5 bg-emerald-100 rounded-xl text-emerald-600"><Building2 size={16} /></div>
-              <h3 className="font-bold text-slate-800 text-[13px]">Financeiro e Custos</h3>
-            </div>
-            <div className="p-3">
-              {[
-                { key: 'read', label: 'Visualizar Custos e Faturamento' },
-                { key: 'update', label: 'Alterar Tabelas de Preço' },
-              ].map((action) => {
-                const isChecked = perms.financial?.[action.key as keyof typeof perms.financial] || false;
-                return (
-                  <div key={action.key} className="flex items-center justify-between p-3 px-4 hover:bg-slate-50 rounded-2xl transition-colors">
-                    <span className="text-[12px] font-bold text-slate-600">{action.label}</span>
-                    <button
-                      onClick={() => {
-                        if (disabled) return;
-                        const newPerms = { ...perms };
-                        if (!newPerms.financial) newPerms.financial = { read: false, update: false };
-                        newPerms.financial = { ...newPerms.financial, [action.key]: !newPerms.financial[action.key as keyof typeof perms.financial] };
-                        onUpdate(newPerms);
-                      }}
-                      className={`w-11 h-6 rounded-full relative transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500 ${isChecked ? 'bg-emerald-500' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    >
-                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
+                <div className="p-5 border-b border-slate-100 bg-emerald-50/50 flex items-center gap-4">
+                  <div className="p-2.5 bg-emerald-100 rounded-xl text-emerald-600"><Building2 size={16} /></div>
+                  <h3 className="font-bold text-slate-800 text-[13px]">Financeiro e Custos</h3>
+                </div>
+                <div className="p-3">
+                  {[
+                    { key: 'read', label: 'Visualizar Custos e Faturamento' },
+                    { key: 'update', label: 'Alterar Tabelas de Preço' },
+                  ].map((action) => {
+                    const isChecked = perms.financial?.[action.key as keyof typeof perms.financial] || false;
+                    return (
+                      <div key={action.key} className="flex items-center justify-between p-3 px-4 hover:bg-slate-50 rounded-2xl transition-colors">
+                        <span className="text-[12px] font-bold text-slate-600">{action.label}</span>
+                        <button
+                          onClick={() => {
+                            if (disabled) return;
+                            const newPerms = { ...perms };
+                            if (!newPerms.financial) newPerms.financial = { read: false, update: false };
+                            newPerms.financial = { ...newPerms.financial, [action.key]: !newPerms.financial[action.key as keyof typeof perms.financial] };
+                            onUpdate(newPerms);
+                          }}
+                          className={`w-11 h-6 rounded-full relative transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500 ${isChecked ? 'bg-emerald-500' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
-            <div className="p-5 border-b border-slate-100 bg-amber-50/50 flex items-center gap-4">
-              <div className="p-2.5 bg-amber-100 rounded-xl text-amber-600"><ShieldAlert size={16} /></div>
-              <h3 className="font-bold text-slate-800 text-[13px]">Privilégios de Sistema</h3>
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden">
+                <div className="p-5 border-b border-slate-100 bg-amber-50/50 flex items-center gap-4">
+                  <div className="p-2.5 bg-amber-100 rounded-xl text-amber-600"><ShieldAlert size={16} /></div>
+                  <h3 className="font-bold text-slate-800 text-[13px]">Privilégios de Sistema</h3>
+                </div>
+                <div className="p-3">
+                  {[
+                    { key: 'settings', label: 'Acesso a Configurações Globais', icon: Settings },
+                    { key: 'manageUsers', label: 'Gestão de Usuários e Grupos', icon: ShieldCheck },
+                  ].map((item) => {
+                    const isChecked = (perms as any)[item.key] || false;
+                    return (
+                      <div key={item.key} className="flex items-center justify-between p-3 px-4 hover:bg-slate-50 rounded-2xl transition-colors">
+                        <div className="flex items-center gap-3">
+                          <item.icon size={16} className="text-slate-400" />
+                          <span className="text-[12px] font-bold text-slate-600">{item.label}</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (disabled) return;
+                            const newPerms = { ...perms, [item.key]: !isChecked };
+                            onUpdate(newPerms);
+                          }}
+                          className={`w-11 h-6 rounded-full relative transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-amber-500 ${isChecked ? 'bg-amber-500' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-            <div className="p-3">
-              {[
-                { key: 'settings', label: 'Acesso a Configurações Globais', icon: Settings },
-                { key: 'manageUsers', label: 'Gestão de Usuários e Grupos', icon: ShieldCheck },
-              ].map((item) => {
-                const isChecked = (perms as any)[item.key] || false;
-                return (
-                  <div key={item.key} className="flex items-center justify-between p-3 px-4 hover:bg-slate-50 rounded-2xl transition-colors">
-                    <div className="flex items-center gap-3">
-                      <item.icon size={16} className="text-slate-400" />
-                      <span className="text-[12px] font-bold text-slate-600">{item.label}</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (disabled) return;
-                        const newPerms = { ...perms, [item.key]: !isChecked };
-                        onUpdate(newPerms);
-                      }}
-                      className={`w-11 h-6 rounded-full relative transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-amber-500 ${isChecked ? 'bg-amber-500' : 'bg-slate-200'} ${disabled ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    >
-                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${isChecked ? 'left-[26px]' : 'left-1'}`} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        </>
+          </>
         ) : (
           <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/40 overflow-hidden h-full">
             <table className="w-full border-collapse">
@@ -455,11 +471,13 @@ export const UserManagement: React.FC = () => {
 
 
 
-  if (isUsersLoading || isGroupsLoading) {
+  // Only show full-screen loader on very first load (no cached data).
+  // With keepPreviousData, subsequent visits will have stale data and skip this.
+  if ((isUsersLoading || isGroupsLoading) && users.length === 0 && groups.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50/20 h-full">
-        <Loader2 size={40} className="animate-spin text-[#1c2d4f] mb-4" />
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Carregando dados da tela...</p>
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50/20 h-full animate-fade-in">
+        <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin mb-4" />
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">carregando dados...</p>
       </div>
     );
   }
@@ -504,73 +522,73 @@ export const UserManagement: React.FC = () => {
       {/* Toolbar */}
       <div className="mb-2 sm:mb-4 p-2 sm:p-3 rounded-2xl border border-[#1c2d4f]/20 bg-white/40 shadow-sm backdrop-blur-md flex flex-col gap-3">
         <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-3">
-            
-            <div className="flex items-center gap-1 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0 hide-scrollbar">
-                <div className="flex bg-white/60 p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm shrink-0">
-                  <button
-                    onClick={() => setActiveTab('users')}
-                    className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
-                  >
-                    <Users size={14} /> <span className="whitespace-nowrap">{t.users.title}</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('groups')}
-                    className={`px-3 h-8 rounded-lg text-[9px] font-bold transition-all flex items-center gap-1.5 ${activeTab === 'groups' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
-                  >
-                    <FolderTree size={14} /> <span className="whitespace-nowrap">{t.users.groups}</span>
-                  </button>
-                </div>
+
+          <div className="flex items-center gap-1 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0 hide-scrollbar">
+            <div className="flex bg-white/60 p-1 rounded-xl border border-[#1c2d4f]/10 shadow-sm shrink-0">
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1.5 ${activeTab === 'users' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
+              >
+                <Users size={14} /> <span className="whitespace-nowrap">{t.users.title}</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('groups')}
+                className={`px-3 h-8 rounded-lg text-[9px] transition-all flex items-center gap-1.5 ${activeTab === 'groups' ? 'bg-[#1c2d4f] text-white shadow-md' : 'text-slate-500 hover:text-[#1c2d4f] hover:bg-white'}`}
+              >
+                <FolderTree size={14} /> <span className="whitespace-nowrap">{t.users.groups}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder={activeTab === 'users' ? "Pesquisar usuário..." : "Buscar grupo..."}
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
+            <div className="hidden sm:flex items-center bg-white border border-[#1c2d4f]/20 rounded-xl pl-2 pr-1 h-10 shadow-sm max-w-[160px]">
+              <Filter size={12} className="text-slate-400 mr-2 shrink-0" />
+              <select
+                className="bg-transparent text-[10px] text-slate-600 outline-none w-full cursor-pointer h-full"
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+              >
+                <option value="ALL">{t.common.all}</option>
+                <option value="ACTIVE">Ativos</option>
+                <option value="INACTIVE">Bloq.</option>
+              </select>
             </div>
 
-            <div className="relative flex-1 min-w-[200px] w-full lg:w-auto">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input
-                type="text"
-                placeholder={activeTab === 'users' ? "Pesquisar usuário..." : "Buscar grupo..."}
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 w-full lg:w-auto justify-end shrink-0">
-                <div className="hidden sm:flex items-center bg-white border border-[#1c2d4f]/20 rounded-xl pl-2 pr-1 h-10 shadow-sm max-w-[160px]">
-                  <Filter size={12} className="text-slate-400 mr-2 shrink-0" />
-                  <select
-                    className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full"
-                    value={statusFilter}
-                    onChange={e => setStatusFilter(e.target.value)}
-                  >
-                    <option value="ALL">{t.common.all}</option>
-                    <option value="ACTIVE">Ativos</option>
-                    <option value="INACTIVE">Bloq.</option>
-                  </select>
-                </div>
-
-                {activeTab === 'users' ? (
-                    <button onClick={() => {
-                        setEditingUser(null);
-                        setFormData({ name: '', email: '', active: true, groupIds: [], permissions: { ...DEFAULT_PERMISSIONS } });
-                        setGroupSearch('');
-                        setSaveError(null);
-                        setIsModalOpen(true);
-                        }}
-                        className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] font-bold shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
-                    >
-                        <UserPlus size={14} /> Novo Usuário
-                    </button>
-                ) : (
-                    <button onClick={() => {
-                        setEditingGroup(null);
-                        setGroupFormData({ name: '', description: '', active: true, permissions: { ...DEFAULT_PERMISSIONS } });
-                        setIsGroupModalOpen(true);
-                        }}
-                        className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] font-bold shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
-                    >
-                        <UserPlus size={14} /> Novo Grupo
-                    </button>
-                )}
-            </div>
+            {activeTab === 'users' ? (
+              <button onClick={() => {
+                setEditingUser(null);
+                setFormData({ name: '', email: '', active: true, groupIds: [], permissions: { ...DEFAULT_PERMISSIONS } });
+                setGroupSearch('');
+                setSaveError(null);
+                setIsModalOpen(true);
+              }}
+                className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
+              >
+                <UserPlus size={14} /> Novo Usuário
+              </button>
+            ) : (
+              <button onClick={() => {
+                setEditingGroup(null);
+                setGroupFormData({ name: '', description: '', active: true, permissions: { ...DEFAULT_PERMISSIONS } });
+                setIsGroupModalOpen(true);
+              }}
+                className="h-10 px-4 bg-[#10b981] hover:bg-[#059669] border-[#10b981] text-white text-[11px] shadow-lg shadow-[#10b981]/20 flex items-center gap-1.5 whitespace-nowrap transition-all rounded-xl"
+              >
+                <UserPlus size={14} /> Novo Grupo
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -635,45 +653,45 @@ export const UserManagement: React.FC = () => {
               <div className="flex-1">
                 {(() => {
                   const filteredGroups = groups.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()) || g.description?.toLowerCase().includes(searchTerm.toLowerCase()));
-                  
+
                   return filteredGroups.length > 0 ? (
                     <div className="flex flex-col w-full pb-8">
                       {filteredGroups.map((group) => (
-                          <div key={group.id} className="flex items-center px-4 py-3 bg-white hover:bg-slate-50 transition-all group border-b border-slate-100">
-                            <div className="flex-1 flex items-center gap-4">
-                              <div className="shrink-0">
-                                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${group.isSystem ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-400 group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20'}`}>
-                                  {group.isSystem ? <ShieldCheck size={18} /> : <FolderTree size={18} />}
-                                </div>
-                              </div>
-                              <div className="truncate">
-                                <p className="text-slate-900 tracking-tighter text-[13px] font-medium truncate max-w-[250px]">{group.name}</p>
-                                <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[300px]">{group.description}</p>
+                        <div key={group.id} className="flex items-center px-4 py-3 bg-white hover:bg-slate-50 transition-all group border-b border-slate-100">
+                          <div className="flex-1 flex items-center gap-4">
+                            <div className="shrink-0">
+                              <div className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${group.isSystem ? 'bg-amber-50 border-amber-200 text-amber-500' : 'bg-slate-50 border-slate-200 text-slate-400 group-hover:text-[#1c2d4f] group-hover:bg-white group-hover:border-[#1c2d4f]/20'}`}>
+                                {group.isSystem ? <ShieldCheck size={18} /> : <FolderTree size={18} />}
                               </div>
                             </div>
-                            <div className="w-48 text-center whitespace-nowrap">
-                              <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold border transition-all ${group.isSystem ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
-                                {group.isSystem ? 'Sistema Protegido' : 'Customizado'}
-                              </span>
-                            </div>
-                            <div className="w-32 text-right pr-4">
-                              <div className="flex items-center justify-end gap-1.5 transition-all">
-                                <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Configurar Regras de Acesso">
-                                  <Settings size={16} />
-                                </button>
-                                {!group.isSystem && (
-                                  <button
-                                    onClick={() => setGroupToDelete(group)}
-                                    disabled={isSaving}
-                                    className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90"
-                                    title="Excluir Grupo"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                )}
-                              </div>
+                            <div className="truncate">
+                              <p className="text-slate-900 tracking-tighter text-[13px] font-medium truncate max-w-[250px]">{group.name}</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[300px]">{group.description}</p>
                             </div>
                           </div>
+                          <div className="w-48 text-center whitespace-nowrap">
+                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-bold border transition-all ${group.isSystem ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                              {group.isSystem ? 'Sistema Protegido' : 'Customizado'}
+                            </span>
+                          </div>
+                          <div className="w-32 text-right pr-4">
+                            <div className="flex items-center justify-end gap-1.5 transition-all">
+                              <button onClick={() => { setSelectedGroup(group); setActiveSubView('permissions'); }} className="p-2.5 bg-primary-50/50 text-primary-400 hover:text-primary-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-primary-100 transition-all active:scale-90" title="Configurar Regras de Acesso">
+                                <Settings size={16} />
+                              </button>
+                              {!group.isSystem && (
+                                <button
+                                  onClick={() => setGroupToDelete(group)}
+                                  disabled={isSaving}
+                                  className="p-2.5 bg-rose-50/50 text-rose-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all active:scale-90"
+                                  title="Excluir Grupo"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   ) : (
@@ -809,9 +827,8 @@ export const UserManagement: React.FC = () => {
                         <h3 className="text-sm font-bold text-slate-900 border-l-4 border-emerald-500 pl-3">status de acesso</h3>
                         <div
                           onClick={() => setFormData({ ...formData, active: !formData.active })}
-                          className={`flex items-center gap-4 p-5 rounded-xl border transition-all cursor-pointer ${
-                            formData.active ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
-                          }`}
+                          className={`flex items-center gap-4 p-5 rounded-xl border transition-all cursor-pointer ${formData.active ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                            }`}
                         >
                           <div className={`w-10 h-6 rounded-full relative transition-all ${formData.active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
                             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.active ? 'left-5' : 'left-1'}`} />
@@ -902,27 +919,24 @@ export const UserManagement: React.FC = () => {
                                         : [...current, g.id]
                                     });
                                   }}
-                                  className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${
-                                    isSelected
+                                  className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${isSelected
                                       ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
                                       : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
-                                  }`}
+                                    }`}
                                 >
                                   {/* Checkbox visual */}
-                                  <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0 ${
-                                    isSelected
+                                  <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0 ${isSelected
                                       ? 'bg-[#1c2d4f] border-[#1c2d4f]'
                                       : 'bg-white border-slate-300'
-                                  }`}>
+                                    }`}>
                                     {isSelected && <Check size={10} className="text-white" />}
                                   </div>
-                                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 transition-colors ${
-                                    isSelected
+                                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 transition-colors ${isSelected
                                       ? 'bg-[#1c2d4f] border-[#1c2d4f] text-white'
                                       : g.isSystem
                                         ? 'bg-amber-50 border-amber-200 text-amber-500'
                                         : 'bg-white border-slate-200 text-slate-400'
-                                  }`}>
+                                    }`}>
                                     {g.isSystem ? <ShieldCheck size={13} /> : <FolderTree size={13} />}
                                   </div>
                                   <div className="flex-1 min-w-0">
@@ -933,7 +947,7 @@ export const UserManagement: React.FC = () => {
                                   </div>
                                 </button>
                               );
-                          })}
+                            })}
                           {groups.filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase())).length === 0 && groupSearch && (
                             <p className="text-center text-[10px] text-slate-300 font-medium py-4">Nenhum grupo encontrado</p>
                           )}

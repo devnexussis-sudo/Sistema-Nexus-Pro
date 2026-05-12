@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../../i18n';
+import { useDialog } from '../../contexts/DialogContext';
 import { createPortal } from 'react-dom';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -37,6 +38,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
   customers, equipments, onUpdateCustomers, onSwitchView
 }) => {
     const { t } = useI18n();
+  const { showAlert, showConfirm } = useDialog();
 
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -275,7 +277,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
       await DataService.updateCustomer(updatedCustomer);
       onUpdateCustomers(customers.map(c => c.id === id ? updatedCustomer : c));
     } catch (error) {
-      alert("Erro ao atualizar status.");
+      showAlert("Erro ao atualizar status.", 'error');
       console.error(error);
     }
   };
@@ -285,16 +287,22 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
     const customer = customers.find(c => c.id === id);
     if (!customer) return;
 
-    if (confirm(`Deseja inativar o cliente "${customer.name}"? O cliente será marcado como inativo mas seus dados serão preservados.`)) {
-      try {
-        const updatedCustomer = { ...customer, active: false };
-        await DataService.updateCustomer(updatedCustomer);
-        onUpdateCustomers(customers.map(c => c.id === id ? updatedCustomer : c));
-      } catch (error) {
-        alert("Erro ao inativar cliente.");
-        console.error(error);
-      }
-    }
+    showConfirm(
+      `Deseja inativar o cliente "${customer.name}"? O cliente será marcado como inativo mas seus dados serão preservados.`,
+      async () => {
+        try {
+          const updatedCustomer = { ...customer, active: false };
+          await DataService.updateCustomer(updatedCustomer);
+          onUpdateCustomers(customers.map(c => c.id === id ? updatedCustomer : c));
+        } catch (error) {
+          showAlert("Erro ao inativar cliente.", 'error');
+          console.error(error);
+        }
+      },
+      'Inativar Cliente',
+      'Inativar',
+      true
+    );
   };
 
 
@@ -330,7 +338,7 @@ export const CustomerManagement: React.FC<CustomerManagementProps> = ({
       setShowLinkAsset(false);
       setAssetSearch('');
     } catch (err: any) {
-      alert('Erro ao vincular ativo: ' + err.message);
+      showAlert('Erro ao vincular ativo: ' + err.message, 'error');
     } finally {
       setLinkingAsset(false);
     }

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useI18n } from '../../i18n';
+import { useDialog } from '../../contexts/DialogContext';
 import { flushSync } from 'react-dom';
 import { ServiceOrder, OrderStatus, User, Quote, Customer } from '../../types';
 import type { DbTenant } from '../../types/database';
@@ -7,7 +8,7 @@ import {
     Search, X, DollarSign, Calendar, Users, Tag,
     CreditCard, ArrowRight, CheckCircle2, FileText, Printer, ShieldCheck, MapPin,
     Layout as Layer, Info, UserCheck, Wallet, Smartphone, Layers, Wrench, Check, ArrowUpRight,
-    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Hexagon, Paperclip, Image as ImageIcon
+    TrendingUp, Clock, FileSpreadsheet, ChevronRight, ChevronDown, Plus, Slash, ArrowUp, ArrowDown, ArrowUpDown, Filter, Loader2, Share2, Hexagon, Paperclip, Image as ImageIcon, RefreshCw
 } from 'lucide-react';
 import { Pagination } from '../ui/Pagination';
 import { NexusBranding } from '../ui/NexusBranding';
@@ -27,14 +28,10 @@ interface FinancialDashboardProps {
 
 export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, quotes, techs, customers = [], tenant, onRefresh }) => {
   const { t } = useI18n();
+  const { showAlert } = useDialog();
 
     const printRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
-
-    useEffect(() => {
-        // Ao montar o dashboard financeiro, força uma invalidação dos orçamentos para exibir imediatamente os orçamentos aprovados no dia (cache refresh).
-        NexusQueryClient.invalidateQuotes();
-    }, []);
 
     const getDefaultDates = () => {
         const dEnd = new Date();
@@ -51,7 +48,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             const d1 = new Date(start);
             const d2 = new Date(end);
             if ((d2.getTime() - d1.getTime()) > 31622400000) { // 366 dias
-                alert('Atenção: O período selecionado não pode ser maior que 1 ano. A data limite foi ajustada.');
+                showAlert('Atenção: O período selecionado não pode ser maior que 1 ano. A data limite foi ajustada.', 'warning');
                 setStartDate(start);
                 setEndDate(new Date(d1.getTime() + 31536000000).toISOString().split('T')[0]);
                 setCurrentPage(1);
@@ -103,6 +100,13 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 12;
+
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try { await onRefresh(); } finally { setIsRefreshing(false); }
+    };
 
     // Removido o useEffect que chamava window.print() automaticamente,
     // pois causava conflito com o executePrint e abria duas telas de impressão.
@@ -174,7 +178,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             }));
         } catch (error) {
             console.error(error);
-            alert('Erro ao vincular orçamento.');
+            showAlert('Erro ao vincular orçamento.', 'error');
         } finally {
             setIsProcessing(false);
         }
@@ -505,7 +509,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
             setBillingDiscountType('fixed');
             await onRefresh();
         } catch (error: any) {
-            alert(`Erro ao processar faturamento: ${error.message}`);
+            showAlert(`Erro ao processar faturamento: ${error.message}`, 'error');
         } finally {
             setIsProcessing(false);
         }
@@ -534,7 +538,7 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ orders, 
 
         const printWindow = window.open('', '_blank', 'width=900,height=700');
         if (!printWindow) {
-            alert('Por favor, permita pop-ups neste site para imprimir.');
+            showAlert('Por favor, permita pop-ups neste site para imprimir.', 'warning');
             return;
         }
 
@@ -777,31 +781,42 @@ ${container.innerHTML}
                         </div>
                         <button
                             onClick={() => setShowFilters(!showFilters)}
-                            className={`flex items-center gap-2 px-3 h-9 rounded-lg border transition-all text-[10px] font-bold ${showFilters ? 'bg-slate-800 border-slate-800 text-slate-200 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
+                            className={`flex items-center gap-2 px-3 h-9 rounded-lg border transition-all text-[10px] font-medium ${showFilters ? 'bg-slate-800 border-slate-800 text-slate-200 shadow-inner' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 shadow-sm'}`}
                         >
                             <Filter size={14} /> {showFilters ? 'Filtros (On)' : 'Filtros'}
                         </button>
                     </div>
 
                     <div className="flex items-center gap-2.5 ml-auto w-full xl:w-auto justify-end">
+                        <button
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
+                            className="group h-9 px-3 flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:text-primary-600 shadow-sm transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                            title="Atualizar dados financeiros"
+                        >
+                            {isRefreshing
+                                ? <Loader2 size={16} className="animate-spin text-primary-500" />
+                                : <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500" />}
+                            {isRefreshing && <span className="text-[10px] font-medium text-primary-500">Atualizando...</span>}
+                        </button>
 
 
                         {/* Ações em Lote (Seleção) - Realocado para o Header */}
                         {selectedIds.length > 0 && (
                             <div className="flex items-center gap-3 px-3 py-1 bg-slate-900 rounded-xl shadow-2xl animate-in fade-in slide-in-from-right-4 ring-4 ring-slate-100/50 h-9">
                                 <div className="flex flex-col pr-3 border-r border-slate-700 justify-center">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
-                                    <span className="text-xs font-black text-white leading-none tracking-wider">{selectedIds.length}</span>
+                                    <span className="text-[9px] font-semibold text-slate-400 uppercase leading-none mb-0.5">Sel.</span>
+                                    <span className="text-xs font-semibold text-white leading-none tracking-wider">{selectedIds.length}</span>
                                 </div>
                                 <div className="flex flex-col pr-3 border-r border-slate-700 justify-center">
-                                    <span className="text-[9px] font-black text-emerald-500 uppercase leading-none mb-0.5">Total</span>
-                                    <span className="text-[11px] font-black text-emerald-400 leading-none tracking-wide">{formatCurrency(selectedTotal)}</span>
+                                    <span className="text-[9px] font-semibold text-emerald-500 uppercase leading-none mb-0.5">Total</span>
+                                    <span className="text-[11px] font-semibold text-emerald-400 leading-none tracking-wide">{formatCurrency(selectedTotal)}</span>
                                 </div>
 
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={handleExportExcel}
-                                        className="flex items-center gap-2 px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-white rounded-md text-[10px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
+                                        className="flex items-center gap-2 px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-white rounded-md text-[10px] font-semibold uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                                         title="Exportar Seleção para Excel"
                                     >
                                         <FileSpreadsheet size={13} /> Excel
@@ -809,7 +824,7 @@ ${container.innerHTML}
 
                                     <button
                                         onClick={handleInvoiceBatch}
-                                        className="flex items-center gap-2 px-2.5 py-1 bg-slate-800 hover:bg-slate-800 text-white rounded-md text-[10px] font-black uppercase transition-all shadow-lg shadow-slate-800/20 active:scale-95 whitespace-nowrap"
+                                        className="flex items-center gap-2 px-2.5 py-1 bg-slate-800 hover:bg-slate-800 text-white rounded-md text-[10px] font-semibold uppercase transition-all shadow-lg shadow-slate-800/20 active:scale-95 whitespace-nowrap"
                                         title="Faturar Seleção"
                                     >
                                         <DollarSign size={13} /> Faturar
@@ -834,30 +849,31 @@ ${container.innerHTML}
                 {showFilters && (
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 p-3 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
                         <div className="md:col-span-4 flex flex-col gap-1">
-                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Filtro de Data</label>
+                            <label className="text-[9px] font-medium text-slate-400 uppercase tracking-widest px-1">Filtro de Data</label>
                             <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm items-center h-8 relative">
                                 <select 
                                     value={dateFilterType}
                                     onChange={e => setDateFilterType(e.target.value as any)}
-                                    className="bg-transparent border-none text-[9px] font-bold uppercase text-slate-500 outline-none cursor-pointer pl-2 pr-1 h-full max-w-[90px] min-w-[80px]"
+                                    className="bg-transparent border-none text-[9px] font-medium uppercase text-slate-500 outline-none cursor-pointer pl-2 pr-1 h-full max-w-[90px] min-w-[80px]"
                                 >
                                     <option value="dueDate">Vencimento</option>
                                     <option value="createdAt">Criação</option>
                                     <option value="paidAt">Faturamento</option>
                                 </select>
                                 <div className="h-4 w-px bg-slate-200 shrink-0" />
-                                <div className="flex px-2 items-center w-full">
-                                    <input type="date" value={startDate} onChange={e => handleDateValidation(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
-                                    <Slash size={10} className="text-slate-300 shrink-0 mx-1" />
-                                    <input type="date" value={endDate} onChange={e => handleDateValidation(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
+                                <div className="flex px-2 items-center w-full gap-1">
+                                    <Calendar size={12} className="text-slate-400 shrink-0" />
+                                    <input type="date" value={startDate} onChange={e => handleDateValidation(e.target.value, endDate)} className="bg-transparent border-none text-[10px] font-medium uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
+                                    <Slash size={10} className="text-slate-300 shrink-0 mx-0.5" />
+                                    <input type="date" value={endDate} onChange={e => handleDateValidation(startDate, e.target.value)} className="bg-transparent border-none text-[10px] font-medium uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" />
                                 </div>
                             </div>
                         </div>
                         <div className="md:col-span-4 flex flex-col gap-1">
-                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Técnico / Responsável</label>
+                            <label className="text-[9px] font-medium text-slate-400 uppercase tracking-widest px-1">Técnico / Responsável</label>
                             <div className="relative w-full h-8" ref={techDropdownRef}>
                                 <div 
-                                    className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-6 text-[10px] font-bold text-slate-700 cursor-pointer shadow-sm flex items-center h-full outline-none transition-all relative"
+                                    className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-6 text-[10px] font-medium text-slate-700 cursor-pointer shadow-sm flex items-center h-full outline-none transition-all relative"
                                     onClick={() => setIsTechDropdownOpen(!isTechDropdownOpen)}
                                 >
                                     <UserCheck size={12} className="absolute left-2.5 text-[#1c2d4f] shrink-0" />
@@ -875,7 +891,7 @@ ${container.innerHTML}
                                                 <input 
                                                     type="text" 
                                                     placeholder="Buscar técnico..." 
-                                                    className="w-full bg-white border border-slate-200 rounded-lg pl-7 pr-2 py-1 text-[10px] font-bold outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
+                                                    className="w-full bg-white border border-slate-200 rounded-lg pl-7 pr-2 py-1 text-[10px] font-medium outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
                                                     value={techSearchQuery}
                                                     onChange={e => setTechSearchQuery(e.target.value)}
                                                     onClick={e => e.stopPropagation()}
@@ -885,7 +901,7 @@ ${container.innerHTML}
                                         </div>
                                         <div className="max-h-48 overflow-y-auto custom-scrollbar">
                                             <div 
-                                                className={`px-3 py-2 cursor-pointer text-[10px] font-bold uppercase hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'bg-primary-50 text-primary-700' : 'text-slate-700'}`}
+                                                className={`px-3 py-2 cursor-pointer text-[10px] font-medium uppercase hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'bg-primary-50 text-primary-700' : 'text-slate-700'}`}
                                                 onClick={() => { setTechFilter('ALL'); setCurrentPage(1); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
                                             >
                                                 Técnicos (Todos)
@@ -893,7 +909,7 @@ ${container.innerHTML}
                                             {techs.filter(t => t.name.toLowerCase().includes(techSearchQuery.toLowerCase())).map(t => (
                                                 <div 
                                                     key={t.id} 
-                                                    className={`px-3 py-2 cursor-pointer text-[10px] font-bold uppercase transition-colors border-t border-slate-50 truncate ${techFilter === t.name ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    className={`px-3 py-2 cursor-pointer text-[10px] font-medium uppercase transition-colors border-t border-slate-50 truncate ${techFilter === t.name ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50 text-slate-700'}`}
                                                     onClick={() => { setTechFilter(t.name); setCurrentPage(1); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
                                                 >
                                                     {t.name}
@@ -901,7 +917,7 @@ ${container.innerHTML}
                                             ))}
                                             {'administrador'.includes(techSearchQuery.toLowerCase()) && (
                                                 <div 
-                                                    className={`px-3 py-2 cursor-pointer text-[10px] font-bold uppercase transition-colors border-t border-slate-50 truncate ${techFilter === 'Administrador' ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                                                    className={`px-3 py-2 cursor-pointer text-[10px] font-medium uppercase transition-colors border-t border-slate-50 truncate ${techFilter === 'Administrador' ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50 text-slate-700'}`}
                                                     onClick={() => { setTechFilter('Administrador'); setCurrentPage(1); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
                                                 >
                                                     Administrador (Admin)
@@ -913,14 +929,29 @@ ${container.innerHTML}
                             </div>
                         </div>
                         <div className="md:col-span-3 flex flex-col gap-1">
-                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-1">Estado do Lançamento</label>
-                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm px-2.5 items-center gap-2 h-8">
-                                <Layer size={12} className="text-[#1c2d4f] shrink-0" />
-                                <select className="bg-transparent text-[10px] font-bold uppercase text-slate-600 outline-none cursor-pointer w-full py-1 h-full" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
-                                    <option value="ALL">Status (Todos)</option>
-                                    <option value="PENDING">Pendente</option>
-                                    <option value="PAID">Faturado</option>
-                                </select>
+                            <label className="text-[9px] font-medium text-slate-400 uppercase tracking-widest px-1">Estado do Lançamento</label>
+                            <div className="flex bg-white border border-slate-200 rounded-lg shadow-sm h-8 p-0.5 gap-0.5">
+                                {[
+                                    { value: 'ALL', label: 'Todos' },
+                                    { value: 'PENDING', label: 'Pendente' },
+                                    { value: 'PAID', label: 'Faturado' },
+                                ].map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => { setStatusFilter(opt.value); setCurrentPage(1); }}
+                                        className={`flex-1 rounded-md text-[9px] font-medium uppercase tracking-wide transition-all ${
+                                            statusFilter === opt.value
+                                                ? opt.value === 'PENDING'
+                                                    ? 'bg-amber-500 text-white shadow-sm'
+                                                    : opt.value === 'PAID'
+                                                        ? 'bg-emerald-500 text-white shadow-sm'
+                                                        : 'bg-slate-800 text-white shadow-sm'
+                                                : 'text-slate-500 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
@@ -951,8 +982,8 @@ ${container.innerHTML}
                                 {stat.icon}
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[9px] font-black text-white/70 uppercase tracking-widest leading-none mb-1">{stat.label}</p>
-                                <p className={`text-[13px] font-black ${stat.textMain} leading-none ${stat.truncate ? 'truncate' : ''}`}>{stat.value}</p>
+                                <p className="text-[9px] font-semibold text-white/70 uppercase tracking-widest leading-none mb-1">{stat.label}</p>
+                                <p className={`text-[13px] font-semibold ${stat.textMain} leading-none ${stat.truncate ? 'truncate' : ''}`}>{stat.value}</p>
                             </div>
                         </div>
                     ))}
@@ -1006,11 +1037,20 @@ ${container.innerHTML}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {paginatedItems.length === 0 ? (
+                            {isRefreshing ? (
+                                <tr>
+                                    <td colSpan={10} className="py-16 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Loader2 size={28} className="animate-spin text-primary-400" />
+                                            <p className="text-xs font-medium text-slate-400">Carregando dados financeiros...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : paginatedItems.length === 0 ? (
                                 <tr>
                                     <td colSpan={10} className="py-16 text-center">
                                         <DollarSign size={32} className="text-slate-200 mx-auto mb-3" />
-                                        <p className="text-xs font-black text-slate-300 uppercase tracking-widest">Nenhum lançamento encontrado</p>
+                                        <p className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Nenhum lançamento encontrado</p>
                                     </td>
                                 </tr>
                             ) : paginatedItems.map(item => (
@@ -1044,7 +1084,7 @@ ${container.innerHTML}
                                     </td>
                                     <td className="px-4 py-2.5">
                                         <div className="flex flex-col gap-0.5">
-                                            <span className="text-[12px] font-bold text-rose-600 whitespace-nowrap">
+                                            <span className="text-[12px] font-medium text-rose-600 whitespace-nowrap">
                                                 {new Date(item.dueDate || item.date).toLocaleDateString('pt-BR')}
                                             </span>
                                             <span className="text-[10px] text-rose-400 tracking-wider">Prazo</span>
@@ -1068,7 +1108,7 @@ ${container.innerHTML}
                                                 {formatCurrency(item.value)}
                                             </span>
                                             {item.original?.discount > 0 && (
-                                                <span className="text-[9px] text-rose-500 font-bold uppercase tracking-widest mt-0.5">
+                                                <span className="text-[9px] text-rose-500 font-medium uppercase tracking-widest mt-0.5">
                                                     {item.original.discountType === 'percent' ? `Desc. Aplicado (${item.original.discount}%)` : `Desc. Aplicado (-${formatCurrency(item.original.discount)})`}
                                                 </span>
                                             )}
@@ -1111,7 +1151,7 @@ ${container.innerHTML}
                                         <h2 className="text-sm sm:text-base font-semibold text-slate-900 font-poppins truncate">
                                             {selectedItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'} #{getDocLabel(selectedItem)}
                                         </h2>
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${selectedItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-widest border ${selectedItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
                                             {selectedItem.status === 'PAID' ? 'Faturado' : 'Pendente'}
                                         </span>
                                     </div>
@@ -1128,20 +1168,20 @@ ${container.innerHTML}
                                         const token = selectedItem.original?.publicToken || selectedItem.id;
                                         window.open(`${window.location.origin}/#/${route}/${token}`, '_blank');
                                     }}
-                                    className="h-9 px-2 sm:px-4 gap-1.5 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-bold transition-all flex items-center"
+                                    className="h-9 px-2 sm:px-4 gap-1.5 border border-primary-200 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-medium transition-all flex items-center"
                                 >
                                     <Share2 size={14} /> <span className="hidden sm:inline">Visualizar</span>
                                 </button>
                                 <button
                                     onClick={() => handlePrint(selectedItem)}
-                                    className="h-9 px-2 sm:px-4 gap-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-bold transition-all flex items-center"
+                                    className="h-9 px-2 sm:px-4 gap-1.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-medium transition-all flex items-center"
                                 >
                                     <Printer size={14} /> <span className="hidden sm:inline">Imprimir</span>
                                 </button>
                                 {selectedItem.status !== 'PAID' && (
                                     <button
                                         onClick={() => { setSelectedIds([selectedItem.id]); setIsInvoiceModalOpen(true); }}
-                                        className="h-9 px-2 sm:px-4 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center shadow-md shadow-emerald-600/20"
+                                        className="h-9 px-2 sm:px-4 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-all flex items-center shadow-md shadow-emerald-600/20"
                                     >
                                         <DollarSign size={14} /> <span className="hidden md:inline">Faturar</span>
                                     </button>
@@ -1158,7 +1198,7 @@ ${container.innerHTML}
 
                             {/* DESKTOP SIDEBAR TABS */}
                             <div className="hidden md:flex flex-col w-48 border-r border-slate-200 bg-slate-50/80 p-3 gap-1 overflow-y-auto custom-scrollbar shrink-0">
-                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
+                                <div className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-2 px-2">Navegação</div>
                                 {[
                                     { id: 'overview', label: 'Visão Geral', icon: Info },
                                     { id: 'financial', label: 'Financeiro', icon: DollarSign },
@@ -1168,7 +1208,7 @@ ${container.innerHTML}
                                     <button
                                         key={tab.id}
                                         onClick={() => setDetailTab(tab.id as any)}
-                                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all w-full text-left font-poppins
+                                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all w-full text-left font-poppins
                                             ${detailTab === tab.id
                                                 ? 'bg-[#1c2d4f] text-white shadow-md ring-1 ring-[#1c2d4f]'
                                                 : 'text-slate-500 hover:bg-white hover:text-[#1c2d4f] hover:shadow-sm'}`}
@@ -1190,7 +1230,7 @@ ${container.innerHTML}
                                     <button
                                         key={tab.id}
                                         onClick={() => setDetailTab(tab.id as any)}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap font-poppins
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap font-poppins
                                             ${detailTab === tab.id
                                                 ? 'bg-[#1c2d4f] text-white shadow-md'
                                                 : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
@@ -1211,9 +1251,9 @@ ${container.innerHTML}
                                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                                                 <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
                                                     <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Users size={13} /></div>
-                                                    <h3 className="text-xs font-black text-slate-800 tracking-wide">Dados do Cliente</h3>
+                                                    <h3 className="text-xs font-semibold text-slate-800 tracking-wide">Dados do Cliente</h3>
                                                 </div>
-                                                <p className="text-sm font-bold text-slate-800">{selectedItem.customerName}</p>
+                                                <p className="text-sm font-medium text-slate-800">{selectedItem.customerName}</p>
                                                 {(() => {
                                                     const fullCust = customers.find(c => c.name?.toLowerCase().trim() === selectedItem.customerName?.toLowerCase().trim());
                                                     let address = selectedItem.customerAddress;
@@ -1234,14 +1274,14 @@ ${container.innerHTML}
                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-50">
                                                                     {(fullCust.phone || fullCust.whatsapp) && (
                                                                         <div>
-                                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Telefone / Whats</p>
-                                                                            <p className="text-[11px] font-bold text-slate-700">{fullCust.whatsapp || fullCust.phone}</p>
+                                                                            <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">Telefone / Whats</p>
+                                                                            <p className="text-[11px] font-medium text-slate-700">{fullCust.whatsapp || fullCust.phone}</p>
                                                                         </div>
                                                                     )}
                                                                     {fullCust.email && (
                                                                         <div>
-                                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t.common.email}</p>
-                                                                            <p className="text-[11px] font-bold text-slate-700 truncate" title={fullCust.email}>{fullCust.email}</p>
+                                                                            <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">{t.common.email}</p>
+                                                                            <p className="text-[11px] font-medium text-slate-700 truncate" title={fullCust.email}>{fullCust.email}</p>
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -1255,25 +1295,25 @@ ${container.innerHTML}
                                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                                                 <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
                                                     <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Info size={13} /></div>
-                                                    <h3 className="text-xs font-black text-slate-800 tracking-wide">Contexto e Detalhes</h3>
+                                                    <h3 className="text-xs font-semibold text-slate-800 tracking-wide">Contexto e Detalhes</h3>
                                                 </div>
                                                 <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
                                                     <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center shrink-0">
                                                         <UserCheck size={14} className="text-slate-500" />
                                                     </div>
                                                     <div>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Usuário / Responsável</p>
-                                                        <p className="text-xs font-bold text-slate-700">{selectedItem.technician || '—'}</p>
+                                                        <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">Usuário / Responsável</p>
+                                                        <p className="text-xs font-medium text-slate-700">{selectedItem.technician || '—'}</p>
                                                     </div>
                                                 </div>
                                                 <div className="bg-slate-50/50 rounded-lg p-3 border border-slate-100 space-y-3">
                                                     <div>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Referência Original</p>
-                                                        <p className="text-xs font-bold text-slate-700">{selectedItem.type === 'QUOTE' ? 'Orçamento Aprovado' : 'Ordem de Serviço Concluída'}</p>
+                                                        <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-0.5">Referência Original</p>
+                                                        <p className="text-xs font-medium text-slate-700">{selectedItem.type === 'QUOTE' ? 'Orçamento Aprovado' : 'Ordem de Serviço Concluída'}</p>
                                                     </div>
                                                     <div className="h-px bg-slate-200" />
                                                     <div>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Descrição</p>
+                                                        <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-1">Descrição</p>
                                                         {selectedItem.description ? <p className="text-xs text-slate-600 font-medium leading-relaxed">{selectedItem.description}</p> : <p className="text-xs text-slate-400 italic">Nenhuma descrição informada.</p>}
                                                     </div>
                                                 </div>
@@ -1287,14 +1327,14 @@ ${container.innerHTML}
                                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                                             {getItemNetValue(selectedItem) < selectedItem.value ? (
                                                 <>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Valor Bruto</p>
-                                                    <p className="text-xl font-bold tracking-tight text-slate-400 line-through mb-2">
+                                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Valor Bruto</p>
+                                                    <p className="text-xl font-medium tracking-tight text-slate-400 line-through mb-2">
                                                         {formatCurrency(selectedItem.value)}
                                                     </p>
                                                     
                                                     <div className="flex justify-between items-center mb-2">
-                                                        <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Desconto Aplicado</p>
-                                                        <p className="text-xs font-bold text-rose-500">
+                                                        <p className="text-[10px] font-semibold text-rose-500 uppercase tracking-widest">Desconto Aplicado</p>
+                                                        <p className="text-xs font-medium text-rose-500">
                                                             {selectedItem.original.discountType === 'percent' && selectedItem.original.discount > 0
                                                                 ? `- ${selectedItem.original.discount}%`
                                                                 : `- ${formatCurrency(selectedItem.value - getItemNetValue(selectedItem))}`}
@@ -1302,16 +1342,16 @@ ${container.innerHTML}
                                                     </div>
 
                                                     <div className="border-t border-slate-100 pt-2 pb-2">
-                                                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Valor Líquido</p>
-                                                        <p className="text-2xl font-black tracking-tight text-emerald-600">
+                                                        <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-widest mb-1">Valor Líquido</p>
+                                                        <p className="text-2xl font-semibold tracking-tight text-emerald-600">
                                                             {formatCurrency(getItemNetValue(selectedItem))}
                                                         </p>
                                                     </div>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Valor Total</p>
-                                                    <p className="text-2xl font-black tracking-tight text-slate-900 border-b border-slate-100 pb-2 mb-2">
+                                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-1">Valor Total</p>
+                                                    <p className="text-2xl font-semibold tracking-tight text-slate-900 border-b border-slate-100 pb-2 mb-2">
                                                         {formatCurrency(selectedItem.value)}
                                                     </p>
                                                 </>
@@ -1320,16 +1360,16 @@ ${container.innerHTML}
                                                 <div className="flex items-start gap-2">
                                                     <div className="w-6 h-6 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center shrink-0"><Calendar size={12} className="text-slate-400" /></div>
                                                     <div>
-                                                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">Emissão / Início</p>
-                                                        <p className="text-[10px] font-bold text-slate-600 mt-1">{new Date(selectedItem.createdAt || selectedItem.date).toLocaleDateString('pt-BR')}</p>
+                                                        <p className="text-[8px] font-medium text-slate-400 uppercase tracking-widest leading-none">Emissão / Início</p>
+                                                        <p className="text-[10px] font-medium text-slate-600 mt-1">{new Date(selectedItem.createdAt || selectedItem.date).toLocaleDateString('pt-BR')}</p>
                                                     </div>
                                                 </div>
                                                 {selectedItem.paidAt && (
                                                 <div className="flex items-start gap-2">
                                                     <div className="w-6 h-6 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-center shrink-0"><Check size={12} className="text-emerald-500" /></div>
                                                     <div>
-                                                        <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest leading-none">Recebimento</p>
-                                                        <p className="text-[10px] font-bold text-emerald-700 mt-1">{new Date(selectedItem.paidAt).toLocaleDateString('pt-BR')}</p>
+                                                        <p className="text-[8px] font-medium text-emerald-500 uppercase tracking-widest leading-none">Recebimento</p>
+                                                        <p className="text-[10px] font-medium text-emerald-700 mt-1">{new Date(selectedItem.paidAt).toLocaleDateString('pt-BR')}</p>
                                                     </div>
                                                 </div>
                                                 )}
@@ -1342,7 +1382,7 @@ ${container.innerHTML}
                                                         <Clock size={12} className={selectedItem.status !== 'PAID' ? 'text-rose-500' : 'text-slate-400'} />
                                                     </div>
                                                     <div className="flex-1">
-                                                        <p className={`text-[8px] font-bold uppercase tracking-widest leading-none mb-1 ${selectedItem.status !== 'PAID' ? 'text-rose-500' : 'text-slate-400'}`}>Vencimento</p>
+                                                        <p className={`text-[8px] font-medium uppercase tracking-widest leading-none mb-1 ${selectedItem.status !== 'PAID' ? 'text-rose-500' : 'text-slate-400'}`}>Vencimento</p>
                                                         {selectedItem.status !== 'PAID' ? (
                                                             <div className="flex items-center gap-2">
                                                                 <input
@@ -1353,7 +1393,7 @@ ${container.innerHTML}
                                                                         try { return new Date(raw).toISOString().split('T')[0]; } catch { return ''; }
                                                                     })()}
                                                                     onChange={(e) => setEditingDueDate(e.target.value)}
-                                                                    className="bg-white border border-rose-200 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-rose-200 transition-all cursor-pointer shadow-sm hover:border-rose-300"
+                                                                    className="bg-white border border-rose-200 rounded-lg px-2 py-1.5 text-[11px] font-medium text-slate-700 outline-none focus:ring-2 focus:ring-rose-200 transition-all cursor-pointer shadow-sm hover:border-rose-300"
                                                                 />
                                                                 {editingDueDate && (
                                                                     <button
@@ -1391,12 +1431,12 @@ ${container.innerHTML}
                                                                                 await onRefresh();
                                                                             } catch (err: any) {
                                                                                 console.error('Erro ao atualizar vencimento:', err);
-                                                                                alert('Erro ao atualizar data de vencimento.');
+                                                                                showAlert('Erro ao atualizar data de vencimento.', 'error');
                                                                             } finally {
                                                                                 setIsProcessing(false);
                                                                             }
                                                                         }}
-                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg text-[10px] font-bold uppercase transition-all shadow-md shadow-[#1c2d4f]/20 active:scale-95 whitespace-nowrap disabled:opacity-50"
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-lg text-[10px] font-medium uppercase transition-all shadow-md shadow-[#1c2d4f]/20 active:scale-95 whitespace-nowrap disabled:opacity-50"
                                                                     >
                                                                         {isProcessing ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
                                                                         Salvar
@@ -1404,7 +1444,7 @@ ${container.innerHTML}
                                                                 )}
                                                             </div>
                                                         ) : (
-                                                            <p className="text-[10px] font-bold text-slate-600">{new Date(selectedItem.dueDate || selectedItem.date).toLocaleDateString('pt-BR')}</p>
+                                                            <p className="text-[10px] font-medium text-slate-600">{new Date(selectedItem.dueDate || selectedItem.date).toLocaleDateString('pt-BR')}</p>
                                                         )}
                                                     </div>
                                                 </div>
@@ -1412,7 +1452,7 @@ ${container.innerHTML}
                                             
                                             {selectedItem.original?.billingNotes && (
                                                 <div className="mt-4 bg-slate-50/50 border border-slate-100 rounded-lg p-3">
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Observações Fiscais/Faturamento</p>
+                                                    <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-1">Observações Fiscais/Faturamento</p>
                                                     <p className="text-xs text-slate-700 font-medium leading-relaxed">{selectedItem.original.billingNotes}</p>
                                                 </div>
                                             )}
@@ -1421,19 +1461,19 @@ ${container.innerHTML}
                                             <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
                                                 <div className="flex items-center gap-3 mb-4">
                                                     <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center"><Check size={16} className="text-white" /></div>
-                                                    <p className="text-[11px] font-black text-emerald-800 uppercase tracking-widest">Baixa Realizada</p>
+                                                    <p className="text-[11px] font-semibold text-emerald-800 uppercase tracking-widest">Baixa Realizada</p>
                                                 </div>
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                     <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                                                        <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Forma de Pagamento</p>
-                                                        <p className="text-xs font-black text-emerald-900 uppercase">
+                                                        <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Forma de Pagamento</p>
+                                                        <p className="text-xs font-semibold text-emerald-900 uppercase">
                                                             {selectedItem.original?.paymentMethod || '—'}
                                                             {renderInstallmentsDetails(selectedItem)}
                                                         </p>
                                                     </div>
                                                     <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                                                        <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Desconto</p>
-                                                        <p className="text-xs font-black text-emerald-900 uppercase">
+                                                        <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Desconto</p>
+                                                        <p className="text-xs font-semibold text-emerald-900 uppercase">
                                                             {(() => {
                                                                 const disc = Number(selectedItem.original?.discount) || 0;
                                                                 const subtotal = selectedItem.original?.items?.reduce((a: number, i: any) => a + (Number(i.total) || 0), 0) || selectedItem.value;
@@ -1446,14 +1486,14 @@ ${container.innerHTML}
                                                         </p>
                                                     </div>
                                                     <div className="bg-white rounded-xl p-3 border border-emerald-100">
-                                                        <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Data da Baixa</p>
-                                                        <p className="text-xs font-black text-emerald-900">{selectedItem.original?.paidAt ? new Date(selectedItem.original.paidAt).toLocaleDateString('pt-BR') : '—'}</p>
+                                                        <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Data da Baixa</p>
+                                                        <p className="text-xs font-semibold text-emerald-900">{selectedItem.original?.paidAt ? new Date(selectedItem.original.paidAt).toLocaleDateString('pt-BR') : '—'}</p>
                                                     </div>
                                                 </div>
                                                 {selectedItem.original?.billingNotes && (
                                                     <div className="mt-4 pt-4 border-t border-emerald-100/50 space-y-4">
                                                         <div>
-                                                            <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Observações do Faturamento</p>
+                                                            <p className="text-[9px] font-semibold text-emerald-500 uppercase mb-1">Observações do Faturamento</p>
                                                             <p className="text-xs font-medium text-emerald-800 whitespace-pre-wrap">{selectedItem.original.billingNotes}</p>
                                                         </div>
                                                     </div>
@@ -1464,11 +1504,11 @@ ${container.innerHTML}
                                                 <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
                                                     <Clock size={20} className="text-amber-500" />
                                                 </div>
-                                                <p className="text-sm font-bold text-amber-800">Aguardando Faturamento</p>
+                                                <p className="text-sm font-medium text-amber-800">Aguardando Faturamento</p>
                                                 <p className="text-xs text-amber-600">Valor de {formatCurrency(selectedItem.value)} ainda não liquidado.</p>
                                                 <button
                                                     onClick={() => { setSelectedIds([selectedItem.id]); setIsInvoiceModalOpen(true); }}
-                                                    className="mx-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2"
+                                                    className="mx-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-sm shadow-md transition-all flex items-center gap-2"
                                                 >
                                                     <DollarSign size={16} /> Confirmar Lançamento Financeiro
                                                 </button>
@@ -1483,7 +1523,7 @@ ${container.innerHTML}
                                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                                                 <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-3">
                                                     <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><Layer size={13} /></div>
-                                                    <h3 className="text-xs font-black text-slate-800 tracking-wide">Orçamentos Vinculados</h3>
+                                                    <h3 className="text-xs font-semibold text-slate-800 tracking-wide">Orçamentos Vinculados</h3>
                                                 </div>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                     {selectedItem.original?.linkedQuotes?.map((qId: string) => {
@@ -1491,24 +1531,24 @@ ${container.innerHTML}
                                                         return q ? (
                                                             <div key={qId} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center">
                                                                 <div>
-                                                                    <span className="text-[9px] font-black text-slate-500 uppercase">{q.displayId || 'ORC-' + qId.slice(0, 8).toUpperCase()}</span>
-                                                                    <p className="text-xs font-bold text-slate-800 mt-0.5 truncate max-w-[150px]">{q.title}</p>
+                                                                    <span className="text-[9px] font-semibold text-slate-500 uppercase">{q.displayId || 'ORC-' + qId.slice(0, 8).toUpperCase()}</span>
+                                                                    <p className="text-xs font-medium text-slate-800 mt-0.5 truncate max-w-[150px]">{q.title}</p>
                                                                 </div>
-                                                                <span className="text-sm font-black text-slate-900">{formatCurrency(q.totalValue)}</span>
+                                                                <span className="text-sm font-semibold text-slate-900">{formatCurrency(q.totalValue)}</span>
                                                             </div>
                                                         ) : null;
                                                     })}
                                                     {(!selectedItem.original?.linkedQuotes || selectedItem.original.linkedQuotes.length === 0) && (
                                                         <div className="col-span-full py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                                            <p className="text-[10px] text-slate-400 font-bold uppercase">Nenhum orçamento vinculado</p>
+                                                            <p className="text-[10px] text-slate-400 font-medium uppercase">Nenhum orçamento vinculado</p>
                                                         </div>
                                                     )}
                                                     {availableQuotesForClient.length > 0 && selectedItem.status !== 'PAID' && (
                                                         <div className="col-span-full pt-3 border-t border-slate-100 mt-2">
-                                                            <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Disponíveis para vincular:</p>
+                                                            <p className="text-[9px] font-semibold text-slate-400 uppercase mb-2">Disponíveis para vincular:</p>
                                                             <div className="flex flex-wrap gap-2">
                                                                 {availableQuotesForClient.map(q => (
-                                                                    <button key={q.id} onClick={() => handleLinkQuote(q.id)} disabled={isProcessing} className="px-3 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all text-[10px] font-bold text-slate-700 uppercase shadow-sm">
+                                                                    <button key={q.id} onClick={() => handleLinkQuote(q.id)} disabled={isProcessing} className="px-3 py-2 bg-white border border-slate-200 rounded-xl flex items-center gap-2 hover:border-slate-300 hover:bg-slate-50 transition-all text-[10px] font-medium text-slate-700 uppercase shadow-sm">
                                                                         {q.displayId || 'ORC-' + q.id.slice(0, 8).toUpperCase()} — {formatCurrency(q.totalValue)}
                                                                         <Plus size={12} className="text-slate-400" />
                                                                     </button>
@@ -1522,15 +1562,15 @@ ${container.innerHTML}
                                             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
                                                 <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
                                                     <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-200 text-slate-500"><FileText size={13} /></div>
-                                                    <h3 className="text-xs font-black text-slate-800 tracking-wide">Detalhes do Orçamento</h3>
+                                                    <h3 className="text-xs font-semibold text-slate-800 tracking-wide">Detalhes do Orçamento</h3>
                                                 </div>
                                                 {selectedItem.original?.items?.map((item: any, i: number) => (
                                                     <div key={i} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
                                                         <div>
-                                                            <p className="text-xs font-bold text-slate-800">{item.description}</p>
+                                                            <p className="text-xs font-medium text-slate-800">{item.description}</p>
                                                             <p className="text-[10px] text-slate-400">{item.quantity} × {formatCurrency(item.unitPrice)}</p>
                                                         </div>
-                                                        <span className="text-sm font-black text-slate-900">{formatCurrency(item.total)}</span>
+                                                        <span className="text-sm font-semibold text-slate-900">{formatCurrency(item.total)}</span>
                                                     </div>
                                                 ))}
                                                 {(!selectedItem.original?.items || selectedItem.original.items.length === 0) && (
@@ -1548,7 +1588,7 @@ ${container.innerHTML}
                                                 <Paperclip size={20} />
                                             </div>
                                             <div>
-                                                <h3 className="text-lg font-black text-slate-800">Anexos</h3>
+                                                <h3 className="text-lg font-semibold text-slate-800">Anexos</h3>
                                                 <p className="text-xs font-medium text-slate-500">Documentos e comprovantes vinculados a esta transação.</p>
                                             </div>
                                         </div>
@@ -1556,18 +1596,18 @@ ${container.innerHTML}
                                         {!selectedItem.original?.receiptUrl ? (
                                             <div className="bg-slate-50 border border-slate-200 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center">
                                                 <Paperclip size={32} className="text-slate-300 mb-3" />
-                                                <p className="text-sm font-bold text-slate-500">Nenhum anexo encontrado</p>
+                                                <p className="text-sm font-medium text-slate-500">Nenhum anexo encontrado</p>
                                                 <p className="text-xs text-slate-400 mt-1">Os comprovantes anexados durante o faturamento aparecerão aqui.</p>
                                             </div>
                                         ) : (
                                             <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
                                                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                                                    <h4 className="text-sm font-bold text-slate-800">Comprovante de Faturamento</h4>
+                                                    <h4 className="text-sm font-medium text-slate-800">Comprovante de Faturamento</h4>
                                                     <a 
                                                         href={selectedItem.original.receiptUrl} 
                                                         target="_blank" 
                                                         rel="noopener noreferrer"
-                                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
                                                     >
                                                         Abrir Original
                                                     </a>
@@ -1576,7 +1616,7 @@ ${container.innerHTML}
                                                     {selectedItem.original.receiptUrl.toLowerCase().includes('.pdf') ? (
                                                         <div className="w-full py-12 flex flex-col items-center justify-center text-center">
                                                             <FileText size={48} className="text-slate-300 mb-4" />
-                                                            <p className="text-sm font-bold text-slate-600">Documento PDF anexado</p>
+                                                            <p className="text-sm font-medium text-slate-600">Documento PDF anexado</p>
                                                             <p className="text-xs text-slate-500 mt-1">Clique em "Abrir Original" para visualizar o arquivo completo.</p>
                                                         </div>
                                                     ) : (
@@ -1612,7 +1652,7 @@ ${container.innerHTML}
                                 <div>
                                     <div className="flex items-center gap-3">
                                         <h2 className="text-base font-semibold text-slate-900 font-poppins">Liquidação Financeira</h2>
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-200">
                                             Checkout
                                         </span>
                                     </div>
@@ -1635,12 +1675,12 @@ ${container.innerHTML}
                                 {/* Lado Esquerdo - Detalhes e Resumo */}
                                 <div className="space-y-6">
                                     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
-                                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                        <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
                                             <Layers size={16} className="text-slate-400"/> Documentos a Faturar
                                         </h3>
                                         <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
                                             <div>
-                                                <p className="text-sm font-bold text-slate-700">{selectedIds.length === 1 ? (selectedItem ? getDocLabel(selectedItem) : '—') : `${selectedIds.length} Itens Lançados`}</p>
+                                                <p className="text-sm font-medium text-slate-700">{selectedIds.length === 1 ? (selectedItem ? getDocLabel(selectedItem) : '—') : `${selectedIds.length} Itens Lançados`}</p>
                                                 <p className="text-xs text-slate-500 font-medium mt-0.5">{selectedIds.length === 1 ? selectedItem?.customerName : 'Múltiplos clientes'}</p>
                                             </div>
                                             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-400">
@@ -1650,13 +1690,13 @@ ${container.innerHTML}
                                     </div>
 
                                     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
-                                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                        <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
                                             <DollarSign size={16} className="text-slate-400"/> Resumo Financeiro
                                         </h3>
                                         <div className="space-y-3">
                                             <div className="flex justify-between items-center text-sm">
                                                 <span className="text-slate-500 font-medium">Subtotal</span>
-                                                <span className="font-bold text-slate-700">{formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}</span>
+                                                <span className="font-medium text-slate-700">{formatCurrency(selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal)}</span>
                                             </div>
                                             {(() => {
                                                 const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
@@ -1664,19 +1704,19 @@ ${container.innerHTML}
                                                 return dv > 0 ? (
                                                     <div className="flex justify-between items-center text-sm">
                                                         <span className="text-rose-500 font-medium tracking-wide">Desconto</span>
-                                                        <span className="font-bold text-rose-500">- {formatCurrency(dv)}</span>
+                                                        <span className="font-medium text-rose-500">- {formatCurrency(dv)}</span>
                                                     </div>
                                                 ) : null;
                                             })()}
                                             <div className="pt-4 mt-3 border-t border-slate-100 flex justify-between items-center">
-                                                <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Total a Receber</span>
-                                                <span className="text-2xl font-black text-emerald-600 tracking-tight">{formatCurrency(Math.max(0, (() => { const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal; const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount; return base - dv; })()))}</span>
+                                                <span className="text-xs font-semibold text-slate-800 uppercase tracking-widest">Total a Receber</span>
+                                                <span className="text-2xl font-semibold text-emerald-600 tracking-tight">{formatCurrency(Math.max(0, (() => { const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal; const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount; return base - dv; })()))}</span>
                                             </div>
                                         </div>
                                     </div>
                                     
                                     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
-                                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                        <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
                                             <FileText size={16} className="text-slate-400"/> Observações e Comprovante
                                         </h3>
                                         <textarea
@@ -1687,7 +1727,7 @@ ${container.innerHTML}
                                         />
                                         
                                         <div className="flex flex-col gap-2">
-                                            <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5 cursor-pointer">
+                                            <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 cursor-pointer">
                                                 <Paperclip size={14} className="text-slate-400"/>
                                                 Anexar Comprovante (Imagem/PDF)
                                                 <input 
@@ -1716,7 +1756,7 @@ ${container.innerHTML}
                                 {/* Lado Direito - Pagamento e Parcelas */}
                                 <div className="space-y-6">
                                     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
-                                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                        <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
                                             <CreditCard size={16} className="text-slate-400"/> Forma de Pagamento
                                         </h3>
                                         <div className="grid grid-cols-3 gap-3">
@@ -1729,7 +1769,7 @@ ${container.innerHTML}
                                                         : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}
                                                 >
                                                     <div className="mb-1.5 opacity-80">{method.icon}</div>
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-center">{method.label}</span>
+                                                    <span className="text-[10px] font-medium uppercase tracking-wider text-center">{method.label}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -1737,7 +1777,7 @@ ${container.innerHTML}
                                         {/* Parcelas */}
                                         {paymentMethod === 'Cartão Crédito' && (
                                             <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in">
-                                                <h4 className="text-[10px] font-black tracking-widest uppercase text-slate-400 mb-3">Opções de Parcelamento</h4>
+                                                <h4 className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-3">Opções de Parcelamento</h4>
                                                 
                                                 {/* Botões Rápidos 1 a 12 */}
                                                 <div className="grid grid-cols-6 gap-2 mb-3">
@@ -1745,7 +1785,7 @@ ${container.innerHTML}
                                                         <button
                                                             key={n}
                                                             onClick={() => setInstallments(n)}
-                                                            className={`py-2 rounded-lg text-[11px] font-black transition-all ${installments === n ? 'bg-slate-800 text-white shadow-md scale-105' : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-800 hover:text-slate-800'}`}
+                                                            className={`py-2 rounded-lg text-[11px] font-semibold transition-all ${installments === n ? 'bg-slate-800 text-white shadow-md scale-105' : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-800 hover:text-slate-800'}`}
                                                         >
                                                             {n}x
                                                         </button>
@@ -1755,7 +1795,7 @@ ${container.innerHTML}
                                                 {/* Opção Manual e Resumo */}
                                                 <div className="p-3 bg-slate-50 rounded-lg flex flex-col md:flex-row items-center justify-between gap-3 border border-slate-100">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Outro valor:</span>
+                                                        <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Outro valor:</span>
                                                         <div className="relative">
                                                             <input
                                                                 type="number"
@@ -1766,15 +1806,15 @@ ${container.innerHTML}
                                                                     const val = parseInt(e.target.value);
                                                                     if (!isNaN(val) && val > 0) setInstallments(val);
                                                                 }}
-                                                                className="w-16 px-2 pr-6 py-1.5 text-xs font-black text-slate-800 bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all text-center"
+                                                                className="w-16 px-2 pr-6 py-1.5 text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all text-center"
                                                             />
-                                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 pointer-events-none">x</span>
+                                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400 pointer-events-none">x</span>
                                                         </div>
                                                     </div>
                                                     
                                                     <div className="flex flex-col items-end">
-                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Valor da Parcela</span>
-                                                        <span className="text-sm font-black text-slate-800">
+                                                        <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest leading-none mb-1">Valor da Parcela</span>
+                                                        <span className="text-sm font-semibold text-slate-800">
                                                             {(() => {
                                                                 const base = selectedIds.length === 1 ? (selectedItem?.value || 0) : selectedTotal;
                                                                 const dv = billingDiscountType === 'percent' ? (base * billingDiscount / 100) : billingDiscount;
@@ -1790,22 +1830,22 @@ ${container.innerHTML}
 
                                     {/* Desconto Extra */}
                                     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:border-slate-300 transition-all">
-                                        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                        <h3 className="text-sm font-medium text-slate-800 mb-4 flex items-center gap-2">
                                             <Tag size={16} className="text-slate-400"/> Aplicar Desconto Extra
                                         </h3>
                                         <div className="flex items-center gap-3">
                                             <div className="flex border border-slate-200 rounded-lg overflow-hidden shrink-0">
                                                 <button
                                                     onClick={() => setBillingDiscountType('fixed')}
-                                                    className={`px-3 py-2 text-[10px] font-black transition-all ${billingDiscountType === 'fixed' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                                                    className={`px-3 py-2 text-[10px] font-semibold transition-all ${billingDiscountType === 'fixed' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
                                                 >R$</button>
                                                 <button
                                                     onClick={() => setBillingDiscountType('percent')}
-                                                    className={`px-3 py-2 text-[10px] font-black transition-all ${billingDiscountType === 'percent' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                                                    className={`px-3 py-2 text-[10px] font-semibold transition-all ${billingDiscountType === 'percent' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
                                                 >%</button>
                                             </div>
                                             <div className="relative flex-1">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">
                                                     {billingDiscountType === 'percent' ? '%' : 'R$'}
                                                 </span>
                                                 <input
@@ -1816,7 +1856,7 @@ ${container.innerHTML}
                                                     value={billingDiscount || ''}
                                                     onChange={e => setBillingDiscount(parseFloat(e.target.value) || 0)}
                                                     placeholder="0"
-                                                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all shadow-sm"
+                                                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition-all shadow-sm"
                                                 />
                                             </div>
                                             {billingDiscount > 0 && (
@@ -1835,14 +1875,14 @@ ${container.innerHTML}
                         <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
                             <button
                                 onClick={() => setIsInvoiceModalOpen(false)}
-                                className="h-10 px-5 flex items-center justify-center gap-2 text-slate-500 hover:text-slate-800 font-bold transition-colors bg-white hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-200"
+                                className="h-10 px-5 flex items-center justify-center gap-2 text-slate-500 hover:text-slate-800 font-medium transition-colors bg-white hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-200"
                             >
                                 <X size={16} /> Cancelar
                             </button>
                             <button
                                 onClick={confirmInvoice}
                                 disabled={isProcessing}
-                                className="h-10 px-6 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-md shadow-emerald-600/20 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                                className="h-10 px-6 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium shadow-md shadow-emerald-600/20 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                             >
                                 {isProcessing ? (
                                     <><Loader2 size={16} className="animate-spin" /> Concluindo Baixa...</>
@@ -1862,11 +1902,11 @@ ${container.innerHTML}
 
                         {/* Barra de ação — oculta na impressão */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 print:hidden">
-                            <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Pré-visualização do Recibo</p>
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Pré-visualização do Recibo</p>
                             <div className="flex items-center gap-3">
                                 <button
                                     onClick={executePrint}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs font-black uppercase shadow-md hover:bg-[#253a66] transition-all"
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-xs font-semibold uppercase shadow-md hover:bg-[#253a66] transition-all"
                                 >
                                     <Printer size={14} /> Imprimir
                                 </button>
@@ -1883,7 +1923,7 @@ ${container.innerHTML}
                         <div id="print-container" className="w-full">
                             <div id="printable-receipt" ref={printRef} className="bg-white text-[10px] leading-tight font-poppins p-6 print:p-0 print:break-inside-avoid min-h-[1056px] flex flex-col relative w-[210mm] mx-auto print:w-full" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
                             {/* Marca D'Água (Status) */}
-                            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none select-none text-[8rem] font-black uppercase -rotate-45 tracking-widest whitespace-nowrap z-0`}>
+                            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none select-none text-[8rem] font-semibold uppercase -rotate-45 tracking-widest whitespace-nowrap z-0`}>
                                 {printItem.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}
                             </div>
 
@@ -1903,7 +1943,7 @@ ${container.innerHTML}
                                             </div>
                                         )}
                                         <div className="space-y-1">
-                                            <h1 className="text-xl font-bold text-slate-900 uppercase tracking-tight">{tenant?.company_name || tenant?.trading_name || tenant?.name || 'Sua Empresa'}</h1>
+                                            <h1 className="text-xl font-medium text-slate-900 uppercase tracking-tight">{tenant?.company_name || tenant?.trading_name || tenant?.name || 'Sua Empresa'}</h1>
                                             <div className="text-[9px] text-slate-600 max-w-[400px]">
                                                 {((tenant?.address || tenant?.street) ? `${tenant.street || tenant.address}${tenant.number ? ', ' + tenant.number : ''}${tenant.neighborhood ? ' - ' + tenant.neighborhood : ''}${tenant.city ? ', ' + tenant.city : ''}${tenant.state ? '/' + tenant.state : ''}` : 'Endereço da Empresa Não Informado')}
                                                 <div className="flex flex-wrap gap-x-3 mt-0.5">
@@ -1917,15 +1957,15 @@ ${container.innerHTML}
                                     </div>
                                     <div className="text-right shrink-0">
                                         <div className="border-2 border-slate-800 px-5 py-2 rounded-lg bg-slate-50 min-w-[160px]">
-                                            <div className="text-[8px] font-black text-[#1c2d4f] uppercase tracking-wider mb-0.5 leading-tight">
+                                            <div className="text-[8px] font-semibold text-[#1c2d4f] uppercase tracking-wider mb-0.5 leading-tight">
                                                 Comprovante de Faturamento
-                                                <div className="text-[7px] font-bold text-slate-500 tracking-widest mt-0.5">
+                                                <div className="text-[7px] font-medium text-slate-500 tracking-widest mt-0.5">
                                                     Referente a {printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}
                                                 </div>
                                             </div>
-                                            <div className="text-base font-black text-slate-900 tracking-tight whitespace-nowrap mt-1">{getDocLabel(printItem)}</div>
+                                            <div className="text-base font-semibold text-slate-900 tracking-tight whitespace-nowrap mt-1">{getDocLabel(printItem)}</div>
                                         </div>
-                                        <div className="text-[8px] font-bold text-slate-400 mt-2 uppercase tracking-wide">
+                                        <div className="text-[8px] font-medium text-slate-400 mt-2 uppercase tracking-wide">
                                             Emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </div>
                                     </div>
@@ -1934,7 +1974,7 @@ ${container.innerHTML}
                                 <div className="space-y-3">
                                     {/* Dados do Cliente e Faturamento */}
                                     <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Cliente e Faturamento</div>
+                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Dados do Cliente e Faturamento</div>
                                         <div className="grid grid-cols-12 divide-x divide-slate-200">
                                             <div className="col-span-7 p-2.5 space-y-2">
                                                 {(() => {
@@ -1954,17 +1994,17 @@ ${container.innerHTML}
 
                                                     return (
                                                         <>
-                                                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Cliente / Razão Social</label><div className="font-bold text-slate-900 text-sm uppercase">{printItem.customerName || 'Cliente Não Identificado'}</div></div>
-                                                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{address}</div></div>
+                                                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Cliente / Razão Social</label><div className="font-medium text-slate-900 text-sm uppercase">{printItem.customerName || 'Cliente Não Identificado'}</div></div>
+                                                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Endereço</label><div className="font-medium text-slate-700 text-xs uppercase">{address}</div></div>
                                                             <div className="grid grid-cols-2 gap-2 mt-2">
                                                                 {doc && (
-                                                                    <div><label className="block text-[8px] font-bold text-slate-400 uppercase">CPF / CNPJ</label><div className="font-medium text-slate-700 text-xs">{doc}</div></div>
+                                                                    <div><label className="block text-[8px] font-medium text-slate-400 uppercase">CPF / CNPJ</label><div className="font-medium text-slate-700 text-xs">{doc}</div></div>
                                                                 )}
                                                                 {phone && (
-                                                                    <div><label className="block text-[8px] font-bold text-slate-400 uppercase">{t.common.phone}</label><div className="font-medium text-slate-700 text-xs">{phone}</div></div>
+                                                                    <div><label className="block text-[8px] font-medium text-slate-400 uppercase">{t.common.phone}</label><div className="font-medium text-slate-700 text-xs">{phone}</div></div>
                                                                 )}
                                                                 {email && (
-                                                                    <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">{t.common.email}</label><div className="font-medium text-slate-700 text-xs truncate">{email}</div></div>
+                                                                    <div className="col-span-2"><label className="block text-[8px] font-medium text-slate-400 uppercase">{t.common.email}</label><div className="font-medium text-slate-700 text-xs truncate">{email}</div></div>
                                                                 )}
                                                             </div>
                                                         </>
@@ -1972,14 +2012,14 @@ ${container.innerHTML}
                                                 })()}
                                             </div>
                                             <div className="col-span-5 p-2.5 grid grid-cols-2 gap-3 bg-slate-50/30">
-                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Origem Ref.</label><div className="font-bold uppercase">{printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</div></div>
-                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Vencimento</label><div className="font-bold uppercase">{new Date(printItem.date).toLocaleDateString('pt-BR')}</div></div>
-                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Status do Pgto</label><div className={`font-bold text-[9px] border px-1.5 py-0.5 rounded inline-block uppercase ${printItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{printItem.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}</div></div>
+                                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Origem Ref.</label><div className="font-medium uppercase">{printItem.type === 'QUOTE' ? 'Orçamento' : 'Ordem de Serviço'}</div></div>
+                                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Vencimento</label><div className="font-medium uppercase">{new Date(printItem.date).toLocaleDateString('pt-BR')}</div></div>
+                                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Status do Pgto</label><div className={`font-medium text-[9px] border px-1.5 py-0.5 rounded inline-block uppercase ${printItem.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{printItem.status === 'PAID' ? 'LIQUIDADO' : 'PENDENTE'}</div></div>
                                                 {printItem.original?.paidAt && (
-                                                    <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Data do Recebimento</label><div className="font-bold uppercase">{new Date(printItem.original.paidAt).toLocaleDateString('pt-BR')}</div></div>
+                                                    <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Data do Recebimento</label><div className="font-medium uppercase">{new Date(printItem.original.paidAt).toLocaleDateString('pt-BR')}</div></div>
                                                 )}
                                                 {printItem.original?.paymentMethod && (
-                                                    <div className="col-span-2"><label className="block text-[8px] font-bold text-slate-400 uppercase">Forma de Pagamento / Parcelas</label><div className="font-bold uppercase text-slate-800">{printItem.original.paymentMethod}{renderInstallmentsDetails(printItem)}</div></div>
+                                                    <div className="col-span-2"><label className="block text-[8px] font-medium text-slate-400 uppercase">Forma de Pagamento / Parcelas</label><div className="font-medium uppercase text-slate-800">{printItem.original.paymentMethod}{renderInstallmentsDetails(printItem)}</div></div>
                                                 )}
                                             </div>
                                         </div>
@@ -1987,24 +2027,24 @@ ${container.innerHTML}
 
                                     {/* Objeto / Descrição */}
                                     <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Objeto do Faturamento</div>
+                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Objeto do Faturamento</div>
                                         <div className="p-3 bg-white space-y-2">
-                                            <div><label className="block text-[8px] font-bold text-slate-400 uppercase">Título / Referência</label><div className="font-bold text-slate-900 text-xs uppercase">{printItem.title || 'Serviços Prestados'}</div></div>
+                                            <div><label className="block text-[8px] font-medium text-slate-400 uppercase">Título / Referência</label><div className="font-medium text-slate-900 text-xs uppercase">{printItem.title || 'Serviços Prestados'}</div></div>
                                             {printItem.description && (
-                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase mt-2">Descrição Registrada</label><div className="text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{printItem.description}</div></div>
+                                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase mt-2">Descrição Registrada</label><div className="text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{printItem.description}</div></div>
                                             )}
                                             {printItem.original?.billingNotes && (
-                                                <div><label className="block text-[8px] font-bold text-slate-400 uppercase mt-2">Observações Fiscais/Faturamento</label><div className="text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{printItem.original.billingNotes}</div></div>
+                                                <div><label className="block text-[8px] font-medium text-slate-400 uppercase mt-2">Observações Fiscais/Faturamento</label><div className="text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed">{printItem.original.billingNotes}</div></div>
                                             )}
                                         </div>
                                     </div>
 
                                     {/* Itens / Composição */}
                                     <div className="border border-slate-300 rounded-lg overflow-hidden">
-                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Descritivo dos Lançamentos</div>
+                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Descritivo dos Lançamentos</div>
                                         <table className="w-full text-left table-fixed">
                                             <thead>
-                                                <tr className="bg-slate-50 text-[8px] font-black text-slate-500 uppercase border-b border-slate-200">
+                                                <tr className="bg-slate-50 text-[8px] font-semibold text-slate-500 uppercase border-b border-slate-200">
                                                     <th className="px-3 py-2 w-10">#</th>
                                                     <th className="px-3 py-2">Descrição do Lançamento</th>
                                                     <th className="px-3 py-2 text-center w-16">Tipo</th>
@@ -2013,10 +2053,10 @@ ${container.innerHTML}
                                             </thead>
                                             <tbody className="divide-y divide-slate-200 bg-white">
                                                 <tr className="break-inside-avoid">
-                                                    <td className="px-3 py-2 text-[10px] font-bold text-slate-400 align-top">01</td>
-                                                    <td className="px-3 py-2 text-[10px] uppercase font-bold text-slate-800 break-words whitespace-pre-wrap align-top">Valor Acordado ({printItem.type === 'QUOTE' ? 'Orçamento Base' : 'Ordem de Serviço Base'})</td>
-                                                    <td className="px-3 py-2 text-[10px] text-center font-bold text-slate-600 align-top">{printItem.type === 'QUOTE' ? 'ORC' : 'O.S.'}</td>
-                                                    <td className="px-3 py-2 text-[10px] text-right font-black text-slate-900 font-mono align-top">
+                                                    <td className="px-3 py-2 text-[10px] font-medium text-slate-400 align-top">01</td>
+                                                    <td className="px-3 py-2 text-[10px] uppercase font-medium text-slate-800 break-words whitespace-pre-wrap align-top">Valor Acordado ({printItem.type === 'QUOTE' ? 'Orçamento Base' : 'Ordem de Serviço Base'})</td>
+                                                    <td className="px-3 py-2 text-[10px] text-center font-medium text-slate-600 align-top">{printItem.type === 'QUOTE' ? 'ORC' : 'O.S.'}</td>
+                                                    <td className="px-3 py-2 text-[10px] text-right font-semibold text-slate-900 font-mono align-top">
                                                         {`R$ ${(printItem?.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                                                     </td>
                                                 </tr>
@@ -2024,9 +2064,9 @@ ${container.innerHTML}
                                                     const linkedQts = (printItem.original.linkedQuotes as string[]).map((qId: string) => quotes.find(q => q.id === qId)).filter(Boolean);
                                                     return linkedQts.map((q: any, i) => (
                                                         <tr key={q.id} className="bg-slate-50/50 break-inside-avoid">
-                                                            <td className="px-3 py-2 text-[10px] font-bold text-slate-400 align-top">0{i + 2}</td>
-                                                            <td className="px-3 py-2 text-[10px] uppercase font-bold text-slate-700 break-words whitespace-pre-wrap align-top">Vínculo: {q.title || 'Orçamento Vinculado'} (Ref: {q.displayId || q.id.slice(0, 8)})</td>
-                                                            <td className="px-3 py-2 text-[10px] text-center font-bold text-slate-500 align-top">SUB</td>
+                                                            <td className="px-3 py-2 text-[10px] font-medium text-slate-400 align-top">0{i + 2}</td>
+                                                            <td className="px-3 py-2 text-[10px] uppercase font-medium text-slate-700 break-words whitespace-pre-wrap align-top">Vínculo: {q.title || 'Orçamento Vinculado'} (Ref: {q.displayId || q.id.slice(0, 8)})</td>
+                                                            <td className="px-3 py-2 text-[10px] text-center font-medium text-slate-500 align-top">SUB</td>
                                                             <td className="px-3 py-2 text-[10px] text-right font-medium text-slate-500 font-mono align-top">Incluso</td>
                                                         </tr>
                                                     ));
@@ -2057,18 +2097,18 @@ ${container.innerHTML}
                                                 return (
                                                     <>
                                                         <div className="px-6 py-2 flex justify-end gap-12 items-center">
-                                                            <span className="text-[8px] uppercase font-bold tracking-widest text-slate-400">Total Nominal / Bruto</span>
-                                                            <span className="text-[10px] font-bold text-slate-600 font-mono">R$ {grossValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                            <span className="text-[8px] uppercase font-medium tracking-widest text-slate-400">Total Nominal / Bruto</span>
+                                                            <span className="text-[10px] font-medium text-slate-600 font-mono">R$ {grossValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                         </div>
                                                         {hasDiscount && (
                                                             <div className="px-6 py-2 flex justify-end gap-12 items-center">
-                                                                <span className="text-[8px] uppercase font-bold tracking-widest text-rose-400 italic">Desconto Aplicado {discLabel}</span>
-                                                                <span className="text-[10px] font-bold text-rose-500 font-mono italic">- R$ {discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                <span className="text-[8px] uppercase font-medium tracking-widest text-rose-400 italic">Desconto Aplicado {discLabel}</span>
+                                                                <span className="text-[10px] font-medium text-rose-500 font-mono italic">- R$ {discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                             </div>
                                                         )}
                                                         <div className="bg-slate-800 text-white px-6 py-3 flex justify-end gap-12 items-center">
-                                                            <span className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-300">Total Líquido do Faturamento</span>
-                                                            <span className="text-xl font-black tracking-tighter font-mono">R$ {netValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                            <span className="text-[10px] uppercase font-semibold tracking-[0.2em] text-slate-300">Total Líquido do Faturamento</span>
+                                                            <span className="text-xl font-semibold tracking-tighter font-mono">R$ {netValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                         </div>
                                                     </>
                                                 );
@@ -2078,30 +2118,30 @@ ${container.innerHTML}
 
                                     {/* Aceite e Conformidade / Assinaturas */}
                                     <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
-                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Autenticação e Assinaturas</div>
+                                        <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-medium text-[9px] uppercase tracking-wider text-slate-700">Autenticação e Assinaturas</div>
                                         <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
                                             <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Emitente / Responsável</p>
-                                                <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-[10px] font-bold uppercase">
+                                                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">Emitente / Responsável</p>
+                                                <div className="h-[60px] flex items-center justify-center text-slate-200 italic text-[10px] font-medium uppercase">
                                                     Visto Eletrônico Nexus
                                                 </div>
                                                 <div className="w-full border-t border-slate-300 pt-2">
-                                                    <p className="text-[12px] font-black text-slate-900 uppercase">{tenant?.company_name || 'Assinatura Oficial'}</p>
-                                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Técnico: {printItem.technician || '—'}</p>
+                                                    <p className="text-[12px] font-semibold text-slate-900 uppercase">{tenant?.company_name || 'Assinatura Oficial'}</p>
+                                                    <p className="text-[9px] font-medium text-slate-500 uppercase tracking-widest mt-0.5">Técnico: {printItem.technician || '—'}</p>
                                                 </div>
                                             </div>
                                             <div className="p-4 flex flex-col items-center justify-center gap-3">
-                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">De Acordo / Assinatura do Cliente</p>
+                                                <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">De Acordo / Assinatura do Cliente</p>
                                                 <div className="h-[60px] flex items-center justify-center">
                                                     {printItem.status === 'PAID' ? (
-                                                        <span className="text-emerald-300 italic text-[10px] font-bold uppercase">Liquidado Eletronicamente</span>
+                                                        <span className="text-emerald-300 italic text-[10px] font-medium uppercase">Liquidado Eletronicamente</span>
                                                     ) : (
-                                                        <span className="text-slate-200 italic text-[10px] font-bold uppercase">—</span>
+                                                        <span className="text-slate-200 italic text-[10px] font-medium uppercase">—</span>
                                                     )}
                                                 </div>
                                                 <div className="w-full border-t border-slate-300 pt-2">
-                                                    <p className="text-[12px] font-black text-slate-900 uppercase">{printItem.customerName || 'Cliente'}</p>
-                                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{printItem.customerDocument ? `Doc: ${printItem.customerDocument}` : ''}</p>
+                                                    <p className="text-[12px] font-semibold text-slate-900 uppercase">{printItem.customerName || 'Cliente'}</p>
+                                                    <p className="text-[9px] font-medium text-slate-500 uppercase tracking-widest mt-0.5">{printItem.customerDocument ? `Doc: ${printItem.customerDocument}` : ''}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -2121,14 +2161,14 @@ ${container.innerHTML}
                             {(printItem.original?.receiptUrl && printWithAttachment) && (
                                 <div className="bg-white text-[10px] leading-tight font-poppins p-6 print:p-0 flex flex-col relative w-[210mm] mx-auto print:w-full" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', pageBreakBefore: 'always', breakBefore: 'page' }}>
                                     <div className="border-b-2 border-slate-800 pb-4 mb-6">
-                                        <h2 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Comprovante de Transação</h2>
+                                        <h2 className="text-xl font-medium text-slate-900 uppercase tracking-tight">Comprovante de Transação</h2>
                                         <p className="text-[10px] text-slate-500 mt-1 uppercase">Anexo referente ao faturamento: {getDocLabel(printItem)}</p>
                                     </div>
                                     <div className="flex-1 flex flex-col items-center justify-start">
                                         {printItem.original.receiptUrl.toLowerCase().includes('.pdf') ? (
                                             <div className="w-full border-2 border-dashed border-slate-300 rounded-xl p-10 flex flex-col items-center justify-center text-center">
                                                 <Paperclip size={48} className="text-slate-300 mb-4" />
-                                                <p className="text-sm font-bold text-slate-600 mb-2">Comprovante em formato PDF anexado</p>
+                                                <p className="text-sm font-medium text-slate-600 mb-2">Comprovante em formato PDF anexado</p>
                                                 <p className="text-[10px] text-slate-400">Os documentos PDF precisam ser impressos a partir do visualizador digital original.</p>
                                             </div>
                                         ) : (
@@ -2155,7 +2195,7 @@ ${container.innerHTML}
                             <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mx-auto mb-4">
                                 <Paperclip size={22} className="text-blue-600" />
                             </div>
-                            <h3 className="text-base font-black text-slate-800 text-center mb-1">Imprimir Comprovante?</h3>
+                            <h3 className="text-base font-semibold text-slate-800 text-center mb-1">Imprimir Comprovante?</h3>
                             <p className="text-xs text-slate-500 text-center font-medium">
                                 Este faturamento possui um comprovante anexado.<br/>Deseja incluí-lo na impressão como segunda página?
                             </p>
@@ -2173,7 +2213,7 @@ ${container.innerHTML}
                                     });
                                     executePrint(true);
                                 }}
-                                className="w-full py-3 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-sm font-black transition-all flex items-center justify-center gap-2"
+                                className="w-full py-3 bg-[#1c2d4f] hover:bg-[#253a66] text-white rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
                             >
                                 <Printer size={16} /> Imprimir comprovante junto
                             </button>
@@ -2189,7 +2229,7 @@ ${container.innerHTML}
                                     });
                                     executePrint(false);
                                 }}
-                                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2"
                             >
                                 <FileText size={16} /> Não imprimir comprovante junto
                             </button>

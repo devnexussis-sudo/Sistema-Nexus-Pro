@@ -40,19 +40,22 @@ interface QueryResult<T> {
 export function useQuery<T>(
     queryKey: string | string[],
     queryFn: (signal: AbortSignal) => Promise<T>,
-    options: QueryOptions<T> = {}
+    options: QueryOptions<T> & { keepPreviousData?: boolean } = {}
 ): QueryResult<T> {
     const key = Array.isArray(queryKey) ? queryKey.join(':') : queryKey;
 
     const {
         enabled = true,
-        retry = 1, // Reduced from 2 to limit cascading
+        retry = 1,
         staleTime = DEFAULT_STALE_TIME,
         onSuccess,
         onError,
         refetchOnWindowFocus = false,
-        refetchOnReconnect = false
+        refetchOnReconnect = false,
+        keepPreviousData = false
     } = options;
+
+    const previousData = useRef<T | undefined>(undefined);
 
     // 💾 Persistência Local Helper
     const loadFromStorage = (): { data: T; timestamp: number } | null => {
@@ -88,31 +91,31 @@ export function useQuery<T>(
         return { data: undefined, isLoading: enabled, isFetching: enabled, error: null, status: 'idle' };
     });
 
+    // Sync previousData ref
+    useEffect(() => {
+        if (state.data !== undefined) {
+            previousData.current = state.data;
+        }
+    }, [state.data]);
+
     // 🔒 Circuit Breaker Refs
     const isMounted = useRef(true);
-    const isFetchingRef = useRef(false);          // Hard mutex — prevents concurrent fetches
+    const isFetchingRef = useRef(false);
     const retryCount = useRef(0);
     const abortControllerRef = useRef<AbortController | null>(null);
     const enabledRef = useRef(enabled);
     const queryFnRef = useRef(queryFn);
 
-    // Keep refs updated without causing re-renders or effect re-runs
     useEffect(() => { enabledRef.current = enabled; }, [enabled]);
     useEffect(() => { queryFnRef.current = queryFn; }, [queryFn]);
 
-    // 🔄 Fetch Logic — stable, uses refs internally
     const fetchData = async (forceRefetch = false): Promise<void> => {
-        // ── Circuit Breaker ─────────────────────────────────────────
-        if (isFetchingRef.current) {
-            console.log(`[NexusQuery] 🔒 Blocked concurrent fetch: ${key}`);
-            return;
-        }
+        if (isFetchingRef.current) return;
         if (!enabledRef.current && !forceRefetch) return;
 
         const cached = queryCache.get(key);
         const isStale = !cached || (Date.now() - cached.timestamp > staleTime);
 
-        // Cache is fresh — serve from memory, no network
         if (cached?.data && !isStale && !forceRefetch) {
             if (state.data !== cached.data) {
                 setState(prev => ({ ...prev, data: cached.data, isLoading: false, isFetching: false, status: 'success' }));
@@ -120,42 +123,38 @@ export function useQuery<T>(
             return;
         }
 
-        // Request deduplication — if a promise is already in flight, attach to it
         const isPromiseStale = cached?.promiseTimestamp && (Date.now() - cached.promiseTimestamp > 15000);
         if (cached?.promise && !isPromiseStale) {
-            console.log(`[NexusQuery] ♻️ Reusing in-flight request: ${key}`);
             try {
                 const data = await cached.promise;
                 if (isMounted.current) {
                     setState(prev => ({ ...prev, data, isLoading: false, isFetching: false, status: 'success', error: null }));
                 }
-                return; // V2 FIX: Only return if SUCCESS! If it fails, fall through and fetch again.
+                return;
             } catch { 
-                console.log(`[NexusQuery] ⚠️ Reused promise failed (likely aborted by StrictMode). Restarting fetch: ${key}`);
                 const c = queryCache.get(key);
                 if (c) { c.promise = undefined; c.promiseTimestamp = undefined; }
             }
         }
 
-        // ── Start Fetch ─────────────────────────────────────────────
         isFetchingRef.current = true;
-
-        // Abort any previous hanging request
         if (abortControllerRef.current) {
             abortControllerRef.current.abort('New fetch started');
         }
         abortControllerRef.current = new AbortController();
         const signal = abortControllerRef.current.signal;
 
-        console.log(`[NexusQuery] 🟢 Fetching: ${key}`);
         if (isMounted.current) {
-            setState(prev => ({ ...prev, isLoading: !prev.data, isFetching: true, status: 'loading' }));
+            setState(prev => ({ 
+                ...prev, 
+                isLoading: keepPreviousData ? (!prev.data && !previousData.current) : !prev.data, 
+                isFetching: true, 
+                status: 'loading' 
+            }));
         }
 
         try {
             const promise = queryFnRef.current(signal);
-
-            // Store in-flight promise for deduplication
             queryCache.set(key, {
                 data: cached?.data,
                 timestamp: cached?.timestamp || 0,
@@ -164,14 +163,11 @@ export function useQuery<T>(
             });
 
             const data = await promise;
-            console.log(`[NexusQuery] ✅ Success: ${key}`);
-
-            // Update cache
             const timestamp = Date.now();
             queryCache.set(key, { data, timestamp });
             try {
                 localStorage.setItem(`NEXUS_CACHE_${key}`, JSON.stringify({ data, timestamp }));
-            } catch { /* Storage quota exceeded — not critical */ }
+            } catch { /* noop */ }
 
             if (isMounted.current) {
                 setState({ data, isLoading: false, isFetching: false, error: null, status: 'success' });
@@ -179,79 +175,73 @@ export function useQuery<T>(
                 onSuccess?.(data);
             }
         } catch (err: any) {
-            // Clear in-flight promise
             const c = queryCache.get(key);
             if (c) { c.promise = undefined; c.promiseTimestamp = undefined; }
 
-            // ⚠️ CRITICAL: AbortError means the component unmounted or a new fetch started.
-            // DO NOT retry on AbortError — that is the loop source.
             const isAbort = err?.name === 'AbortError' || err?.message?.includes('AbortError') || err?.message?.includes('Aborted');
-            if (isAbort) {
-                console.log(`[NexusQuery] 🛑 Fetch aborted (normal): ${key}`);
-                // Do NOT retry, do NOT update state with error
-                return;
-            }
+            if (isAbort) return;
 
             if (retryCount.current < retry) {
                 retryCount.current++;
                 const delay = Math.min(1000 * Math.pow(2, retryCount.current), 15000);
-                console.warn(`[NexusQuery] 🔁 Retry ${retryCount.current}/${retry} for ${key} in ${delay}ms`);
                 setTimeout(() => {
                     if (isMounted.current && !isFetchingRef.current) fetchData(true);
                 }, delay);
                 return;
             }
 
-            console.error(`[NexusQuery] ❌ Failed: ${key}`, err?.message);
             if (isMounted.current) {
                 setState(prev => ({ ...prev, isLoading: false, isFetching: false, error: err, status: 'error' }));
                 onError?.(err);
             }
         } finally {
-            // ⚠️ CRITICAL: Always release the mutex — even if unmounted
             isFetchingRef.current = false;
         }
     };
 
     useEffect(() => {
         isMounted.current = true;
-        isFetchingRef.current = false; // Reset on every key/enabled change
+        isFetchingRef.current = false;
         retryCount.current = 0;
+
+        // When key changes, if keepPreviousData is false, we clear current data
+        if (!keepPreviousData) {
+            const cached = queryCache.get(key);
+            if (!cached) {
+                setState(prev => ({ ...prev, data: undefined, isLoading: enabled, isFetching: enabled, status: 'idle' }));
+            }
+        } else {
+            // If keepPreviousData is true, we keep the state.data (which is the data from the previous key)
+            // but we might want to trigger a loading state if not in cache
+            const cached = queryCache.get(key);
+            if (!cached) {
+                setState(prev => ({ ...prev, isLoading: enabled && !prev.data, isFetching: enabled, status: 'loading' }));
+            }
+        }
 
         if (enabled) fetchData();
 
-        // 👂 Global Invalidation Listener
         const handleInvalidation = (e: any) => {
             const targetKey = e.detail?.key;
             if (!targetKey || key.startsWith(targetKey) || targetKey === '*') {
-                // Small delay to avoid firing during a render cycle
                 setTimeout(() => { if (isMounted.current) fetchData(true); }, 50);
             }
         };
 
         window.addEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
-
-        const handleFocus = () => { if (refetchOnWindowFocus && isMounted.current) fetchData(); };
-        window.addEventListener('focus', handleFocus);
-
-        const handleOnline = () => { if (refetchOnReconnect && isMounted.current) fetchData(); };
-        window.addEventListener('online', handleOnline);
+        window.addEventListener('focus', () => { if (refetchOnWindowFocus && isMounted.current) fetchData(); });
+        window.addEventListener('online', () => { if (refetchOnReconnect && isMounted.current) fetchData(); });
 
         return () => {
             isMounted.current = false;
-            isFetchingRef.current = false; // Release mutex on unmount
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort('Component unmounted');
-            }
+            isFetchingRef.current = false;
+            if (abortControllerRef.current) abortControllerRef.current.abort('Component unmounted');
             window.removeEventListener('NEXUS_QUERY_INVALIDATE', handleInvalidation);
-            window.removeEventListener('focus', handleFocus);
-            window.removeEventListener('online', handleOnline);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [key, enabled]); // Only primitive values — stable, no object refs
+    }, [key, enabled, keepPreviousData]);
 
     const refetch = async () => {
-        isFetchingRef.current = false; // Force unlock before manual refetch
+        isFetchingRef.current = false;
         await fetchData(true);
     };
 
@@ -263,7 +253,7 @@ export function useQuery<T>(
     };
 
     return {
-        data: state.data,
+        data: state.data ?? (keepPreviousData ? (previousData.current as T) : undefined),
         isLoading: state.isLoading,
         isFetching: state.isFetching,
         isError: !!state.error,

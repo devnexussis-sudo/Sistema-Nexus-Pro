@@ -4,7 +4,8 @@ import { useTenant } from '../../hooks/nexusHooks';
 import {
   ClipboardList, CheckCircle, Clock, AlertCircle, TrendingUp, BarChart3,
   Briefcase, Activity, ShieldAlert, Timer, ArrowRight, Calendar, Zap, Layers, Target, Boxes, PieChart, BarChart,
-  Search, Filter, UserCheck, Users, ChevronRight, Gauge, ZapOff, Settings, BellRing, X
+  Search, Filter, UserCheck, Users, ChevronRight, Gauge, ZapOff, Settings, BellRing, X,
+  RefreshCw, Loader2
 } from 'lucide-react';
 
 interface AdminOverviewProps {
@@ -297,6 +298,15 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
               >
                 <Filter size={14} /> <span className="hidden sm:inline">{showFilters ? 'Ocultar' : 'Filtros'}</span>
               </button>
+              
+              <button
+                onClick={() => window.location.reload()}
+                className="group h-10 px-3 flex items-center justify-center bg-white hover:bg-slate-50 border border-[#1c2d4f]/20 rounded-xl text-[#1c2d4f] hover:text-primary-600 shadow-sm transition-all active:scale-95"
+                title="Atualizar dados"
+              >
+                <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500" />
+              </button>
+
               <button
                 onClick={() => {
                   setSearchTerm(''); setStatusFilter('ALL'); setTechFilter('ALL'); setCustomerFilter('ALL'); setDateTypeFilter('scheduled');

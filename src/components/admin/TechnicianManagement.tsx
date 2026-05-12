@@ -117,9 +117,9 @@ export const TechnicianManagement: React.FC = () => {
   return (
     <div className="p-4 flex flex-col h-full bg-slate-50/20 overflow-hidden font-poppins">
       {loading && technicians.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 h-full">
-          <Loader2 size={40} className="animate-spin text-[#1c2d4f] mb-4" />
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Carregando dados da tela...</p>
+        <div className="flex-1 flex flex-col items-center justify-center p-8 h-full animate-fade-in">
+          <div className="w-8 h-8 border-[3px] border-slate-200 border-t-primary-500 rounded-full animate-spin mb-4" />
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">carregando dados...</p>
         </div>
       ) : (
         <>
@@ -134,7 +134,7 @@ export const TechnicianManagement: React.FC = () => {
               placeholder="Buscar técnico por nome ou e-mail..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs font-bold text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
+              className="w-full h-10 bg-white border border-[#1c2d4f]/20 rounded-xl pl-9 pr-4 text-xs text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all shadow-sm"
             />
           </div>
 
@@ -142,7 +142,7 @@ export const TechnicianManagement: React.FC = () => {
             <div className="flex items-center bg-white border border-[#1c2d4f]/20 rounded-xl pl-2 pr-1 h-10 shadow-sm">
               <Filter size={12} className="text-slate-400 mr-2" />
               <select
-                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-full cursor-pointer h-full"
+                className="bg-transparent text-[10px] text-slate-600 outline-none w-full cursor-pointer h-full"
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
               >
@@ -154,7 +154,7 @@ export const TechnicianManagement: React.FC = () => {
 
             <Button
               onClick={() => setIsModalOpen(true)}
-              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl font-bold whitespace-nowrap text-white"
+              className="h-10 px-4 gap-1.5 bg-[#1c2d4f] hover:bg-[#253a66] border-[#1c2d4f] shadow-lg shadow-[#1c2d4f]/20 text-[11px] rounded-xl whitespace-nowrap text-white"
             >
               <Plus size={16} /> Novo Técnico
             </Button>

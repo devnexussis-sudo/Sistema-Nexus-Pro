@@ -6,7 +6,6 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
-  overflow: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -28,6 +27,48 @@ body {
 :root *::before,
 :root *::after {
   text-transform: none !important;
+}
+
+/* ============================================= */
+/* 🎬 NEXUS PAGE TRANSITIONS — Big Tech Standard */
+/* Smooth fade+rise on every page/module change   */
+/* ============================================= */
+@keyframes nexus-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-enter {
+  animation: nexus-page-enter 0.25s ease-out both;
+}
+
+/* Fade-in only (no vertical shift) for inline loaders */
+@keyframes nexus-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: nexus-fade-in 0.3s ease-out both;
+}
+
+/* Skeleton shimmer for loading placeholders */
+@keyframes nexus-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.nexus-skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: nexus-shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
 }
 
 
