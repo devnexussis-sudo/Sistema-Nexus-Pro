@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useI18n } from '../../i18n';
 import {
   AlertTriangle, Ban, CheckCircle2, Clock, ClipboardList,
@@ -172,13 +172,20 @@ const VisitContainer: React.FC<{
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   const StatusIcon = cfg.icon;
 
-  // Tenta resolver label do template
+  // Mapeia fieldId → índice de ordem no template + label
   const templateLabels: Record<string, string> = {};
-  formTemplates.forEach(t => {
-    if (t.fields) t.fields.forEach((f: any) => { templateLabels[f.id] = f.label; });
+  const templateOrder: Record<string, number> = {};
+  let tIdx = 0;
+  formTemplates.forEach(tmpl => {
+    if (tmpl.fields) tmpl.fields.forEach((f: any) => {
+      templateLabels[f.id] = f.label;
+      templateOrder[f.id] = tIdx++;
+    });
   });
 
   const resolveLabel = (key: string) => {
+    const strippedKey = key.replace(/^\[.*?\]\s*-\s*/, '').replace(/^\d{3}#/, '');
+    if (templateLabels[strippedKey]) return templateLabels[strippedKey];
     if (templateLabels[key]) return templateLabels[key];
     if (!isNaN(Number(key))) return `Pergunta ${Number(key) + 1}`;
     
@@ -189,7 +196,7 @@ const VisitContainer: React.FC<{
     if (lowerKey.includes('date') && lowerKey.includes('block')) return 'Data do Bloqueio';
     if (lowerKey.includes('time') && lowerKey.includes('block')) return 'Hora do Bloqueio';
 
-    return key.replace(/^(\[.*?\]\s*-\s*)/, '').replace(/_/g, ' ');
+    return strippedKey.replace(/_/g, ' ');
   };
 
   let dynamicImpDate: any = null;
@@ -249,7 +256,9 @@ const VisitContainer: React.FC<{
   const impType = formData.impedimento_tipo;
   const impReason = impedimentReason || formData.impedimento_motivo || formData.impediment_reason || formData.blockReason || formData.block_reason || formData.reason || dynamicImpReason;
   const impPhotosRaw = formData.impedimento_fotos || formData.impediment_photos || formData.blockPhotoUrl || formData.block_photo_url || formData.blockPhotoUrls || formData.block_photo_urls || formData.photo_url || formData.photoUrl || formData.photo || formData.attachment || formData.attachments || dynamicImpPhotosRaw || [];
-  const impPhotos = Array.isArray(impPhotosRaw) ? impPhotosRaw : (typeof impPhotosRaw === 'string' && impPhotosRaw.startsWith('http') ? [impPhotosRaw] : []);
+  const impPhotosAll = Array.isArray(impPhotosRaw) ? impPhotosRaw : (typeof impPhotosRaw === 'string' && impPhotosRaw.startsWith('http') ? [impPhotosRaw] : []);
+  const impPhotos = impPhotosAll.filter((u: string) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://')));
+  const hasLocalPhotos = impPhotosAll.some((u: string) => typeof u === 'string' && u.startsWith('file://'));
   const impDate = formData.impediment_at || formData.blockedAt || formData.blocked_at || formData.blockDate || formData.block_date || formData.data_hora_impedimento || formData.data_impedimento || dynamicImpDate;
   const impParts = formData.impedimento_peca_nome ? {
     nome: formData.impedimento_peca_nome,
@@ -257,12 +266,17 @@ const VisitContainer: React.FC<{
     codigo: formData.impedimento_peca_codigo,
   } : null;
 
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
     <div className={`bg-white border ${cfg.border} rounded-xl shadow-lg shadow-slate-100/80 overflow-hidden transition-all`}>
-      {/* ── Header da Visita ── */}
-      <div className={`flex items-center gap-3 px-5 py-3.5 border-b ${cfg.border} ${cfg.bg}`}>
+      {/* ── Header da Visita (clicável) ── */}
+      <button
+        onClick={() => setIsOpen(o => !o)}
+        className={`w-full flex items-center gap-3 px-5 py-3.5 border-b ${cfg.border} ${cfg.bg} hover:brightness-95 transition-all text-left`}
+      >
         {/* Número da visita */}
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-sm border ${cfg.border} bg-white ${cfg.color}`}>
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-sm border ${cfg.border} bg-white ${cfg.color} shrink-0`}>
           {visitNumber}
         </div>
 
@@ -296,11 +310,15 @@ const VisitContainer: React.FC<{
               <p className="text-[11px] font-medium text-slate-700">{fmtDT(departureTime)}</p>
             </div>
           )}
+          {/* Toggle chevron */}
+          <div className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''} self-center`}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
         </div>
-      </div>
+      </button>
 
-      {/* ── Corpo: Respostas do Formulário ── */}
-      <div className="divide-y divide-slate-50">
+      {/* ── Corpo: Respostas do Formulário (colapsável) ── */}
+      {isOpen && <div className="divide-y divide-slate-50">
         {entries.length === 0 && !techReport && status === 'blocked' && !arrivalTime ? (
           /* Impedimento PRÉ-EXECUÇÃO: técnico bloqueou antes de iniciar o serviço */
           <div className="px-6 py-8 text-center">
@@ -324,20 +342,41 @@ const VisitContainer: React.FC<{
                 groups[groupName].push([key, val]);
               });
 
-              return Object.entries(groups).map(([groupName, groupEntries]) => (
-                <div key={groupName} className="border-b border-slate-100 last:border-0 pb-4 last:pb-0 mb-4 last:mb-0 pt-6 first:pt-2">
-                  <div className="px-5 pb-3">
-                    <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider bg-slate-100 px-3 py-1.5 rounded-md">{groupName}</span>
-                  </div>
-                  <div className="divide-y divide-slate-200/60">
-                    {groupEntries.map(([key, val]) => (
-                      <div key={key} className="px-5 py-3.5 flex justify-between gap-4 items-center hover:bg-slate-50/50 transition-colors">
-                        <p className="text-[12px] font-medium text-slate-700 flex-1 leading-relaxed">{resolveLabel(key)}</p>
-                        <FormValueDisplay value={val} onImageClick={onImageClick} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              // Sort groups preserving template key order within each group
+              const sortedGroups = Object.entries(groups).map(([groupName, groupEntries]) => ({
+                groupName,
+                groupEntries: [...groupEntries].sort(([ka], [kb]) => {
+                  // 1. Tenta extrair a numeração explícita inserida pelo app (ex: "001#", "002#")
+                  const matchA = ka.match(/(?:-\s*|^)(\d{3})#/);
+                  const matchB = kb.match(/(?:-\s*|^)(\d{3})#/);
+                  if (matchA && matchB) {
+                    return parseInt(matchA[1], 10) - parseInt(matchB[1], 10);
+                  }
+
+                  // 2. Fallback: ordem do template baseado no ID do campo
+                  const idA = ka.replace(/^\[.*?\]\s*-\s*/, '').replace(/^\d{3}#/, '');
+                  const idB = kb.replace(/^\[.*?\]\s*-\s*/, '').replace(/^\d{3}#/, '');
+                  const oA = templateOrder[idA] ?? templateOrder[ka] ?? 9999;
+                  const oB = templateOrder[idB] ?? templateOrder[kb] ?? 9999;
+                  
+                  if (oA !== 9999 || oB !== 9999) {
+                    return oA - oB;
+                  }
+
+                  // 3. Fallback final: string compare
+                  return ka.localeCompare(kb);
+                }),
+              }));
+
+              return sortedGroups.map(({ groupName, groupEntries }) => (
+                <EquipmentGroup
+                  key={groupName}
+                  groupName={groupName}
+                  groupEntries={groupEntries}
+                  onImageClick={onImageClick}
+                  resolveLabel={resolveLabel}
+                  templateOrder={templateOrder}
+                />
               ));
             })()}
 
@@ -366,10 +405,10 @@ const VisitContainer: React.FC<{
             )}
           </>
         )}
-      </div>
+      </div>}
 
       {/* ── Bloco de Impedimento (se blocked) ── */}
-      {status === 'blocked' && (
+      {isOpen && status === 'blocked' && (
         <div className="border-t border-rose-200 bg-gradient-to-r from-rose-50 to-orange-50">
           <div className="px-5 py-3 flex items-center gap-2 border-b border-rose-100">
             <AlertTriangle size={13} className="text-rose-500" />
@@ -415,16 +454,24 @@ const VisitContainer: React.FC<{
                 </div>
               </div>
             )}
-            {impPhotos.length > 0 && (
+            {(impPhotos.length > 0 || hasLocalPhotos) && (
               <div>
                 <span className="text-[10px] font-semibold text-rose-400 uppercase tracking-widest">Evidências Fotográficas</span>
-                <div className="flex flex-wrap gap-3 mt-2">
-                  {impPhotos.map((url: string, i: number) => (
-                    <div key={i} className="w-20 h-20 rounded-lg overflow-hidden border border-rose-100 cursor-zoom-in hover:shadow-md transition-all" onClick={() => onImageClick(url)}>
-                      <img src={url} alt={`Evidência ${i + 1}`} className="w-full h-full object-cover" />
-                    </div>
-                  ))}
-                </div>
+                {impPhotos.length > 0 && (
+                  <div className="flex flex-wrap gap-3 mt-2">
+                    {impPhotos.map((url: string, i: number) => (
+                      <div key={i} className="w-20 h-20 rounded-lg overflow-hidden border border-rose-100 cursor-zoom-in hover:shadow-md transition-all" onClick={() => onImageClick(url)}>
+                        <img src={url} alt={`Evidência ${i + 1}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {hasLocalPhotos && (
+                  <div className="mt-2 flex items-center gap-2 p-2.5 bg-rose-100/60 border border-rose-200 rounded-lg">
+                    <span className="text-rose-400" style={{fontSize: 14}}>&#128247;</span>
+                    <span className="text-[10px] text-rose-500 font-medium">Foto registrada pelo técnico (disponível apenas no app mobile)</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -432,7 +479,7 @@ const VisitContainer: React.FC<{
       )}
 
       {/* ── Bloco de Assinatura e Anexos (se concluída) ── */}
-      {(signatureUrl || clientName || extraPhotos.length > 0 || videoUrl) && (
+      {isOpen && (signatureUrl || clientName || extraPhotos.length > 0 || videoUrl) && (
         <div className="border-t border-indigo-100 bg-gradient-to-r from-indigo-50/50 to-violet-50/50">
           <div className="px-5 py-3 flex items-center gap-2 border-b border-indigo-100">
             <ShieldCheck size={13} className="text-indigo-500" />
@@ -548,6 +595,98 @@ const FormValueDisplay: React.FC<{ value: any; onImageClick: (url: string) => vo
   return (
     <div className={`text-[11px] font-medium uppercase px-2.5 py-1 rounded-md border min-w-[60px] text-center ${isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
       {displayValue}
+    </div>
+  );
+};
+
+// ── Card Colapsável por Equipamento ───────────────────────────────
+const EquipmentGroup: React.FC<{
+  groupName: string;
+  groupEntries: [string, any][];
+  onImageClick: (url: string) => void;
+  resolveLabel: (key: string) => string;
+  templateOrder: Record<string, number>;
+}> = ({ groupName, groupEntries, onImageClick, resolveLabel, templateOrder }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden mb-3 mx-4">
+      {/* Header colapsável do equipamento */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
+          <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">{groupName}</span>
+          <span className="text-[10px] text-slate-400 font-medium">({groupEntries.length} campo{groupEntries.length !== 1 ? 's' : ''})</span>
+        </div>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2.5"
+          className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        >
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </button>
+
+      {/* Perguntas e Respostas */}
+      {open && (
+        <div className="space-y-2 p-3 bg-white">
+          {groupEntries.map(([key, val], fieldIdx) => {
+            let numStr = String(fieldIdx + 1).padStart(3, '0');
+            const explicitNumMatch = key.match(/(?:-\s*|^)(\d{3})#/);
+            
+            if (explicitNumMatch) {
+              numStr = explicitNumMatch[1];
+            } else {
+              const cleanId = key.replace(/^\[.*?\]\s*-\s*/, '').replace(/^\d{3}#/, '');
+              const orderIdx = templateOrder[cleanId] ?? templateOrder[key];
+              if (orderIdx !== undefined) {
+                numStr = String(orderIdx + 1).padStart(3, '0');
+              }
+            }
+
+            const label = resolveLabel(key);
+            const isPositive = typeof val === 'string' && (val === 'OK' || val === 'Sim' || val === 'Conforme' || val === 'Aprovado');
+            const isNegative = typeof val === 'string' && (val === 'Não' || val === 'Reprovado' || val === 'Não Conforme');
+            const isMultiArr = Array.isArray(val) && !isMediaArray(val);
+
+            return (
+              <div key={key} className="bg-white border border-slate-200 rounded-xl p-4">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  #{numStr} — {label}
+                </p>
+                {isMediaArray(val) ? (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {(val as string[]).map((url: string, i: number) => (
+                      <div key={i} className="w-20 h-20 rounded-lg overflow-hidden border border-slate-200 cursor-zoom-in hover:shadow-md transition-all" onClick={() => onImageClick(url)}>
+                        <img src={url} className="w-full h-full object-cover" alt={`foto ${i + 1}`} />
+                      </div>
+                    ))}
+                  </div>
+                ) : isMediaValue(val) ? (
+                  <div className="w-full h-40 rounded-lg overflow-hidden border border-slate-200 cursor-zoom-in" onClick={() => onImageClick(val)}>
+                    <img src={val} className="w-full h-full object-cover" alt="foto" />
+                  </div>
+                ) : isMultiArr ? (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {(val as string[]).map((opt: string, oi: number) => (
+                      <span key={oi} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-semibold">✓ {opt}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className={`px-3 py-2 rounded-lg border text-[13px] font-semibold ${
+                    isPositive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                    isNegative ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                    'bg-slate-50 text-slate-700 border-slate-200'
+                  }`}>{String(val)}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

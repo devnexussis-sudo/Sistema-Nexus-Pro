@@ -374,9 +374,7 @@ const resolvePublicLabel = (key: string) => {
   
   const prefixMatch = cleanKey.match(/^(\d{3})#(.*)/);
   if (prefixMatch) {
-    const num = parseInt(prefixMatch[1], 10);
-    const newNumStr = String(num + 1).padStart(3, '0');
-    cleanKey = `${newNumStr}# ${prefixMatch[2].trim()}`;
+    cleanKey = `#${prefixMatch[1]} - ${prefixMatch[2].trim()}`;
   }
 
   if (!isNaN(Number(cleanKey)) && cleanKey.trim() !== '') return `Pergunta nº ${cleanKey}`;
@@ -2031,10 +2029,17 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 <SectionHeader icon={<ShieldAlert size={15} />} title="Aviso de Impedimento" color="text-red-600" />
                 <p className="text-sm font-bold text-red-800 italic mb-4">"{reason}"</p>
                 {blockPhoto && (
-                  <a href={blockPhoto} target="_blank" rel="noreferrer" className="block">
-                    <img src={blockPhoto} alt="Foto do impedimento" className="w-full max-w-sm rounded-xl border border-red-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 240}} />
-                    <span className="text-xs text-red-400 font-bold uppercase tracking-widest mt-2 block">Foto do Impedimento (clique para ampliar)</span>
-                  </a>
+                  (blockPhoto.startsWith('http://') || blockPhoto.startsWith('https://')) ? (
+                    <a href={blockPhoto} target="_blank" rel="noreferrer" className="block">
+                      <img src={blockPhoto} alt="Foto do impedimento" className="w-full max-w-sm rounded-xl border border-red-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{maxHeight: 240}} />
+                      <span className="text-xs text-red-400 font-bold uppercase tracking-widest mt-2 block">Foto do Impedimento (clique para ampliar)</span>
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-2 p-3 bg-red-100/60 border border-red-200 rounded-xl">
+                      <span className="text-red-400" style={{fontSize: 16}}>&#128247;</span>
+                      <span className="text-xs text-red-500 font-medium">Foto registrada pelo técnico (disponível apenas no app mobile)</span>
+                    </div>
+                  )
                 )}
               </div>
             );

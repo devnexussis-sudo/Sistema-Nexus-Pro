@@ -31,7 +31,10 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
 
     return (
         <div className="space-y-6">
-            {fields.map(field => {
+            {fields.map((field, index) => {
+                const displayIndex = String(index + 1).padStart(3, '0');
+                const displayLabel = `#${displayIndex} - ${field.label}`;
+
                 // 🧠 Lógica de Gatilho Inteligente — Visibilidade Condicional
                 if (field.condition && field.condition.fieldId) {
                     const dependentValue = answers[field.condition.fieldId];
@@ -54,7 +57,7 @@ export const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ fields, an
                 return (
                     <div key={field.id} className="bg-slate-50 border border-slate-100 p-5 rounded-lg space-y-3 animate-in">
                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none ml-1">
-                            {field.label} {field.required && <span className="text-rose-500">*</span>}
+                            {displayLabel} {field.required && <span className="text-rose-500">*</span>}
                         </label>
 
                         {/* TEXTO / DESCRITIVO */}

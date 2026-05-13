@@ -869,6 +869,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
 
+  /** Retorna true apenas para URLs remotas acessíveis pelo navegador (http/https).
+   * URLs do tipo file:///data/user/... (Android local) são inválidas no contexto web. */
+  const isRemoteUrl = (url?: string): boolean => {
+    if (!url) return false;
+    return url.startsWith('http://') || url.startsWith('https://');
+  };
+
   const mapIdToLabel = (id: string): string => {
     const lowerId = id.toLowerCase();
     if (lowerId === 'blockphotourls' || lowerId === 'block_photo_urls' || lowerId === 'blockphotourl' || lowerId === 'block_photo_url' || lowerId === 'impediment_photos' || lowerId === 'impedimento_fotos') {
@@ -2050,10 +2057,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               {imp.date && <p className="text-[10px] text-rose-400 font-semibold mb-1">{new Date(imp.date).toLocaleString('pt-BR')}</p>}
                               <p className="text-xs text-rose-700 font-medium leading-relaxed">{imp.reason}</p>
                               {imp.photo && (
-                                <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
-                                  <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{ maxHeight: 200 }} />
-                                  <span className="text-[10px] text-rose-500 font-medium uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
-                                </a>
+                                isRemoteUrl(imp.photo) ? (
+                                  <a href={imp.photo} target="_blank" rel="noreferrer" className="mt-3 block">
+                                    <img src={imp.photo} alt="Foto impedimento" className="w-full max-w-xs rounded-lg border border-rose-200 object-cover cursor-zoom-in hover:opacity-90 transition-all" style={{ maxHeight: 200 }} />
+                                    <span className="text-[10px] text-rose-500 font-medium uppercase tracking-widest mt-1 block">Foto do Impedimento (clique para ampliar)</span>
+                                  </a>
+                                ) : (
+                                  <div className="mt-3 flex items-center gap-2 p-2.5 bg-rose-100/60 border border-rose-200 rounded-lg">
+                                    <span className="text-rose-400" style={{fontSize:16}}>&#128247;</span>
+                                    <span className="text-[10px] text-rose-500 font-medium">Foto registrada pelo técnico (disponível apenas no app mobile)</span>
+                                  </div>
+                                )
                               )}
                               {(imp.signature || imp.responsible) && (
                                 <div className="mt-4 pt-4 border-t border-rose-200/50">
