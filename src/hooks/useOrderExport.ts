@@ -28,7 +28,7 @@ export const useOrderExport = () => {
                 for (const chunk of chunks) {
                     const { data, error } = await supabase
                         .from('orders')
-                        .select('*, customers(*), service_visits(*), service_order_equipments(*)')
+                        .select('*, service_visits(*)')
                         .in('id', chunk);
                     if (error) {
                         console.error("Supabase Error:", error);
