@@ -2916,15 +2916,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>, document.body
       )}
 
-      {/* Batch Print Container — renderiza ordersToPrint completas inclusive de outras páginas */}
+      {/* Batch Print Container — renderiza tabela de ordens selecionadas */}
       {
         isBatchPrinting && ordersToPrint && createPortal(
-          <div id="batch-print-root" className="bg-white">
-            {ordersToPrint.map((order) => (
-              <div key={order.id} className="print:break-after-page last:print:break-after-auto w-full">
-                <PublicOrderView order={order} techs={techs} isPrint={true} />
-              </div>
-            ))}
+          <div id="batch-print-root" className="bg-white p-8">
+            <div className="mb-6 flex flex-col items-center border-b border-slate-200 pb-4">
+              <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Relatório de Ordens de Serviço</h1>
+              <p className="text-sm text-slate-500 mt-1">Total de registros: {ordersToPrint.length}</p>
+              <p className="text-xs text-slate-400 mt-1">Gerado em: {new Date().toLocaleString('pt-BR')}</p>
+            </div>
+            <table className="w-full text-left border-collapse text-[10px]">
+              <thead>
+                <tr className="bg-slate-100 text-slate-700 uppercase tracking-wider">
+                  <th className="px-3 py-2 border border-slate-200 font-bold">Protocolo (ID)</th>
+                  <th className="px-3 py-2 border border-slate-200 font-bold">Datas (Agend. / Abertura)</th>
+                  <th className="px-3 py-2 border border-slate-200 font-bold">Cliente</th>
+                  <th className="px-3 py-2 border border-slate-200 font-bold">Técnico</th>
+                  <th className="px-3 py-2 border border-slate-200 font-bold">Modalidade</th>
+                  <th className="px-3 py-2 border border-slate-200 font-bold">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordersToPrint.map((order, idx) => {
+                  const techName = techs.find(t => t.id === order.assignedTo)?.name || 'N/A';
+                  const dataAgendada = order.scheduledDate ? new Date(order.scheduledDate + 'T12:00:00').toLocaleDateString('pt-BR') : 'N/A';
+                  const dataAbertura = new Date(order.createdAt).toLocaleDateString('pt-BR');
+                  
+                  return (
+                    <tr key={order.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                      <td className="px-3 py-2 border border-slate-200 font-mono text-[9px]">{order.displayId || order.id}</td>
+                      <td className="px-3 py-2 border border-slate-200">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-slate-800">A: {dataAgendada} {order.scheduledTime || ''}</span>
+                          <span className="text-slate-500 text-[8px]">C: {dataAbertura}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 border border-slate-200 font-medium text-slate-700">{order.customerName || 'N/A'}</td>
+                      <td className="px-3 py-2 border border-slate-200">{techName}</td>
+                      <td className="px-3 py-2 border border-slate-200">{order.operationType || 'N/A'}</td>
+                      <td className="px-3 py-2 border border-slate-200 uppercase font-semibold">{order.status}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>,
           document.body
         )

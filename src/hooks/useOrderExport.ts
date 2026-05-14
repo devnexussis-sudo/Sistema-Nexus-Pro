@@ -27,7 +27,7 @@ export const useOrderExport = () => {
                 for (const chunk of chunks) {
                     const { data, error } = await supabase
                         .from('orders')
-                        .select('*, customers(document), service_visits(visit_number, scheduled_date, scheduled_time, arrival_time, departure_time, status)')
+                        .select('*, customers(*), service_visits(*), service_order_equipments(*)')
                         .in('id', chunk);
                     if (error) {
                         console.error("Supabase Error:", error);
@@ -101,6 +101,18 @@ export const useOrderExport = () => {
             'Hora Agendada',
             'Cliente',
             'CNPJ/Documento',
+            'Telefone',
+            'WhatsApp',
+            'Email',
+            'CEP',
+            'Estado',
+            'Cidade',
+            'Bairro',
+            'Endereço',
+            'Número',
+            'Complemento',
+            'Latitude',
+            'Longitude',
             'Título',
             'Descrição',
             'Tipo de Atendimento',
@@ -112,7 +124,13 @@ export const useOrderExport = () => {
             'Abertura',
             'Check-in OS',
             'Conclusão OS',
+            'Observações Internas',
+            'Resumo Geral',
+            'Distância Total Percorrida (km)',
+            'Tempo Total Deslocamento (min)',
+            'Ativos / Equipamentos',
             'Histórico de Visitas (JSON)',
+            'Formulários e Evidências (JSON)',
             'Link Público'
         ];
 
@@ -136,29 +154,65 @@ export const useOrderExport = () => {
             const techName = techNameMap.get(o.assignedTo || '') || 'N/A';
 
             const raw = o._raw || {};
-            const customerDoc = raw.customers?.document || 'N/A';
+            const customer = raw.customers || {};
             
             let visitHistory = '[]';
+            let totalDisplacementDist = 0;
+            let totalDisplacementTime = 0;
+            
             if (raw.service_visits && Array.isArray(raw.service_visits) && raw.service_visits.length > 0) {
                 const visits = [...raw.service_visits].sort((a, b) => a.visit_number - b.visit_number);
-                visitHistory = JSON.stringify(visits.map(v => ({
-                    visita: v.visit_number,
-                    status: v.status,
-                    agendado_data: v.scheduled_date,
-                    agendado_hora: v.scheduled_time,
-                    checkin: v.arrival_time,
-                    conclusao: v.departure_time
+                visitHistory = JSON.stringify(visits.map(v => {
+                    if (v.displacement_distance) totalDisplacementDist += Number(v.displacement_distance) || 0;
+                    if (v.displacement_time) totalDisplacementTime += Number(v.displacement_time) || 0;
+                    
+                    return {
+                        visita: v.visit_number,
+                        status: v.status,
+                        agendado_data: v.scheduled_date,
+                        agendado_hora: v.scheduled_time,
+                        checkin: v.arrival_time,
+                        conclusao: v.departure_time,
+                        distancia_km: v.displacement_distance || 0,
+                        tempo_deslocamento_min: v.displacement_time || 0,
+                        obs_tecnico: v.tech_report || ''
+                    };
+                }));
+            }
+            
+            let equipments = '[]';
+            if (raw.service_order_equipments && Array.isArray(raw.service_order_equipments) && raw.service_order_equipments.length > 0) {
+                equipments = JSON.stringify(raw.service_order_equipments.map((e: any) => ({
+                    nome: e.equipment_name,
+                    modelo: e.equipment_model,
+                    serial: e.equipment_serial,
+                    familia: e.equipment_family
                 })));
+            } else if (o.equipmentName) {
+                equipments = JSON.stringify([{ nome: o.equipmentName, modelo: o.equipmentModel, serial: o.equipmentSerial }]);
             }
 
             const publicUrl = `${window.location.origin}/#/order/view/${o.publicToken || o.id}`;
+            const formDataSafe = JSON.stringify(o.formData || {});
 
             return [
                 o.displayId || o.id,
                 formatDate(o.scheduledDate),
                 o.scheduledTime || 'N/A',
                 o.customerName,
-                customerDoc,
+                customer.document || 'N/A',
+                customer.phone || 'N/A',
+                customer.whatsapp || 'N/A',
+                customer.email || 'N/A',
+                customer.zip_code || customer.zip || 'N/A',
+                customer.state || 'N/A',
+                customer.city || 'N/A',
+                customer.neighborhood || 'N/A',
+                customer.address || 'N/A',
+                customer.address_number || customer.number || 'N/A',
+                customer.complement || 'N/A',
+                customer.latitude || 'N/A',
+                customer.longitude || 'N/A',
                 o.title,
                 o.description,
                 o.operationType || 'Não informado',
@@ -170,7 +224,13 @@ export const useOrderExport = () => {
                 formatDateTime(o.createdAt),
                 formatDateTime(o.startDate),
                 formatDateTime(o.endDate),
+                o.notes || 'N/A', // Internal Notes
+                o.technicalReport || 'N/A', // Resumo Geral (Conclusão)
+                totalDisplacementDist.toFixed(2),
+                totalDisplacementTime.toFixed(2),
+                equipments,
                 visitHistory,
+                formDataSafe,
                 publicUrl
             ];
         });
@@ -186,6 +246,18 @@ export const useOrderExport = () => {
             { wch: 15 }, // Hora
             { wch: 30 }, // Cliente
             { wch: 20 }, // CNPJ
+            { wch: 15 }, // Tel
+            { wch: 15 }, // Wpp
+            { wch: 25 }, // Email
+            { wch: 15 }, // CEP
+            { wch: 15 }, // Estado
+            { wch: 20 }, // Cidade
+            { wch: 20 }, // Bairro
+            { wch: 35 }, // Endereço
+            { wch: 10 }, // Numero
+            { wch: 15 }, // Compl
+            { wch: 15 }, // Lat
+            { wch: 15 }, // Lng
             { wch: 30 }, // Titulo
             { wch: 40 }, // Descrição
             { wch: 20 }, // Tipo
@@ -197,7 +269,13 @@ export const useOrderExport = () => {
             { wch: 20 }, // Abertura
             { wch: 20 }, // Check-in OS
             { wch: 20 }, // Conclusão OS
-            { wch: 50 }, // Histórico de Visitas (JSON)
+            { wch: 40 }, // Obs Internas
+            { wch: 40 }, // Resumo Técnico
+            { wch: 15 }, // Dist
+            { wch: 15 }, // Tempo
+            { wch: 40 }, // Ativos
+            { wch: 50 }, // Histórico
+            { wch: 50 }, // Form Data
             { wch: 60 }  // Link Público
         ];
         ws['!cols'] = colWidths;
