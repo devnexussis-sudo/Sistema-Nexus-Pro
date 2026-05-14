@@ -2922,24 +2922,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         isBatchPrinting && ordersToPrint && createPortal(
           <div id="batch-print-root" className="bg-white">
             {/* Cabeçalho do Relatório */}
-            <div className="mb-6 border-b-4 border-[#1C2D4F] pb-6 flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-black text-[#1C2D4F] tracking-tight uppercase">Relatório de Ordens de Serviço</h1>
-                <p className="text-sm font-semibold text-slate-500 mt-1 uppercase tracking-widest">Lista de Seleção • {ordersToPrint.length} Registros</p>
-              </div>
-              <div className="text-right text-xs text-slate-500 font-medium">
-                <p className="font-bold text-slate-800 uppercase mb-1">
-                  {(() => {
-                    try {
-                      const settings = JSON.parse(localStorage.getItem('nexus_settings') || '{}');
-                      return settings?.company?.name || 'Sistema Nexus';
-                    } catch { return 'Sistema Nexus'; }
-                  })()}
-                </p>
-                <p>Gerado em: {new Date().toLocaleString('pt-BR')}</p>
-                <p>Usuário: {auth?.user?.name || 'Administrador'}</p>
-              </div>
-            </div>
+            {(() => {
+              let companyInfo: any = {};
+              try {
+                companyInfo = JSON.parse(localStorage.getItem('nexus_settings') || '{}')?.company || {};
+              } catch {}
+
+              return (
+                <div className="mb-6 border-b-4 border-[#1C2D4F] pb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {companyInfo.logo && (
+                      <img src={companyInfo.logo} alt="Logo" className="h-16 object-contain max-w-[150px]" />
+                    )}
+                    <div className="text-left text-xs text-slate-600 font-medium space-y-0.5">
+                      {companyInfo.name && <p className="font-bold text-slate-900 uppercase text-sm mb-1">{companyInfo.name}</p>}
+                      {companyInfo.cnpj && <p>CNPJ: {companyInfo.cnpj}</p>}
+                      {companyInfo.phone && <p>Tel: {companyInfo.phone}</p>}
+                      {companyInfo.email && <p>E-mail: {companyInfo.email}</p>}
+                    </div>
+                  </div>
+                  
+                  <div className="text-right">
+                    <h1 className="text-2xl font-black text-[#1C2D4F] tracking-tight uppercase">Relatório de O.S.</h1>
+                    <p className="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-widest">{ordersToPrint.length} Registros Selecionados</p>
+                    <div className="text-[10px] text-slate-400 font-medium mt-3">
+                      <p>Gerado em: {new Date().toLocaleString('pt-BR')}</p>
+                      <p>Usuário: {auth?.user?.name || 'Administrador'}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <table className="w-full text-left border-collapse text-[10px]">
               <thead>
