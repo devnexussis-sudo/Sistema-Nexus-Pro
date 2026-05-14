@@ -228,79 +228,142 @@ export const TechnicianMap: React.FC = () => {
     //          pontos intermediários (filtro de 15m anti-jitter).
     //          Com GPS a cada 10-30s, os pontos seguem as curvas da rua.
     // RESULTADO: Instantâneo + linhas nas ruas + sem linhas quando parado
+    const getDistanceM = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371e3;
+        const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
+        const dp = (lat2-lat1)*Math.PI/180, dl = (lon2-lon1)*Math.PI/180;
+        const a = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    };
+
+    const computeStops = (historyPath: LocationHistory[]) => {
+        if (!historyPath || historyPath.length === 0) return { historyStops: [], startPoint: null, endPoint: null, rawSamplesCount: 0 };
+        
+        const start = historyPath[0];
+        const end = historyPath[historyPath.length - 1];
+
+        // Agrupa pontos em "clusters" de 200m. Se ficou num cluster > 5min = parada.
+        const stops: { latitude: number; longitude: number; startTime: string; endTime: string; durationMins: number; pointCount: number }[] = [];
+        let clusterStart = 0;
+        let clusterAnchor = historyPath[0];
+
+        for (let i = 1; i <= historyPath.length; i++) {
+            const isLast = i === historyPath.length;
+            const departed = isLast || getDistanceM(
+                clusterAnchor.latitude, clusterAnchor.longitude,
+                historyPath[i].latitude, historyPath[i].longitude
+            ) > 200;
+
+            if (departed) {
+                const clusterEnd = i - 1;
+                const durationMins = (new Date(historyPath[clusterEnd].recorded_at).getTime() - new Date(historyPath[clusterStart].recorded_at).getTime()) / 60000;
+                
+                if (durationMins >= 5) {
+                    // Calcula centróide do cluster para posição mais precisa
+                    let sumLat = 0, sumLon = 0, count = 0;
+                    for (let j = clusterStart; j <= clusterEnd; j++) {
+                        sumLat += historyPath[j].latitude;
+                        sumLon += historyPath[j].longitude;
+                        count++;
+                    }
+                    stops.push({
+                        latitude: sumLat / count,
+                        longitude: sumLon / count,
+                        startTime: historyPath[clusterStart].recorded_at,
+                        endTime: historyPath[clusterEnd].recorded_at,
+                        durationMins: Math.round(durationMins),
+                        pointCount: count
+                    });
+                }
+
+                if (!isLast) {
+                    clusterStart = i;
+                    clusterAnchor = historyPath[i];
+                }
+            }
+        }
+        
+        // ── MERGE: Consolida paradas no mesmo raio de 250m ──────────────
+        const merged: typeof stops = [];
+        for (const stop of stops) {
+            const existing = merged.find(m => getDistanceM(m.latitude, m.longitude, stop.latitude, stop.longitude) < 250);
+            if (existing) {
+                if (new Date(stop.startTime) < new Date(existing.startTime)) existing.startTime = stop.startTime;
+                if (new Date(stop.endTime) > new Date(existing.endTime)) existing.endTime = stop.endTime;
+                existing.durationMins = Math.round((new Date(existing.endTime).getTime() - new Date(existing.startTime).getTime()) / 60000);
+                existing.pointCount += stop.pointCount;
+                const totalPts = existing.pointCount;
+                const prevPts = totalPts - stop.pointCount;
+                existing.latitude = (existing.latitude * prevPts + stop.latitude * stop.pointCount) / totalPts;
+                existing.longitude = (existing.longitude * prevPts + stop.longitude * stop.pointCount) / totalPts;
+            } else {
+                merged.push({ ...stop });
+            }
+        }
+
+        return { historyStops: merged, startPoint: start, endPoint: end, rawSamplesCount: historyPath.length };
+    };
+
     // ═══════════════════════════════════════════════════════════════════════
-    const processHistoryRoute = async (points: LocationHistory[]): Promise<[number, number][][]> => {
+    // ROTA LIMPA E SEM RUÍDOS (ELIMINA O SCRIBBLE)
+    // ═══════════════════════════════════════════════════════════════════════
+    const processHistoryRoute = async (points: LocationHistory[], stops: any[]): Promise<[number, number][][]> => {
         if (points.length < 2) return [];
 
-        const distM = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-            const R = 6371e3;
-            const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
-            const dp = (lat2-lat1)*Math.PI/180, dl = (lon2-lon1)*Math.PI/180;
-            const a = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const segments: [number, number][][] = [];
+        let currentSegment: [number, number][] = [];
+        let prevPt: any = null;
+
+        const isPointInStop = (pt: LocationHistory) => {
+            const time = new Date(pt.recorded_at).getTime();
+            return stops.find(s => time >= new Date(s.startTime).getTime() && time <= new Date(s.endTime).getTime());
         };
 
-        // ── PASSO 1: Encontrar janelas de movimento ─────────────────────
-        // Uma "janela" = intervalo [startIdx, endIdx] onde o técnico se
-        // deslocou mais de 200m da âncora anterior.
-        const windows: { s: number; e: number }[] = [];
-        let anchor = points[0];
-        let anchorIdx = 0;
-        let moveStart = -1;
+        for (let i = 0; i < points.length; i++) {
+            const pt = points[i];
+            const stop = isPointInStop(pt);
 
-        for (let i = 1; i < points.length; i++) {
-            const d = distM(anchor.latitude, anchor.longitude, points[i].latitude, points[i].longitude);
-            const sec = Math.max(1, (new Date(points[i].recorded_at).getTime() - new Date(anchor.recorded_at).getTime()) / 1000);
-            // Anti-teletransporte: >120km/h é GPS falso
-            if ((d / sec) * 3.6 > 120) continue;
-
-            if (d >= 200) {
-                // Técnico saiu do raio: está em movimento
-                if (moveStart === -1) moveStart = anchorIdx;
-                anchor = points[i];
-                anchorIdx = i;
-            } else if (moveStart !== -1) {
-                // Parou após ter se movido — fecha a janela
-                windows.push({ s: moveStart, e: anchorIdx });
-                moveStart = -1;
-            }
-        }
-        // Fecha janela aberta
-        if (moveStart !== -1) windows.push({ s: moveStart, e: anchorIdx });
-
-        if (windows.length === 0) {
-            console.log(`[Map] Técnico parado — ${points.length} pings, sem deslocamento > 200m`);
-            return [];
-        }
-
-        // ── PASSO 2: Coletar pontos DENSOS de cada janela ───────────────
-        // Volta nos dados brutos entre s..e e pega TODOS os pontos com
-        // deslocamento > 15m (remove só os duplicados de GPS parado).
-        // Esses pontos densos (a cada 10-30s) seguem as curvas da rua.
-        const segments: [number, number][][] = [];
-
-        for (const w of windows) {
-            const seg: [number, number][] = [];
-            let prev = points[w.s];
-            seg.push([prev.latitude, prev.longitude]);
-
-            for (let i = w.s + 1; i <= w.e; i++) {
-                const pt = points[i];
-                const d = distM(prev.latitude, prev.longitude, pt.latitude, pt.longitude);
-                const sec = Math.max(1, (new Date(pt.recorded_at).getTime() - new Date(prev.recorded_at).getTime()) / 1000);
-                if (d < 25) continue; // jitter mínimo (ignora micro-deslocamento falso)
-                if ((d / sec) * 3.6 > 120) continue; // teletransporte
-                if (d > 5000) { // gap irreal
-                    if (seg.length >= 2) segments.push([...seg]);
-                    seg.length = 0;
+            // 1. Se está numa parada, não desenhamos as oscilações do GPS (scribble)
+            if (stop) {
+                if (currentSegment.length >= 1) {
+                    currentSegment.push([stop.latitude, stop.longitude]); // Conecta ao centróide
+                    segments.push([...currentSegment]);
+                    currentSegment = [];
                 }
-                seg.push([pt.latitude, pt.longitude]);
-                prev = pt;
+                prevPt = { ...pt, latitude: stop.latitude, longitude: stop.longitude }; // Âncora fica na parada
+                continue;
             }
-            if (seg.length >= 2) segments.push(seg);
+
+            if (!prevPt) {
+                currentSegment.push([pt.latitude, pt.longitude]);
+                prevPt = pt;
+                continue;
+            }
+
+            const d = getDistanceM(prevPt.latitude, prevPt.longitude, pt.latitude, pt.longitude);
+            const sec = Math.max(1, (new Date(pt.recorded_at).getTime() - new Date(prevPt.recorded_at).getTime()) / 1000);
+            const speedKmH = (d / sec) * 3.6;
+
+            if (speedKmH > 150) continue; // Filtro de teletransporte
+            if (d < 40) continue; // Filtro de Jitter: só registra ponto se andou >40m
+
+            if (sec > 1800 || d > 5000) {
+                // Gap grande de tempo ou distância = quebra a linha
+                if (currentSegment.length >= 2) segments.push([...currentSegment]);
+                currentSegment = [[pt.latitude, pt.longitude]];
+            } else {
+                if (currentSegment.length === 0) {
+                    currentSegment.push([prevPt.latitude, prevPt.longitude]); // Sai do último local conhecido
+                }
+                currentSegment.push([pt.latitude, pt.longitude]);
+            }
+            prevPt = pt;
         }
 
-        console.log(`[Map] ${points.length} pings → ${windows.length} trecho(s) → ${segments.reduce((a,s) => a+s.length, 0)} pontos plotados`);
+        if (currentSegment.length >= 2) {
+            segments.push(currentSegment);
+        }
+
         return segments;
     };
 
@@ -332,8 +395,9 @@ export const TechnicianMap: React.FC = () => {
                     const bounds = L.latLngBounds(mappedData.map(p => [p.latitude, p.longitude]));
                     mapInstance.fitBounds(bounds, { padding: [60, 60] });
                 }
-                // Calcula histórico limpo instantaneamente via CPU
-                const segments = await processHistoryRoute(mappedData);
+                
+                const stopsData = computeStops(mappedData);
+                const segments = await processHistoryRoute(mappedData, stopsData.historyStops);
                 setRoutedPath(segments);
                 setRouteSnapped(true);
                 // Fit to snapped route bounding box
@@ -383,83 +447,7 @@ export const TechnicianMap: React.FC = () => {
     // Detecção de paradas com raio de 200m (consistente com o filtro de rota)
     // Cada parada = ponto único com horário de chegada e saída
     const { historyStops, startPoint, endPoint, rawSamplesCount } = React.useMemo(() => {
-        if (!historyPath || historyPath.length === 0) return { historyStops: [], startPoint: null, endPoint: null, rawSamplesCount: 0 };
-        
-        const getDistanceM = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-            const R = 6371e3;
-            const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
-            const dp = (lat2-lat1)*Math.PI/180, dl = (lon2-lon1)*Math.PI/180;
-            const a = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        };
-
-        const start = historyPath[0];
-        const end = historyPath[historyPath.length - 1];
-
-        // Agrupa pontos em "clusters" de 200m. Se ficou num cluster > 5min = parada.
-        const stops: { latitude: number; longitude: number; startTime: string; endTime: string; durationMins: number; pointCount: number }[] = [];
-        let clusterStart = 0;
-        let clusterAnchor = historyPath[0];
-
-        for (let i = 1; i <= historyPath.length; i++) {
-            const isLast = i === historyPath.length;
-            const departed = isLast || getDistanceM(
-                clusterAnchor.latitude, clusterAnchor.longitude,
-                historyPath[i].latitude, historyPath[i].longitude
-            ) > 200;
-
-            if (departed) {
-                const clusterEnd = i - 1;
-                const durationMins = (new Date(historyPath[clusterEnd].recorded_at).getTime() - new Date(historyPath[clusterStart].recorded_at).getTime()) / 60000;
-                
-                if (durationMins >= 5) {
-                    // Calcula centróide do cluster para posição mais precisa
-                    let sumLat = 0, sumLon = 0, count = 0;
-                    for (let j = clusterStart; j <= clusterEnd; j++) {
-                        sumLat += historyPath[j].latitude;
-                        sumLon += historyPath[j].longitude;
-                        count++;
-                    }
-                    stops.push({
-                        latitude: sumLat / count,
-                        longitude: sumLon / count,
-                        startTime: historyPath[clusterStart].recorded_at,
-                        endTime: historyPath[clusterEnd].recorded_at,
-                        durationMins: Math.round(durationMins),
-                        pointCount: count
-                    });
-                }
-
-                if (!isLast) {
-                    clusterStart = i;
-                    clusterAnchor = historyPath[i];
-                }
-            }
-        }
-        // ── MERGE: Consolida paradas no mesmo raio de 250m ──────────────
-        // Se o técnico saiu 200m e voltou ao mesmo local, gera 2 paradas
-        // no mesmo ponto. Esse merge une tudo em 1 pin único com a primeira
-        // chegada e a última saída.
-        const merged: typeof stops = [];
-        for (const stop of stops) {
-            const existing = merged.find(m => getDistanceM(m.latitude, m.longitude, stop.latitude, stop.longitude) < 250);
-            if (existing) {
-                // Mesmo local: expande horários e soma pontos
-                if (new Date(stop.startTime) < new Date(existing.startTime)) existing.startTime = stop.startTime;
-                if (new Date(stop.endTime) > new Date(existing.endTime)) existing.endTime = stop.endTime;
-                existing.durationMins = Math.round((new Date(existing.endTime).getTime() - new Date(existing.startTime).getTime()) / 60000);
-                existing.pointCount += stop.pointCount;
-                // Recalcula centróide ponderado
-                const totalPts = existing.pointCount;
-                const prevPts = totalPts - stop.pointCount;
-                existing.latitude = (existing.latitude * prevPts + stop.latitude * stop.pointCount) / totalPts;
-                existing.longitude = (existing.longitude * prevPts + stop.longitude * stop.pointCount) / totalPts;
-            } else {
-                merged.push({ ...stop });
-            }
-        }
-
-        return { historyStops: merged, startPoint: start, endPoint: end, rawSamplesCount: historyPath.length };
+        return computeStops(historyPath);
     }, [historyPath]);
 
     // Total de pontos plotados nas rotas

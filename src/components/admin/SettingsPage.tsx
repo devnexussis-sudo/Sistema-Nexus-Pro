@@ -54,6 +54,8 @@ interface SystemParams {
   showVisitHistory: boolean;
   slaTargetPercentage: number;
   sla48hTargetPercentage: number;
+  // Controles do Link Público
+  showVisitHistoryInPublicLink: boolean;
 }
 
 export const SettingsPage: React.FC = () => {
@@ -105,6 +107,7 @@ export const SettingsPage: React.FC = () => {
     showVisitHistory: true,
     slaTargetPercentage: 85,
     sla48hTargetPercentage: 90,
+    showVisitHistoryInPublicLink: true,
   });
 
   const [dbInfo, setDbInfo] = useState<{ slug: string, id: string } | null>(null);
@@ -155,6 +158,7 @@ export const SettingsPage: React.FC = () => {
         showVisitHistory: data.metadata?.showVisitHistory ?? true,
         slaTargetPercentage: data.metadata?.slaTargetPercentage ?? 85,
         sla48hTargetPercentage: data.metadata?.sla48hTargetPercentage ?? 90,
+        showVisitHistoryInPublicLink: data.metadata?.showVisitHistoryInPublicLink ?? true,
       }));
 
       // Sincronizar I18nContext com dados do banco
@@ -307,6 +311,7 @@ export const SettingsPage: React.FC = () => {
           timezone: params.timezone,
           slaTargetPercentage: params.slaTargetPercentage,
           sla48hTargetPercentage: params.sla48hTargetPercentage,
+          showVisitHistoryInPublicLink: params.showVisitHistoryInPublicLink,
         }
       };
 
@@ -724,6 +729,30 @@ export const SettingsPage: React.FC = () => {
                           <option key={tz.value} value={tz.value}>({tz.offset}) {tz.label}</option>
                         ))}
                       </select>
+                    </div>
+                  </div>
+
+                  {/* Toggle: Histórico de Visitas no Link Público */}
+                  <div className="mt-2 pt-4 border-t border-gray-100">
+                    <div className="flex items-start gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-xl">
+                      <div className={`p-3 rounded-xl shadow-inner transition-colors ${params.showVisitHistoryInPublicLink ? 'bg-cyan-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <History size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-[11px] font-medium text-gray-900 uppercase tracking-tight">Histórico de Visitas no Link Público</h4>
+                          <button
+                            type="button"
+                            onClick={() => setParams({ ...params, showVisitHistoryInPublicLink: !params.showVisitHistoryInPublicLink })}
+                            className={`w-10 h-5 rounded-full relative transition-colors ${params.showVisitHistoryInPublicLink ? 'bg-cyan-600' : 'bg-gray-300'}`}
+                          >
+                            <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all" style={{ left: params.showVisitHistoryInPublicLink ? '22px' : '2px' }}></div>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">
+                          Quando ativado, o cliente visualiza todas as visitas realizadas na OS. Quando desativado, apenas a visita de conclusão é exibida no link público.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </section>

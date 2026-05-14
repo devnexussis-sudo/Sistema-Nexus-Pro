@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DialogProvider } from './contexts/DialogContext';
 import { PublicApp } from './apps/public/PublicApp';
@@ -116,6 +116,14 @@ const AppRoutes: React.FC = () => {
   );
 };
 
+// Exibe o prompt de instalação PWA apenas fora de links públicos de OS/orçamento
+const PwaInstallPromptConditional: React.FC = () => {
+  const location = useLocation();
+  const isPublicRoute = /^\/(order\/view|view-quote|view)\//.test(location.pathname);
+  if (isPublicRoute) return null;
+  return <PwaInstallPrompt />;
+};
+
 const App: React.FC = () => {
   return (
     <HashRouter
@@ -128,7 +136,7 @@ const App: React.FC = () => {
         <AuthProvider>
           <DialogProvider>
             <AppRoutes />
-            <PwaInstallPrompt />
+            <PwaInstallPromptConditional />
             <NetworkStatusIndicator />
             <GlobalAlertProvider />
             <GlobalSpinnerProvider />

@@ -130,81 +130,132 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
     }).length;
   }, [filteredOrders, currentMonth]);
 
+  // Status dropdown state (mesmo padrão da página de OS)
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const statusDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setIsStatusDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <div className="flex flex-col h-full bg-[#f0f4f9] overflow-hidden">
 
       {/* ── HEADER ── */}
-      <header className="px-5 py-3 bg-white/90 backdrop-blur-md border-b border-slate-200/60 flex flex-wrap lg:flex-nowrap items-center gap-3 z-30 shadow-sm shrink-0">
+      <header className="px-4 py-2.5 bg-white/90 backdrop-blur-md border-b border-slate-200/60 flex flex-wrap lg:flex-nowrap items-center gap-2 z-30 shadow-sm shrink-0">
 
-        {/* Navegação de mês */}
-        <div className="flex items-center bg-slate-50 rounded-2xl p-1 border border-slate-200 shrink-0 gap-1">
-          <button onClick={prevMonth} className="p-2 hover:bg-white rounded-xl text-slate-500 transition-all active:scale-90 shadow-sm">
-            <ChevronLeft size={16} />
+        {/* Navegação de mês — compacta */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={prevMonth} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-90 shadow-sm">
+            <ChevronLeft size={14} />
           </button>
-          <div className="px-3 py-1 min-w-[110px] sm:min-w-[130px] text-center">
-            <span className="text-[13px] font-semibold text-slate-800 capitalize block leading-none">
+          <div className="px-3 py-1.5 min-w-[108px] text-center bg-white border border-slate-200 rounded-lg shadow-sm">
+            <span className="text-[12px] font-semibold text-slate-800 capitalize block leading-none">
               {format(currentMonth, 'MMMM', { locale: ptBR })}
             </span>
-            <span className="text-[10px] font-medium text-primary-500 uppercase tracking-widest">
+            <span className="text-[9px] font-medium text-primary-500 uppercase tracking-widest">
               {format(currentMonth, 'yyyy')}
             </span>
           </div>
-          <button onClick={nextMonth} className="p-2 hover:bg-white rounded-xl text-slate-500 transition-all active:scale-90 shadow-sm">
-            <ChevronRight size={16} />
+          <button onClick={nextMonth} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-90 shadow-sm">
+            <ChevronRight size={14} />
           </button>
         </div>
 
         <button
           onClick={goToToday}
-          className="px-4 py-2.5 bg-[#1c2d4f] text-white rounded-xl text-[10px] font-semibold tracking-wider hover:bg-[#253a66] transition-all active:scale-95 shrink-0 flex items-center gap-2 shadow"
+          className="h-8 px-3 bg-[#1c2d4f] text-white rounded-lg text-[10px] font-semibold tracking-wider hover:bg-[#253a66] transition-all active:scale-95 shrink-0 flex items-center gap-1.5 shadow"
         >
-          <CalendarIcon size={13} className="opacity-70" /> hoje
+          <CalendarIcon size={12} className="opacity-70" /> Hoje
         </button>
 
         {/* Contador do mês */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-2 bg-primary-50 border border-primary-100 rounded-xl shrink-0">
-          <Layers size={13} className="text-primary-500" />
-          <span className="text-[10px] font-semibold text-primary-700">{monthTotal} OS no mês</span>
+        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 bg-primary-50 border border-primary-100 rounded-lg shrink-0">
+          <Layers size={12} className="text-primary-500" />
+          <span className="text-[10px] font-semibold text-primary-700">{monthTotal} OS</span>
         </div>
 
-        <div className="h-6 w-px bg-slate-200 mx-1 hidden lg:block shrink-0" />
+        <div className="h-5 w-px bg-slate-200 mx-0.5 hidden lg:block shrink-0" />
 
         {/* Filtros */}
         <div className="flex-1 flex flex-wrap md:flex-nowrap items-center gap-2 w-full lg:w-auto">
+
+          {/* Busca */}
           <div className="relative flex-1 min-w-[140px] md:min-w-[180px]">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
             <input
               type="text"
               placeholder="pesquisar O.S., cliente..."
-              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-[11px] font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all shadow-sm"
+              className="w-full h-9 bg-white border border-slate-200 rounded-xl py-2 pl-8 pr-3 text-[11px] font-medium text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all shadow-sm"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
 
-          <div className="relative shrink-0 w-full md:w-[180px]" ref={techDropdownRef}>
-            <div 
-              className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-9 pr-8 text-[10px] font-medium text-slate-700 cursor-pointer shadow-sm flex flex-col justify-center min-h-[42px]"
-              onClick={() => setIsTechDropdownOpen(!isTechDropdownOpen)}
+          {/* Status Dropdown — padrão página de OS */}
+          <div className="relative shrink-0 w-full md:w-[150px]" ref={statusDropdownRef}>
+            <button
+              onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsTechDropdownOpen(false); }}
+              className="flex items-center justify-between w-full h-9 bg-white border border-slate-200 rounded-xl px-3 text-[11px] font-medium text-slate-700 hover:border-slate-300 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20"
             >
-              <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <div className="flex items-center gap-2">
+                <Filter size={12} className="text-slate-400" />
+                <span className="truncate">{statusFilter === 'ALL' ? 'Todos Status' : (STATUS_LABELS[statusFilter as string] || statusFilter)}</span>
+              </div>
+              <ChevronRight size={12} className={`text-slate-400 transition-transform ${isStatusDropdownOpen ? 'rotate-90' : ''}`} />
+            </button>
+            {isStatusDropdownOpen && (
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[1000] py-1">
+                <button
+                  className={`w-full text-left px-3 py-2 text-[11px] hover:bg-slate-50 transition-colors ${statusFilter === 'ALL' ? 'font-semibold text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
+                  onClick={() => { setStatusFilter('ALL'); setIsStatusDropdownOpen(false); }}
+                >
+                  Todos Status
+                </button>
+                {Object.values(OrderStatus).map(s => (
+                  <button
+                    key={s}
+                    className={`w-full text-left px-3 py-2 text-[11px] hover:bg-slate-50 transition-colors flex items-center gap-2 ${statusFilter === s ? 'font-semibold text-primary-600 bg-primary-50/50' : 'text-slate-600'}`}
+                    onClick={() => { setStatusFilter(s); setIsStatusDropdownOpen(false); }}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getStatusHexColor(s) }} />
+                    {STATUS_LABELS[s] || s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Técnico Dropdown — mantém o padrão existente */}
+          <div className="relative shrink-0 w-full md:w-[160px]" ref={techDropdownRef}>
+            <div
+              className="w-full h-9 bg-white border border-slate-200 rounded-xl py-2 pl-8 pr-7 text-[11px] font-medium text-slate-700 cursor-pointer shadow-sm flex items-center"
+              onClick={() => { setIsTechDropdownOpen(!isTechDropdownOpen); setIsStatusDropdownOpen(false); }}
+            >
+              <User size={12} className="absolute left-3 text-slate-400" />
               <span className="truncate">
-                {techFilter === 'ALL' 
-                  ? 'Qualquer Técnico' 
+                {techFilter === 'ALL'
+                  ? 'Qualquer Técnico'
                   : techs.find(t => t.id === techFilter)?.name || 'Técnico Desconhecido'}
               </span>
-              <ChevronRight size={14} className={`absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-transform ${isTechDropdownOpen ? 'rotate-90' : ''}`} />
+              <ChevronRight size={12} className={`absolute right-3 text-slate-400 transition-transform ${isTechDropdownOpen ? 'rotate-90' : ''}`} />
             </div>
 
             {isTechDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[1000] animate-in fade-in slide-in-from-top-2">
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-[1000]">
                 <div className="p-2 border-b border-slate-100 bg-slate-50/50 sticky top-0">
                   <div className="relative">
-                    <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input 
-                      type="text" 
-                      placeholder="Buscar nome ou email..." 
-                      className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-[10px] font-medium outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
+                    <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar nome ou email..."
+                      className="w-full bg-white border border-slate-200 rounded-lg pl-7 pr-2 py-1.5 text-[10px] font-medium outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20"
                       value={techSearchQuery}
                       onChange={e => setTechSearchQuery(e.target.value)}
                       onClick={e => e.stopPropagation()}
@@ -213,8 +264,8 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                   </div>
                 </div>
                 <div className="max-h-56 overflow-y-auto custom-scrollbar">
-                  <div 
-                    className={`px-3 py-2 cursor-pointer text-[10px] font-medium hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'bg-primary-50 text-primary-700' : 'text-slate-700'}`}
+                  <div
+                    className={`px-3 py-2 cursor-pointer text-[11px] font-medium hover:bg-slate-50 transition-colors ${techFilter === 'ALL' ? 'bg-primary-50 text-primary-700' : 'text-slate-700'}`}
                     onClick={() => { setTechFilter('ALL'); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
                   >
                     Qualquer Técnico
@@ -223,12 +274,12 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                     const q = techSearchQuery.toLowerCase();
                     return t.name.toLowerCase().includes(q) || (t.email || '').toLowerCase().includes(q);
                   }).map(t => (
-                    <div 
-                      key={t.id} 
+                    <div
+                      key={t.id}
                       className={`px-3 py-2 cursor-pointer transition-colors border-t border-slate-50 ${techFilter === t.id ? 'bg-primary-50 text-primary-700' : 'hover:bg-slate-50'}`}
                       onClick={() => { setTechFilter(t.id); setIsTechDropdownOpen(false); setTechSearchQuery(''); }}
                     >
-                      <div className="text-[10px] font-medium truncate leading-tight">{t.name}</div>
+                      <div className="text-[11px] font-medium truncate leading-tight">{t.name}</div>
                       <div className="text-[9px] font-medium text-slate-400 truncate">{t.email || 'sem email'}</div>
                     </div>
                   ))}
@@ -243,20 +294,6 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
             )}
           </div>
 
-          <div className="relative shrink-0 w-full md:w-[130px]">
-            <Filter size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
-            <select
-              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-6 text-[10px] font-medium text-slate-700 outline-none transition-all cursor-pointer shadow-sm appearance-none"
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value as any)}
-            >
-              <option value="ALL">todos os status</option>
-              {Object.values(OrderStatus).map(s => (
-                <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>
-              ))}
-            </select>
-          </div>
-
           {hasActiveFilters && (
             <button
               onClick={() => {
@@ -264,10 +301,10 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
                 setTechFilter('ALL');
                 setStatusFilter('ALL');
               }}
-              className="p-2.5 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all shadow-sm shrink-0 flex items-center justify-center"
+              className="w-8 h-8 flex items-center justify-center bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-lg transition-all shadow-sm shrink-0"
               title="Limpar todos os filtros"
             >
-              <X size={16} />
+              <X size={14} />
             </button>
           )}
         </div>
@@ -278,12 +315,12 @@ export const OrderCalendar: React.FC<OrderCalendarProps> = ({ orders, techs, cus
         <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-200/80 overflow-hidden flex flex-col h-full">
 
           {/* Cabeçalho dias da semana */}
-          <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-200 shrink-0">
+          <div className="grid grid-cols-7 bg-slate-200/60 backdrop-blur-md border-b border-slate-300 shrink-0">
             {['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map((d, i) => (
               <div
                 key={d}
-                className={`py-2 text-center text-[10px] font-semibold tracking-widest uppercase border-r border-slate-100 last:border-0 ${
-                  i === 0 || i === 6 ? 'text-slate-400' : 'text-slate-500'
+                className={`py-2 text-center text-[10px] font-semibold tracking-widest uppercase border-r border-slate-300/50 last:border-0 ${
+                  i === 0 || i === 6 ? 'text-slate-500' : 'text-slate-600'
                 }`}
               >
                 {d}

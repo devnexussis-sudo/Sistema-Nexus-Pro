@@ -702,6 +702,8 @@ const CollapsibleFormSection: React.FC<{
 export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, isPrint = false, tenantProp }) => {
   const [tenant, setTenant] = React.useState<any>(tenantProp || null);
   const showPrices = (tenant?.metadata?.showItemPricesInPublicView !== false) && (order?.showValueToClient === true);
+  // Se false: exibe apenas a visita de conclusão (a última com status 'completed')
+  const showAllVisitsInPublicLink = tenant?.metadata?.showVisitHistoryInPublicLink !== false;
   const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
   const [linkedEquipments, setLinkedEquipments] = React.useState<any[]>([]);
   // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)
@@ -1010,7 +1012,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
   // ── PRINT LAYOUT COMPONENT ──
   const PrintLayout = () => (
-    <div className="bg-white text-[10px] leading-tight font-poppins p-4 print:p-2" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+    <div className="bg-white text-[10px] leading-tight font-poppins" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact', padding: '0' }}>
       {/* Print Header */}
       <div className="flex justify-between items-start pb-2 border-b-2 border-slate-800 mb-2">
         <div className="flex gap-3 items-center">
@@ -1041,7 +1043,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
       </div>
 
       <div className="space-y-2">
-        <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+        {/* Dados do Atendimento — print-no-break: card compacto, nunca cortar */}
+        <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break">
           <div className="grid grid-cols-12 divide-x divide-slate-200">
             <div className="col-span-12 bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Dados do Atendimento e Cliente</div>
             <div className="col-span-7 p-2 grid grid-cols-2 gap-x-4 gap-y-2">
@@ -1076,8 +1079,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* Equipamentos Vinculados (print) */}
         {linkedEquipments.length > 0 ? (
-          <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">
+          <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break">
+            <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700 print-section-header">
               Equipamentos Vinculados ({linkedEquipments.length})
             </div>
             <div className="w-full"><table className="w-full text-left break-words table-fixed">
@@ -1104,7 +1107,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             </table></div>
           </div>
         ) : (order.equipmentName || order.equipmentModel || order.equipmentSerial) && (
-          <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
+          <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break">
             <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Dados do Equipamento</div>
             <div className="p-3 bg-white grid grid-cols-3 gap-4">
               <div className="col-span-1"><label className="block text-xs font-bold text-slate-400 uppercase">Equipamento</label><div className="font-bold text-slate-900 text-sm uppercase">{order.equipmentName || '—'}</div></div>
@@ -1115,8 +1118,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         )}
 
         {order.description && (
-          <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid">
-            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">Relatório / Descrição do Serviço</div>
+          <div className="border border-slate-300 rounded-lg overflow-hidden print-section">
+            <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700 print-section-header">Relatório / Descrição do Serviço</div>
             <div className="p-2 bg-white text-[9px] text-slate-800 font-medium whitespace-pre-wrap leading-tight">
               {order.description}
             </div>
@@ -1124,8 +1127,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         )}
 
         {(order.status === 'IMPEDIDO' || formDataPrint.impediment_reason || (order.notes && order.notes.includes('IMPEDIMENTO'))) && (
-          <div className="border border-red-300 rounded-lg overflow-hidden break-inside-avoid shadow-sm text-red-900">
-            <div className="bg-red-100 px-3 py-1 border-b border-red-300 font-bold text-[9px] uppercase tracking-wider text-red-700">Aviso de Impedimento / Pendência</div>
+          <div className="border border-red-300 rounded-lg overflow-hidden print-no-break shadow-sm text-red-900">
+            <div className="bg-red-100 px-3 py-1 border-b border-red-300 font-bold text-[9px] uppercase tracking-wider text-red-700 print-section-header">Aviso de Impedimento / Pendência</div>
             <div className="p-2 bg-red-50 text-[9px] font-medium whitespace-pre-wrap italic leading-tight">
               {formDataPrint.impediment_reason || (order.notes ? order.notes.replace('IMPEDIMENTO: ', '') : 'Motivo não mapeado detalhadamente.')}
             </div>
@@ -1232,8 +1235,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
             });
 
             return (
-              <div key={gIdx} className="border border-slate-300 rounded-lg overflow-hidden mt-2">
-                <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[10px] uppercase tracking-wider text-slate-700 flex justify-between items-center">
+              // print-section: permite que o conteúdo do grupo flua entre páginas
+              <div key={gIdx} className="border border-slate-300 rounded-lg overflow-hidden mt-2 print-section">
+                <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-[10px] uppercase tracking-wider text-slate-700 flex justify-between items-center print-section-header">
                   <span>Checklist — {eq ? (eq.equipment_name || eq.equipmentName) : gName}</span>
                   {eq && (eq.equipment_serial || eq.equipmentSerial) && (
                     <span className="text-[9px] text-slate-500">S/N: {eq.equipment_serial || eq.equipmentSerial}</span>
@@ -1241,7 +1245,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 </div>
                 <div className="flex flex-col gap-2 bg-white p-2">
                   {items.map((item, iIdx) => (
-                    <div key={iIdx} className="break-inside-avoid border border-slate-200 rounded overflow-hidden">
+                    // print-checklist-row: cada pergunta+resposta fica junta mas permite fluxo entre elas
+                    <div key={iIdx} className="print-checklist-row border border-slate-200 rounded overflow-hidden">
                       <div className="grid grid-cols-2 divide-x divide-slate-200">
                         <div className="p-2 bg-slate-50/50 flex items-center">
                            <p className="text-[9px] font-bold uppercase tracking-tight text-slate-600">
@@ -1301,7 +1306,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                   if (eqParts.length === 0) return null;
 
                   return (
-                    <div className="p-3 border-t border-slate-200 bg-slate-50/50 break-inside-avoid">
+                    <div className="p-3 border-t border-slate-200 bg-slate-50/50 print-no-break">
                       <div className="bg-slate-50 rounded-md border border-slate-300 overflow-hidden">
                         <table className="w-full text-left break-words">
                           <thead>
@@ -1351,7 +1356,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           if (!order.videoUrl && !formDataPrint.videoUrl && !formDataPrint.video_url && allValidExtrasPrint.length === 0) return null;
 
           return (
-            <div className="border border-slate-300 rounded-lg overflow-hidden mt-4">
+            <div className="border border-slate-300 rounded-lg overflow-hidden mt-4 print-no-break">
               <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Evidências Fotográficas e de Conclusão</div>
               <div className="p-3 bg-white flex flex-wrap gap-3">
                 {(order.videoUrl || formDataPrint.videoUrl || formDataPrint.video_url) && (
@@ -1374,9 +1379,18 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         })()}
 
         {/* ── Histórico de Visitas (print) ── */}
-        {orderVisits.length > 0 && (
+        {orderVisits.length > 0 && (() => {
+          // Se showAllVisitsInPublicLink=false, exibe apenas a última visita concluída
+          const visibleVisitsPrint = showAllVisitsInPublicLink
+            ? orderVisits
+            : (() => {
+                const last = [...orderVisits].reverse().find(v => v.status === 'completed') || orderVisits[orderVisits.length - 1];
+                return last ? [last] : [];
+              })();
+          if (visibleVisitsPrint.length === 0) return null;
+          return (
           <div className="space-y-4 mt-4">
-            {orderVisits.map((v, i) => {
+            {visibleVisitsPrint.map((v, i) => {
               const vFd = typeof v.form_data === 'string' ? JSON.parse(v.form_data) : (v.form_data || {});
               
               // Extract forms
@@ -1405,8 +1419,9 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               const visitPhotos = photosArr.filter((p: any) => typeof p === 'string' && (p.startsWith('http') || p.startsWith('data:image')));
 
               return (
-                <div key={v.id} className="border border-slate-300 rounded-lg overflow-hidden">
-                  <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700 flex justify-between">
+                // print-section: a visita toda pode fluir, mas o cabeçalho não fica órfão
+                <div key={v.id} className="border border-slate-300 rounded-lg overflow-hidden print-section">
+                  <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700 flex justify-between print-section-header">
                     <span>Visita #{i + 1} — {safeFormatDate(v.scheduled_date || v.created_at)}</span>
                     <span className="text-[9px] text-slate-500 font-normal">
                       {(() => {
@@ -1480,7 +1495,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                   if (!text && photos.length === 0) return null;
                                   
                                   return (
-                                    <div key={idx} className="border border-slate-200 rounded break-inside-avoid overflow-hidden bg-white">
+                                    // print-checklist-row: cada pergunta+resposta fica junta
+                                    <div key={idx} className="print-checklist-row border border-slate-200 rounded overflow-hidden bg-white">
                                       <div className="grid grid-cols-2 divide-x divide-slate-200">
                                         <div className="p-1.5 bg-slate-50/50 flex items-center">
                                           <div className="text-[8px] font-bold uppercase tracking-tight text-slate-500">{resolvePublicLabel(key)}</div>
@@ -1538,7 +1554,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                                 if (eqParts.length === 0) return null;
 
                                 return (
-                                  <div className="p-2 border-t border-slate-200 bg-slate-50/50 break-inside-avoid">
+                                  <div className="p-2 border-t border-slate-200 bg-slate-50/50 print-no-break">
                                     <div className="bg-slate-50 rounded-md border border-slate-300 overflow-hidden">
                                       <table className="w-full text-left break-words">
                                         <thead>
@@ -1634,11 +1650,12 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
               );
             })}
           </div>
-        )}
+          );
+        })()}
 
         {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}
         {enrichedItems.length > 0 && (
-          <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
+          <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break mt-4">
             <div className="bg-slate-100 px-3 py-1 border-b border-slate-300 font-bold text-[9px] uppercase tracking-wider text-slate-700">{showPrices ? 'Composição Financeira' : 'Peças e Materiais Aplicados'}</div>
             <div className="w-full"><table className="w-full text-left break-words">
               <thead>
@@ -1672,7 +1689,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           </div>
         )}
 
-        <div className="border border-slate-300 rounded-lg overflow-hidden break-inside-avoid mt-4">
+        {/* Assinatura e Validação */}
+        <div className="border border-slate-300 rounded-lg overflow-hidden print-no-break mt-4">
           <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-700">Validação e Assinaturas (Auditoria Digital)</div>
           <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white text-center">
             <div className="p-4 flex flex-col items-center justify-center gap-3">
@@ -1726,6 +1744,42 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         .public-view-wrapper, .public-view-wrapper * {
             font-family: 'Poppins', sans-serif !important;
         }
+        @media print {
+          @page {
+            margin: 10mm 12mm 10mm 12mm;
+            size: A4 portrait;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+          /* Permite que o conteúdo flua entre páginas naturalmente */
+          .print-section {
+            break-inside: auto;
+            orphans: 3;
+            widows: 3;
+          }
+          /* O cabeçalho de cada bloco/grupo não pode ficar órfão */
+          .print-section-header {
+            break-after: avoid;
+            break-inside: avoid;
+          }
+          /* Bloco de item de checklist: permite quebra, mas o par pergunta+resposta fica junto */
+          .print-checklist-row {
+            break-inside: avoid;
+            orphans: 2;
+            widows: 2;
+          }
+          /* Blocos que NUNCA devem ser cortados (assinatura, total, peças) */
+          .print-no-break {
+            break-inside: avoid;
+          }
+          /* Evita página em branco no final */
+          .print-last-section {
+            break-after: auto;
+          }
+        }
       `}</style>
       <PrintLayout />
     </div>
@@ -1749,6 +1803,37 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
         }
       `}</style>
       <div className="hidden print:!block">
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+          @media print {
+            @page {
+              margin: 10mm 12mm 10mm 12mm;
+              size: A4 portrait;
+            }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: white !important;
+            }
+            .print-section {
+              break-inside: auto;
+              orphans: 3;
+              widows: 3;
+            }
+            .print-section-header {
+              break-after: avoid;
+              break-inside: avoid;
+            }
+            .print-checklist-row {
+              break-inside: avoid;
+              orphans: 2;
+              widows: 2;
+            }
+            .print-no-break {
+              break-inside: avoid;
+            }
+          }
+        `}</style>
         <PrintLayout />
       </div>
       <div className="min-h-screen bg-slate-50 font-poppins selection:bg-[#1c2d4f]/10 print:hidden">
@@ -2196,10 +2281,19 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
           })()}
 
           {/* ── CARDS DE VISITAS (SEPARADOS COMO NO APP) ── */}
-          {orderVisits.length > 0 && (
+          {orderVisits.length > 0 && (() => {
+            // Se showAllVisitsInPublicLink=false, exibe apenas a última visita concluída
+            const visibleVisits = showAllVisitsInPublicLink
+              ? orderVisits
+              : (() => {
+                  const last = [...orderVisits].reverse().find(v => v.status === 'completed') || orderVisits[orderVisits.length - 1];
+                  return last ? [last] : [];
+                })();
+            if (visibleVisits.length === 0) return null;
+            return (
             <div className="space-y-6">
-              <SectionHeader icon={<Calendar size={15} />} title="Histórico de Visitas" />
-              {orderVisits.map((visit, idx) => (
+              <SectionHeader icon={<Calendar size={15} />} title={showAllVisitsInPublicLink ? 'Histórico de Visitas' : 'Relatório de Atendimento'} />
+              {visibleVisits.map((visit, idx) => (
                 <VisitCard 
                   key={visit.id} 
                   visit={visit} 
@@ -2212,7 +2306,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
                 />
               ))}
             </div>
-          )}
+            );
+          })()}
 
 
           {/* ── PEÇAS E MATERIAIS (sempre visível quando há itens) ── */}

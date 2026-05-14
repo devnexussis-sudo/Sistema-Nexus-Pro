@@ -89,10 +89,24 @@
        via Web Locks API nativa com fallback. -->
 
   <script>
-    // PWA Service Worker — Registra APENAS em dispositivos móveis
-    // Em desktop: comportamento 100% preservado (sem SW)
+    // PWA Service Worker — Registra APENAS em dispositivos móveis e NÃO em links públicos
     (function() {
       if (!('serviceWorker' in navigator)) return;
+
+      // ⛔ Detecta se é uma rota pública de OS ou Orçamento — PWA DESATIVADO nessas rotas
+      var hash = window.location.hash || '';
+      var isPublicRoute = /^#\/(order\/view|view-quote|view)\//.test(hash);
+
+      if (isPublicRoute) {
+        // Link público: remove qualquer SW existente para garantir que não há cache/prompt
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var i = 0; i < registrations.length; i++) {
+            registrations[i].unregister();
+          }
+        });
+        console.log('[PWA] Rota pública detectada — Service Worker desativado.');
+        return;
+      }
 
       var ua = navigator.userAgent || '';
       var mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(ua);
@@ -102,7 +116,7 @@
       var isMobile = signals >= 2;
 
       if (isMobile) {
-        // Mobile: Registra o Service Worker para habilitar PWA
+        // Mobile (não-público): Registra o Service Worker para habilitar PWA
         navigator.serviceWorker.register('/sw.js', { scope: '/' })
           .then(function(reg) {
             console.log('[PWA] Service Worker registrado:', reg.scope);
@@ -111,7 +125,7 @@
             console.warn('[PWA] Falha ao registrar SW:', err);
           });
       } else {
-        // Desktop: Mantém comportamento anterior — desregistra SWs antigos
+        // Desktop: desregistra SWs antigos
         navigator.serviceWorker.getRegistrations().then(function(registrations) {
           for (var i = 0; i < registrations.length; i++) {
             registrations[i].unregister().then(function(bool) {
