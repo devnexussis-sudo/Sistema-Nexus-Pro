@@ -163,22 +163,10 @@ export const useOrderExport = () => {
             
             if (raw.service_visits && Array.isArray(raw.service_visits) && raw.service_visits.length > 0) {
                 const visits = [...raw.service_visits].sort((a, b) => a.visit_number - b.visit_number);
-                visitHistory = JSON.stringify(visits.map(v => {
+                visits.forEach(v => {
                     if (v.displacement_distance) totalDisplacementDist += Number(v.displacement_distance) || 0;
                     if (v.displacement_time) totalDisplacementTime += Number(v.displacement_time) || 0;
-                    
-                    return {
-                        visita: v.visit_number,
-                        status: v.status,
-                        agendado_data: v.scheduled_date,
-                        agendado_hora: v.scheduled_time,
-                        checkin: v.arrival_time,
-                        conclusao: v.departure_time,
-                        distancia_km: v.displacement_distance || 0,
-                        tempo_deslocamento_min: v.displacement_time || 0,
-                        obs_tecnico: v.tech_report || ''
-                    };
-                }));
+                });
             }
             
             let equipments = 'N/A';
