@@ -8,11 +8,12 @@ interface UseOrderExportProps {
     filteredOrders: ServiceOrder[];
     selectedOrderIds: string[];
     techs: User[];
+    customers: any[];
 }
 import { supabase } from '../lib/supabase';
 
 export const useOrderExport = () => {
-    const handleExportExcel = async ({ orders, filteredOrders, selectedOrderIds, techs }: UseOrderExportProps) => {
+    const handleExportExcel = async ({ orders, filteredOrders, selectedOrderIds, techs, customers }: UseOrderExportProps) => {
         // Se tiver seleção, precisa garantir que busca também as IDs de outras páginas.
         if (selectedOrderIds.length === 0) return;
 
@@ -129,8 +130,7 @@ export const useOrderExport = () => {
             'Distância Total Percorrida (km)',
             'Tempo Total Deslocamento (min)',
             'Ativos / Equipamentos',
-            'Histórico de Visitas (JSON)',
-            'Formulários e Evidências (JSON)',
+            'Nº Série / Identificador',
             'Link Público'
         ];
 
@@ -154,9 +154,10 @@ export const useOrderExport = () => {
             const techName = techNameMap.get(o.assignedTo || '') || 'N/A';
 
             const raw = o._raw || {};
-            const customer = raw.customers || {};
             
-            let visitHistory = '[]';
+            // Busca os dados reais do cliente a partir da lista fornecida
+            const customer = customers.find(c => c.id === o.customerId || c.name === o.customerName) || {};
+            
             let totalDisplacementDist = 0;
             let totalDisplacementTime = 0;
             
@@ -180,20 +181,17 @@ export const useOrderExport = () => {
                 }));
             }
             
-            let equipments = '[]';
+            let equipments = 'N/A';
+            let serialNumbers = 'N/A';
             if (raw.service_order_equipments && Array.isArray(raw.service_order_equipments) && raw.service_order_equipments.length > 0) {
-                equipments = JSON.stringify(raw.service_order_equipments.map((e: any) => ({
-                    nome: e.equipment_name,
-                    modelo: e.equipment_model,
-                    serial: e.equipment_serial,
-                    familia: e.equipment_family
-                })));
+                equipments = raw.service_order_equipments.map((e: any) => e.equipment_name || e.equipment_model).join(', ');
+                serialNumbers = raw.service_order_equipments.map((e: any) => e.equipment_serial).filter(Boolean).join(', ') || 'N/A';
             } else if (o.equipmentName) {
-                equipments = JSON.stringify([{ nome: o.equipmentName, modelo: o.equipmentModel, serial: o.equipmentSerial }]);
+                equipments = o.equipmentName + (o.equipmentModel ? ` - ${o.equipmentModel}` : '');
+                serialNumbers = o.equipmentSerial || 'N/A';
             }
 
             const publicUrl = `${window.location.origin}/#/order/view/${o.publicToken || o.id}`;
-            const formDataSafe = JSON.stringify(o.formData || {});
 
             return [
                 o.displayId || o.id,
@@ -229,8 +227,7 @@ export const useOrderExport = () => {
                 totalDisplacementDist.toFixed(2),
                 totalDisplacementTime.toFixed(2),
                 equipments,
-                visitHistory,
-                formDataSafe,
+                serialNumbers,
                 publicUrl
             ];
         });
@@ -274,8 +271,7 @@ export const useOrderExport = () => {
             { wch: 15 }, // Dist
             { wch: 15 }, // Tempo
             { wch: 40 }, // Ativos
-            { wch: 50 }, // Histórico
-            { wch: 50 }, // Form Data
+            { wch: 25 }, // Serie
             { wch: 60 }  // Link Público
         ];
         ws['!cols'] = colWidths;
@@ -286,6 +282,18 @@ export const useOrderExport = () => {
             const address = XLSX.utils.encode_cell({ r: 0, c: C });
             if (!ws[address]) continue;
             ws[address].s = headerStyle;
+        }
+
+        // Aumentar a fonte do corpo da tabela
+        for (let R = 1; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const address = XLSX.utils.encode_cell({ r: R, c: C });
+                if (!ws[address]) continue;
+                if (!ws[address].s) ws[address].s = {};
+                if (!ws[address].s.font) ws[address].s.font = {};
+                ws[address].s.font.sz = 12; // Aumentou a letra
+                ws[address].s.alignment = { vertical: 'center' };
+            }
         }
 
         // 7. Gerar Arquivo

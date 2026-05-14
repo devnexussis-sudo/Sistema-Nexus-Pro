@@ -253,7 +253,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       orders: pagedOrders,
       filteredOrders: pagedOrders.filter(o => selectedOrderIds.includes(o.id)),
       selectedOrderIds,
-      techs
+      techs,
+      customers
     });
   };
 
@@ -2919,42 +2920,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Batch Print Container — renderiza tabela de ordens selecionadas */}
       {
         isBatchPrinting && ordersToPrint && createPortal(
-          <div id="batch-print-root" className="bg-white p-8">
-            <div className="mb-6 flex flex-col items-center border-b border-slate-200 pb-4">
-              <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Relatório de Ordens de Serviço</h1>
-              <p className="text-sm text-slate-500 mt-1">Total de registros: {ordersToPrint.length}</p>
-              <p className="text-xs text-slate-400 mt-1">Gerado em: {new Date().toLocaleString('pt-BR')}</p>
+          <div id="batch-print-root" className="bg-white">
+            {/* Cabeçalho do Relatório */}
+            <div className="mb-6 border-b-4 border-[#1C2D4F] pb-6 flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-black text-[#1C2D4F] tracking-tight uppercase">Relatório de Ordens de Serviço</h1>
+                <p className="text-sm font-semibold text-slate-500 mt-1 uppercase tracking-widest">Lista de Seleção • {ordersToPrint.length} Registros</p>
+              </div>
+              <div className="text-right text-xs text-slate-500 font-medium">
+                <p className="font-bold text-slate-800 uppercase mb-1">
+                  {(() => {
+                    try {
+                      const settings = JSON.parse(localStorage.getItem('nexus_settings') || '{}');
+                      return settings?.company?.name || 'Sistema Nexus';
+                    } catch { return 'Sistema Nexus'; }
+                  })()}
+                </p>
+                <p>Gerado em: {new Date().toLocaleString('pt-BR')}</p>
+                <p>Usuário: {auth?.user?.name || 'Administrador'}</p>
+              </div>
             </div>
+
             <table className="w-full text-left border-collapse text-[10px]">
               <thead>
-                <tr className="bg-slate-100 text-slate-700 uppercase tracking-wider">
-                  <th className="px-3 py-2 border border-slate-200 font-bold">Protocolo (ID)</th>
-                  <th className="px-3 py-2 border border-slate-200 font-bold">Datas (Agend. / Abertura)</th>
-                  <th className="px-3 py-2 border border-slate-200 font-bold">Cliente</th>
-                  <th className="px-3 py-2 border border-slate-200 font-bold">Técnico</th>
-                  <th className="px-3 py-2 border border-slate-200 font-bold">Modalidade</th>
-                  <th className="px-3 py-2 border border-slate-200 font-bold">Status</th>
+                <tr className="bg-[#1C2D4F] text-white uppercase tracking-wider">
+                  <th className="px-3 py-2 border border-slate-300 font-bold">Protocolo (ID)</th>
+                  <th className="px-3 py-2 border border-slate-300 font-bold">Data de Abertura</th>
+                  <th className="px-3 py-2 border border-slate-300 font-bold">Data de Conclusão</th>
+                  <th className="px-3 py-2 border border-slate-300 font-bold">Cliente</th>
+                  <th className="px-3 py-2 border border-slate-300 font-bold">Técnico</th>
+                  <th className="px-3 py-2 border border-slate-300 font-bold">Modalidade</th>
+                  <th className="px-3 py-2 border border-slate-300 font-bold">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {ordersToPrint.map((order, idx) => {
                   const techName = techs.find(t => t.id === order.assignedTo)?.name || 'N/A';
-                  const dataAgendada = order.scheduledDate ? new Date(order.scheduledDate + 'T12:00:00').toLocaleDateString('pt-BR') : 'N/A';
                   const dataAbertura = new Date(order.createdAt).toLocaleDateString('pt-BR');
+                  const dataConclusao = order.endDate ? new Date(order.endDate).toLocaleDateString('pt-BR') : '—';
                   
                   return (
                     <tr key={order.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                      <td className="px-3 py-2 border border-slate-200 font-mono text-[9px]">{order.displayId || order.id}</td>
-                      <td className="px-3 py-2 border border-slate-200">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-slate-800">A: {dataAgendada} {order.scheduledTime || ''}</span>
-                          <span className="text-slate-500 text-[8px]">C: {dataAbertura}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 border border-slate-200 font-medium text-slate-700">{order.customerName || 'N/A'}</td>
+                      <td className="px-3 py-2 border border-slate-200 font-mono text-[9px] font-semibold">{order.displayId || order.id}</td>
+                      <td className="px-3 py-2 border border-slate-200 font-medium">{dataAbertura}</td>
+                      <td className="px-3 py-2 border border-slate-200 font-medium">{dataConclusao}</td>
+                      <td className="px-3 py-2 border border-slate-200 font-bold text-slate-700">{order.customerName || 'N/A'}</td>
                       <td className="px-3 py-2 border border-slate-200">{techName}</td>
                       <td className="px-3 py-2 border border-slate-200">{order.operationType || 'N/A'}</td>
-                      <td className="px-3 py-2 border border-slate-200 uppercase font-semibold">{order.status}</td>
+                      <td className="px-3 py-2 border border-slate-200 uppercase font-bold text-[#1C2D4F]">{order.status}</td>
                     </tr>
                   );
                 })}
