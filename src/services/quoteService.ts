@@ -37,7 +37,7 @@ export const QuoteService = {
             customerDocument: data.customer_document,
             title: data.title,
             description: data.description,
-            items: data.items || [],
+            items: typeof data.items === 'string' ? JSON.parse(data.items) : (data.items || []),
             totalValue: data.total_value || 0,
             status: data.status || 'ABERTO',
             notes: data.notes,

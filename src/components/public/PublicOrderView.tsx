@@ -704,6 +704,7 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
   const showPrices = (tenant?.metadata?.showItemPricesInPublicView !== false) && (order?.showValueToClient === true);
   // Se false: exibe apenas a visita de conclusão (a última com status 'completed')
   const showAllVisitsInPublicLink = tenant?.metadata?.showVisitHistoryInPublicLink !== false;
+  const showVisitHistory = tenant?.metadata?.showVisitHistory !== false;
   const [fullscreenImage, setFullscreenImage] = React.useState<string | null>(null);
   const [linkedEquipments, setLinkedEquipments] = React.useState<any[]>([]);
   // Endereço fresco do cadastro do cliente (pode ter sido atualizado após a OS)
@@ -1380,8 +1381,8 @@ export const PublicOrderView: React.FC<PublicOrderViewProps> = ({ order, techs, 
 
         {/* ── Histórico de Visitas (print) ── */}
         {orderVisits.length > 0 && (() => {
-          // Se showAllVisitsInPublicLink=false, exibe apenas a última visita concluída
-          const visibleVisitsPrint = showAllVisitsInPublicLink
+          // Na impressão, usa a configuração geral de histórico de visitas (pois é um documento consolidado)
+          const visibleVisitsPrint = showVisitHistory
             ? orderVisits
             : (() => {
                 const last = [...orderVisits].reverse().find(v => v.status === 'completed') || orderVisits[orderVisits.length - 1];

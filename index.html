@@ -9,7 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2026.03.02.23" />
   <link rel="alternate icon" type="image/png" href="/favicon.png?v=2026.03.02.23" />
   <link rel="apple-touch-icon" href="/duno-icon.png?v=2026.04.28" />
-  <link rel="manifest" href="/manifest.json" />
+  <!-- Manifest is injected dynamically to prevent PWA prompt on public routes -->
 
   <!-- Apple PWA Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -89,24 +89,42 @@
        via Web Locks API nativa com fallback. -->
 
   <script>
-    // PWA Service Worker — Registra APENAS em dispositivos móveis e NÃO em links públicos
+    // PWA Service Worker e Manifest — Registra APENAS em dispositivos móveis e NÃO em links públicos
     (function() {
-      if (!('serviceWorker' in navigator)) return;
-
       // ⛔ Detecta se é uma rota pública de OS ou Orçamento — PWA DESATIVADO nessas rotas
       var hash = window.location.hash || '';
-      var isPublicRoute = /^#\/(order\/view|view-quote|view)\//.test(hash);
+      var path = window.location.pathname || '';
+      
+      // Checa tanto o hash quanto o path diretamente (já que o SPA redirect pode não ter rodado ainda)
+      var isPublicRoute = /^#\/(order\/view|view-quote|view)\//.test(hash) || 
+                          /^\/(order\/view|view-quote|view)\//.test(path);
 
       if (isPublicRoute) {
-        // Link público: remove qualquer SW existente para garantir que não há cache/prompt
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (var i = 0; i < registrations.length; i++) {
-            registrations[i].unregister();
-          }
+        // Previne explicitamente o prompt de instalação
+        window.addEventListener('beforeinstallprompt', function(e) {
+          e.preventDefault();
+          console.log('[PWA] Prompt de instalação (beforeinstallprompt) bloqueado na rota pública.');
         });
-        console.log('[PWA] Rota pública detectada — Service Worker desativado.');
+
+        // Link público: remove qualquer SW existente para garantir que não há cache/prompt
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (var i = 0; i < registrations.length; i++) {
+              registrations[i].unregister();
+            }
+          });
+        }
+        console.log('[PWA] Rota pública detectada — Service Worker e Manifest desativados.');
         return;
       }
+
+      // Adiciona o manifest dinamicamente apenas para rotas não-públicas
+      var manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = '/manifest.json';
+      document.head.appendChild(manifestLink);
+
+      if (!('serviceWorker' in navigator)) return;
 
       var ua = navigator.userAgent || '';
       var mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile/i.test(ua);

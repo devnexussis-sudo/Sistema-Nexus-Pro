@@ -920,22 +920,22 @@ export const UserManagement: React.FC = () => {
                                     });
                                   }}
                                   className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${isSelected
-                                      ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
-                                      : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
+                                    ? 'border-[#1c2d4f] bg-[#1c2d4f05] shadow-sm'
+                                    : 'border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-white'
                                     }`}
                                 >
                                   {/* Checkbox visual */}
                                   <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all shrink-0 ${isSelected
-                                      ? 'bg-[#1c2d4f] border-[#1c2d4f]'
-                                      : 'bg-white border-slate-300'
+                                    ? 'bg-[#1c2d4f] border-[#1c2d4f]'
+                                    : 'bg-white border-slate-300'
                                     }`}>
                                     {isSelected && <Check size={10} className="text-white" />}
                                   </div>
                                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 transition-colors ${isSelected
-                                      ? 'bg-[#1c2d4f] border-[#1c2d4f] text-white'
-                                      : g.isSystem
-                                        ? 'bg-amber-50 border-amber-200 text-amber-500'
-                                        : 'bg-white border-slate-200 text-slate-400'
+                                    ? 'bg-[#1c2d4f] border-[#1c2d4f] text-white'
+                                    : g.isSystem
+                                      ? 'bg-amber-50 border-amber-200 text-amber-500'
+                                      : 'bg-white border-slate-200 text-slate-400'
                                     }`}>
                                     {g.isSystem ? <ShieldCheck size={13} /> : <FolderTree size={13} />}
                                   </div>

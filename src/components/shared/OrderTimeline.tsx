@@ -63,7 +63,7 @@ export const OrderTimeline: React.FC<OrderTimelineProps> = ({ orderId }) => {
     };
 
     const getLabel = (type: string, details: any) => {
-        if (type === 'ORDER_CREATED') return `OS Criada (${details.status})`;
+        if (type === 'ORDER_CREATED') return `OS Criada`;
         if (type === 'VISIT_PENDING') return `Visita Agendada`;
         if (type === 'VISIT_ONGOING') return `Visita em Andamento`;
         if (type === 'VISIT_PAUSED') return `Visita Pausada`;

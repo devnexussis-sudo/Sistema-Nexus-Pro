@@ -32,7 +32,12 @@ export const OrderService = {
             operation_type: order.operationType,
             assigned_to: order.assignedTo,
             form_id: order.formId,
-            form_data: { ...(order.formData || {}), _internalNotes: order.internalNotes, _receiptUrl: order.receiptUrl } as Record<string, unknown>,
+            form_data: { 
+                ...(order.formData || {}), 
+                _internalNotes: order.internalNotes, 
+                _receiptUrl: order.receiptUrl,
+                items: order.items // FALLBACK de segurança
+            } as Record<string, unknown>,
             equipment_name: order.equipmentName,
             equipment_model: order.equipmentModel,
             equipment_serial: order.equipmentSerial,
@@ -89,7 +94,9 @@ export const OrderService = {
             endDate: data.end_date,
             notes: data.notes,
             internalNotes: ((data.form_data as any)?._internalNotes) || [],
-            items: (data.items ?? []) as OrderItem[],
+            items: (typeof data.items === 'string' 
+                ? JSON.parse(data.items) 
+                : (data.items || (data.form_data as any)?.items || [])) as OrderItem[],
             showValueToClient: data.show_value_to_client ?? false,
             billingStatus: data.billing_status ?? 'PENDING',
             paymentMethod: data.payment_method,
@@ -547,7 +554,31 @@ export const OrderService = {
             // ela entra automaticamente na fila do financeiro como PENDING.
             // OS sem cobrança (valor = 0) ficam sem billingStatus e não aparecem no financeiro.
             if (status === OrderStatus.COMPLETED) {
-                const itemsValue = items?.reduce((acc, i) => acc + (i.total || 0), 0) ?? 0;
+                let finalItemsToSum = items;
+                if (!finalItemsToSum) {
+                    try {
+                        const tid = getCurrentTenantId();
+                        if (tid) {
+                            const { data: existingOrder } = await supabase
+                                .from('orders')
+                                .select('items, form_data')
+                                .eq('id', id)
+                                .eq('tenant_id', tid)
+                                .single();
+                            
+                            if (existingOrder) {
+                                const rawItems = typeof existingOrder.items === 'string' 
+                                    ? JSON.parse(existingOrder.items) 
+                                    : (existingOrder.items || (existingOrder.form_data as any)?.items || []);
+                                finalItemsToSum = rawItems as any[];
+                            }
+                        }
+                    } catch(e) {
+                        console.warn("⚠️ [OrderService] Falha ao recuperar itens para soma de faturamento:", e);
+                    }
+                }
+
+                const itemsValue = finalItemsToSum?.reduce((acc, i) => acc + (Number(i.total) || 0), 0) ?? 0;
                 const formTotal = (processedData as any)?.totalValue || (processedData as any)?.price || 0;
                 const orderValue = itemsValue + Number(formTotal);
 

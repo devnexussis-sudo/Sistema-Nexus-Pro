@@ -48,6 +48,10 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
     const [signature, setSignature] = useState<string | null>(order.signature || null);
     const [signerName, setSignerName] = useState(order.signatureName || '');
     const [signerDoc, setSignerDoc] = useState(order.signatureDoc || '');
+    
+    // Conclusão explícita
+    const [conclusionText, setConclusionText] = useState(order.formData?.technical_report || order.formData?.technicalReport || '');
+    const [conclusionPhotos, setConclusionPhotos] = useState<string[]>(order.formData?.extra_photos || order.formData?.extraPhotos || []);
 
     // Block State & Start Prompt
     const [showStartPrompt, setShowStartPrompt] = useState(false);
@@ -400,12 +404,18 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
         try {
             const finalData = {
                 ...answers,
+                technical_report: conclusionText,
+                extra_photos: conclusionPhotos,
                 signature,
                 signatureName: signerName,
                 signatureDoc: signerDoc,
                 finishedAt: new Date().toISOString()
             };
-            await onUpdateStatus(OrderStatus.COMPLETED, "Serviço finalizado via App Técnico V2", finalData);
+            
+            // Garantir que a conclusão seja enviada como nota técnica da OS se houver texto
+            const finalNotes = conclusionText ? `CONCLUSÃO: ${conclusionText}` : "Serviço finalizado via App Técnico V2";
+            
+            await onUpdateStatus(OrderStatus.COMPLETED, finalNotes, finalData);
             onClose();
         } catch (e) {
             console.error(e);
@@ -709,6 +719,65 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                                     <div className="bg-slate-50 p-6 rounded-lg border border-slate-100 space-y-4">
                                         <div className="flex items-center gap-3 mb-2">
                                             <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center text-primary-600">
+                                                <FileText size={16} />
+                                            </div>
+                                            <h3 className="text-sm font-black text-slate-900 uppercase italic">Conclusão do Serviço</h3>
+                                        </div>
+                                        <textarea
+                                            placeholder="Descreva o relatório técnico ou a conclusão do atendimento..."
+                                            value={conclusionText}
+                                            onChange={e => setConclusionText(e.target.value)}
+                                            rows={3}
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-100 transition-all placeholder:text-slate-300 resize-none"
+                                        />
+                                        
+                                        <div className="pt-2">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Evidências Finais (Opcional)</p>
+                                            <div className="grid grid-cols-3 gap-3">
+                                                {conclusionPhotos.map((p, i) => (
+                                                    <div key={i} className="relative group aspect-square">
+                                                        <img src={p} className="w-full h-full object-cover rounded-xl border border-slate-200" alt="Evidência" />
+                                                        <button 
+                                                            onClick={() => setConclusionPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                                                            className="absolute -top-2 -right-2 bg-red-500 text-white p-1.5 rounded-lg shadow-lg"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {conclusionPhotos.length < 3 && (
+                                                    <div className="aspect-square border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center bg-slate-50/50 hover:bg-slate-100 transition-colors relative cursor-pointer">
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*" 
+                                                            capture="environment"
+                                                            onChange={async (e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    setIsLoading(true);
+                                                                    try {
+                                                                        const b64 = await compressImage(file);
+                                                                        setConclusionPhotos(prev => [...prev, b64]);
+                                                                    } catch(err) {
+                                                                        alert("Erro ao processar imagem.");
+                                                                    } finally {
+                                                                        setIsLoading(false);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                        />
+                                                        <Camera size={20} className="text-slate-400 mb-1" />
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase">Adicionar</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-50 p-6 rounded-lg border border-slate-100 space-y-4">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-8 h-8 rounded-full bg-primary-50 flex items-center justify-center text-primary-600">
                                                 <User size={16} />
                                             </div>
                                             <h3 className="text-sm font-black text-slate-900 uppercase italic">Quem está recebendo o serviço?</h3>
@@ -830,6 +899,14 @@ export const OrderDetailsV2: React.FC<OrderDetailsV2Props> = ({ order, onClose, 
                     </div>
                 )
             }
+
+            {/* FULL SCREEN LOADING SPINNER */}
+            {isLoading && (
+                <div className="fixed inset-0 z-[300] bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in">
+                    <div className="w-12 h-12 border-4 border-slate-200 border-t-primary-500 rounded-full animate-spin shadow-md"></div>
+                    <p className="mt-4 text-xs font-bold uppercase tracking-widest text-slate-600">Processando...</p>
+                </div>
+            )}
 
             {/* BLOCK MODAL COM FORMULÁRIO COMPLETO */}
             {
